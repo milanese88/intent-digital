@@ -38,21 +38,73 @@ export default function Home() {
       <header className="hero-section">
         <div className="container hero-container">
           <div className="hero-content">
-            <h1 className="hero-title">Your brand, built with intention.</h1>
-            <p className="hero-subtitle">
-              We help founders build brands that look as good as they work &mdash; from logo to launch.
+            <span className="hero-eyebrow">Creative Marketing  &middot;  Branding  &middot;  Content</span>
+            <h1 className="hero-title-main">Intent Digital</h1>
+            <p className="hero-subtitle-main">
+              Authentic, intentional branding for businesses that stand out.
             </p>
             <div className="hero-actions">
               <a href="mailto:hello@intent-digital.com" className="btn btn-hero-primary">
                 Get started &rarr;
               </a>
-              <a href="#services" className="btn btn-hero-secondary" onClick={(e) => handleScroll(e, 'services')}>
-                See services
+              <a href="#portfolio" className="btn btn-hero-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
+                See our work
               </a>
             </div>
           </div>
         </div>
       </header>
+
+      {/* PORTFOLIO SHOWCASE SECTION */}
+      <section id="portfolio" className="portfolio-section">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tagline">Our Work</span>
+            <h2 className="section-title">Brands we've built</h2>
+          </div>
+          <div className="portfolio-grid">
+            {/* Card 1 - Logo Design */}
+            <div className="portfolio-card portfolio-card-large">
+              <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1000&q=80" alt="Logo Design" className="portfolio-img" />
+              <div className="portfolio-overlay">
+                <span className="portfolio-category">Logo Design</span>
+              </div>
+            </div>
+
+            {/* Card 2 - Packaging Design */}
+            <div className="portfolio-card portfolio-card-tall">
+              <img src="https://images.unsplash.com/photo-1527061011665-3652c757a4d4?w=800&q=80" alt="Packaging Design" className="portfolio-img" />
+              <div className="portfolio-overlay">
+                <span className="portfolio-category">Packaging Design</span>
+              </div>
+            </div>
+
+            {/* Card 3 - Personal Branding */}
+            <div className="portfolio-card">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80" alt="Personal Branding" className="portfolio-img" />
+              <div className="portfolio-overlay">
+                <span className="portfolio-category">Personal Branding</span>
+              </div>
+            </div>
+
+            {/* Card 4 - Brand Identity */}
+            <div className="portfolio-card">
+              <img src="https://images.unsplash.com/photo-1507208773393-4009075449fb?w=800&q=80" alt="Brand Identity" className="portfolio-img" />
+              <div className="portfolio-overlay">
+                <span className="portfolio-category">Brand Identity</span>
+              </div>
+            </div>
+
+            {/* Card 5 - Content Creation */}
+            <div className="portfolio-card">
+              <img src="https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=800&q=80" alt="Content Creation" className="portfolio-img" />
+              <div className="portfolio-overlay">
+                <span className="portfolio-category">Content Creation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* SECTION 3 — SERVICES ("What We Offer") */}
       <section id="services" className="services-section">

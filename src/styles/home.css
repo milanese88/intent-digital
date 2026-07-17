@@ -79,7 +79,7 @@
 
 /* Hero Section */
 .hero-section {
-  padding: 140px 0 120px 0;
+  padding: 160px 0 120px 0;
   text-align: center;
 }
 
@@ -90,24 +90,40 @@
 }
 
 .hero-content {
-  max-width: 800px;
+  max-width: 900px;
 }
 
-.hero-title {
-  font-size: 64px;
-  line-height: 1.15;
-  letter-spacing: -2px;
-  color: var(--text-dark);
+.hero-eyebrow {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   margin-bottom: 24px;
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.hero-subtitle {
-  font-size: 20px;
-  line-height: 1.6;
+.hero-title-main {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(64px, 8vw, 120px);
+  line-height: 1.05;
+  letter-spacing: -3px;
+  color: var(--text-dark);
+  margin-bottom: 24px;
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.05s backwards;
+}
+
+.hero-subtitle-main {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: clamp(18px, 2vw, 20px);
+  line-height: 1.5;
   color: var(--text-muted);
   margin-bottom: 40px;
-  max-width: 660px;
+  max-width: 560px;
   margin-left: auto;
   margin-right: auto;
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
@@ -117,7 +133,7 @@
   display: flex;
   justify-content: center;
   gap: 16px;
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s backwards;
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
 }
 
 .btn-hero-primary {
@@ -138,6 +154,92 @@
 .btn-hero-secondary:hover {
   background-color: var(--bg-card);
   border-color: var(--text-dark);
+}
+
+/* Portfolio Section */
+.portfolio-section {
+  padding: 100px 0;
+  border-bottom: 1px solid var(--border-card);
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 24px;
+}
+
+.portfolio-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  background-color: var(--text-dark);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portfolio-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 16px 32px rgba(30, 18, 8, 0.12);
+}
+
+.portfolio-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portfolio-card:hover .portfolio-img {
+  transform: scale(1.05);
+}
+
+.portfolio-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(30, 18, 8, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  padding: 24px;
+}
+
+.portfolio-card:hover .portfolio-overlay {
+  opacity: 1;
+}
+
+.portfolio-category {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 20px;
+  color: #ffffff;
+  transform: translateY(10px);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portfolio-card:hover .portfolio-category {
+  transform: translateY(0);
+}
+
+/* Asymmetric widths for Row 1 */
+.portfolio-card-large {
+  grid-column: span 18;
+  height: 480px;
+}
+
+.portfolio-card-tall {
+  grid-column: span 12;
+  height: 480px;
+}
+
+/* Equal widths for Row 2 */
+.portfolio-card:not(.portfolio-card-large):not(.portfolio-card-tall) {
+  grid-column: span 10;
+  height: 360px;
 }
 
 /* Section Common Styles */
@@ -550,12 +652,12 @@
     padding: 100px 0 80px 0;
   }
 
-  .hero-title {
+  .hero-title-main {
     font-size: 42px;
     letter-spacing: -1px;
   }
 
-  .hero-subtitle {
+  .hero-subtitle-main {
     font-size: 18px;
   }
 
@@ -568,6 +670,19 @@
 
   .btn {
     width: 100%;
+  }
+
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .portfolio-card,
+  .portfolio-card-large,
+  .portfolio-card-tall,
+  .portfolio-card:not(.portfolio-card-large):not(.portfolio-card-tall) {
+    grid-column: span 1 !important;
+    height: 300px !important;
   }
 
   .services-grid {
