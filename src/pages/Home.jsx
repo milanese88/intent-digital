@@ -65,7 +65,7 @@ export default function Home() {
           <div className="portfolio-grid">
             {/* Card 1 - Rosé & Roast */}
             <div className="portfolio-card portfolio-card-large">
-              <img src="https://images.unsplash.com/photo-1507133750040-4a8f57021571?w=1000&q=80" alt="Rosé & Roast" className="portfolio-img" />
+              <img src="/portfolio/rose-roast.png" alt="Rosé & Roast" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
                   <h3 className="portfolio-title-text">Rosé &amp; Roast</h3>
@@ -76,7 +76,7 @@ export default function Home() {
 
             {/* Card 2 - Studio Solé */}
             <div className="portfolio-card portfolio-card-tall">
-              <img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&q=80" alt="Studio Solé" className="portfolio-img" />
+              <img src="/portfolio/studio-sole.png" alt="Studio Solé" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
                   <h3 className="portfolio-title-text">Studio Solé</h3>
@@ -87,7 +87,7 @@ export default function Home() {
 
             {/* Card 3 - The Alcove Hotel */}
             <div className="portfolio-card portfolio-card-half">
-              <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80" alt="The Alcove Hotel" className="portfolio-img" />
+              <img src="/portfolio/alcove-hotel.png" alt="The Alcove Hotel" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
                   <h3 className="portfolio-title-text">The Alcove Hotel</h3>
@@ -98,7 +98,7 @@ export default function Home() {
 
             {/* Card 4 - Patio Coffee Co. */}
             <div className="portfolio-card portfolio-card-half">
-              <img src="https://images.unsplash.com/photo-1545048702-79362596cdc9?w=800&q=80" alt="Patio Coffee Co." className="portfolio-img" />
+              <img src="/portfolio/patio-coffee.png" alt="Patio Coffee Co." className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
                   <h3 className="portfolio-title-text">Patio Coffee Co.</h3>
