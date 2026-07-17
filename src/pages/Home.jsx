@@ -39,7 +39,7 @@ export default function Home() {
         <div className="container hero-container">
           <div className="hero-content">
             <span className="hero-eyebrow">Creative Marketing  &middot;  Branding  &middot;  Content</span>
-            <h1 className="hero-title-main">Intent Digital</h1>
+            <h1 className="hero-title-main"><img src="/intent-logo.png" alt="Intent" className="hero-logo-img" /></h1>
             <p className="hero-subtitle-main">
               Authentic, intentional branding for businesses that stand out.
             </p>

@@ -136,6 +136,21 @@
   color: var(--espresso);
   margin-bottom: 24px;
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.05s backwards;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-logo-img {
+  max-width: 480px;
+  width: 100%;
+  height: auto;
+  max-height: 160px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  display: inline-block;
 }
 
 .hero-subtitle-main {
