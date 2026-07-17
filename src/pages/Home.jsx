@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import IntroCurtain from '../components/IntroCurtain';
 import '../styles/home.css';
 
 export default function Home() {
+  const [startReveal, setStartReveal] = useState(false);
+
+  useEffect(() => {
+    const introSeen = sessionStorage.getItem('introSeen');
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (introSeen || prefersReducedMotion) {
+      setStartReveal(true);
+    }
+  }, []);
   const handleScroll = (e, id) => {
     e.preventDefault();
     const element = document.getElementById(id);
@@ -17,6 +28,7 @@ export default function Home() {
 
   return (
     <div className="home-page">
+      <IntroCurtain onComplete={() => setStartReveal(true)} />
       {/* SECTION 1 — NAV */}
       <nav className="navbar">
         <div className="container nav-container">
@@ -40,11 +52,37 @@ export default function Home() {
           <div className="hero-postcard-card">
             {/* Left side of the postcard */}
             <div className="postcard-left">
-              <div className="postcard-logo-wrap">
-                <img src="/intent-script-logo.png" alt="Intent Digital" className="postcard-logo-img" />
-              </div>
+              <motion.div
+                initial={{ clipPath: "inset(0 100% 0 0)" }}
+                animate={startReveal ? { clipPath: "inset(0 0% 0 0)" } : {}}
+                transition={{ duration: 1.5, ease: "easeInOut", delay: 0.2 }}
+                className="postcard-logo-wrap"
+              >
+                <img src="/src/assets/intent-wordmark.svg" alt="Intent Digital" className="postcard-logo-img" />
+              </motion.div>
               
-              <div className="postcard-fields">
+              <motion.p
+                initial={{ opacity: 0, y: 15 }}
+                animate={startReveal ? { opacity: 0.7, y: 0 } : {}}
+                transition={{ duration: 0.8, ease: "easeOut", delay: 1.2 }}
+                style={{
+                  fontSize: '14px',
+                  color: 'var(--espresso)',
+                  fontFamily: 'var(--font-body)',
+                  margin: '-12px 0 28px 0',
+                  lineHeight: '1.4',
+                  textAlign: 'left'
+                }}
+              >
+                Authentic, intentional branding for businesses that stand out.
+              </motion.p>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={startReveal ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.8, ease: "easeOut", delay: 1.5 }}
+                className="postcard-fields"
+              >
                 <div className="postcard-field">
                   <span className="field-label">To:</span>
                   <span className="field-value">Authentic Business</span>
@@ -53,18 +91,28 @@ export default function Home() {
                   <span className="field-label">From:</span>
                   <span className="field-value">Intent Digital, Fort Lauderdale, FL</span>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="postcard-actions">
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={startReveal ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.8, ease: "easeOut", delay: 1.8 }}
+                className="postcard-actions"
+              >
                 <a href="mailto:hello@intent-digital.com" className="btn btn-hero-primary">
                   Get started &rarr;
                 </a>
                 <a href="#portfolio" className="btn btn-hero-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
                   See our work
                 </a>
-              </div>
+              </motion.div>
               
-              <div className="postcard-postmark-wrap">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={startReveal ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 0.8, ease: "easeOut", delay: 2.1 }}
+                className="postcard-postmark-wrap"
+              >
                 <svg className="postcard-postmark" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="0.8" />
                   <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" strokeDasharray="2 2" strokeWidth="0.5" />
@@ -73,12 +121,17 @@ export default function Home() {
                   <text x="50" y="62" fontSize="7" textAnchor="middle" fill="currentColor">2025</text>
                   <text x="50" y="74" fontSize="7" textAnchor="middle" fill="currentColor" letterSpacing="1">FLA.</text>
                 </svg>
-              </div>
+              </motion.div>
             </div>
 
             {/* Right side of the postcard */}
             <div className="postcard-right">
-              <div className="postcard-stamp-area">
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={startReveal ? { opacity: 1, x: 0 } : {}}
+                transition={{ duration: 0.8, ease: "easeOut", delay: 1.5 }}
+                className="postcard-stamp-area"
+              >
                 <div className="postage-stamp">
                   <div className="postage-stamp-inner"></div>
                 </div>
@@ -89,11 +142,16 @@ export default function Home() {
                     <path d="M 0 30 Q 15 25 30 30 T 60 30 T 90 30" fill="none" stroke="currentColor" strokeWidth="0.8" />
                   </svg>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="postcard-letter-content">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={startReveal ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 1.0, ease: "easeOut", delay: 1.8 }}
+                className="postcard-letter-content"
+              >
                 <img src="/intent-letter-text.png" alt="Handwritten letter from Intent Digital" className="postcard-letter-img" />
-              </div>
+              </motion.div>
             </div>
           </div>
         </div>
