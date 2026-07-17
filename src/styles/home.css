@@ -5,9 +5,9 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background-color: rgba(251, 243, 221, 0.9); /* Cream at 90% opacity */
+  background-color: var(--cream-90); /* Cream at 90% opacity */
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(58, 52, 43, 0.15); /* Espresso at 15% opacity */
+  border-bottom: 1px solid var(--espresso-15); /* Espresso at 15% opacity */
   padding: 16px 0;
   transition: var(--transition-smooth);
 }
@@ -94,7 +94,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: linear-gradient(rgba(251, 243, 221, 0.72), rgba(251, 243, 221, 0.72)), url('https://images.unsplash.com/photo-1538964173425-93884d738596?w=1600&q=80');
+  background-image: linear-gradient(var(--cream-72), var(--cream-72)), url('https://images.unsplash.com/photo-1538964173425-93884d738596?w=1600&q=80');
   background-size: cover;
   background-position: center;
   filter: blur(8px);
@@ -172,18 +172,18 @@
 .btn-hero-secondary {
   background-color: transparent;
   color: var(--espresso);
-  border: 1px solid rgba(58, 52, 43, 0.2); /* Espresso at 20% opacity */
+  border: 1px solid var(--espresso-20); /* Espresso at 20% opacity */
 }
 
 .btn-hero-secondary:hover {
-  background-color: rgba(58, 52, 43, 0.05);
+  background-color: var(--espresso-05);
   border-color: var(--espresso);
 }
 
 /* Portfolio Section */
 .portfolio-section {
   padding: 100px 0;
-  border-bottom: 1px solid rgba(58, 52, 43, 0.15);
+  border-bottom: 1px solid var(--espresso-15);
 }
 
 .portfolio-grid {
@@ -203,7 +203,7 @@
 
 .portfolio-card:hover {
   transform: scale(1.02);
-  box-shadow: 0 16px 32px rgba(58, 52, 43, 0.12);
+  box-shadow: 0 16px 32px var(--espresso-12);
 }
 
 .portfolio-img {
@@ -223,7 +223,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(58, 52, 43, 0.85); /* Espresso overlay */
+  background-color: var(--espresso-85); /* Espresso overlay */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -324,10 +324,10 @@
 
 .service-card {
   background-color: var(--cream);
-  border: 1px solid rgba(58, 52, 43, 0.15); /* Espresso border */
+  border: 1px solid var(--espresso-15); /* Espresso border */
   border-radius: 24px;
   padding: 48px;
-  box-shadow: 0 8px 30px rgba(58, 52, 43, 0.02);
+  box-shadow: 0 8px 30px var(--espresso-02);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -336,7 +336,7 @@
 
 .service-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(58, 52, 43, 0.06);
+  box-shadow: 0 20px 40px var(--espresso-06);
   border-color: var(--terracotta);
 }
 
@@ -354,10 +354,10 @@
   font-weight: 600;
   color: var(--espresso);
   opacity: 0.7;
-  border: 1px solid rgba(58, 52, 43, 0.15);
+  border: 1px solid var(--espresso-15);
   padding: 4px 14px;
   border-radius: 999px;
-  background-color: rgba(251, 243, 221, 0.5); /* Cream background */
+  background-color: var(--cream-50); /* Cream background */
 }
 
 .badge-best-seller {
@@ -405,7 +405,7 @@
 
 .card-divider {
   border: 0;
-  border-top: 1px solid rgba(58, 52, 43, 0.15);
+  border-top: 1px solid var(--espresso-15);
   margin-bottom: 28px;
 }
 
@@ -452,7 +452,7 @@
   color: var(--espresso);
 }
 .btn-card-basics:hover {
-  background-color: rgba(169, 197, 209, 0.8);
+  background-color: var(--dusty-blue-80);
 }
 
 .btn-card-mini {
@@ -460,7 +460,7 @@
   color: var(--espresso);
 }
 .btn-card-mini:hover {
-  background-color: rgba(239, 231, 154, 0.8);
+  background-color: var(--butter-80);
 }
 
 .btn-card-photo {
@@ -481,9 +481,9 @@
 
 /* Why Section (Alternating section using subtle Dusty Blue tint) */
 .why-section {
-  background-color: rgba(169, 197, 209, 0.15); /* Dusty blue tint */
-  border-top: 1px solid rgba(58, 52, 43, 0.15);
-  border-bottom: 1px solid rgba(58, 52, 43, 0.15);
+  background-color: var(--dusty-blue-15); /* Dusty blue tint */
+  border-top: 1px solid var(--espresso-15);
+  border-bottom: 1px solid var(--espresso-15);
 }
 
 .why-grid {
@@ -563,7 +563,7 @@
 .footer-section {
   background-color: var(--cream);
   padding: 80px 0 40px 0;
-  border-top: 1px solid rgba(58, 52, 43, 0.15);
+  border-top: 1px solid var(--espresso-15);
 }
 
 .footer-container {
@@ -664,7 +664,7 @@
 }
 
 .footer-bottom {
-  border-top: 1px solid rgba(58, 52, 43, 0.15);
+  border-top: 1px solid var(--espresso-15);
   padding-top: 30px;
   display: flex;
   justify-content: space-between;

@@ -1,10 +1,27 @@
 :root {
   --cream: #FBF3DD;
+  --cream-90: rgba(251, 243, 221, 0.9);
+  --cream-72: rgba(251, 243, 221, 0.72);
+  --cream-50: rgba(251, 243, 221, 0.5);
+
   --terracotta: #E28E52;
   --terracotta-hover: #D67432;
+
   --butter: #EFE79A;
+  --butter-80: rgba(239, 231, 154, 0.8);
+
   --dusty-blue: #A9C5D1;
+  --dusty-blue-80: rgba(169, 197, 209, 0.8);
+  --dusty-blue-15: rgba(169, 197, 209, 0.15);
+
   --espresso: #3A342B;
+  --espresso-85: rgba(58, 52, 43, 0.85);
+  --espresso-20: rgba(58, 52, 43, 0.2);
+  --espresso-15: rgba(58, 52, 43, 0.15);
+  --espresso-12: rgba(58, 52, 43, 0.12);
+  --espresso-06: rgba(58, 52, 43, 0.06);
+  --espresso-05: rgba(58, 52, 43, 0.05);
+  --espresso-02: rgba(58, 52, 43, 0.02);
 
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
   --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
