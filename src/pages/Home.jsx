@@ -37,19 +37,63 @@ export default function Home() {
       {/* SECTION 2 — HERO */}
       <header className="hero-section">
         <div className="container hero-container">
-          <div className="hero-content">
-            <span className="hero-eyebrow">Creative Marketing  &middot;  Branding  &middot;  Content</span>
-            <h1 className="hero-title-main"><img src="/intent-logo.png" alt="Intent" className="hero-logo-img" /></h1>
-            <p className="hero-subtitle-main">
-              Authentic, intentional branding for businesses that stand out.
-            </p>
-            <div className="hero-actions">
-              <a href="mailto:hello@intent-digital.com" className="btn btn-hero-primary">
-                Get started &rarr;
-              </a>
-              <a href="#portfolio" className="btn btn-hero-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
-                See our work
-              </a>
+          <div className="hero-postcard-card">
+            {/* Left side of the postcard */}
+            <div className="postcard-left">
+              <div className="postcard-logo-wrap">
+                <img src="/intent-script-logo.png" alt="Intent Digital" className="postcard-logo-img" />
+              </div>
+              
+              <div className="postcard-fields">
+                <div className="postcard-field">
+                  <span className="field-label">To:</span>
+                  <span className="field-value">Authentic Business</span>
+                </div>
+                <div className="postcard-field">
+                  <span className="field-label">From:</span>
+                  <span className="field-value">Intent Digital, Fort Lauderdale, FL</span>
+                </div>
+              </div>
+              
+              <div className="postcard-actions">
+                <a href="mailto:hello@intent-digital.com" className="btn btn-hero-primary">
+                  Get started &rarr;
+                </a>
+                <a href="#portfolio" className="btn btn-hero-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
+                  See our work
+                </a>
+              </div>
+              
+              <div className="postcard-postmark-wrap">
+                <svg className="postcard-postmark" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="0.8" />
+                  <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" strokeDasharray="2 2" strokeWidth="0.5" />
+                  <text x="50" y="32" fontSize="6.5" textAnchor="middle" fill="currentColor" letterSpacing="0.5">FORT LAUDERDALE</text>
+                  <text x="50" y="50" fontSize="9" fontWeight="bold" textAnchor="middle" fill="currentColor">JUL 17</text>
+                  <text x="50" y="62" fontSize="7" textAnchor="middle" fill="currentColor">2025</text>
+                  <text x="50" y="74" fontSize="7" textAnchor="middle" fill="currentColor" letterSpacing="1">FLA.</text>
+                </svg>
+              </div>
+            </div>
+
+            {/* Right side of the postcard */}
+            <div className="postcard-right">
+              <div className="postcard-stamp-area">
+                <div className="postage-stamp">
+                  <div className="postage-stamp-inner"></div>
+                </div>
+                <div className="postmark-waves-wrap">
+                  <svg className="postmark-waves" viewBox="0 0 100 40">
+                    <path d="M 0 10 Q 15 5 30 10 T 60 10 T 90 10" fill="none" stroke="currentColor" strokeWidth="0.8" />
+                    <path d="M 0 20 Q 15 15 30 20 T 60 20 T 90 20" fill="none" stroke="currentColor" strokeWidth="0.8" />
+                    <path d="M 0 30 Q 15 25 30 30 T 60 30 T 90 30" fill="none" stroke="currentColor" strokeWidth="0.8" />
+                  </svg>
+                </div>
+              </div>
+              
+              <div className="postcard-letter-content">
+                <img src="/intent-letter-text.png" alt="Handwritten letter from Intent Digital" className="postcard-letter-img" />
+              </div>
             </div>
           </div>
         </div>
