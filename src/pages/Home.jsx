@@ -63,43 +63,47 @@ export default function Home() {
             <h2 className="section-title">Brands we've built</h2>
           </div>
           <div className="portfolio-grid">
-            {/* Card 1 - Logo Design */}
+            {/* Card 1 - Rosé & Roast */}
             <div className="portfolio-card portfolio-card-large">
-              <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1000&q=80" alt="Logo Design" className="portfolio-img" />
+              <img src="https://images.unsplash.com/photo-1507133750040-4a8f57021571?w=1000&q=80" alt="Rosé & Roast" className="portfolio-img" />
               <div className="portfolio-overlay">
-                <span className="portfolio-category">Logo Design</span>
+                <div className="portfolio-overlay-content">
+                  <h3 className="portfolio-title-text">Rosé &amp; Roast</h3>
+                  <p className="portfolio-desc-text">Brand identity for a boutique coffee shop in Fort Lauderdale.</p>
+                </div>
               </div>
             </div>
 
-            {/* Card 2 - Packaging Design */}
+            {/* Card 2 - Studio Solé */}
             <div className="portfolio-card portfolio-card-tall">
-              <img src="https://images.unsplash.com/photo-1527061011665-3652c757a4d4?w=800&q=80" alt="Packaging Design" className="portfolio-img" />
+              <img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&q=80" alt="Studio Solé" className="portfolio-img" />
               <div className="portfolio-overlay">
-                <span className="portfolio-category">Packaging Design</span>
+                <div className="portfolio-overlay-content">
+                  <h3 className="portfolio-title-text">Studio Solé</h3>
+                  <p className="portfolio-desc-text">Minimal, movement-driven branding for a Palm Beach pilates studio.</p>
+                </div>
               </div>
             </div>
 
-            {/* Card 3 - Personal Branding */}
-            <div className="portfolio-card">
-              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80" alt="Personal Branding" className="portfolio-img" />
+            {/* Card 3 - The Alcove Hotel */}
+            <div className="portfolio-card portfolio-card-half">
+              <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80" alt="The Alcove Hotel" className="portfolio-img" />
               <div className="portfolio-overlay">
-                <span className="portfolio-category">Personal Branding</span>
+                <div className="portfolio-overlay-content">
+                  <h3 className="portfolio-title-text">The Alcove Hotel</h3>
+                  <p className="portfolio-desc-text">Elevated visual identity for a boutique hotel in Palm Beach.</p>
+                </div>
               </div>
             </div>
 
-            {/* Card 4 - Brand Identity */}
-            <div className="portfolio-card">
-              <img src="https://images.unsplash.com/photo-1507208773393-4009075449fb?w=800&q=80" alt="Brand Identity" className="portfolio-img" />
+            {/* Card 4 - Patio Coffee Co. */}
+            <div className="portfolio-card portfolio-card-half">
+              <img src="https://images.unsplash.com/photo-1545048702-79362596cdc9?w=800&q=80" alt="Patio Coffee Co." className="portfolio-img" />
               <div className="portfolio-overlay">
-                <span className="portfolio-category">Brand Identity</span>
-              </div>
-            </div>
-
-            {/* Card 5 - Content Creation */}
-            <div className="portfolio-card">
-              <img src="https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=800&q=80" alt="Content Creation" className="portfolio-img" />
-              <div className="portfolio-overlay">
-                <span className="portfolio-category">Content Creation</span>
+                <div className="portfolio-overlay-content">
+                  <h3 className="portfolio-title-text">Patio Coffee Co.</h3>
+                  <p className="portfolio-desc-text">Playful café branding built for community and consistency.</p>
+                </div>
               </div>
             </div>
           </div>
