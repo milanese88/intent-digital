@@ -20,8 +20,8 @@ export default function Home() {
       {/* SECTION 1 — NAV */}
       <nav className="navbar">
         <div className="container nav-container">
-          <a href="#" className="nav-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            Intent Digital
+          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
           </a>
           <div className="nav-links">
             <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>Services</a>
@@ -271,7 +271,7 @@ export default function Home() {
         <div className="container footer-container">
           <div className="footer-top">
             <div className="footer-brand">
-              <h3 className="footer-logo">Intent Digital</h3>
+              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
               <p className="footer-tagline">Branding for founders who mean business.</p>
             </div>
             <div className="footer-contact">

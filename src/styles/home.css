@@ -18,17 +18,20 @@
   align-items: center;
 }
 
-.nav-logo {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 22px;
-  letter-spacing: -0.5px;
-  color: var(--espresso);
+.nav-logo-link {
+  display: flex;
+  align-items: center;
   transition: var(--transition-smooth);
 }
 
-.nav-logo:hover {
+.nav-logo-link:hover {
   opacity: 0.8;
+}
+
+.nav-logo-img {
+  height: 44px;
+  width: auto;
+  display: block;
 }
 
 .nav-links {
@@ -599,10 +602,11 @@
   gap: 16px;
 }
 
-.footer-logo {
-  font-size: 24px;
-  letter-spacing: -0.5px;
-  color: var(--espresso);
+.footer-logo-img {
+  height: 52px;
+  width: auto;
+  display: block;
+  margin-bottom: 8px;
 }
 
 .footer-tagline {
