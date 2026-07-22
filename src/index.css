@@ -26,7 +26,7 @@
   --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
 
-  --font-body: var(--font-serif);
+  --font-body: var(--font-sans);
   --font-heading: var(--font-serif);
 
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -41,7 +41,7 @@
 body {
   background-color: var(--cream);
   color: var(--espresso);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -80,8 +80,8 @@ img {
   isolation: isolate;
 }
 
-p {
-  font-family: var(--font-serif);
+p, span, label, input, select, textarea, button, a, li, small {
+  font-family: var(--font-sans);
 }
 
 h1, h2, h3, h4, h5, h6 {
