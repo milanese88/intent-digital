@@ -121,9 +121,9 @@ export default function Home({ navigateTo }) {
         {/* INFINITE MARQUEE TICKER BANNER */}
         <div className="marquee-banner">
           <div className="marquee-track">
-            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
           </div>
         </div>
       </header>

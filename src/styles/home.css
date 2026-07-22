@@ -285,19 +285,34 @@
   box-shadow: 0 8px 24px rgba(189, 211, 226, 0.45);
 }
 
-/* Infinite Marquee Ticker Banner */
+/* Infinite Marquee Ticker Banner (Straight Top & Scalloped Bottom Edge) */
 .marquee-banner {
   position: absolute;
-  bottom: 0;
+  bottom: -14px;
   left: 0;
   width: 100%;
-  background-color: var(--dusty-blue); /* Baby Blue background */
+  background-color: var(--dusty-blue); /* Dusty blue #BDD3E2 / #A9C5D1 background */
   border-top: 1px solid var(--espresso-15);
-  border-bottom: 1px solid var(--espresso-15);
+  border-bottom: none;
   overflow: hidden;
-  padding: 14px 0;
+  padding: 16px 0 28px 0;
   z-index: 5;
   white-space: nowrap;
+
+  /* Scallop Mask: Straight flat top edge, repeating convex semicircle scallops on bottom edge */
+  -webkit-mask-image: 
+    linear-gradient(#000 0 0), 
+    radial-gradient(circle at 14px 0px, #000 14px, transparent 14.5px);
+  -webkit-mask-position: top left, bottom left;
+  -webkit-mask-size: 100% calc(100% - 14px), 28px 14px;
+  -webkit-mask-repeat: no-repeat, repeat-x;
+
+  mask-image: 
+    linear-gradient(#000 0 0), 
+    radial-gradient(circle at 14px 0px, #000 14px, transparent 14.5px);
+  mask-position: top left, bottom left;
+  mask-size: 100% calc(100% - 14px), 28px 14px;
+  mask-repeat: no-repeat, repeat-x;
 }
 
 .marquee-track {
