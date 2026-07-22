@@ -1511,3 +1511,39 @@
   cursor: default;
   z-index: 35;
 }
+
+/* Services Page Dedicated Styles */
+.services-hero-section {
+  padding: 140px 0 80px 0;
+  background-color: var(--cream);
+  text-align: center;
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+.services-hero-subtitle {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.6;
+  color: var(--espresso);
+  opacity: 0.85;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.services-custom-banner {
+  padding: 100px 0;
+  background-color: rgba(207, 225, 226, 0.22); /* Soft baby blue tint */
+  border-top: 1px solid var(--espresso-15);
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+.nav-link.active,
+.mobile-nav-link.active {
+  font-weight: 700;
+  color: var(--espresso);
+  opacity: 1;
+}
+
+.nav-link.active::after {
+  width: 100%;
+}
