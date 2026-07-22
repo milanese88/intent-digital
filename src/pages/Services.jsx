@@ -21,7 +21,8 @@ export default function Services({ navigateTo }) {
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
             <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="mailto:hello@intent-digital.com" className="nav-link">CONTACT</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
 
           <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
@@ -29,7 +30,7 @@ export default function Services({ navigateTo }) {
           </a>
 
           <div className="nav-right">
-            <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta desktop-only">
+            <a href="#" className="btn btn-nav-cta desktop-only" onClick={(e) => handleNavClick(e, 'contact')}>
               GET STARTED &rarr;
             </a>
             <button 
@@ -49,8 +50,9 @@ export default function Services({ navigateTo }) {
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
             <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="mailto:hello@intent-digital.com" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>CONTACT</a>
-            <a href="mailto:hello@intent-digital.com" className="btn btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
               GET STARTED &rarr;
             </a>
           </div>
