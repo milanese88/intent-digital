@@ -139,7 +139,7 @@ export default function Home({ navigateTo }) {
           </div>
 
           <div className="our-work-grid">
-            {projectsData.slice(0, 8).map((project) => (
+            {projectsData.map((project) => (
               <a
                 key={project.id}
                 href={project.href || "#"}
@@ -153,12 +153,8 @@ export default function Home({ navigateTo }) {
                     className="gallery-image"
                     loading="lazy"
                   />
-                  <div className="gallery-overlay">
-                    <h3 className="gallery-title">{project.title}</h3>
-                    <p className="gallery-desc">{project.description}</p>
-                  </div>
                 </div>
-                <div className="gallery-caption mobile-caption">
+                <div className="gallery-caption">
                   <h3 className="gallery-title">{project.title}</h3>
                   <p className="gallery-desc">{project.description}</p>
                 </div>
