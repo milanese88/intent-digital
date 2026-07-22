@@ -684,12 +684,13 @@
 }
 
 .section-title {
-  font-family: var(--font-serif);
-  font-size: clamp(36px, 4.5vw, 52px);
-  font-weight: 600;
-  letter-spacing: -1px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: clamp(38px, 4.8vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
   color: var(--espresso);
-  max-width: 650px;
+  max-width: 700px;
   margin: 0 auto;
 }
 
@@ -911,12 +912,14 @@
 }
 
 .cta-banner-title {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: clamp(40px, 5vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
   color: var(--cream);
-  font-size: 44px;
-  letter-spacing: -1.5px;
-  line-height: 1.2;
   margin-bottom: 16px;
-  max-width: 700px;
+  max-width: 760px;
 }
 
 .cta-banner-subtext {
