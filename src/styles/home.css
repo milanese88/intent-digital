@@ -878,12 +878,13 @@
 }
 
 .why-num {
-  font-family: var(--font-heading);
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--terracotta);
-  margin-bottom: 16px;
-  opacity: 0.8;
+  font-family: 'Dream on Paper', 'Pinyon Script', 'Alex Brush', cursive, serif;
+  font-size: 48px;
+  font-weight: 400;
+  color: var(--espresso); /* Brown color */
+  margin-bottom: 8px;
+  opacity: 0.9;
+  line-height: 1;
 }
 
 .why-col-title {
@@ -1157,6 +1158,25 @@
 }
 
 @media (max-width: 768px) {
+  .footer-grid-layout {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    text-align: center;
+  }
+
+  .footer-col-left,
+  .footer-col-right {
+    align-items: center;
+    text-align: center;
+  }
+
+  .footer-agency-tagline {
+    max-width: 100%;
+  }
+
+  .footer-nav-col {
+    text-align: center;
+  }
   .nav-container {
     display: flex;
     justify-content: space-between;
