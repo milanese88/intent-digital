@@ -1,8 +1,8 @@
 :root {
-  --cream: #FBF3DD;
-  --cream-90: rgba(251, 243, 221, 0.9);
-  --cream-72: rgba(251, 243, 221, 0.72);
-  --cream-50: rgba(251, 243, 221, 0.5);
+  --cream: #FAF7F2;
+  --cream-90: rgba(250, 247, 242, 0.9);
+  --cream-72: rgba(250, 247, 242, 0.72);
+  --cream-50: rgba(250, 247, 242, 0.5);
 
   --terracotta: #E28E52;
   --terracotta-hover: #D67432;

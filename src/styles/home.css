@@ -100,7 +100,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: linear-gradient(rgba(251, 243, 221, 0.45), rgba(251, 243, 221, 0.45)), url('/hero-bg.png');
+  background-image: linear-gradient(rgba(250, 247, 242, 0.45), rgba(250, 247, 242, 0.45)), url('/hero-bg.png');
   background-size: cover;
   background-position: center;
   z-index: 1;

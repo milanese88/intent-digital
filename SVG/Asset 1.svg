@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 173.02 215.53">
+  <defs>
+    <style>
+      .cls-1 {
+        font-size: 15px;
+      }
+
+      .cls-1, .cls-2 {
+        font-family: DreamsOnPaper-Regular, 'Dreams On Paper';
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        fill: #3a342b;
+      }
+
+      .cls-2 {
+        font-size: 14.53px;
+      }
+
+      .cls-4 {
+        font-family: GeographicaScript, 'Geographica Script';
+        font-size: 70.06px;
+        letter-spacing: .15em;
+      }
+    </style>
+  </defs>
+  <g id="Mark">
+    <text class="cls-2" transform="translate(32.75 160.71) rotate(34.45) skewX(.22)"><tspan x="0" y="0">C</tspan></text>
+    <text class="cls-2" transform="translate(43.12 167.44) rotate(27.48) skewX(.29)"><tspan x="0" y="0">r</tspan></text>
+    <text class="cls-2" transform="translate(49.99 170.86) rotate(22.29) skewX(.33)"><tspan x="0" y="0">e</tspan></text>
+    <text class="cls-2" transform="translate(57.11 173.85) rotate(14.16) skewX(.37)"><tspan x="0" y="0">ati</tspan></text>
+    <text class="cls-2" transform="translate(72.65 177.26) rotate(5.67) skewX(.38)"><tspan x="0" y="0">v</tspan></text>
+    <text class="cls-2" transform="translate(81.38 177.96)"><tspan x="0" y="0">e</tspan></text>
+    <text class="cls-2" transform="translate(88.73 177.86) rotate(-5.03) skewX(.35)"><tspan x="0" y="0"> </tspan></text>
+    <text class="cls-2" transform="translate(96.57 177.16) rotate(-12.49) skewX(.29)"><tspan x="0" y="0">B</tspan></text>
+    <text class="cls-2" transform="translate(109.71 173.85) rotate(-19.99) skewX(.22)"><tspan x="0" y="0">r</tspan></text>
+    <text class="cls-2" transform="translate(117.71 171.36) rotate(-31.04) skewX(.09)"><tspan x="0" y="0">and</tspan></text>
+    <text class="cls-2" transform="translate(137.96 158.32) rotate(-46.97) skewX(-.12)"><tspan x="0" y="0">ing</tspan></text>
+    <text class="cls-1" transform="translate(37.64 26.74) rotate(-31.23) scale(.97 1)"><tspan x="0" y="0">I</tspan></text>
+    <text class="cls-1" transform="translate(45.61 22.06) rotate(-25.11) scale(.97 1)"><tspan x="0" y="0">n</tspan></text>
+    <text class="cls-1" transform="translate(53.15 18.68) rotate(-20.18) scale(.97 1)"><tspan x="0" y="0">t</tspan></text>
+    <text class="cls-1" transform="translate(58.23 16.42) rotate(-11.48) scale(.97 1)"><tspan x="0" y="0">ent</tspan></text>
+    <text class="cls-1" transform="translate(76.92 13.27) rotate(-2.42) scale(.97 1)"><tspan x="0" y="0"> </tspan></text>
+    <text class="cls-1" transform="translate(83.66 12.96) rotate(3.89) scale(.97 1)"><tspan x="0" y="0">D</tspan></text>
+    <text class="cls-1" transform="translate(94.9 13.97) rotate(9.89) scale(.97 1)"><tspan x="0" y="0">i</tspan></text>
+    <text class="cls-1" transform="translate(100.56 15.01) rotate(14.51) scale(.97 1)"><tspan x="0" y="0">g</tspan></text>
+    <text class="cls-1" transform="translate(107.48 16.91) rotate(19.1) scale(.97 1)"><tspan x="0" y="0">i</tspan></text>
+    <text class="cls-1" transform="translate(112.91 18.87) rotate(23.17) scale(.97 1)"><tspan x="0" y="0">t</tspan></text>
+    <text class="cls-1" transform="translate(118.1 21.13) rotate(28.04) scale(.97 1)"><tspan x="0" y="0">a</tspan></text>
+    <text class="cls-1" transform="translate(125.28 25.1) rotate(33.11) scale(.97 1)"><tspan x="0" y="0">l</tspan></text>
+    <text class="cls-4" transform="translate(28.07 118.08) scale(.88 1)"><tspan x="0" y="0">ID</tspan></text>
+    <path class="cls-3" d="M173.01,98.13c.4,33.72-21.24,66.06-52.48,78.7C64.61,200.13,2.58,158.69,2.59,98.13,2.41,37.61,64.72-4.17,120.59,19.29c31.27,12.68,52.88,45.09,52.42,78.84h0ZM172.93,98.13c.3-33.62-21.35-65.85-52.57-78.31C64.73-3.05,3.19,37.88,3.19,98.13c-.09,60.29,61.55,101.44,117.23,78.45,31.24-12.5,52.87-44.8,52.51-78.45h0Z"/>
+    <path class="cls-3" d="M165.92,98.13c.28,32.01-17.57,64.33-46.96,78.16-55.04,25.45-109.8-21.09-109.29-78.16C9.07,41.01,63.95-5.75,119.03,19.83c29.41,13.87,47.23,46.26,46.89,78.3h0ZM165.85,98.13c.18-31.91-17.7-64.14-47.06-77.78C63.96-4.61,9.84,41.32,10.28,98.13c-.59,56.8,53.76,103.03,108.57,77.92,29.39-13.69,47.23-45.98,46.99-77.92h0Z"/>
+  </g>
+</svg>
