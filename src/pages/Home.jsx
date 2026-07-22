@@ -130,7 +130,7 @@ export default function Home({ navigateTo }) {
 
 
 
-      {/* OUR WORK SECTION — 2-COLUMN CASE-STUDY GRID */}
+      {/* OUR WORK SECTION — 4-COLUMN PORTRAIT GALLERY */}
       <section id="portfolio" className="our-work-section">
         <div className="our-work-container">
           <div className="section-header center">
@@ -139,24 +139,28 @@ export default function Home({ navigateTo }) {
           </div>
 
           <div className="our-work-grid">
-            {projectsData.map((project) => (
-              <a 
-                key={project.id} 
-                href={project.href || "#"} 
-                className="case-study-card"
+            {projectsData.slice(0, 8).map((project) => (
+              <a
+                key={project.id}
+                href={project.href || "#"}
+                className="gallery-item"
                 onClick={(e) => { e.preventDefault(); if (navigateTo) navigateTo('contact'); }}
               >
-                <div className="case-study-image-wrap">
-                  <img 
-                    src={project.image} 
-                    alt={project.title} 
-                    className="case-study-image" 
+                <div className="gallery-image-wrap">
+                  <img
+                    src={project.image}
+                    alt={project.title}
+                    className="gallery-image"
                     loading="lazy"
                   />
+                  <div className="gallery-overlay">
+                    <h3 className="gallery-title">{project.title}</h3>
+                    <p className="gallery-desc">{project.description}</p>
+                  </div>
                 </div>
-                <div className="case-study-content">
-                  <h3 className="case-study-title">{project.title}</h3>
-                  <p className="case-study-desc">{project.description}</p>
+                <div className="gallery-caption mobile-caption">
+                  <h3 className="gallery-title">{project.title}</h3>
+                  <p className="gallery-desc">{project.description}</p>
                 </div>
               </a>
             ))}
