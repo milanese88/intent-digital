@@ -1,27 +1,27 @@
 :root {
-  --cream: #FFFFFF;
-  --cream-90: rgba(255, 255, 255, 0.9);
-  --cream-72: rgba(255, 255, 255, 0.72);
-  --cream-50: rgba(255, 255, 255, 0.5);
+  --cream: #FFF8E7;
+  --cream-90: rgba(255, 248, 231, 0.9);
+  --cream-72: rgba(255, 248, 231, 0.72);
+  --cream-50: rgba(255, 248, 231, 0.5);
 
-  --terracotta: #E28E52;
-  --terracotta-hover: #D67432;
+  --terracotta: #CFE1E2;
+  --terracotta-hover: #b8d4d6;
 
-  --butter: #EFE79A;
-  --butter-80: rgba(239, 231, 154, 0.8);
+  --butter: #FFF8E7;
+  --butter-80: rgba(255, 248, 231, 0.8);
 
-  --dusty-blue: #A9C5D1;
-  --dusty-blue-80: rgba(169, 197, 209, 0.8);
-  --dusty-blue-15: rgba(169, 197, 209, 0.15);
+  --dusty-blue: #CFE1E2;
+  --dusty-blue-80: rgba(207, 225, 226, 0.85);
+  --dusty-blue-15: rgba(207, 225, 226, 0.15);
 
-  --espresso: #342D24;
-  --espresso-85: rgba(52, 45, 36, 0.85);
-  --espresso-20: rgba(52, 45, 36, 0.2);
-  --espresso-15: rgba(52, 45, 36, 0.15);
-  --espresso-12: rgba(52, 45, 36, 0.12);
-  --espresso-06: rgba(52, 45, 36, 0.06);
-  --espresso-05: rgba(52, 45, 36, 0.05);
-  --espresso-02: rgba(52, 45, 36, 0.02);
+  --espresso: #341F1A;
+  --espresso-85: rgba(52, 31, 26, 0.85);
+  --espresso-20: rgba(52, 31, 26, 0.2);
+  --espresso-15: rgba(52, 31, 26, 0.15);
+  --espresso-12: rgba(52, 31, 26, 0.12);
+  --espresso-06: rgba(52, 31, 26, 0.06);
+  --espresso-05: rgba(52, 31, 26, 0.05);
+  --espresso-02: rgba(52, 31, 26, 0.02);
 
   --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;

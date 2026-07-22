@@ -4,11 +4,9 @@ These rules govern the styling, colors, and layout structure of the Intent Digit
 
 ## Design Tokens
 
-- **White / Cream (Page Background)**: `#FFFFFF`
-- **Terracotta (Primary Accent / Call to Action)**: `#E28E52`
-- **Butter (Secondary Accent)**: `#EFE79A`
-- **Dusty Blue (Tertiary Accent)**: `#A9C5D1`
-- **Espresso (Ink / Dark Text & Backgrounds)**: `#342D24` (dark warm chocolate espresso brown)
+- **Toasted Cream (Page Background)**: `#FFF8E7`
+- **Winter Sky (Accent / Buttons / Badges)**: `#CFE1E2`
+- **Espresso (Ink / Dark Text & Backgrounds)**: `#341F1A`
 
 ## Typography Rules
 
@@ -18,6 +16,6 @@ These rules govern the styling, colors, and layout structure of the Intent Digit
 
 ## Layout & Color Application Rules
 
-- **Default Page Background**: Always use White (`#FFFFFF`).
+- **Default Page Background**: Always use Toasted Cream (`#FFF8E7`).
 - **Section Accent ownership**: One color accent should dominate each block or panel.
 - **CTA Rule**: Terracotta (`#E28E52`) is strictly reserved for the single primary call-to-action button in any given viewport/screen view.

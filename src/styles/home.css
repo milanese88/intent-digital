@@ -624,7 +624,7 @@
 }
 
 .welcome-card-dark {
-  background: #231e18;
+  background-color: var(--espresso);
   display: flex;
   align-items: center;
   justify-content: center;
