@@ -1,8 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Home from './pages/Home.jsx';
+import Services from './pages/Services.jsx';
 
 function App() {
-  return <Home />;
+  const [currentPage, setCurrentPage] = useState('home');
+
+  const navigateTo = (page, targetId) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (targetId) {
+      setTimeout(() => {
+        const element = document.getElementById(targetId);
+        if (element) {
+          const navHeight = 80;
+          const elementPosition = element.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({
+            top: elementPosition - navHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 150);
+    }
+  };
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+
+  if (currentPage === 'services') {
+    return <Services navigateTo={navigateTo} />;
+  }
+
+  return <Home navigateTo={navigateTo} />;
 }
 
 export default App;
