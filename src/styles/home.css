@@ -608,21 +608,57 @@
   transform: translateY(0);
 }
 
-/* Asymmetric widths for Row 1 */
-.portfolio-card-large {
-  grid-column: span 18;
-  height: 480px;
+/* 3-Column Luxury Portfolio Showcase Grid */
+.portfolio-3col-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 56px 36px;
 }
 
-.portfolio-card-tall {
-  grid-column: span 12;
-  height: 480px;
+.portfolio-brand-card {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
 }
 
-/* Equal widths for Row 2 (50% each) */
-.portfolio-card-half {
-  grid-column: span 15;
-  height: 380px;
+.portfolio-card-frame {
+  width: 100%;
+  aspect-ratio: 16 / 10.5;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--cream);
+  box-shadow: 0 6px 24px rgba(52, 31, 26, 0.04);
+}
+
+.portfolio-brand-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portfolio-brand-card:hover .portfolio-brand-img {
+  transform: scale(1.035);
+}
+
+.portfolio-brand-title {
+  font-family: 'Playfair Display', var(--font-serif);
+  font-size: 18.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--espresso);
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+
+.portfolio-brand-tagline {
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--espresso);
+  opacity: 0.72;
+  font-style: italic;
 }
 
 /* Welcome Intro Section */
@@ -1285,6 +1321,11 @@
   .why-grid {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .portfolio-3col-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px 24px;
   }
 
   .footer-grid-layout {

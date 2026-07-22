@@ -132,56 +132,93 @@ export default function Home({ navigateTo }) {
 
 
 
-      {/* PORTFOLIO SHOWCASE SECTION */}
+      {/* PORTFOLIO SHOWCASE SECTION (9 LUXURY BRANDS GRID) */}
       <section id="portfolio" className="portfolio-section">
         <div className="container">
-          <div className="section-header">
+          <div className="section-header" style={{ marginBottom: '56px' }}>
             <span className="section-tagline">OUR WORK</span>
             <h2 className="section-title">Brands we've built</h2>
           </div>
-          <div className="portfolio-grid">
-            {/* Card 1 - Cabinet */}
-            <div className="portfolio-card portfolio-card-large">
-              <img src="/work-cabinet.jpg" alt="Cabinet" className="portfolio-img" />
-              <div className="portfolio-overlay">
-                <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Cabinet</h3>
-                  <p className="portfolio-desc-text">Curated vintage elegance &amp; rare object brand identity.</p>
-                </div>
+          <div className="portfolio-3col-grid">
+            {/* 01 - Fouquet's */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/portfolio/alcove-hotel.png" alt="Fouquet's Hotel & Residences" className="portfolio-brand-img" />
               </div>
+              <h3 className="portfolio-brand-title">Fouquet's Hotel &amp; Residences Miami Design District</h3>
+              <p className="portfolio-brand-tagline">Curated Living, Redefined.</p>
             </div>
 
-            {/* Card 2 - Lapressa Tailoring */}
-            <div className="portfolio-card portfolio-card-tall">
-              <img src="/work-lapressa.jpg" alt="Lapressa Tailoring & Embroidery" className="portfolio-img" />
-              <div className="portfolio-overlay">
-                <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Lapressa Tailoring</h3>
-                  <p className="portfolio-desc-text">Custom packaging &amp; heritage luxury embroidery brand identity.</p>
-                </div>
+            {/* 02 - The Residences at Boca Raton */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/portfolio/studio-sole.png" alt="The Residences at Boca Raton" className="portfolio-brand-img" />
               </div>
+              <h3 className="portfolio-brand-title">The Residences at Boca Raton</h3>
+              <p className="portfolio-brand-tagline">Our Legacy. Yours to Live.</p>
             </div>
 
-            {/* Card 3 - MR. KING */}
-            <div className="portfolio-card portfolio-card-half">
-              <img src="/work-mrking.jpg" alt="MR. KING Concierge" className="portfolio-img" />
-              <div className="portfolio-overlay">
-                <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">MR. KING</h3>
-                  <p className="portfolio-desc-text">Bespoke brand strategy, stationery &amp; luxury concierge identity.</p>
-                </div>
+            {/* 03 - Four Seasons Naples */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/portfolio/rose-roast.png" alt="Four Seasons Naples" className="portfolio-brand-img" />
               </div>
+              <h3 className="portfolio-brand-title">Four Seasons Naples</h3>
+              <p className="portfolio-brand-tagline">Impressions of Paradise.</p>
             </div>
 
-            {/* Card 4 - Florentine Studio */}
-            <div className="portfolio-card portfolio-card-half">
-              <img src="/work-florentine.jpg" alt="Florentine Interior Design" className="portfolio-img" />
-              <div className="portfolio-overlay">
-                <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Florentine Studio</h3>
-                  <p className="portfolio-desc-text">Classic editorial font duo &amp; interior architecture digital presence.</p>
-                </div>
+            {/* 04 - Cabinet */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/work-cabinet.jpg" alt="Cabinet" className="portfolio-brand-img" />
               </div>
+              <h3 className="portfolio-brand-title">Cabinet One-of-a-Kinds</h3>
+              <p className="portfolio-brand-tagline">Live the Art of Uniqueness.</p>
+            </div>
+
+            {/* 05 - Lapressa Tailoring */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/work-lapressa.jpg" alt="Lapressa Tailoring & Embroidery" className="portfolio-brand-img" />
+              </div>
+              <h3 className="portfolio-brand-title">Lapressa Tailoring &amp; Embroidery</h3>
+              <p className="portfolio-brand-tagline">Bespoke Embroidery &amp; Heritage Packaging.</p>
+            </div>
+
+            {/* 06 - MR. KING Concierge */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/work-mrking.jpg" alt="MR. KING Concierge" className="portfolio-brand-img" />
+              </div>
+              <h3 className="portfolio-brand-title">MR. KING Concierge</h3>
+              <p className="portfolio-brand-tagline">At the Threshold of Your Desires.</p>
+            </div>
+
+            {/* 07 - Fairmont Hotels */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/portfolio/patio-coffee.png" alt="Fairmont Hotels & Resorts" className="portfolio-brand-img" />
+              </div>
+              <h3 className="portfolio-brand-title">Fairmont Hotels &amp; Resorts</h3>
+              <p className="portfolio-brand-tagline">Wellness Without Walls.</p>
+            </div>
+
+            {/* 08 - Florentine Studio */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/work-florentine.jpg" alt="Florentine Studio & Fine Interiors" className="portfolio-brand-img" />
+              </div>
+              <h3 className="portfolio-brand-title">Florentine Studio &amp; Fine Interiors</h3>
+              <p className="portfolio-brand-tagline">In Pursuit of Pure Comfort.</p>
+            </div>
+
+            {/* 09 - Toby's Estate Studio */}
+            <div className="portfolio-brand-card">
+              <div className="portfolio-card-frame">
+                <img src="/hero-founder-cinematic.jpg" alt="Toby's Estate Studio" className="portfolio-brand-img" />
+              </div>
+              <h3 className="portfolio-brand-title">Toby's Estate Studio</h3>
+              <p className="portfolio-brand-tagline">Reintroducing Exceptional Craft.</p>
             </div>
           </div>
         </div>
