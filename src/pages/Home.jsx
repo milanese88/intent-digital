@@ -71,7 +71,7 @@ export default function Home({ navigateTo }) {
         {mobileMenuOpen && (
           <div className="mobile-nav-drawer">
             <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
-            <a href="#services" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="mailto:hello@intent-digital.com" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>CONTACT</a>
             <a href="mailto:hello@intent-digital.com" className="btn btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>
