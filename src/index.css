@@ -5,11 +5,11 @@
   --cream-72: rgba(250, 248, 245, 0.72);
   --cream-50: rgba(250, 248, 245, 0.5);
 
-  /* 10% Accent Color — PANTONE 12-4207 TSX Quietude & Periwinkle */
+  /* 10% Accent Color — PANTONE 12-4207 TSX Quietude / Dusty Blue */
   --quietude: #BDD3E2;
   --quietude-rgb: 189, 211, 226;
-  --terracotta: #859DCE;
-  --terracotta-hover: #728ABF;
+  --terracotta: #BDD3E2;
+  --terracotta-hover: #A5C2D5;
 
   --butter: #FAF8F5;
   --butter-80: rgba(250, 248, 245, 0.8);
@@ -17,7 +17,8 @@
   --dusty-blue: #BDD3E2;
   --dusty-blue-80: rgba(189, 211, 226, 0.85);
   --dusty-blue-15: rgba(189, 211, 226, 0.15);
-  --accent-blue: #859DCE;
+  --accent-blue: #BDD3E2;
+  --accent-blue-hover: #A5C2D5;
 
   /* 30% Secondary Color — PANTONE 19-1018 TCX Ganache */
   --ganache: #34292A;

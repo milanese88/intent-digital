@@ -265,8 +265,8 @@
 }
 
 .btn-pill-primary {
-  background-color: #859DCE;
-  color: #FFFFFF;
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -279,10 +279,10 @@
 }
 
 .btn-pill-primary:hover {
-  background-color: #728ABF;
-  color: #FFFFFF;
+  background-color: var(--accent-blue-hover);
+  color: var(--espresso);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(133, 157, 206, 0.35);
+  box-shadow: 0 8px 24px rgba(189, 211, 226, 0.45);
 }
 
 /* Infinite Marquee Ticker Banner */
@@ -1030,8 +1030,8 @@
 }
 
 .btn-cta-banner {
-  background-color: #859DCE;
-  color: #FFFFFF;
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -1044,10 +1044,10 @@
 }
 
 .btn-cta-banner:hover {
-  background-color: #728ABF;
-  color: #FFFFFF;
+  background-color: var(--accent-blue-hover);
+  color: var(--espresso);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(133, 157, 206, 0.45);
+  box-shadow: 0 8px 24px rgba(189, 211, 226, 0.45);
 }
 
 /* Footer Section (Toasted Cream background, Espresso text) */
@@ -2400,8 +2400,8 @@
 
 .btn-services-hero-cta {
   display: inline-block;
-  background-color: #859DCE;
-  color: #FFFFFF;
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
@@ -2413,8 +2413,8 @@
 }
 
 .btn-services-hero-cta:hover {
-  background-color: #728ABF;
-  color: #FFFFFF;
+  background-color: var(--accent-blue-hover);
+  color: var(--espresso);
   transform: translateY(-2px);
 }
 
@@ -2593,8 +2593,8 @@
 
 .btn-pill-top-submit,
 .btn-pill-bottom-submit {
-  background-color: #859DCE; /* Signature periwinkle blue accent matching screenshot */
-  color: #FFFFFF;
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
@@ -2608,8 +2608,8 @@
 
 .btn-pill-top-submit:hover,
 .btn-pill-bottom-submit:hover {
-  background-color: #728ABF;
-  color: #FFFFFF;
+  background-color: var(--accent-blue-hover);
+  color: var(--espresso);
 }
 
 .form-submit-wrap {
