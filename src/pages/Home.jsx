@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import IntroCurtain from '../components/IntroCurtain';
 import '../styles/home.css';
 
-export default function Home() {
+export default function Home({ navigateTo }) {
   const [startReveal, setStartReveal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -28,6 +28,14 @@ export default function Home() {
     }
   };
 
+  const handleNavClick = (e, page, targetId) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    if (navigateTo) {
+      navigateTo(page, targetId);
+    }
+  };
+
   return (
     <div className="home-page">
       <IntroCurtain onComplete={() => setStartReveal(true)} />
@@ -36,7 +44,7 @@ export default function Home() {
         <div className="container nav-container">
           <div className="nav-links nav-links-left desktop-only">
             <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
-            <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="mailto:hello@intent-digital.com" className="nav-link">CONTACT</a>
           </div>
