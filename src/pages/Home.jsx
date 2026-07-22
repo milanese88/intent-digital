@@ -241,12 +241,7 @@ export default function Home() {
             <div className="service-card card-best-seller">
               <div className="card-top">
                 <span className="badge-timeline">4&ndash;5 weeks</span>
-                <div className="badge-best-seller-container">
-                  <span className="badge-best-seller">Best Seller</span>
-                  <svg className="drawn-arrow-svg" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M38 8 C28 22 18 34 8 40 M8 40 C14 38 18 35 22 32 M8 40 C12 33 15 28 17 23" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
+                <img src="/best-seller-angel.png" alt="Best Seller" className="best-seller-angel-img" />
               </div>
               <h3 className="card-name">Photography &amp; Content</h3>
               <div className="card-price">$6,000 <span className="currency">USD</span></div>

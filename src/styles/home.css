@@ -740,33 +740,18 @@
   background-color: var(--cream-50); /* Cream background */
 }
 
-.badge-best-seller-container {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  position: relative;
+.best-seller-angel-img {
+  width: 95px;
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  margin-top: -10px;
+  margin-right: -4px;
+  transition: transform 0.4s ease;
 }
 
-.badge-best-seller {
-  display: inline-flex;
-  align-items: center;
-  font-family: 'Dream on Paper', 'Pinyon Script', 'Alex Brush', cursive, serif;
-  font-size: 28px;
-  font-weight: 400;
-  color: var(--espresso);
-  background-color: transparent;
-  padding: 0;
-  letter-spacing: 0;
-  text-transform: none;
-  line-height: 1;
-}
-
-.drawn-arrow-svg {
-  width: 32px;
-  height: 32px;
-  color: var(--espresso);
-  opacity: 0.85;
-  transform: rotate(-15deg);
+.service-card:hover .best-seller-angel-img {
+  transform: rotate(-3deg) scale(1.05);
 }
 
 .card-name {
