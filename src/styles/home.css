@@ -2855,6 +2855,235 @@
   opacity: 0.3;
 }
 
+/* About & Services Page Editorial Layouts */
+.about-hero-section {
+  padding: 140px 0 80px 0;
+  background-color: var(--cream);
+  border-bottom: 1px solid var(--espresso-15);
+  text-align: center;
+}
+
+.about-hero-title {
+  font-family: var(--font-serif);
+  font-size: clamp(40px, 5.2vw, 68px);
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--espresso);
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.about-hero-subheadline {
+  font-family: var(--font-sans);
+  font-size: clamp(16px, 1.8vw, 20px);
+  line-height: 1.65;
+  color: var(--espresso);
+  opacity: 0.85;
+  max-width: 840px;
+  margin: 0 auto;
+}
+
+.about-block-section {
+  padding: 100px 0;
+  background-color: var(--cream);
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+.about-block-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.about-block-title {
+  font-family: var(--font-serif);
+  font-size: clamp(32px, 3.8vw, 48px);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--espresso);
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.about-block-body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--espresso);
+  opacity: 0.82;
+}
+
+.about-block-image-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(52, 31, 26, 0.08);
+}
+
+.about-block-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.about-philosophy-section {
+  padding: 100px 0;
+  background-color: var(--cream);
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+.about-two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+}
+
+.about-col-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--espresso-15);
+  border-radius: 16px;
+  padding: 48px;
+  box-shadow: 0 10px 30px rgba(52, 31, 26, 0.03);
+}
+
+.about-col-title {
+  font-family: var(--font-serif);
+  font-size: clamp(26px, 2.8vw, 36px);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--espresso);
+  margin-top: 12px;
+  margin-bottom: 16px;
+}
+
+.about-col-body {
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--espresso);
+  opacity: 0.8;
+}
+
+.about-process-section {
+  padding: 100px 0;
+  background-color: var(--cream);
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+/* Services Offerings Grid */
+.services-offerings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 36px;
+  margin-top: 48px;
+}
+
+.offering-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--espresso-15);
+  border-radius: 16px;
+  padding: 44px;
+  box-shadow: 0 8px 24px rgba(52, 31, 26, 0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.offering-card-full {
+  grid-column: span 2;
+}
+
+.offering-num {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--dusty-blue);
+  margin-bottom: 12px;
+}
+
+.offering-name {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--espresso);
+  margin-bottom: 4px;
+}
+
+.offering-tagline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--espresso);
+  opacity: 0.75;
+  margin-bottom: 16px;
+}
+
+.offering-desc {
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--espresso);
+  opacity: 0.82;
+}
+
+/* Process Timeline List */
+.process-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 880px;
+  margin: 56px auto 0 auto;
+}
+
+.process-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  background-color: #FFFFFF;
+  border: 1px solid var(--espresso-15);
+  border-radius: 12px;
+  padding: 24px 32px;
+  box-shadow: 0 4px 16px rgba(52, 31, 26, 0.02);
+}
+
+.process-step-num {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--dusty-blue);
+  line-height: 1.2;
+}
+
+.process-step-title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--espresso);
+  margin-bottom: 4px;
+}
+
+.process-step-desc {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--espresso);
+  opacity: 0.8;
+}
+
+@media (max-width: 992px) {
+  .about-block-grid,
+  .about-two-col-grid,
+  .services-offerings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .offering-card-full {
+    grid-column: span 1;
+  }
+}
+
 .day-num.active-slot {
   font-weight: 700;
   cursor: pointer;
