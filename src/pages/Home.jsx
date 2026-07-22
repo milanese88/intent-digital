@@ -157,6 +157,29 @@ export default function Home() {
         </div>
       </section>
 
+      {/* WELCOME TO INTENT DIGITAL SECTION */}
+      <section className="welcome-intro-section">
+        <div className="container">
+          <div className="welcome-intro-header">
+            <span className="welcome-tagline">WELCOME TO INTENT DIGITAL</span>
+            <h2 className="welcome-title">
+              A creative branding studio shaping identity, voice, and digital presence with pure intention behind every choice.
+            </h2>
+          </div>
+
+          <div className="welcome-visuals-grid">
+            <div className="welcome-visual-card welcome-card-dark">
+              <div className="welcome-card-inner">
+                <img src="/intent-script-logo.png" alt="Intent Digital Studio" className="welcome-card-monogram" />
+              </div>
+            </div>
+            <div className="welcome-visual-card welcome-card-frame">
+              <img src="/portfolio/rose-roast.png" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* SECTION 3 — SERVICES ("What We Offer") */}
       <section id="services" className="services-section">
         <div className="container">
