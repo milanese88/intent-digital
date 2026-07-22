@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Home from './pages/Home.jsx';
+import About from './pages/About.jsx';
 import Services from './pages/Services.jsx';
 import Contact from './pages/Contact.jsx';
 import News from './pages/News.jsx';
@@ -29,6 +30,10 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
+
+  if (currentPage === 'about') {
+    return <About navigateTo={navigateTo} />;
+  }
 
   if (currentPage === 'services') {
     return <Services navigateTo={navigateTo} />;

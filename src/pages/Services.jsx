@@ -14,312 +14,233 @@ export default function Services({ navigateTo }) {
 
   return (
     <div className="home-page services-page">
-      {/* SERVICES SPLIT HERO SECTION (IMAGE 2 LAYOUT) */}
-      <header className="services-split-hero">
-        <div className="services-hero-left">
-          {/* Top Header Row with Circular Seal Logo & Nav */}
-          <div className="services-hero-nav-row">
-            <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
-              <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
-            </a>
+      {/* NAVBAR */}
+      <nav className="navbar">
+        <div className="container nav-container">
+          <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
+            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+          </a>
 
-            <div className="services-nav-links desktop-only">
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
-              <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            </div>
+          <div className="nav-links desktop-only">
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+            <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+          </div>
 
+          <div className="nav-right mobile-only">
             <button 
-              className="mobile-toggle-btn mobile-only-inline" 
+              className="mobile-toggle-btn" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? '✕' : '☰'}
             </button>
           </div>
-
-          {/* Mobile Nav Drawer */}
-          {mobileMenuOpen && (
-            <div className="mobile-nav-drawer">
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
-              <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-              <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-                GET STARTED &rarr;
-              </a>
-            </div>
-          )}
-
-          {/* Hero Main Editorial Content */}
-          <div className="services-hero-content-wrap">
-            <h1 className="services-hero-title">
-              Creative Branding
-            </h1>
-            <p className="services-hero-copy">
-              Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
-            </p>
-            <a href="#" className="btn btn-services-hero-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED
-            </a>
-          </div>
         </div>
 
-        {/* Hero Right Column — Architectural Staircase Image */}
-        <div className="services-hero-right">
-          <img 
-            src="/services-hero-staircase.jpg" 
-            alt="Intent Digital Architectural Interior" 
-            className="services-hero-staircase-img" 
-          />
+        {mobileMenuOpen && (
+          <div className="mobile-nav-drawer">
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+            <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+          </div>
+        )}
+      </nav>
+
+      {/* HERO SECTION */}
+      <header className="about-hero-section">
+        <div className="container center-text">
+          <span className="section-tagline">OUR SERVICES</span>
+          <h1 className="about-hero-title">Everything your brand needs to feel like itself.</h1>
+          <p className="about-hero-subheadline">
+            From strategy and identity to the words and the website, we shape every part of your brand with the same intention — so it all speaks as one.
+          </p>
         </div>
       </header>
 
-      {/* WHAT WE OFFER SECTION */}
-      <section id="services" className="services-section">
+      {/* THE SERVICES LIST */}
+      <section className="services-section">
         <div className="container">
-          <div className="section-header">
-            <span className="section-tagline">WHAT WE OFFER</span>
-            <h2 className="section-title">Select the Investment Level Built for Your Brand</h2>
-          </div>
-
-          <div className="services-grid">
-            {/* Card 1 — Brand Basics */}
-            <div className="service-card">
-              <div className="card-top">
-                <span className="badge-timeline">1&ndash;2 weeks</span>
-              </div>
-              <h3 className="card-name">Brand Basics</h3>
-              <div className="card-price">$1,200 <span className="currency">USD</span></div>
-              <p className="card-desc">
-                Pre-made, semi-custom brand kits tailored to your brand &mdash; a fast, polished starting point for new ventures and emerging founders.
+          <div className="services-offerings-grid">
+            {/* 01 - Brand Strategy */}
+            <div className="offering-card">
+              <div className="offering-num">01</div>
+              <h2 className="offering-name">Brand Strategy</h2>
+              <p className="offering-tagline">The thinking behind the beauty.</p>
+              <p className="offering-desc">
+                Before a single color is chosen, we define who your brand is, who it's for, and what makes it unforgettable. Strategy is the foundation everything else is built on.
               </p>
-              <hr className="card-divider" />
-              <div className="card-includes-label">WHAT'S INCLUDED</div>
-              <ul className="card-list">
-                <li>Logo suite &amp; brand marks</li>
-                <li>Color palette</li>
-                <li>Typography</li>
-                <li>Business card design</li>
-                <li>Social media profile image</li>
-                <li>Brand style sheet</li>
-              </ul>
-              <a href="mailto:hello@intent-digital.com?subject=Inquiry: Brand Basics Package" className="btn btn-card btn-card-basics">
-                GET STARTED &rarr;
-              </a>
             </div>
 
-            {/* Card 2 — Mini-Brand */}
-            <div className="service-card">
-              <div className="card-top">
-                <span className="badge-timeline">2&ndash;3 weeks</span>
-              </div>
-              <h3 className="card-name">Mini-Brand</h3>
-              <div className="card-price">$4,200 <span className="currency">USD</span></div>
-              <p className="card-desc">
-                A focused mini branding suite for founders who need clarity and cohesion, fast, without sacrificing bespoke luxury aesthetics.
+            {/* 02 - Visual Identity */}
+            <div className="offering-card">
+              <div className="offering-num">02</div>
+              <h2 className="offering-name">Visual Identity</h2>
+              <p className="offering-tagline">Your brand, made visible.</p>
+              <p className="offering-desc">
+                Logos, color, typography, and a cohesive visual system — designed to feel authentic and stay consistent everywhere your brand appears, complete with brand guidelines to keep it that way.
               </p>
-              <hr className="card-divider" />
-              <div className="card-includes-label">WHAT'S INCLUDED</div>
-              <ul className="card-list">
-                <li>Mini branding suite</li>
-                <li>Color palette</li>
-                <li>Typography</li>
-                <li>Brand guideline sheet</li>
-              </ul>
-              <a href="mailto:hello@intent-digital.com?subject=Inquiry: Mini-Brand Package" className="btn btn-card btn-card-mini">
-                GET STARTED &rarr;
-              </a>
             </div>
 
-            {/* Card 3 — Photography & Content */}
-            <div className="service-card">
-              <div className="card-top">
-                <span className="badge-timeline">4&ndash;5 weeks</span>
-              </div>
-              <h3 className="card-name">Photography &amp; Content</h3>
-              <div className="card-price">$6,000 <span className="currency">USD</span></div>
-              <p className="card-desc">
-                Professional photography plus a full content bundle &mdash; everything you need to show up consistently and beautifully across all channels.
+            {/* 03 - Messaging & Voice */}
+            <div className="offering-card">
+              <div className="offering-num">03</div>
+              <h2 className="offering-name">Messaging &amp; Voice</h2>
+              <p className="offering-tagline">The words that sound like you.</p>
+              <p className="offering-desc">
+                We shape a voice and message that's clear, confident, and unmistakably yours — so your brand doesn't just look considered, it reads that way too.
               </p>
-              <hr className="card-divider" />
-              <div className="card-includes-label">WHAT'S INCLUDED</div>
-              <ul className="card-list">
-                <li>Professional photography + content</li>
-                <li>Social media templates</li>
-                <li>Branding personality</li>
-                <li>Typography</li>
-                <li>Colors/patterns/icons</li>
-                <li>Full brand guidelines</li>
-              </ul>
-              <a href="mailto:hello@intent-digital.com?subject=Inquiry: Photography %26 Content Package" className="btn btn-card btn-card-photo">
-                GET STARTED &rarr;
-              </a>
             </div>
 
-            {/* Card 4 — Full Branding + Website */}
-            <div className="service-card">
-              <div className="card-top">
-                <span className="badge-timeline">8&ndash;10 weeks</span>
-              </div>
-              <h3 className="card-name">Full Branding + Website</h3>
-              <div className="card-price">$12,400 <span className="currency">USD</span></div>
-              <p className="card-desc">
-                For the founder who wants their brand and website to work beautifully together &mdash; end to end, with zero compromises.
+            {/* 04 - Web Architecture */}
+            <div className="offering-card">
+              <div className="offering-num">04</div>
+              <h2 className="offering-name">Web Architecture</h2>
+              <p className="offering-tagline">A digital home with intention.</p>
+              <p className="offering-desc">
+                Thoughtful, beautiful websites that turn your identity into an experience — designed to feel like your brand and invite visitors to explore, connect, and reach out.
               </p>
-              <hr className="card-divider" />
-              <div className="card-includes-label">WHAT'S INCLUDED</div>
-              <ul className="card-list">
-                <li>Discovery call</li>
-                <li>Creative direction</li>
-                <li>Logo suite &amp; brand marks</li>
-                <li>Color palette</li>
-                <li>Typography suite</li>
-                <li>Brand &amp; strategy guidelines</li>
-                <li>Designed &amp; built website</li>
-              </ul>
-              <a href="mailto:hello@intent-digital.com?subject=Inquiry: Full Branding %2B Website Package" className="btn btn-card btn-card-full">
-                GET STARTED &rarr;
-              </a>
+            </div>
+
+            {/* 05 - Content Creation */}
+            <div className="offering-card offering-card-full">
+              <div className="offering-num">05</div>
+              <h2 className="offering-name">Content Creation</h2>
+              <p className="offering-tagline">Keeping your brand alive.</p>
+              <p className="offering-desc">
+                Professional photography, headshots, product and social content, and content guidelines — created in your visual language on an ongoing retainer, so your brand always looks its best.
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* THE INTENT DIGITAL PROCESS & METHODOLOGY */}
+      {/* THE PROCESS SECTION */}
       <section className="why-section">
         <div className="container">
-          <div className="section-header">
-            <span className="section-tagline">OUR INTENTIONAL METHODOLOGY</span>
-            <h2 className="section-title">Why Founders Partner With Intent Digital</h2>
+          <div className="section-header center">
+            <span className="section-tagline">THE PROCESS</span>
+            <h2 className="section-title">What working together looks like.</h2>
+            <p className="section-subtext" style={{ maxWidth: '780px', margin: '16px auto 0 auto' }}>
+              We keep things clear and intentional from the very first call. Here's the journey we'll take together:
+            </p>
           </div>
 
-          <div className="why-grid">
-            <div className="why-col">
-              <div className="why-num">01</div>
-              <h3 className="why-col-title">Strategy First</h3>
-              <p className="why-col-text">
-                Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to position your business as an undeniable leader in your industry.
-              </p>
+          <div className="process-timeline-list">
+            <div className="process-step-item">
+              <div className="process-step-num">01</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Discovery</h3>
+                <p className="process-step-desc">A first conversation to understand your vision and make sure we're the right fit.</p>
+              </div>
             </div>
 
-            <div className="why-col">
-              <div className="why-num">02</div>
-              <h3 className="why-col-title">Done With You</h3>
-              <p className="why-col-text">
-                A deeply collaborative process so your brand actually feels like you. No handoffs over a brick wall—we work hand-in-hand to build alignment and confidence.
-              </p>
+            <div className="process-step-item">
+              <div className="process-step-num">02</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Proposal</h3>
+                <p className="process-step-desc">A tailored plan and scope, shaped around your brand.</p>
+              </div>
             </div>
 
-            <div className="why-col">
-              <div className="why-num">03</div>
-              <h3 className="why-col-title">Built To Last</h3>
-              <p className="why-col-text">
-                No recycled templates. Your brand identity and digital presence are crafted custom from scratch, giving you the foundation to scale confidently for years to come.
-              </p>
+            <div className="process-step-item">
+              <div className="process-step-num">03</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Agreement</h3>
+                <p className="process-step-desc">Contract signed and your place reserved on our calendar.</p>
+              </div>
+            </div>
+
+            <div className="process-step-item">
+              <div className="process-step-num">04</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Onboarding</h3>
+                <p className="process-step-desc">We walk you through exactly what to expect before we begin.</p>
+              </div>
+            </div>
+
+            <div className="process-step-item">
+              <div className="process-step-num">05</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Design</h3>
+                <p className="process-step-desc">Where your brand takes shape, crafted detail by detail.</p>
+              </div>
+            </div>
+
+            <div className="process-step-item">
+              <div className="process-step-num">06</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Refinement</h3>
+                <p className="process-step-desc">We review and perfect together, until it feels just right.</p>
+              </div>
+            </div>
+
+            <div className="process-step-item">
+              <div className="process-step-num">07</div>
+              <div className="process-step-info">
+                <h3 className="process-step-title">Delivery</h3>
+                <p className="process-step-desc">Your complete brand, ready to share with the world.</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CUSTOM INQUIRY BANNER */}
-      <section className="services-custom-banner">
-        <div className="container" style={{ textAlign: 'center', maxWidth: '800px' }}>
-          <span className="section-tagline" style={{ color: 'var(--espresso)' }}>NEED A CUSTOM TAILORED SOLUTION?</span>
-          <h2 className="section-title" style={{ marginTop: '12px', marginBottom: '20px' }}>
-            Looking for something tailored specifically to your brand roadmap?
-          </h2>
-          <p style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', opacity: '0.85', marginBottom: '32px' }}>
-            We work with established businesses and luxury ventures on custom retainer projects, specialized e-commerce platforms, and visual rebrands.
-          </p>
-          <a href="mailto:hello@intent-digital.com?subject=Custom%20Brand%20Inquiry" className="btn btn-pill-primary">
-            INQUIRE FOR CUSTOM SCOPE &rarr;
-          </a>
-        </div>
-      </section>
-
-      {/* CTA BANNER SECTION */}
+      {/* CLOSING CTA SECTION */}
       <section className="cta-banner-section">
         <div className="container cta-banner-container">
-          <h2 className="cta-banner-title">
-            Ready to build something you're proud of?
-          </h2>
+          <h2 className="cta-banner-title">Ready to build something worth remembering?</h2>
           <p className="cta-banner-subtext">
-            Let's talk about your brand vision, goals, and timeline.
+            Tell us about your brand and where you want to take it — we'll guide the rest, with intention every step of the way.
           </p>
-          <a href="mailto:hello@intent-digital.com" className="btn btn-cta-banner">
-            GET STARTED &rarr;
+          <a href="#" className="btn btn-cta-banner" onClick={(e) => handleNavClick(e, 'contact')}>
+            Start your project &rarr;
           </a>
         </div>
       </section>
 
-      {/* FOOTER SECTION */}
+      {/* FOOTER */}
       <footer className="footer-section">
         <div className="container footer-container">
           <div className="footer-grid-layout">
-            {/* Left Column */}
             <div className="footer-col-left">
               <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-script-logo" />
               <p className="footer-agency-tagline">
                 Full-service brand + website design studio for ambitious founders.
               </p>
-              <span className="footer-quote">Pure intention &amp; craft behind every choice.</span>
+              <p className="footer-quote">
+                <em>Pure intention &amp; craft behind every choice.</em>
+              </p>
             </div>
 
-            {/* Center Column — Circular Seal Logo & Socials */}
             <div className="footer-col-center">
               <div className="footer-seal-wrapper">
                 <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-main-seal" />
               </div>
-              <div className="footer-social-row">
-                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="Instagram">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                  </svg>
-                </a>
-                <a href="https://pinterest.com" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="Pinterest">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.27-.09-.79-.17-2 .04-2.87.19-.79 1.22-5.18 1.22-5.18s-.31-.62-.31-1.54c0-1.45.84-2.53 1.89-2.53.89 0 1.32.67 1.32 1.47 0 .9-.57 2.24-.87 3.48-.25 1.04.52 1.88 1.54 1.88 1.85 0 3.28-1.95 3.28-4.77 0-2.49-1.79-4.24-4.35-4.24-2.97 0-4.71 2.23-4.71 4.52 0 .9.34 1.86.77 2.38.08.1.1.19.07.3-.08.33-.26 1.05-.3 1.2-.05.21-.17.26-.39.16-1.46-.68-2.37-2.82-2.37-4.54 0-3.69 2.69-7.09 7.74-7.09 4.06 0 7.22 2.9 7.22 6.77 0 4.04-2.55 7.29-6.09 7.29-1.19 0-2.31-.62-2.69-1.35l-.73 2.79c-.26 1.01-.97 2.27-1.45 3.03C9.9 21.84 10.93 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"></path>
-                  </svg>
-                </a>
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="Facebook">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-                  </svg>
-                </a>
-              </div>
             </div>
 
-            {/* Right Column */}
             <div className="footer-col-right">
               <div className="footer-nav-columns">
                 <div className="footer-nav-col">
                   <a href="#" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
-                  <a href="#" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
+                  <a href="#" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
                   <a href="#" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+                  <a href="#" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>PORTFOLIO</a>
                 </div>
                 <div className="footer-nav-col">
-                  <a href="#" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>PORTFOLIO</a>
-                  <a href="mailto:hello@intent-digital.com">WORK WITH US</a>
-                  <a href="mailto:hello@intent-digital.com">CONTACT</a>
+                  <a href="#" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
                 </div>
-              </div>
-              <div className="footer-cta-wrap">
-                <a href="mailto:hello@intent-digital.com" className="btn btn-footer-pill-cta">
-                  GET STARTED &rarr;
-                </a>
               </div>
             </div>
           </div>
 
           <div className="footer-bottom-bar">
-            <p className="footer-copy">&copy; 2025 Intent Digital Studio LLC | Fort Lauderdale, FL | All rights reserved.</p>
+            <p className="footer-copy">&copy; 2025 Intent Digital Studio LLC &nbsp;|&nbsp; Fort Lauderdale, FL &nbsp;|&nbsp; All rights reserved.</p>
           </div>
         </div>
       </footer>
