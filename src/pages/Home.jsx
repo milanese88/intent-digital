@@ -84,13 +84,22 @@ export default function Home({ navigateTo }) {
         <div className="hero-bg-overlay"></div>
         <div className="container hero-container">
           <div className="hero-editorial-content">
+            <motion.span
+              initial={{ opacity: 0, y: 15 }}
+              animate={startReveal ? { opacity: 0.8, y: 0 } : {}}
+              transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
+              className="hero-eyebrow"
+            >
+              A CREATIVE BRANDING STUDIO
+            </motion.span>
+            
             <motion.h1
               initial={{ opacity: 0, y: 25 }}
               animate={startReveal ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.9, ease: "easeOut", delay: 0.3 }}
               className="hero-editorial-title"
             >
-              Luxe Website Design &amp;<br />Branding for Founders
+              Branding, made with intention.
             </motion.h1>
             
             <motion.p
@@ -99,7 +108,7 @@ export default function Home({ navigateTo }) {
               transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
               className="hero-editorial-subtitle"
             >
-              Authentic, intentional branding for businesses that stand out. Let's give you that on-brand, intentional identity you've always dreamed of.
+              We craft brand identities and digital experiences that feel authentic, considered, and unmistakably yours — from the first idea to the final detail.
             </motion.p>
             
             <motion.div
@@ -108,11 +117,11 @@ export default function Home({ navigateTo }) {
               transition={{ duration: 0.8, ease: "easeOut", delay: 0.9 }}
               className="hero-editorial-actions"
             >
-              <a href="#portfolio" className="btn btn-pill-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
-                SEE OUR WORK &rarr;
-              </a>
               <a href="#" className="btn btn-pill-primary" onClick={(e) => handleNavClick(e, 'contact')}>
-                GET STARTED &rarr;
+                Start your brand &rarr;
+              </a>
+              <a href="#portfolio" className="btn btn-pill-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
+                Explore our work
               </a>
             </motion.div>
           </div>
@@ -128,14 +137,72 @@ export default function Home({ navigateTo }) {
         </div>
       </header>
 
+      {/* POSITIONING SECTION (IDENTITY PROBLEM BLOCK) */}
+      <section className="welcome-intro-section">
+        <div className="container">
+          <div className="welcome-intro-header">
+            <span className="welcome-tagline">WELCOME TO INTENT DIGITAL</span>
+            <h2 className="welcome-title">
+              Most businesses don't have a marketing problem.
+            </h2>
+            <p className="welcome-intro-desc">
+              They have an identity problem. They look like everyone else, sound like everyone else, and wonder why no one remembers them. We're here to change that — with branding built on strategy, crafted with soul, and intentional in every detail.
+            </p>
+          </div>
 
+          <div className="welcome-visuals-grid">
+            <div className="welcome-visual-card welcome-card-dark">
+              <div className="welcome-card-inner">
+                <img src="/intent-script-logo.png" alt="Intent Digital Studio" className="welcome-card-monogram" />
+              </div>
+            </div>
+            <div className="welcome-visual-card welcome-card-frame">
+              <img src="/work-florentine.jpg" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SERVICES SUMMARY SECTION */}
+      <section className="home-services-summary-section">
+        <div className="container center-text">
+          <div className="section-header center">
+            <span className="section-tagline">OUR SERVICES</span>
+            <h2 className="section-title">Everything your brand needs to feel like itself.</h2>
+            <p className="section-subtext">
+              From strategy to the smallest visual choice, we shape brands that are cohesive, considered, and made to last.
+            </p>
+          </div>
+
+          <div className="home-services-list-pills">
+            <span className="service-pill">Brand Strategy</span>
+            <span className="service-pill-dot">&bull;</span>
+            <span className="service-pill">Visual Identity</span>
+            <span className="service-pill-dot">&bull;</span>
+            <span className="service-pill">Messaging</span>
+            <span className="service-pill-dot">&bull;</span>
+            <span className="service-pill">Web Architecture</span>
+            <span className="service-pill-dot">&bull;</span>
+            <span className="service-pill">Content Creation</span>
+          </div>
+
+          <div className="home-services-cta-wrap">
+            <a href="#" className="btn btn-pill-secondary" onClick={(e) => handleNavClick(e, 'services')}>
+              Discover our services &rarr;
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* OUR WORK SECTION — 4-COLUMN PORTRAIT GALLERY */}
       <section id="portfolio" className="our-work-section">
         <div className="our-work-container">
           <div className="section-header center">
             <span className="section-tagline">OUR WORK</span>
-            <h2 className="section-title">Brands we've built</h2>
+            <h2 className="section-title">Brands we've built.</h2>
+            <p className="section-subtext">
+              A look at the identities we've shaped — each one crafted with the same intention we'd bring to yours.
+            </p>
           </div>
 
           <div className="our-work-grid">
@@ -164,29 +231,6 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
-      {/* WELCOME TO INTENT DIGITAL SECTION */}
-      <section className="welcome-intro-section">
-        <div className="container">
-          <div className="welcome-intro-header">
-            <span className="welcome-tagline">WELCOME TO INTENT DIGITAL</span>
-            <h2 className="welcome-title">
-              A creative branding studio shaping identity, voice, and digital presence with pure intention behind every choice.
-            </h2>
-          </div>
-
-          <div className="welcome-visuals-grid">
-            <div className="welcome-visual-card welcome-card-dark">
-              <div className="welcome-card-inner">
-                <img src="/intent-script-logo.png" alt="Intent Digital Studio" className="welcome-card-monogram" />
-              </div>
-            </div>
-            <div className="welcome-visual-card welcome-card-frame">
-              <img src="/work-florentine.jpg" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* MARQUEE MOTION BANNER (STRAIGHT TOP & SCALLOPED BOTTOM) */}
       <div className="wave-marquee-section">
         <div className="wave-marquee-banner">
@@ -198,12 +242,15 @@ export default function Home({ navigateTo }) {
         </div>
       </div>
 
-      {/* SECTION 4 — WHY INTENT DIGITAL */}
+      {/* APPROACH / WHY INTENT DIGITAL SECTION */}
       <section id="why-us" className="why-section">
         <div className="container">
           <div className="section-header">
-            <span className="section-tagline">OUR VALUES</span>
-            <h2 className="section-title">Built for founders who mean it.</h2>
+            <span className="section-tagline">OUR APPROACH</span>
+            <h2 className="section-title">Intentional from the very first call.</h2>
+            <p className="section-subtext" style={{ maxWidth: '780px', margin: '16px auto 0 auto' }}>
+              Great branding isn't decoration — it's meaning made visible. Every color, type choice, and detail we design carries a reason. That's the difference between a brand that simply looks good and one that feels right — and gets remembered.
+            </p>
           </div>
           <div className="why-grid">
             <div className="why-col">
@@ -231,13 +278,15 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
-      {/* SECTION 5 — CTA BANNER */}
+      {/* CLOSING CTA SECTION */}
       <section className="cta-banner-section">
         <div className="container cta-banner-container">
-          <h2 className="cta-banner-title">Ready to build something you're proud of?</h2>
-          <p className="cta-banner-subtext">Let's talk about your brand.</p>
-          <a href="mailto:hello@intent-digital.com" className="btn btn-cta-banner">
-            Get started &rarr;
+          <h2 className="cta-banner-title">Let's create something worth remembering.</h2>
+          <p className="cta-banner-subtext">
+            Whether you're starting fresh or ready to evolve, we'd love to hear your story and shape what comes next — together.
+          </p>
+          <a href="#" className="btn btn-cta-banner" onClick={(e) => handleNavClick(e, 'contact')}>
+            Get in touch &rarr;
           </a>
         </div>
       </section>
