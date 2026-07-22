@@ -200,8 +200,8 @@
 }
 
 .btn-pill-primary {
-  background-color: var(--dusty-blue);
-  color: var(--espresso);
+  background-color: var(--espresso);
+  color: var(--cream);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -214,9 +214,10 @@
 }
 
 .btn-pill-primary:hover {
-  background-color: var(--dusty-blue-80);
+  background-color: var(--espresso-85);
+  color: var(--cream);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(169, 197, 209, 0.45);
+  box-shadow: 0 8px 24px rgba(52, 31, 26, 0.35);
 }
 
 /* Infinite Marquee Ticker Banner */
@@ -675,17 +676,20 @@
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.15em;
-  color: var(--terracotta); /* Section overline in terracotta */
+  letter-spacing: 0.18em;
+  color: var(--espresso);
+  opacity: 0.7;
   margin-bottom: 12px;
   text-transform: uppercase;
 }
 
 .section-title {
-  font-size: 40px;
+  font-family: var(--font-serif);
+  font-size: clamp(36px, 4.5vw, 52px);
+  font-weight: 600;
   letter-spacing: -1px;
   color: var(--espresso);
-  max-width: 600px;
+  max-width: 650px;
   margin: 0 auto;
 }
 
@@ -822,42 +826,27 @@
   font-weight: bold;
 }
 
-/* Specific Card Buttons using brand tokens */
 .btn-card {
   width: 100%;
   padding: 14px 0;
+  background-color: var(--espresso);
+  color: var(--cream);
 }
 
-.btn-card-basics {
-  background-color: var(--dusty-blue);
-  color: var(--espresso);
-}
-.btn-card-basics:hover {
-  background-color: var(--dusty-blue-80);
-}
-
-.btn-card-mini {
-  background-color: var(--butter);
-  color: var(--espresso);
-}
-.btn-card-mini:hover {
-  background-color: var(--butter-80);
-}
-
-.btn-card-photo {
-  background-color: var(--terracotta);
-  color: var(--espresso);
-}
-.btn-card-photo:hover {
-  background-color: var(--terracotta-hover);
-}
-
+.btn-card-basics,
+.btn-card-mini,
+.btn-card-photo,
 .btn-card-full {
   background-color: var(--espresso);
   color: var(--cream);
 }
+
+.btn-card-basics:hover,
+.btn-card-mini:hover,
+.btn-card-photo:hover,
 .btn-card-full:hover {
-  opacity: 0.9;
+  background-color: var(--espresso-85);
+  color: var(--cream);
 }
 
 /* Why Section (Alternating section using subtle Dusty Blue tint) */
@@ -1099,8 +1088,8 @@
 }
 
 .btn-footer-pill-cta {
-  background-color: var(--dusty-blue); /* Winter Sky #CFE1E2 */
-  color: var(--espresso);
+  background-color: var(--espresso);
+  color: var(--cream);
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
@@ -1112,13 +1101,14 @@
   align-items: center;
   justify-content: center;
   transition: var(--transition-smooth);
-  box-shadow: 0 4px 14px rgba(52, 31, 26, 0.08);
+  box-shadow: 0 4px 14px rgba(52, 31, 26, 0.15);
 }
 
 .btn-footer-pill-cta:hover {
-  background-color: var(--dusty-blue-80);
+  background-color: var(--espresso-85);
+  color: var(--cream);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(52, 31, 26, 0.15);
+  box-shadow: 0 8px 20px rgba(52, 31, 26, 0.25);
 }
 
 .footer-bottom-bar {
