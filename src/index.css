@@ -72,7 +72,7 @@ body::after {
   mix-blend-mode: overlay;
 }
 
-/* Exclude hero photos, image cards, and media elements from grain */
+/* Exclude hero photos, image cards, media elements, and ALL buttons from background grain texture */
 .hero-section,
 .hero-cinematic,
 .services-hero-right,
@@ -81,7 +81,11 @@ body::after {
 .featured-img-wrap,
 .modal-img-wrap,
 .article-img-wrap,
-img {
+img,
+button,
+.btn,
+[class*="btn-"],
+a.btn {
   position: relative;
   z-index: 5;
   isolation: isolate;
