@@ -740,17 +740,35 @@
   background-color: var(--cream-50); /* Cream background */
 }
 
+.badge-best-seller-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
 .badge-best-seller {
   display: inline-flex;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 700;
+  align-items: center;
+  font-family: 'Dream on Paper', 'Pinyon Script', 'Alex Brush', cursive, serif;
+  font-size: 24px;
+  font-weight: 400;
   color: var(--espresso);
-  background-color: var(--terracotta);
-  padding: 4px 14px;
+  background-color: var(--dusty-blue);
+  padding: 4px 18px;
   border-radius: 999px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(52, 31, 26, 0.08);
+}
+
+.drawn-arrow-svg {
+  width: 32px;
+  height: 32px;
+  color: var(--espresso);
+  opacity: 0.85;
+  transform: rotate(-15deg);
 }
 
 .card-name {
