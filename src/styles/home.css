@@ -838,13 +838,23 @@
 }
 
 .btn-cta-banner {
-  background-color: var(--terracotta);
+  background-color: var(--dusty-blue);
   color: var(--espresso);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 28px;
+  border-radius: 999px;
+  transition: var(--transition-smooth);
 }
 
 .btn-cta-banner:hover {
-  background-color: var(--terracotta-hover);
+  background-color: var(--dusty-blue-80);
   color: var(--espresso);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(169, 197, 209, 0.45);
 }
 
 /* Footer Section (Cream background, Espresso text) */
@@ -910,7 +920,8 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: var(--terracotta); /* Footer label overline in terracotta */
+  color: var(--espresso); /* Footer label overline in espresso brown */
+  opacity: 0.7;
   margin-bottom: 20px;
   text-transform: uppercase;
 }
@@ -937,7 +948,7 @@
 }
 
 .btn-footer-cta {
-  background-color: var(--terracotta);
+  background-color: var(--dusty-blue);
   color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -946,10 +957,13 @@
   text-transform: uppercase;
   padding: 10px 22px;
   border-radius: 999px;
+  transition: var(--transition-smooth);
 }
 
 .btn-footer-cta:hover {
-  background-color: var(--terracotta-hover);
+  background-color: var(--dusty-blue-80);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(169, 197, 209, 0.45);
 }
 
 .footer-nav {
