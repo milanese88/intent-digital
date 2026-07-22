@@ -914,8 +914,8 @@
 /* Why Section */
 .why-section {
   background-color: var(--cream);
-  border-top: 1px solid var(--espresso-15);
-  border-bottom: 1px solid var(--espresso-15);
+  border-top: none;
+  border-bottom: none;
 }
 
 .why-grid {
