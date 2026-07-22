@@ -1,14 +1,14 @@
 :root {
-  --cream: #FFF8E7;
-  --cream-90: rgba(255, 248, 231, 0.9);
-  --cream-72: rgba(255, 248, 231, 0.72);
-  --cream-50: rgba(255, 248, 231, 0.5);
+  --cream: #FAF8F5;
+  --cream-90: rgba(250, 248, 245, 0.9);
+  --cream-72: rgba(250, 248, 245, 0.72);
+  --cream-50: rgba(250, 248, 245, 0.5);
 
   --terracotta: #CFE1E2;
   --terracotta-hover: #b8d4d6;
 
-  --butter: #FFF8E7;
-  --butter-80: rgba(255, 248, 231, 0.8);
+  --butter: #FAF8F5;
+  --butter-80: rgba(250, 248, 245, 0.8);
 
   --dusty-blue: #CFE1E2;
   --dusty-blue-80: rgba(207, 225, 226, 0.85);
