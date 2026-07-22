@@ -740,18 +740,25 @@
   background-color: var(--cream-50); /* Cream background */
 }
 
-.best-seller-angel-img {
-  width: 95px;
+.card-best-seller {
+  position: relative;
+  overflow: visible;
+}
+
+.best-seller-angel-overlay {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 145px;
   height: auto;
   object-fit: contain;
-  mix-blend-mode: multiply;
-  margin-top: -10px;
-  margin-right: -4px;
+  pointer-events: none;
+  z-index: 10;
   transition: transform 0.4s ease;
 }
 
-.service-card:hover .best-seller-angel-img {
-  transform: rotate(-3deg) scale(1.05);
+.service-card:hover .best-seller-angel-overlay {
+  transform: rotate(-3deg) scale(1.06);
 }
 
 .card-name {
