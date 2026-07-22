@@ -14,63 +14,67 @@ export default function Services({ navigateTo }) {
 
   return (
     <div className="home-page services-page">
-      {/* NAVBAR */}
-      <nav className="navbar">
-        <div className="container nav-container">
-          <div className="nav-links nav-links-left desktop-only">
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
-            <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-          </div>
-
-          <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
-          </a>
-
-          <div className="nav-right">
-            <a href="#" className="btn btn-nav-cta desktop-only" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
+      {/* SERVICES SPLIT HERO SECTION (IMAGE 2 LAYOUT) */}
+      <header className="services-split-hero">
+        <div className="services-hero-left">
+          {/* Top Header Row with Circular Seal Logo & Nav */}
+          <div className="services-hero-nav-row">
+            <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
+              <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
             </a>
+
+            <div className="services-nav-links desktop-only">
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
+              <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            </div>
+
             <button 
-              className="mobile-toggle-btn" 
+              className="mobile-toggle-btn mobile-only-inline" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? '✕' : '☰'}
             </button>
           </div>
-        </div>
 
-        {/* Mobile Nav Drawer */}
-        {mobileMenuOpen && (
-          <div className="mobile-nav-drawer">
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
-            <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
+          {/* Mobile Nav Drawer */}
+          {mobileMenuOpen && (
+            <div className="mobile-nav-drawer">
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
+              <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+              <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
+                GET STARTED &rarr;
+              </a>
+            </div>
+          )}
+
+          {/* Hero Main Editorial Content */}
+          <div className="services-hero-content-wrap">
+            <h1 className="services-hero-title">
+              Creative Branding
+            </h1>
+            <p className="services-hero-copy">
+              Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
+            </p>
+            <a href="#" className="btn btn-services-hero-cta" onClick={(e) => handleNavClick(e, 'contact')}>
+              GET STARTED
             </a>
           </div>
-        )}
-      </nav>
+        </div>
 
-      {/* SERVICES HERO SECTION */}
-      <header className="services-hero-section">
-        <div className="container">
-          <div className="section-header" style={{ marginBottom: '24px' }}>
-            <span className="section-tagline">OUR SERVICES &amp; PACKAGES</span>
-            <h1 className="section-title" style={{ fontSize: 'clamp(42px, 5.5vw, 64px)' }}>
-              Crafted with Intention.<br />Built for Distinction.
-            </h1>
-          </div>
-          <p className="services-hero-subtitle">
-            Intent Digital is a boutique branding and web design studio shaping identity, voice, and digital presence for founders who mean business. No recycled templates—every deliverable is custom-crafted to elevate your brand authority.
-          </p>
+        {/* Hero Right Column — Architectural Staircase Image */}
+        <div className="services-hero-right">
+          <img 
+            src="/services-hero-staircase.jpg" 
+            alt="Intent Digital Architectural Interior" 
+            className="services-hero-staircase-img" 
+          />
         </div>
       </header>
 
