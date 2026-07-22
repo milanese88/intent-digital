@@ -206,38 +206,16 @@
 }
 
 .hero-editorial-title {
-  font-family: 'Cormorant Garamond', 'Bodoni Moda', var(--font-serif);
-  font-size: clamp(40px, 5.8vw, 72px);
+  font-family: 'Cormorant Garamond', 'Playfair Display', var(--font-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(42px, 6.2vw, 76px);
   line-height: 1.15;
+  letter-spacing: -0.015em;
   color: #FAF7F2;
   margin-bottom: 24px;
   max-width: 900px;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
-  word-spacing: 0.12em;
-}
-
-.hero-word-regular {
-  font-family: 'Cormorant Garamond', 'Bodoni Moda', var(--font-serif);
-  font-style: normal;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-}
-
-.hero-word-italic {
-  font-family: 'Cormorant Garamond', 'Bodoni Moda', var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: 0em;
-}
-
-.hero-word-amp {
-  font-family: 'Pinyon Script', 'Alex Brush', serif;
-  font-style: italic;
-  font-size: 1.15em;
-  font-weight: 400;
-  vertical-align: baseline;
-  padding: 0 0.1em;
-  color: var(--dusty-blue);
 }
 
 .hero-editorial-subtitle {
