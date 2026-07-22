@@ -91,7 +91,8 @@ h1, .h1-title {
   color: var(--espresso);
   font-size: clamp(3rem, 5vw, 4rem);
   line-height: 1.1;
-  font-weight: 400;
+  font-weight: 300;
+  letter-spacing: 0.02em;
 }
 
 h2, .section-title, .h2-title {
@@ -99,7 +100,8 @@ h2, .section-title, .h2-title {
   color: var(--espresso);
   font-size: clamp(2.2rem, 4vw, 3rem);
   line-height: 1.15;
-  font-weight: 400;
+  font-weight: 300;
+  letter-spacing: 0.02em;
 }
 
 h3, .h3-title {
@@ -107,7 +109,14 @@ h3, .h3-title {
   color: var(--espresso);
   font-size: clamp(1.3rem, 2vw, 1.6rem);
   line-height: 1.25;
-  font-weight: 500;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+em, i, .serif-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: inherit;
 }
 
 p {
