@@ -242,7 +242,7 @@ export default function Home() {
               <div className="card-top">
                 <span className="badge-timeline">4&ndash;5 weeks</span>
               </div>
-              <img src="/best-seller-angel-cyan.png" alt="Best Seller" className="best-seller-angel-overlay" />
+              <img src="/best-seller-angel-brown.png" alt="Best Seller" className="best-seller-angel-overlay" />
               <h3 className="card-name">Photography &amp; Content</h3>
               <div className="card-price">$6,000 <span className="currency">USD</span></div>
               <p className="card-desc">
