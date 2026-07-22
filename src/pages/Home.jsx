@@ -94,7 +94,11 @@ export default function Home({ navigateTo }) {
               transition={{ duration: 0.9, ease: "easeOut", delay: 0.3 }}
               className="hero-editorial-title"
             >
-              Luxe Website Design + Branding for Founders
+              <span className="hero-word-regular">Luxe</span>{' '}
+              <span className="hero-word-italic">Website Design</span>{' '}
+              <span className="hero-word-amp">&amp;</span>{' '}
+              <span className="hero-word-italic">Branding</span>{' '}
+              <span className="hero-word-regular">for Founders</span>
             </motion.h1>
             
             <motion.p
