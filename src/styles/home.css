@@ -928,10 +928,9 @@
 }
 
 .card-price {
-  font-family: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
-  font-stretch: condensed;
-  font-size: 42px;
-  font-weight: 400;
+  font-family: var(--font-sans);
+  font-size: 38px;
+  font-weight: 700;
   color: var(--espresso); /* Brown color */
   margin-bottom: 16px;
   line-height: 1;
@@ -1042,10 +1041,9 @@
 }
 
 .why-num {
-  font-family: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
-  font-stretch: condensed;
-  font-size: 44px;
-  font-weight: 400;
+  font-family: var(--font-sans);
+  font-size: 36px;
+  font-weight: 700;
   color: var(--espresso);
   margin-bottom: 12px;
   opacity: 0.85;
@@ -1054,6 +1052,7 @@
 }
 
 .why-col-title {
+  font-family: var(--font-heading);
   font-size: 22px;
   letter-spacing: -0.3px;
   color: var(--espresso);
@@ -1061,9 +1060,10 @@
 }
 
 .why-col-text {
+  font-family: var(--font-sans);
   font-size: 15px;
   color: var(--espresso);
-  opacity: 0.7;
+  opacity: 0.75;
   line-height: 1.6;
 }
 
@@ -1849,8 +1849,8 @@
   border: 1px solid var(--espresso-15);
   border-radius: 8px;
   padding: 14px 18px;
-  font-family: var(--font-serif);
-  font-size: 16px;
+  font-family: var(--font-sans);
+  font-size: 15px;
   color: var(--espresso);
   outline: none;
   transition: var(--transition-smooth);
