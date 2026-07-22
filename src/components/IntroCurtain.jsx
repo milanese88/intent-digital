@@ -132,7 +132,7 @@ export default function IntroCurtain({ onComplete }) {
                 }}
                 className="wax-seal"
               >
-                <img src="/seal-logo.svg" alt="Intent Digital Seal" className="wax-seal-img" />
+                <img src="/seal-logo.png" alt="Intent Digital Seal" className="wax-seal-img" />
               </motion.div>
             </motion.div>
           </div>

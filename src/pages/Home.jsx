@@ -34,7 +34,7 @@ export default function Home() {
         <div className="container nav-container">
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
-            <img src="/seal-logo.svg" alt="Intent Digital Seal" className="nav-seal-img" />
+            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
           </a>
           <div className="nav-links">
             <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>Services</a>
@@ -114,7 +114,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: "easeOut", delay: 2.1 }}
                 className="postcard-postmark-wrap"
               >
-                <img src="/seal-logo.svg" className="postcard-seal-img" alt="Intent Digital Seal" />
+                <img src="/seal-logo.png" className="postcard-seal-img" alt="Intent Digital Seal" />
               </motion.div>
             </div>
 
@@ -369,7 +369,7 @@ export default function Home() {
             <div className="footer-brand">
               <div className="footer-logo-wrap">
                 <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
-                <img src="/seal-logo.svg" alt="Intent Digital Seal" className="footer-seal-img" />
+                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-seal-img" />
               </div>
               <p className="footer-tagline">Branding for founders who mean business.</p>
             </div>
