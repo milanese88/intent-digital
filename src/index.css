@@ -1,41 +1,31 @@
 :root {
-  /* 60% Dominant Page Base Color */
-  --cream: #FAF8F5;
-  --cream-90: rgba(250, 248, 245, 0.9);
-  --cream-72: rgba(250, 248, 245, 0.72);
-  --cream-50: rgba(250, 248, 245, 0.5);
+  /* Color Tokens (Site-Wide Palette) */
+  --espresso: #3A342B;
+  --espresso-soft: #5B5245;
+  --cream: #FBF3DD;
+  --terracotta: #E28E52;
+  --burnt-rose: #863E3F;
+  --dusty-blue: #A9C5D1;
 
-  /* 10% Accent Color — PANTONE 12-4207 TSX Quietude / Dusty Blue */
-  --quietude: #BDD3E2;
-  --quietude-rgb: 189, 211, 226;
-  --terracotta: #BDD3E2;
-  --terracotta-hover: #A5C2D5;
+  /* Opacity Variants */
+  --espresso-85: rgba(58, 52, 43, 0.85);
+  --espresso-20: rgba(58, 52, 43, 0.2);
+  --espresso-15: rgba(58, 52, 43, 0.15);
+  --espresso-12: rgba(58, 52, 43, 0.12);
+  --espresso-06: rgba(58, 52, 43, 0.06);
+  --cream-90: rgba(251, 243, 221, 0.9);
+  --cream-72: rgba(251, 243, 221, 0.72);
+  --cream-50: rgba(251, 243, 221, 0.5);
 
-  --butter: #FAF8F5;
-  --butter-80: rgba(250, 248, 245, 0.8);
+  /* Font Roles */
+  --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
+  --font-numeral: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
 
-  --dusty-blue: #BDD3E2;
-  --dusty-blue-80: rgba(189, 211, 226, 0.85);
-  --dusty-blue-15: rgba(189, 211, 226, 0.15);
-  --accent-blue: #BDD3E2;
-  --accent-blue-hover: #A5C2D5;
-
-  /* 30% Secondary Color — PANTONE 19-1018 TCX Ganache */
-  --ganache: #34292A;
-  --espresso: #34292A;
-  --espresso-85: rgba(52, 41, 42, 0.85);
-  --espresso-20: rgba(52, 41, 42, 0.2);
-  --espresso-15: rgba(52, 41, 42, 0.15);
-  --espresso-12: rgba(52, 41, 42, 0.12);
-  --espresso-06: rgba(52, 41, 42, 0.06);
-  --espresso-05: rgba(52, 41, 42, 0.05);
-  --espresso-02: rgba(52, 41, 42, 0.02);
-
-  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
-
-  --font-body: var(--font-sans);
-  --font-heading: var(--font-serif);
+  /* System Aliases */
+  --font-serif: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
 
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -93,19 +83,96 @@ a.btn {
 }
 
 p, span, label, input, select, textarea, button, a, li, small {
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  font-weight: 600;
+h1, .h1-title {
+  font-family: var(--font-display);
   color: var(--espresso);
+  font-size: clamp(3rem, 5vw, 4rem);
+  line-height: 1.1;
+  font-weight: 400;
+}
+
+h2, .section-title, .h2-title {
+  font-family: var(--font-display);
+  color: var(--espresso);
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  line-height: 1.15;
+  font-weight: 400;
+}
+
+h3, .h3-title {
+  font-family: var(--font-display);
+  color: var(--espresso);
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
   line-height: 1.25;
+  font-weight: 500;
+}
+
+p {
+  font-family: var(--font-body);
+  font-weight: 400;
+  color: var(--espresso);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.subheadline, .section-subtext, .hero-editorial-subtitle {
+  font-family: var(--font-body);
+  font-weight: 400;
+  color: var(--espresso-soft);
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
+.eyebrow, .section-tagline, .hero-eyebrow, .welcome-tagline {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--espresso-soft);
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 3px;
+  display: block;
+}
+
+.numeral, .why-num, .offering-num, .process-step-num {
+  font-family: var(--font-numeral);
+  color: var(--espresso);
+  font-size: 3rem;
+  line-height: 1;
+}
+
+button, .btn, [class*="btn-"] {
+  font-family: var(--font-body);
+  font-weight: 600;
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
+  border-radius: 999px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: var(--transition-smooth);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* Dark (Espresso) Section Styles */
+.dark-section, .cta-banner-section, .welcome-card-dark {
+  background-color: var(--espresso);
+  color: var(--cream);
+}
+
+.dark-section h1, .dark-section h2, .dark-section h3, .dark-section p,
+.cta-banner-section .cta-banner-title, .cta-banner-section .cta-banner-subtext {
+  color: var(--cream);
+}
+
+.dark-section .btn, .cta-banner-section .btn {
+  background-color: var(--dusty-blue);
+  color: var(--espresso);
 }
 
 #root {
