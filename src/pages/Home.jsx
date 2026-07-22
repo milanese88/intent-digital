@@ -163,33 +163,81 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
-      {/* SERVICES SUMMARY SECTION */}
-      <section className="home-services-summary-section">
-        <div className="container center-text">
-          <div className="section-header center">
-            <span className="section-tagline">OUR SERVICES</span>
-            <h2 className="section-title">Everything your brand needs to feel like itself.</h2>
-            <p className="section-subtext">
-              From strategy to the smallest visual choice, we shape brands that are cohesive, considered, and made to last.
-            </p>
-          </div>
+      {/* OUR SERVICES SECTION — TWO-COLUMN EDITORIAL LAYOUT */}
+      <section id="services" className="home-services-summary-section">
+        <div className="container">
+          <div className="home-services-grid">
+            {/* Left Column: Visual Mockup / On-Brand Image */}
+            <div className="home-services-visual-wrap">
+              <img 
+                src="/services-hero-staircase.jpg" 
+                alt="Intent Digital Studio Services & Architectural Brand Mockup" 
+                className="home-services-visual-img" 
+                loading="lazy"
+              />
+            </div>
 
-          <div className="home-services-list-pills">
-            <span className="service-pill">Brand Strategy</span>
-            <span className="service-pill-dot">&bull;</span>
-            <span className="service-pill">Visual Identity</span>
-            <span className="service-pill-dot">&bull;</span>
-            <span className="service-pill">Messaging</span>
-            <span className="service-pill-dot">&bull;</span>
-            <span className="service-pill">Web Architecture</span>
-            <span className="service-pill-dot">&bull;</span>
-            <span className="service-pill">Content Creation</span>
-          </div>
+            {/* Right Column: Content & Organized Vertical Service List */}
+            <div className="home-services-content">
+              <span className="section-tagline">OUR SERVICES</span>
+              <h2 className="services-home-title">Everything your brand needs to feel like itself.</h2>
+              <p className="services-home-subheadline">
+                From strategy to the smallest visual choice, we shape brands that are cohesive, considered, and made to last.
+              </p>
 
-          <div className="home-services-cta-wrap">
-            <a href="#" className="btn btn-pill-secondary" onClick={(e) => handleNavClick(e, 'services')}>
-              Discover our services &rarr;
-            </a>
+              <ul className="services-vertical-list">
+                <li className="service-list-row">
+                  <span className="service-marker">&bull;</span>
+                  <div className="service-row-text">
+                    <strong className="service-row-name">Brand Strategy</strong>
+                    <span className="service-row-sep">&mdash;</span>
+                    <span className="service-row-desc">the thinking behind the beauty.</span>
+                  </div>
+                </li>
+
+                <li className="service-list-row">
+                  <span className="service-marker">&bull;</span>
+                  <div className="service-row-text">
+                    <strong className="service-row-name">Visual Identity</strong>
+                    <span className="service-row-sep">&mdash;</span>
+                    <span className="service-row-desc">logos, color, type, and a cohesive system.</span>
+                  </div>
+                </li>
+
+                <li className="service-list-row">
+                  <span className="service-marker">&bull;</span>
+                  <div className="service-row-text">
+                    <strong className="service-row-name">Messaging &amp; Voice</strong>
+                    <span className="service-row-sep">&mdash;</span>
+                    <span className="service-row-desc">words that sound like you.</span>
+                  </div>
+                </li>
+
+                <li className="service-list-row">
+                  <span className="service-marker">&bull;</span>
+                  <div className="service-row-text">
+                    <strong className="service-row-name">Web Architecture</strong>
+                    <span className="service-row-sep">&mdash;</span>
+                    <span className="service-row-desc">a digital home with intention.</span>
+                  </div>
+                </li>
+
+                <li className="service-list-row">
+                  <span className="service-marker">&bull;</span>
+                  <div className="service-row-text">
+                    <strong className="service-row-name">Content Creation</strong>
+                    <span className="service-row-sep">&mdash;</span>
+                    <span className="service-row-desc">photography and content, on retainer.</span>
+                  </div>
+                </li>
+              </ul>
+
+              <div className="home-services-cta-wrap">
+                <a href="#" className="btn btn-pill-secondary" onClick={(e) => handleNavClick(e, 'services')}>
+                  Discover our services &rarr;
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </section>
