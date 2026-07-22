@@ -23,7 +23,7 @@
   --espresso-05: rgba(52, 31, 26, 0.05);
   --espresso-02: rgba(52, 31, 26, 0.02);
 
-  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-serif: 'Cormorant Garamond', 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
 
   --font-body: var(--font-serif);
@@ -55,9 +55,9 @@ p {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--espresso);
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 a {
@@ -85,20 +85,25 @@ a {
   align-items: center;
   justify-content: center;
   font-family: var(--font-sans);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  font-size: 15px;
-  padding: 12px 28px;
+  font-size: 13px;
+  text-transform: uppercase;
+  padding: 14px 30px;
   border-radius: 999px;
   border: none;
+  background-color: var(--espresso);
+  color: var(--cream);
   cursor: pointer;
   transition: var(--transition-smooth);
   text-align: center;
 }
 
 .btn:hover {
+  background-color: var(--espresso-85);
+  color: var(--cream);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(58, 52, 43, 0.1);
+  box-shadow: 0 6px 20px rgba(52, 31, 26, 0.25);
 }
 
 .btn:active {
