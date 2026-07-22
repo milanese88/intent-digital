@@ -212,26 +212,26 @@
 }
 
 .hero-editorial-title {
-  font-family: 'Cormorant Garamond', 'Playfair Display', var(--font-serif);
-  font-style: italic;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-weight: 300;
   font-size: clamp(42px, 6.2vw, 76px);
-  line-height: 1.15;
-  letter-spacing: -0.015em;
-  color: #FAF7F2;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: var(--cream);
   margin-bottom: 24px;
   max-width: 900px;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 
 .hero-editorial-subtitle {
-  font-family: var(--font-serif);
-  font-size: clamp(16px, 2vw, 20px);
+  font-family: var(--font-body);
+  font-size: clamp(16px, 1.8vw, 20px);
   font-weight: 400;
   line-height: 1.6;
-  color: rgba(250, 247, 242, 0.92);
+  color: var(--cream);
+  opacity: 0.92;
   margin-bottom: 40px;
-  max-width: 640px;
+  max-width: 680px;
   text-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);
 }
 
@@ -1009,13 +1009,13 @@
 }
 
 .section-title {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: clamp(38px, 4.8vw, 56px);
-  font-weight: 400;
-  letter-spacing: -0.015em;
+  font-weight: 300;
+  letter-spacing: 0.02em;
   line-height: 1.15;
   color: var(--espresso);
-  max-width: 700px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
