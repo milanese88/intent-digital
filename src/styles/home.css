@@ -846,9 +846,9 @@
   color: var(--cream);
 }
 
-/* Why Section (Alternating section using subtle Dusty Blue tint) */
+/* Why Section */
 .why-section {
-  background-color: var(--dusty-blue-15); /* Dusty blue tint */
+  background-color: var(--cream);
   border-top: 1px solid var(--espresso-15);
   border-bottom: 1px solid var(--espresso-15);
 }
