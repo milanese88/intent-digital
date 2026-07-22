@@ -134,9 +134,22 @@ export default function News({ navigateTo }) {
 
           <div className="news-3col-grid">
             {gridArticles.map((article) => (
-              <article key={article.id} className="news-article-card" onClick={() => setActiveArticle(article)}>
+              <article 
+                key={article.id} 
+                className="news-article-card" 
+                tabIndex={0}
+                role="button"
+                aria-label={`Read article: ${article.title}`}
+                onClick={() => setActiveArticle(article)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveArticle(article);
+                  }
+                }}
+              >
                 <div className="article-img-wrap">
-                  <img src={article.image} alt={article.title} className="article-img" />
+                  <img src={article.image} alt={article.title} className="article-img" loading="lazy" />
                 </div>
                 <div className="article-card-body">
                   <div className="news-meta-row">
