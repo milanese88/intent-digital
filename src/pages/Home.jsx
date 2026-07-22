@@ -32,23 +32,77 @@ export default function Home() {
       {/* SECTION 1 — NAV */}
       <nav className="navbar">
         <div className="container nav-container">
+          <div className="nav-links nav-links-left">
+            <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
+            <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
+            <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
+            <a href="mailto:hello@intent-digital.com" className="nav-link">CONTACT</a>
+          </div>
+
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
             <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
           </a>
-          <div className="nav-links">
-            <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>Services</a>
-            <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>About</a>
-            <a href="mailto:hello@intent-digital.com" className="nav-link">Contact</a>
+
+          <div className="nav-right">
+            <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta">
+              GET STARTED &rarr;
+            </a>
           </div>
-          <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta">
-            Get started &rarr;
-          </a>
         </div>
       </nav>
 
-      {/* SECTION 2 — HERO */}
-      <header className="hero-section">
+      {/* SECTION 2 — CINEMATIC EDITORIAL HERO */}
+      <header className="hero-section hero-cinematic">
+        <div className="hero-bg-overlay"></div>
+        <div className="container hero-container">
+          <div className="hero-editorial-content">
+            <motion.h1
+              initial={{ opacity: 0, y: 25 }}
+              animate={startReveal ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.9, ease: "easeOut", delay: 0.3 }}
+              className="hero-editorial-title"
+            >
+              Luxe Website Design + Branding for Founders
+            </motion.h1>
+            
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={startReveal ? { opacity: 0.9, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
+              className="hero-editorial-subtitle"
+            >
+              Authentic, intentional branding for businesses that stand out. Let's give you that on-brand, intentional identity you've always dreamed of.
+            </motion.p>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={startReveal ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.9 }}
+              className="hero-editorial-actions"
+            >
+              <a href="#portfolio" className="btn btn-pill-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
+                SEE OUR WORK &rarr;
+              </a>
+              <a href="mailto:hello@intent-digital.com" className="btn btn-pill-primary">
+                GET STARTED &rarr;
+              </a>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* INFINITE MARQUEE TICKER BANNER */}
+        <div className="marquee-banner">
+          <div className="marquee-track">
+            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp; CREATIVE BRANDING &nbsp;&bull;&nbsp; AUTHENTIC &amp; INTENTIONAL &nbsp;&bull;&nbsp; WEB DESIGN &amp; BRAND IDENTITY &nbsp;&bull;&nbsp; FORT LAUDERDALE, FL &nbsp;&bull;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+      </header>
+
+      {/* SECTION 2B — SIGNATURE POSTCARD FEATURE */}
+      <section className="postcard-feature-section">
         <div className="container hero-container">
           <div className="hero-postcard-card">
             {/* Left side of the postcard */}
@@ -67,11 +121,11 @@ export default function Home() {
                 animate={startReveal ? { opacity: 0.7, y: 0 } : {}}
                 transition={{ duration: 0.8, ease: "easeOut", delay: 1.2 }}
                 style={{
-                  fontSize: '14px',
+                  fontSize: '15px',
                   color: 'var(--espresso)',
-                  fontFamily: 'var(--font-body)',
+                  fontFamily: 'var(--font-serif)',
                   margin: '-12px 0 28px 0',
-                  lineHeight: '1.4',
+                  lineHeight: '1.5',
                   textAlign: 'left'
                 }}
               >
@@ -149,7 +203,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </header>
+      </section>
 
       {/* PORTFOLIO SHOWCASE SECTION */}
       <section id="portfolio" className="portfolio-section">
