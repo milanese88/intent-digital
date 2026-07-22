@@ -1703,38 +1703,40 @@
   width: 100%;
 }
 
-/* Wave Marquee Section */
+/* Wave Marquee Section (Straight Top & Scalloped Bottom Edge) */
 .wave-marquee-section {
   position: relative;
   width: 100%;
   overflow: hidden;
   margin: 0;
   padding: 0;
-  line-height: 0;
-  border: none;
-}
-
-.wave-divider {
-  width: 100%;
-  height: 48px;
-  display: block;
-  line-height: 0;
-}
-
-.wave-divider svg {
-  width: 100%;
-  height: 100%;
-  display: block;
 }
 
 .wave-marquee-banner {
   background-color: var(--dusty-blue);
-  padding: 16px 0;
+  padding: 24px 0 38px 0;
   overflow: hidden;
   white-space: nowrap;
   display: flex;
   align-items: center;
   line-height: 1;
+  border-top: 1px solid var(--espresso-15);
+  border-bottom: none;
+
+  /* Scallop Mask: Straight flat top edge, repeating convex semicircle scallops on bottom edge */
+  -webkit-mask-image: 
+    linear-gradient(#000 0 0), 
+    radial-gradient(circle at 14px 0px, #000 14px, transparent 14.5px);
+  -webkit-mask-position: top left, bottom left;
+  -webkit-mask-size: 100% calc(100% - 14px), 28px 14px;
+  -webkit-mask-repeat: no-repeat, repeat-x;
+
+  mask-image: 
+    linear-gradient(#000 0 0), 
+    radial-gradient(circle at 14px 0px, #000 14px, transparent 14.5px);
+  mask-position: top left, bottom left;
+  mask-size: 100% calc(100% - 14px), 28px 14px;
+  mask-repeat: no-repeat, repeat-x;
 }
 
 .wave-marquee-track {

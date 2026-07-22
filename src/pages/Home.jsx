@@ -191,29 +191,14 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
-      {/* BOUNCY SCALLOP / CLOUD MARQUEE MOTION BANNER */}
+      {/* MARQUEE MOTION BANNER (STRAIGHT TOP & SCALLOPED BOTTOM) */}
       <div className="wave-marquee-section">
-        {/* Top Scallop Wave SVG */}
-        <div className="wave-divider wave-top">
-          <svg viewBox="0 0 1200 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 36 Q30 0 60 36 Q90 0 120 36 Q150 0 180 36 Q210 0 240 36 Q270 0 300 36 Q330 0 360 36 Q390 0 420 36 Q450 0 480 36 Q510 0 540 36 Q570 0 600 36 Q630 0 660 36 Q690 0 720 36 Q750 0 780 36 Q810 0 840 36 Q870 0 900 36 Q930 0 960 36 Q990 0 1020 36 Q1050 0 1080 36 Q1110 0 1140 36 Q1170 0 1200 36 V36 H0 Z" fill="var(--dusty-blue)"/>
-          </svg>
-        </div>
-
-        {/* Baby Blue Marquee Banner */}
         <div className="wave-marquee-banner">
           <div className="wave-marquee-track">
             <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
             <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
             <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
           </div>
-        </div>
-
-        {/* Bottom Scallop Wave SVG */}
-        <div className="wave-divider wave-bottom">
-          <svg viewBox="0 0 1200 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 0 Q30 36 60 0 Q90 36 120 0 Q150 36 180 0 Q210 36 240 0 Q270 36 300 0 Q330 36 360 0 Q390 36 420 0 Q450 36 480 0 Q510 36 540 0 Q570 36 600 0 Q630 36 660 0 Q690 36 720 0 Q750 36 780 0 Q810 36 840 0 Q870 36 900 0 Q930 36 960 0 Q990 36 1020 0 Q1050 36 1080 0 Q1110 36 1140 0 Q1170 36 1200 0 V0 H0 Z" fill="var(--dusty-blue)"/>
-          </svg>
         </div>
       </div>
 
