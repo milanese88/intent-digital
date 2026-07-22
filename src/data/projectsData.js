@@ -40,12 +40,5 @@ export const projectsData = [
     description: "In pursuit of pure comfort — interior design studio & editorial identity.",
     image: "/work-florentine.jpg",
     href: "#florentine"
-  },
-  {
-    id: 'tobys-estate',
-    title: "Toby's Estate Studio",
-    description: "Reintroducing exceptional craft — specialty coffee & brand roadmap.",
-    image: "/hero-founder-cinematic.jpg",
-    href: "#tobys-estate"
   }
 ];
