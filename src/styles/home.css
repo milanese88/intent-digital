@@ -760,18 +760,22 @@
 }
 
 .card-price {
-  font-family: var(--font-sans);
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--terracotta);
+  font-family: 'Dream on Paper', 'Pinyon Script', 'Alex Brush', cursive, serif;
+  font-size: 46px;
+  font-weight: 400;
+  color: var(--espresso); /* Brown color */
   margin-bottom: 16px;
+  line-height: 1;
 }
 
 .card-price .currency {
-  font-size: 15px;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
   color: var(--espresso);
-  opacity: 0.6;
+  opacity: 0.7;
+  letter-spacing: 0.05em;
+  margin-left: 6px;
 }
 
 .card-desc {
