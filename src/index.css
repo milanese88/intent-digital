@@ -1,28 +1,34 @@
 :root {
+  /* 60% Dominant Page Base Color */
   --cream: #FAF8F5;
   --cream-90: rgba(250, 248, 245, 0.9);
   --cream-72: rgba(250, 248, 245, 0.72);
   --cream-50: rgba(250, 248, 245, 0.5);
 
+  /* 10% Accent Color — PANTONE 12-4207 TSX Quietude & Periwinkle */
+  --quietude: #BDD3E2;
+  --quietude-rgb: 189, 211, 226;
   --terracotta: #859DCE;
   --terracotta-hover: #728ABF;
 
   --butter: #FAF8F5;
   --butter-80: rgba(250, 248, 245, 0.8);
 
-  --dusty-blue: #859DCE;
-  --dusty-blue-80: rgba(133, 157, 206, 0.85);
-  --dusty-blue-15: rgba(133, 157, 206, 0.15);
+  --dusty-blue: #BDD3E2;
+  --dusty-blue-80: rgba(189, 211, 226, 0.85);
+  --dusty-blue-15: rgba(189, 211, 226, 0.15);
   --accent-blue: #859DCE;
 
-  --espresso: #341F1A;
-  --espresso-85: rgba(52, 31, 26, 0.85);
-  --espresso-20: rgba(52, 31, 26, 0.2);
-  --espresso-15: rgba(52, 31, 26, 0.15);
-  --espresso-12: rgba(52, 31, 26, 0.12);
-  --espresso-06: rgba(52, 31, 26, 0.06);
-  --espresso-05: rgba(52, 31, 26, 0.05);
-  --espresso-02: rgba(52, 31, 26, 0.02);
+  /* 30% Secondary Color — PANTONE 19-1018 TCX Ganache */
+  --ganache: #34292A;
+  --espresso: #34292A;
+  --espresso-85: rgba(52, 41, 42, 0.85);
+  --espresso-20: rgba(52, 41, 42, 0.2);
+  --espresso-15: rgba(52, 41, 42, 0.15);
+  --espresso-12: rgba(52, 41, 42, 0.12);
+  --espresso-06: rgba(52, 41, 42, 0.06);
+  --espresso-05: rgba(52, 41, 42, 0.05);
+  --espresso-02: rgba(52, 41, 42, 0.02);
 
   --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;

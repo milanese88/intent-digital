@@ -2,20 +2,19 @@
 
 These rules govern the styling, colors, and layout structure of the Intent Digital branding agency marketing website.
 
-## Design Tokens
+## Design Tokens (60-30-10 Rule)
 
-- **Toasted Cream (Page Background)**: `#FFF8E7`
-- **Winter Sky (Accent / Buttons / Badges)**: `#CFE1E2`
-- **Espresso (Ink / Dark Text & Backgrounds)**: `#341F1A`
+- **60% Dominant (Page Base & Backgrounds)**: Toasted Cream (`#FAF8F5`)
+- **30% Secondary (Structure, Depth & Text)**: PANTONE 19-1018 TCX Ganache (`#34292A`)
+- **10% Accent (CTAs, Badges & Highlights)**: PANTONE 12-4207 TSX Quietude (`#BDD3E2`) & Periwinkle Blue (`#859DCE`)
 
 ## Typography Rules
 
-- **Editorial Serif (Titles, Headings & Paragraphs)**: `Playfair Display` for titles, headings, and paragraph body text.
-- **UI Sans-Serif (Navigation, Labels, Buttons & Badges)**: `Montserrat`.
-- **Hierarchy**: Use `Playfair Display` for editorial headings and body text, and `Montserrat` for technical UI labels, buttons, and overlines.
+- **Editorial Serif (Headings & Titles)**: `Cormorant Garamond` / `Playfair Display` for titles and headings.
+- **UI Sans-Serif (Navigation, Body Paragraphs, Labels, Buttons & Badges)**: `Montserrat`.
 
 ## Layout & Color Application Rules
 
-- **Default Page Background**: Always use Toasted Cream (`#FFF8E7`).
-- **Section Accent ownership**: One color accent should dominate each block or panel.
-- **CTA Rule**: Terracotta (`#E28E52`) is strictly reserved for the single primary call-to-action button in any given viewport/screen view.
+- **60% Base**: Always use Toasted Cream (`#FAF8F5`) as the anchoring base background.
+- **30% Depth**: Use Pantone Ganache (`#34292A`) for typography, dark structural panels, card borders, and footers.
+- **10% Accent**: Use Pantone Quietude (`#BDD3E2`) & Periwinkle (`#859DCE`) for high-impact buttons, marquee banners, active underlines, and category badges.
