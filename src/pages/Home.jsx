@@ -339,31 +339,61 @@ export default function Home() {
       {/* SECTION 6 — FOOTER */}
       <footer className="footer-section">
         <div className="container footer-container">
-          <div className="footer-top">
-            <div className="footer-brand">
-              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
-              <p className="footer-tagline">Branding for founders who mean business.</p>
+          <div className="footer-grid-layout">
+            {/* Left Column: Brand script logo, tagline, quote */}
+            <div className="footer-col-left">
+              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-script-logo" />
+              <p className="footer-agency-tagline">
+                Full-service brand + website design studio for ambitious founders.
+              </p>
+              <p className="footer-quote">
+                <em>Pure intention &amp; craft behind every choice.</em>
+              </p>
             </div>
-            <div className="footer-contact">
-              <span className="footer-label">GET IN TOUCH</span>
-              <a href="mailto:hello@intent-digital.com" className="footer-email">
-                hello@intent-digital.com
-              </a>
-              <a href="mailto:hello@intent-digital.com" className="btn btn-footer-cta">
-                Get started &rarr;
-              </a>
+
+            {/* Center Column: Centered Seal logo + Social icons */}
+            <div className="footer-col-center">
+              <div className="footer-seal-wrapper">
+                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-main-seal" />
+              </div>
+              <div className="footer-social-row">
+                <a href="#" className="social-icon-link" aria-label="Facebook">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+                </a>
+                <a href="#" className="social-icon-link" aria-label="Pinterest">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345c-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146A11.96 11.96 0 0012 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z"/></svg>
+                </a>
+                <a href="#" className="social-icon-link" aria-label="Instagram">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                </a>
+              </div>
             </div>
-            <div className="footer-nav">
-              <span className="footer-label">EXPLORE</span>
-              <div className="footer-links">
-                <a href="#services" onClick={(e) => handleScroll(e, 'services')}>Services</a>
-                <a href="#why-us" onClick={(e) => handleScroll(e, 'why-us')}>About</a>
-                <a href="mailto:hello@intent-digital.com">Contact</a>
+
+            {/* Right Column: Navigation Links + CTA Button */}
+            <div className="footer-col-right">
+              <div className="footer-nav-columns">
+                <div className="footer-nav-col">
+                  <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>HOME</a>
+                  <a href="#why-us" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
+                  <a href="#services" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
+                  <a href="#portfolio" onClick={(e) => handleScroll(e, 'portfolio')}>PORTFOLIO</a>
+                </div>
+                <div className="footer-nav-col">
+                  <a href="#services" onClick={(e) => handleScroll(e, 'services')}>WORK WITH US</a>
+                  <a href="mailto:hello@intent-digital.com">CONTACT</a>
+                  <a href="#portfolio" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
+                </div>
+              </div>
+              <div className="footer-cta-wrap">
+                <a href="mailto:hello@intent-digital.com" className="btn btn-footer-pill-cta">
+                  GET STARTED &rarr;
+                </a>
               </div>
             </div>
           </div>
-          <div className="footer-bottom">
-            <p className="footer-copy">&copy; 2025 Intent Digital. All rights reserved.</p>
+
+          <div className="footer-bottom-bar">
+            <p className="footer-copy">&copy; 2025 Intent Digital Studio LLC &nbsp;|&nbsp; Fort Lauderdale, FL &nbsp;|&nbsp; All rights reserved.</p>
           </div>
         </div>
       </footer>
