@@ -170,9 +170,9 @@
   justify-content: center;
   align-items: center;
   padding: 140px 0 120px 0;
-  background-image: url('/hero-founder-cinematic.jpg');
+  background-image: url('/hero-bedding-coffee.jpg');
   background-size: cover;
-  background-position: center 30%;
+  background-position: center 82%;
   background-attachment: scroll;
   position: relative;
   z-index: 10;
@@ -187,9 +187,9 @@
   bottom: 0;
   background: linear-gradient(
     180deg,
-    rgba(35, 30, 24, 0.48) 0%,
-    rgba(45, 38, 30, 0.65) 55%,
-    rgba(250, 247, 242, 0.96) 100%
+    rgba(52, 31, 26, 0.45) 0%,
+    rgba(52, 31, 26, 0.58) 55%,
+    rgba(250, 247, 242, 0.95) 100%
   );
   z-index: 1;
 }
