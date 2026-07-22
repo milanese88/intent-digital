@@ -46,7 +46,7 @@ export default function Home({ navigateTo }) {
             <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
-            <a href="mailto:hello@intent-digital.com" className="nav-link">CONTACT</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
 
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
@@ -54,7 +54,7 @@ export default function Home({ navigateTo }) {
           </a>
 
           <div className="nav-right">
-            <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta desktop-only">
+            <a href="#" className="btn btn-nav-cta desktop-only" onClick={(e) => handleNavClick(e, 'contact')}>
               GET STARTED &rarr;
             </a>
             <button 
@@ -73,8 +73,8 @@ export default function Home({ navigateTo }) {
             <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
-            <a href="mailto:hello@intent-digital.com" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>CONTACT</a>
-            <a href="mailto:hello@intent-digital.com" className="btn btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
               GET STARTED &rarr;
             </a>
           </div>
@@ -113,7 +113,7 @@ export default function Home({ navigateTo }) {
               <a href="#portfolio" className="btn btn-pill-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
                 SEE OUR WORK &rarr;
               </a>
-              <a href="mailto:hello@intent-digital.com" className="btn btn-pill-primary">
+              <a href="#" className="btn btn-pill-primary" onClick={(e) => handleNavClick(e, 'contact')}>
                 GET STARTED &rarr;
               </a>
             </motion.div>

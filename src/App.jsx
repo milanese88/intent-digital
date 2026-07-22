@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Home from './pages/Home.jsx';
 import Services from './pages/Services.jsx';
+import Contact from './pages/Contact.jsx';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -30,6 +31,10 @@ function App() {
 
   if (currentPage === 'services') {
     return <Services navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'contact') {
+    return <Contact navigateTo={navigateTo} />;
   }
 
   return <Home navigateTo={navigateTo} />;
