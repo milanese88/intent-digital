@@ -12,9 +12,9 @@ These rules govern the styling, colors, and layout structure of the Intent Digit
 
 ## Typography Rules
 
-- **Typeface**: `Inter` for the entire website.
-- **Font Weights**: `400`, `500`, `600`, `700`, `800`.
-- **Hierarchy**: Differentiate content blocks using font weights only. Do not introduce a secondary typeface.
+- **Editorial Serif (Titles, Headings & Paragraphs)**: `Playfair Display` for titles, headings, and paragraph body text.
+- **UI Sans-Serif (Navigation, Labels, Buttons & Badges)**: `Inter`.
+- **Hierarchy**: Use `Playfair Display` for editorial headings and body text, and `Inter` for technical UI labels, buttons, and overlines.
 
 ## Layout & Color Application Rules
 

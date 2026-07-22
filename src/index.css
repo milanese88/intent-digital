@@ -23,8 +23,11 @@
   --espresso-05: rgba(58, 52, 43, 0.05);
   --espresso-02: rgba(58, 52, 43, 0.02);
 
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --font-body: var(--font-serif);
+  --font-heading: var(--font-serif);
 
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -44,6 +47,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+p {
+  font-family: var(--font-serif);
 }
 
 h1, h2, h3, h4, h5, h6 {

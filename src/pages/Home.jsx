@@ -34,6 +34,7 @@ export default function Home() {
         <div className="container nav-container">
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
+            <img src="/seal-logo.svg" alt="Intent Digital Seal" className="nav-seal-img" />
           </a>
           <div className="nav-links">
             <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>Services</a>
@@ -113,14 +114,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: "easeOut", delay: 2.1 }}
                 className="postcard-postmark-wrap"
               >
-                <svg className="postcard-postmark" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="0.8" />
-                  <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" strokeDasharray="2 2" strokeWidth="0.5" />
-                  <text x="50" y="32" fontSize="6.5" textAnchor="middle" fill="currentColor" letterSpacing="0.5">FORT LAUDERDALE</text>
-                  <text x="50" y="50" fontSize="9" fontWeight="bold" textAnchor="middle" fill="currentColor">JUL 17</text>
-                  <text x="50" y="62" fontSize="7" textAnchor="middle" fill="currentColor">2025</text>
-                  <text x="50" y="74" fontSize="7" textAnchor="middle" fill="currentColor" letterSpacing="1">FLA.</text>
-                </svg>
+                <img src="/seal-logo.svg" className="postcard-seal-img" alt="Intent Digital Seal" />
               </motion.div>
             </div>
 
@@ -373,7 +367,10 @@ export default function Home() {
         <div className="container footer-container">
           <div className="footer-top">
             <div className="footer-brand">
-              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
+              <div className="footer-logo-wrap">
+                <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
+                <img src="/seal-logo.svg" alt="Intent Digital Seal" className="footer-seal-img" />
+              </div>
               <p className="footer-tagline">Branding for founders who mean business.</p>
             </div>
             <div className="footer-contact">
