@@ -1013,13 +1013,27 @@
 }
 
 @media (max-width: 768px) {
-  .nav-links {
+  .nav-container {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .nav-links,
+  .nav-links-left {
     display: none;
   }
 
-  .hero-section {
-    padding: 60px 0;
-    min-height: auto;
+  .hero-section.hero-cinematic {
+    padding: 100px 0 80px 0;
+    min-height: 80vh;
+  }
+
+  .hero-editorial-title {
+    font-size: 34px;
+  }
+
+  .hero-editorial-subtitle {
+    font-size: 15px;
   }
 
   .hero-postcard-card {
