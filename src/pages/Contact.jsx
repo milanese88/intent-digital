@@ -4,14 +4,22 @@ import '../styles/home.css';
 export default function Contact({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('2026-07-28');
+  const [selectedTime, setSelectedTime] = useState('01:15 PM');
+  const [communicationMethod, setCommunicationMethod] = useState('Zoom');
+
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     email: '',
-    brandName: '',
-    service: 'Full Branding + Website',
-    timeline: 'Within 1-2 Months',
-    budget: '$6k - $12k+',
-    message: ''
+    businessName: '',
+    phone: '',
+    website: '',
+    instagram: '',
+    location: '',
+    launchDate: '',
+    budget: '$6,000 - $12,400+',
+    details: '',
+    referral: 'Instagram'
   });
 
   const handleNavClick = (e, page, targetId) => {
@@ -49,9 +57,12 @@ export default function Contact({ navigateTo }) {
             <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
 
-          <div className="nav-right mobile-only">
+          <div className="nav-right">
+            <button type="button" className="btn btn-pill-top-submit desktop-only" onClick={handleSubmit}>
+              Submit &rarr;
+            </button>
             <button 
-              className="mobile-toggle-btn" 
+              className="mobile-toggle-btn mobile-only" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle Navigation Menu"
             >
@@ -73,203 +84,329 @@ export default function Contact({ navigateTo }) {
         )}
       </nav>
 
-      {/* CONTACT HERO */}
-      <header className="contact-hero-section">
-        <div className="container">
-          <div className="section-header" style={{ marginBottom: '20px' }}>
-            <span className="section-tagline">GET IN TOUCH</span>
-            <h1 className="section-title" style={{ fontSize: 'clamp(40px, 5.5vw, 64px)' }}>
-              Let's Build Something<br />You're Proud Of.
-            </h1>
+      {/* CONTACT HERO & FORM WRAPPER */}
+      <section className="contact-form-section">
+        <div className="contact-container">
+          <div className="contact-header-text">
+            <p className="contact-greeting">We're so glad you're here.</p>
+            <p className="contact-subheading">
+              Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
+            </p>
           </div>
-          <p className="contact-hero-subtitle">
-            We partner with ambitious founders and luxury ventures to build intentional visual identities and digital experiences. Fill out the inquiry form below to start your brand transformation.
-          </p>
-        </div>
-      </header>
 
-      {/* CONTACT FORM & DIRECT INFO GRID */}
-      <section className="contact-main-section">
-        <div className="container">
-          <div className="contact-grid">
-            {/* LEFT — INQUIRY FORM */}
-            <div className="contact-form-card">
-              {submitted ? (
-                <div className="contact-success-state">
-                  <span className="contact-success-badge">&check; INQUIRY RECEIVED</span>
-                  <h2 className="contact-success-title">Thank You, {formData.name || 'Founder'}!</h2>
-                  <p className="contact-success-text">
-                    We've received your project inquiry. Our creative team reviews every proposal carefully and will reach out within 24&ndash;48 business hours with next steps.
-                  </p>
-                  <button className="btn btn-pill-primary" onClick={() => setSubmitted(false)} style={{ marginTop: '24px' }}>
-                    SEND ANOTHER INQUIRY &rarr;
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="contact-form">
-                  <h2 className="form-title">Project Inquiry</h2>
-                  <p className="form-subtitle">Tell us about your brand vision, goals, and desired launch timeline.</p>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="name">YOUR NAME *</label>
-                      <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        required 
-                        placeholder="First & Last Name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        className="form-input"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="email">EMAIL ADDRESS *</label>
-                      <input 
-                        type="email" 
-                        id="email" 
-                        name="email" 
-                        required 
-                        placeholder="hello@yourbrand.com"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="brandName">BUSINESS / BRAND NAME</label>
-                    <input 
-                      type="text" 
-                      id="brandName" 
-                      name="brandName" 
-                      placeholder="Your Business or Project Name"
-                      value={formData.brandName}
-                      onChange={handleChange}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="service">SELECT INVESTMENT PACKAGE *</label>
-                    <select 
-                      id="service" 
-                      name="service" 
-                      value={formData.service} 
-                      onChange={handleChange}
-                      className="form-select"
-                    >
-                      <option value="Brand Basics ($1.2k)">Brand Basics ($1,200 USD)</option>
-                      <option value="Mini-Brand ($4.2k)">Mini-Brand ($4,200 USD)</option>
-                      <option value="Photography & Content ($6.0k)">Photography &amp; Content ($6,000 USD)</option>
-                      <option value="Full Branding + Website ($12.4k)">Full Branding + Website ($12,400 USD)</option>
-                      <option value="Custom Scope / Retainer">Custom Scope / Retainer</option>
-                    </select>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="timeline">DESIRED TIMELINE</label>
-                      <select 
-                        id="timeline" 
-                        name="timeline" 
-                        value={formData.timeline} 
-                        onChange={handleChange}
-                        className="form-select"
-                      >
-                        <option value="ASAP">ASAP (Next 2 Weeks)</option>
-                        <option value="Within 1-2 Months">Within 1&ndash;2 Months</option>
-                        <option value="3+ Months Out">3+ Months Out</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="budget">ESTIMATED BUDGET</label>
-                      <select 
-                        id="budget" 
-                        name="budget" 
-                        value={formData.budget} 
-                        onChange={handleChange}
-                        className="form-select"
-                      >
-                        <option value="$1k - $3k">$1,200 &ndash; $3,000</option>
-                        <option value="$3k - $6k">$4,200 &ndash; $6,000</option>
-                        <option value="$6k - $12k+">$6,000 &ndash; $12,400+</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="message">PROJECT DETAILS &amp; VISION *</label>
-                    <textarea 
-                      id="message" 
-                      name="message" 
-                      required 
-                      rows="5"
-                      placeholder="Tell us about your brand goals, target audience, and ideal launch outcome..."
-                      value={formData.message}
-                      onChange={handleChange}
-                      className="form-textarea"
-                    ></textarea>
-                  </div>
-
-                  <button type="submit" className="btn btn-submit-inquiry">
-                    SUBMIT INQUIRY &rarr;
-                  </button>
-                </form>
-              )}
+          {submitted ? (
+            <div className="contact-success-state">
+              <span className="contact-success-badge">&check; INQUIRY RECEIVED</span>
+              <h2 className="contact-success-title">Thank You, {formData.fullName || 'Founder'}!</h2>
+              <p className="contact-success-text">
+                We've received your project inquiry and scheduled consult slot for {selectedDate} at {selectedTime} ({communicationMethod}). Our creative team reviews every proposal carefully and will reach out with next steps.
+              </p>
+              <button className="btn btn-pill-primary" onClick={() => setSubmitted(false)} style={{ marginTop: '24px' }}>
+                SUBMIT ANOTHER INQUIRY &rarr;
+              </button>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="contact-pill-form">
+              {/* ROW 1: Full Name + Email */}
+              <div className="form-row-2col">
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="fullName">Full name</label>
+                  <input 
+                    type="text" 
+                    id="fullName" 
+                    name="fullName" 
+                    required 
+                    placeholder="Enter your full name"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                  <span className="field-required-hint">* This question is required</span>
+                </div>
 
-            {/* RIGHT — DIRECT CONTACT INFO PANEL */}
-            <div className="contact-info-panel">
-              <div className="info-block">
-                <span className="info-label">DIRECT EMAIL</span>
-                <a href="mailto:hello@intent-digital.com" className="info-value-link">
-                  hello@intent-digital.com
-                </a>
-              </div>
-
-              <div className="info-block">
-                <span className="info-label">STUDIO LOCATION</span>
-                <p className="info-value-text">
-                  Fort Lauderdale, FL &bull; USA<br />
-                  <span style={{ fontSize: '14px', opacity: 0.75 }}>Available for global client partnerships</span>
-                </p>
-              </div>
-
-              <div className="info-block">
-                <span className="info-label">STUDIO HOURS</span>
-                <p className="info-value-text">
-                  Monday &ndash; Friday: 9:00 AM &ndash; 5:00 PM EST
-                </p>
-              </div>
-
-              <div className="info-block">
-                <span className="info-label">DISCOVERY CALLS</span>
-                <p className="info-value-text" style={{ marginBottom: '12px' }}>
-                  Prefer a quick conversation before submitting your scope?
-                </p>
-                <a href="mailto:hello@intent-digital.com?subject=Discovery%20Call%20Request" className="btn btn-pill-secondary" style={{ width: '100%', textAlign: 'center' }}>
-                  BOOK DISCOVERY CALL &rarr;
-                </a>
-              </div>
-
-              <div className="info-block" style={{ marginBottom: 0 }}>
-                <span className="info-label">CONNECT WITH US</span>
-                <div className="contact-social-links">
-                  <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="social-pill-link">
-                    INSTAGRAM &nearr;
-                  </a>
-                  <a href="https://pinterest.com" target="_blank" rel="noopener noreferrer" className="social-pill-link">
-                    PINTEREST &nearr;
-                  </a>
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="email">Email</label>
+                  <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    required 
+                    placeholder="Enter your email address"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                  <span className="field-required-hint">* This question is required</span>
                 </div>
               </div>
-            </div>
-          </div>
+
+              {/* ROW 2: Business Name */}
+              <div className="form-field-group">
+                <label className="form-pill-label" htmlFor="businessName">Business name:</label>
+                <input 
+                  type="text" 
+                  id="businessName" 
+                  name="businessName" 
+                  required
+                  placeholder="Enter your business name"
+                  value={formData.businessName}
+                  onChange={handleChange}
+                  className="form-pill-input"
+                />
+                <span className="field-required-hint">* This question is required</span>
+              </div>
+
+              {/* ROW 3: Phone Number + Current Website */}
+              <div className="form-row-2col">
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="phone">Phone number</label>
+                  <input 
+                    type="tel" 
+                    id="phone" 
+                    name="phone" 
+                    required 
+                    placeholder="E.g. 541 444 0755"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                  <span className="field-required-hint">* This question is required</span>
+                </div>
+
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="website">Current Website (If you have one)</label>
+                  <input 
+                    type="text" 
+                    id="website" 
+                    name="website" 
+                    placeholder="yourwebsite.com"
+                    value={formData.website}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                </div>
+              </div>
+
+              {/* ROW 4: Instagram Username + State/Country */}
+              <div className="form-row-2col">
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="instagram">Instagram Username</label>
+                  <input 
+                    type="text" 
+                    id="instagram" 
+                    name="instagram" 
+                    placeholder="@yourhandle"
+                    value={formData.instagram}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                </div>
+
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="location">What state are you in? (or country if outside the US)</label>
+                  <input 
+                    type="text" 
+                    id="location" 
+                    name="location" 
+                    placeholder="e.g. Florida, USA"
+                    value={formData.location}
+                    onChange={handleChange}
+                    className="form-pill-input"
+                  />
+                </div>
+              </div>
+
+              {/* ROW 5: Launch Date */}
+              <div className="form-field-group">
+                <label className="form-pill-label" htmlFor="launchDate">
+                  When is your launch date? Please note, we book 1-2 months in advance.
+                </label>
+                <input 
+                  type="text" 
+                  id="launchDate" 
+                  name="launchDate" 
+                  required
+                  placeholder="e.g. September 2026"
+                  value={formData.launchDate}
+                  onChange={handleChange}
+                  className="form-pill-input"
+                />
+                <span className="field-required-hint">* This question is required</span>
+              </div>
+
+              {/* ROW 6: Budget */}
+              <div className="form-field-group">
+                <label className="form-pill-label" htmlFor="budget">What's your budget?</label>
+                <p className="form-pill-subtext">Please note: we do offer payment plans for services!</p>
+                <select 
+                  id="budget" 
+                  name="budget" 
+                  value={formData.budget} 
+                  onChange={handleChange}
+                  className="form-pill-select"
+                >
+                  <option value="$1,200 - $3,000">$1,200 &ndash; $3,000 USD</option>
+                  <option value="$4,200 - $6,000">$4,200 &ndash; $6,000 USD</option>
+                  <option value="$6,000 - $12,400+">$6,000 &ndash; $12,400+ USD</option>
+                  <option value="Custom / Retainer">Custom Scope / Retainer</option>
+                </select>
+                <span className="field-required-hint">* This question is required</span>
+              </div>
+
+              {/* ROW 7: Anything else */}
+              <div className="form-field-group">
+                <label className="form-pill-label" htmlFor="details">Anything else you'd like to share?</label>
+                <textarea 
+                  id="details" 
+                  name="details" 
+                  rows="4"
+                  placeholder="Tell us about your brand goals, target audience, or design inspirations..."
+                  value={formData.details}
+                  onChange={handleChange}
+                  className="form-pill-textarea"
+                ></textarea>
+              </div>
+
+              {/* ROW 8: Referral & Communication Method */}
+              <div className="form-row-2col">
+                <div className="form-field-group">
+                  <label className="form-pill-label" htmlFor="referral">How did you hear about us?</label>
+                  <select 
+                    id="referral" 
+                    name="referral" 
+                    value={formData.referral} 
+                    onChange={handleChange}
+                    className="form-pill-select"
+                  >
+                    <option value="Instagram">Instagram</option>
+                    <option value="Google Search">Google Search</option>
+                    <option value="Referral">Referral / Word of Mouth</option>
+                    <option value="Pinterest">Pinterest</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <span className="field-required-hint">* This question is required</span>
+                </div>
+
+                <div className="form-field-group">
+                  <label className="form-pill-label">Preferred method of communication:</label>
+                  <p className="form-pill-subtext">Choose one of the options</p>
+                  <div className="radio-options-wrap">
+                    <label className="radio-pill-option">
+                      <input 
+                        type="radio" 
+                        name="comm" 
+                        value="Phone" 
+                        checked={communicationMethod === 'Phone'} 
+                        onChange={() => setCommunicationMethod('Phone')} 
+                      />
+                      <span>Phone</span>
+                    </label>
+                    <label className="radio-pill-option">
+                      <input 
+                        type="radio" 
+                        name="comm" 
+                        value="Zoom" 
+                        checked={communicationMethod === 'Zoom'} 
+                        onChange={() => setCommunicationMethod('Zoom')} 
+                      />
+                      <span>Zoom</span>
+                    </label>
+                  </div>
+                  <span className="field-required-hint">* This question is required</span>
+                </div>
+              </div>
+
+              {/* CONSULT CALL SCHEDULER (SCREENSHOT 2 MATCHING) */}
+              <div className="scheduler-section-card">
+                <div className="scheduler-notice-bar">
+                  <span>Please select an available date and time.</span>
+                  <span className="optional-badge">Optional</span>
+                </div>
+
+                <div className="scheduler-box-grid">
+                  <div className="scheduler-left-meta">
+                    <div className="scheduler-event-type">
+                      <span>📅 Web Design Consult</span>
+                      <span>⏱️ 30 min</span>
+                    </div>
+
+                    <div className="calendar-widget">
+                      <div className="calendar-month-header">
+                        <span>July 2026</span>
+                      </div>
+                      <div className="calendar-days-grid">
+                        <span className="day-name">Sun</span><span className="day-name">Mon</span><span className="day-name">Tue</span><span className="day-name">Wed</span><span className="day-name">Thu</span><span className="day-name">Fri</span><span className="day-name">Sat</span>
+                        
+                        <span className="day-num muted">28</span><span className="day-num muted">29</span><span className="day-num muted">30</span>
+                        <span className="day-num">1</span><span className="day-num">2</span><span className="day-num">3</span><span className="day-num">4</span>
+                        <span className="day-num">5</span><span className="day-num">6</span><span className="day-num">7</span><span className="day-num">8</span><span className="day-num">9</span><span className="day-num">10</span><span className="day-num">11</span>
+                        <span className="day-num">12</span><span className="day-num">13</span><span className="day-num">14</span><span className="day-num">15</span><span className="day-num">16</span><span className="day-num">17</span><span className="day-num">18</span>
+                        <span className="day-num">19</span><span className="day-num">20</span><span className="day-num">21</span><span className="day-num">22</span><span className="day-num">23</span><span className="day-num">24</span><span className="day-num">25</span>
+                        <span className="day-num">26</span><span className="day-num">27</span>
+                        
+                        <span 
+                          className={`day-num active-slot ${selectedDate === '2026-07-28' ? 'selected' : ''}`}
+                          onClick={() => setSelectedDate('2026-07-28')}
+                        >
+                          28
+                        </span>
+                        <span 
+                          className={`day-num active-slot ${selectedDate === '2026-07-29' ? 'selected' : ''}`}
+                          onClick={() => setSelectedDate('2026-07-29')}
+                        >
+                          29
+                        </span>
+                        <span 
+                          className={`day-num active-slot ${selectedDate === '2026-07-30' ? 'selected' : ''}`}
+                          onClick={() => setSelectedDate('2026-07-30')}
+                        >
+                          30
+                        </span>
+                        <span className="day-num">31</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="scheduler-right-times">
+                    <h4 className="times-day-title">Tuesday, July 28, 2026</h4>
+                    <span className="timezone-label">Eastern Time - US &amp; Canada</span>
+
+                    <div className="time-slots-column">
+                      <span className="time-period-label">PM</span>
+                      <button 
+                        type="button" 
+                        className={`time-pill-btn ${selectedTime === '01:15 PM' ? 'active' : ''}`}
+                        onClick={() => setSelectedTime('01:15 PM')}
+                      >
+                        01:15 PM
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`time-pill-btn ${selectedTime === '02:30 PM' ? 'active' : ''}`}
+                        onClick={() => setSelectedTime('02:30 PM')}
+                      >
+                        02:30 PM
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`time-pill-btn ${selectedTime === '04:00 PM' ? 'active' : ''}`}
+                        onClick={() => setSelectedTime('04:00 PM')}
+                      >
+                        04:00 PM
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUBMIT BUTTON */}
+              <div className="form-submit-wrap">
+                <button type="submit" className="btn btn-pill-bottom-submit">
+                  Submit &rarr;
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </section>
 
@@ -322,7 +459,7 @@ export default function Contact({ navigateTo }) {
                 </div>
                 <div className="footer-nav-col">
                   <a href="#" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>PORTFOLIO</a>
-                  <a href="#" onClick={(e) => handleNavClick(e, 'contact')}>WORK WITH US</a>
+                  <a href="#" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
                   <a href="#" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
                 </div>
               </div>
