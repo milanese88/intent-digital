@@ -13,8 +13,8 @@ These rules govern the styling, colors, and layout structure of the Intent Digit
 ## Typography Rules
 
 - **Editorial Serif (Titles, Headings & Paragraphs)**: `Playfair Display` for titles, headings, and paragraph body text.
-- **UI Sans-Serif (Navigation, Labels, Buttons & Badges)**: `Inter`.
-- **Hierarchy**: Use `Playfair Display` for editorial headings and body text, and `Inter` for technical UI labels, buttons, and overlines.
+- **UI Sans-Serif (Navigation, Labels, Buttons & Badges)**: `Montserrat`.
+- **Hierarchy**: Use `Playfair Display` for editorial headings and body text, and `Montserrat` for technical UI labels, buttons, and overlines.
 
 ## Layout & Color Application Rules
 

@@ -24,7 +24,7 @@
   --espresso-02: rgba(58, 52, 43, 0.02);
 
   --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
 
   --font-body: var(--font-serif);
   --font-heading: var(--font-serif);
@@ -84,8 +84,9 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-heading);
+  font-family: var(--font-sans);
   font-weight: 600;
+  letter-spacing: 0.08em;
   font-size: 15px;
   padding: 12px 28px;
   border-radius: 999px;
