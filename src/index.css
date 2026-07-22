@@ -4,15 +4,16 @@
   --cream-72: rgba(250, 248, 245, 0.72);
   --cream-50: rgba(250, 248, 245, 0.5);
 
-  --terracotta: #CFE1E2;
-  --terracotta-hover: #b8d4d6;
+  --terracotta: #859DCE;
+  --terracotta-hover: #728ABF;
 
   --butter: #FAF8F5;
   --butter-80: rgba(250, 248, 245, 0.8);
 
-  --dusty-blue: #CFE1E2;
-  --dusty-blue-80: rgba(207, 225, 226, 0.85);
-  --dusty-blue-15: rgba(207, 225, 226, 0.15);
+  --dusty-blue: #859DCE;
+  --dusty-blue-80: rgba(133, 157, 206, 0.85);
+  --dusty-blue-15: rgba(133, 157, 206, 0.15);
+  --accent-blue: #859DCE;
 
   --espresso: #341F1A;
   --espresso-85: rgba(52, 31, 26, 0.85);

@@ -265,8 +265,8 @@
 }
 
 .btn-pill-primary {
-  background-color: var(--espresso);
-  color: var(--cream);
+  background-color: #859DCE;
+  color: #FFFFFF;
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -279,10 +279,10 @@
 }
 
 .btn-pill-primary:hover {
-  background-color: var(--espresso-85);
-  color: var(--cream);
+  background-color: #728ABF;
+  color: #FFFFFF;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(52, 31, 26, 0.35);
+  box-shadow: 0 8px 24px rgba(133, 157, 206, 0.35);
 }
 
 /* Infinite Marquee Ticker Banner */
@@ -2591,7 +2591,7 @@
 
 .btn-pill-top-submit,
 .btn-pill-bottom-submit {
-  background-color: #92B1B6; /* Dusty blue pill from Screenshot 1 */
+  background-color: #859DCE; /* Signature periwinkle blue accent matching screenshot */
   color: #FFFFFF;
   font-family: var(--font-sans);
   font-size: 13px;
@@ -2606,7 +2606,7 @@
 
 .btn-pill-top-submit:hover,
 .btn-pill-bottom-submit:hover {
-  background-color: var(--espresso);
+  background-color: #728ABF;
   color: #FFFFFF;
 }
 
