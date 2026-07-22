@@ -14,54 +14,62 @@ export default function Services({ navigateTo }) {
 
   return (
     <div className="home-page services-page">
-      {/* NAVBAR */}
-      <nav className="navbar">
-        <div className="container nav-container">
-          <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
-          </a>
-
-          <div className="nav-links desktop-only">
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
-            <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+      {/* SERVICES SPLIT HERO SECTION (MATCHING PICTURE 2 REFERENCE) */}
+      <section className="services-split-hero">
+        <div className="services-hero-left">
+          <div className="services-hero-nav-row">
+            <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
+              <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
+            </a>
+            <div className="services-nav-links desktop-only">
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+              <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            </div>
+            <div className="mobile-only" style={{ marginLeft: 'auto' }}>
+              <button 
+                className="mobile-toggle-btn" 
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle Navigation Menu"
+              >
+                {mobileMenuOpen ? '✕' : '☰'}
+              </button>
+            </div>
           </div>
 
-          <div className="nav-right mobile-only">
-            <button 
-              className="mobile-toggle-btn" 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle Navigation Menu"
-            >
-              {mobileMenuOpen ? '✕' : '☰'}
-            </button>
+          {mobileMenuOpen && (
+            <div className="mobile-nav-drawer" style={{ position: 'relative', top: 0, width: '100%' }}>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+              <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            </div>
+          )}
+
+          <div className="services-hero-content-wrap">
+            <h1 className="services-hero-title">Creative Branding</h1>
+            <p className="services-hero-copy">
+              Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
+            </p>
+            <a href="#" className="btn btn-services-hero-cta" onClick={(e) => handleNavClick(e, 'contact')}>
+              GET STARTED
+            </a>
           </div>
+
+          <div className="services-hero-footer-blank"></div>
         </div>
 
-        {mobileMenuOpen && (
-          <div className="mobile-nav-drawer">
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
-            <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-          </div>
-        )}
-      </nav>
-
-      {/* HERO SECTION */}
-      <header className="about-hero-section">
-        <div className="container center-text">
-          <span className="section-tagline">OUR SERVICES</span>
-          <h1 className="about-hero-title">Everything your brand needs to feel like itself.</h1>
-          <p className="about-hero-subheadline">
-            From strategy and identity to the words and the website, we shape every part of your brand with the same intention — so it all speaks as one.
-          </p>
+        <div className="services-hero-right">
+          <img 
+            src="/services-hero-staircase.jpg" 
+            alt="Architectural Spiral Staircase & Black Door" 
+            className="services-hero-staircase-img" 
+          />
         </div>
-      </header>
+      </section>
 
       {/* THE SERVICES LIST */}
       <section className="services-section">
