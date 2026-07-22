@@ -128,50 +128,50 @@ export default function Home() {
       <section id="portfolio" className="portfolio-section">
         <div className="container">
           <div className="section-header">
-            <span className="section-tagline">Our Work</span>
+            <span className="section-tagline">OUR WORK</span>
             <h2 className="section-title">Brands we've built</h2>
           </div>
           <div className="portfolio-grid">
-            {/* Card 1 - Rosé & Roast */}
+            {/* Card 1 - Cabinet */}
             <div className="portfolio-card portfolio-card-large">
-              <img src="/portfolio/rose-roast.png" alt="Rosé & Roast" className="portfolio-img" />
+              <img src="/work-cabinet.jpg" alt="Cabinet" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Rosé &amp; Roast</h3>
-                  <p className="portfolio-desc-text">Brand identity for a boutique coffee shop in Fort Lauderdale.</p>
+                  <h3 className="portfolio-title-text">Cabinet</h3>
+                  <p className="portfolio-desc-text">Curated vintage elegance &amp; rare object brand identity.</p>
                 </div>
               </div>
             </div>
 
-            {/* Card 2 - Studio Solé */}
+            {/* Card 2 - Lapressa Tailoring */}
             <div className="portfolio-card portfolio-card-tall">
-              <img src="/portfolio/studio-sole.png" alt="Studio Solé" className="portfolio-img" />
+              <img src="/work-lapressa.jpg" alt="Lapressa Tailoring & Embroidery" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Studio Solé</h3>
-                  <p className="portfolio-desc-text">Minimal, movement-driven branding for a Palm Beach pilates studio.</p>
+                  <h3 className="portfolio-title-text">Lapressa Tailoring</h3>
+                  <p className="portfolio-desc-text">Custom packaging &amp; heritage luxury embroidery brand identity.</p>
                 </div>
               </div>
             </div>
 
-            {/* Card 3 - The Alcove Hotel */}
+            {/* Card 3 - MR. KING */}
             <div className="portfolio-card portfolio-card-half">
-              <img src="/portfolio/alcove-hotel.png" alt="The Alcove Hotel" className="portfolio-img" />
+              <img src="/work-mrking.jpg" alt="MR. KING Concierge" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">The Alcove Hotel</h3>
-                  <p className="portfolio-desc-text">Elevated visual identity for a boutique hotel in Palm Beach.</p>
+                  <h3 className="portfolio-title-text">MR. KING</h3>
+                  <p className="portfolio-desc-text">Bespoke brand strategy, stationery &amp; luxury concierge identity.</p>
                 </div>
               </div>
             </div>
 
-            {/* Card 4 - Patio Coffee Co. */}
+            {/* Card 4 - Florentine Studio */}
             <div className="portfolio-card portfolio-card-half">
-              <img src="/portfolio/patio-coffee.png" alt="Patio Coffee Co." className="portfolio-img" />
+              <img src="/work-florentine.jpg" alt="Florentine Interior Design" className="portfolio-img" />
               <div className="portfolio-overlay">
                 <div className="portfolio-overlay-content">
-                  <h3 className="portfolio-title-text">Patio Coffee Co.</h3>
-                  <p className="portfolio-desc-text">Playful café branding built for community and consistency.</p>
+                  <h3 className="portfolio-title-text">Florentine Studio</h3>
+                  <p className="portfolio-desc-text">Classic editorial font duo &amp; interior architecture digital presence.</p>
                 </div>
               </div>
             </div>
@@ -196,7 +196,7 @@ export default function Home() {
               </div>
             </div>
             <div className="welcome-visual-card welcome-card-frame">
-              <img src="/portfolio/rose-roast.png" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
+              <img src="/work-florentine.jpg" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
             </div>
           </div>
         </div>
