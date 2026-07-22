@@ -41,7 +41,6 @@ export default function Home() {
 
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
           </a>
 
           <div className="nav-right">
@@ -319,10 +318,7 @@ export default function Home() {
         <div className="container footer-container">
           <div className="footer-top">
             <div className="footer-brand">
-              <div className="footer-logo-wrap">
-                <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
-                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-seal-img" />
-              </div>
+              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-logo-img" />
               <p className="footer-tagline">Branding for founders who mean business.</p>
             </div>
             <div className="footer-contact">
