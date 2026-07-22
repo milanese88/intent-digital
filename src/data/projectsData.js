@@ -14,13 +14,6 @@ export const projectsData = [
     href: "#boca-residences"
   },
   {
-    id: 'four-seasons-naples',
-    title: "Four Seasons Naples",
-    description: "Impressions of paradise & digital story for coastal luxury living.",
-    image: "/portfolio/rose-roast.png",
-    href: "#four-seasons-naples"
-  },
-  {
     id: 'cabinet',
     title: "Cabinet One-of-a-Kinds",
     description: "Live the art of uniqueness — e-commerce identity for bespoke artisan furniture.",
@@ -40,13 +33,6 @@ export const projectsData = [
     description: "At the threshold of your desires — luxury lifestyle & VIP concierge identity.",
     image: "/work-mrking.jpg",
     href: "#mr-king"
-  },
-  {
-    id: 'fairmont',
-    title: "Fairmont Hotels & Resorts",
-    description: "Wellness without walls — wellness studio & hospitality branding.",
-    image: "/portfolio/patio-coffee.png",
-    href: "#fairmont"
   },
   {
     id: 'florentine',
