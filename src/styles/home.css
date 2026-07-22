@@ -2389,17 +2389,17 @@
 }
 
 .services-hero-copy {
-  font-family: var(--font-serif);
-  font-size: clamp(17px, 1.8vw, 22px);
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: clamp(15px, 1.5vw, 18px);
+  line-height: 1.6;
   color: var(--espresso);
-  opacity: 0.9;
+  opacity: 0.85;
   margin-bottom: 36px;
 }
 
 .btn-services-hero-cta {
   display: inline-block;
-  background-color: #2F241F; /* Dark Espresso */
+  background-color: #859DCE;
   color: #FFFFFF;
   font-family: var(--font-sans);
   font-size: 13px;
@@ -2407,13 +2407,14 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 16px 36px;
-  border-radius: 4px;
+  border-radius: 999px;
   transition: var(--transition-smooth);
 }
 
 .btn-services-hero-cta:hover {
-  background-color: var(--terracotta);
-  color: var(--espresso);
+  background-color: #728ABF;
+  color: #FFFFFF;
+  transform: translateY(-2px);
 }
 
 .services-hero-right {
