@@ -2418,10 +2418,6 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-  opacity: 0.78;
-  margin-bottom: 20px;
-  flex: 1;
-}
 
 /* Article Modal Reader Overlay */
 .article-modal-backdrop {
