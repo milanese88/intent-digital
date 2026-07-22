@@ -213,7 +213,7 @@
 }
 
 .btn-pill-primary {
-  background-color: var(--terracotta);
+  background-color: var(--dusty-blue);
   color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 12.5px;
@@ -227,9 +227,9 @@
 }
 
 .btn-pill-primary:hover {
-  background-color: var(--terracotta-hover);
+  background-color: var(--dusty-blue-80);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(226, 142, 82, 0.35);
+  box-shadow: 0 8px 24px rgba(169, 197, 209, 0.45);
 }
 
 /* Infinite Marquee Ticker Banner */
