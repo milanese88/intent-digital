@@ -2,7 +2,7 @@
   /* Color Tokens (Site-Wide Palette) */
   --espresso: #3A342B;
   --espresso-soft: #5B5245;
-  --cream: #FBF3DD;
+  --cream: #FAF8F5;
   --terracotta: #E28E52;
   --burnt-rose: #863E3F;
   --dusty-blue: #A9C5D1;
@@ -13,9 +13,9 @@
   --espresso-15: rgba(58, 52, 43, 0.15);
   --espresso-12: rgba(58, 52, 43, 0.12);
   --espresso-06: rgba(58, 52, 43, 0.06);
-  --cream-90: rgba(251, 243, 221, 0.9);
-  --cream-72: rgba(251, 243, 221, 0.72);
-  --cream-50: rgba(251, 243, 221, 0.5);
+  --cream-90: rgba(250, 248, 245, 0.9);
+  --cream-72: rgba(250, 248, 245, 0.72);
+  --cream-50: rgba(250, 248, 245, 0.5);
 
   /* Font Roles */
   --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
