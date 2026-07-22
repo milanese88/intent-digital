@@ -284,7 +284,7 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: var(--cream);
+  background-color: var(--dusty-blue); /* Baby Blue background */
   border-top: 1px solid var(--espresso-15);
   border-bottom: 1px solid var(--espresso-15);
   overflow: hidden;
