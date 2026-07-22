@@ -171,6 +171,9 @@
   background-size: cover;
   background-position: center 30%;
   background-attachment: scroll;
+  position: relative;
+  z-index: 10;
+  isolation: isolate;
 }
 
 .hero-bg-overlay {
