@@ -5,6 +5,7 @@ import '../styles/home.css';
 
 export default function Home() {
   const [startReveal, setStartReveal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const introSeen = sessionStorage.getItem('introSeen');
@@ -15,6 +16,7 @@ export default function Home() {
   }, []);
   const handleScroll = (e, id) => {
     e.preventDefault();
+    setMobileMenuOpen(false);
     const element = document.getElementById(id);
     if (element) {
       const navHeight = 80; // approximate nav height
@@ -32,23 +34,43 @@ export default function Home() {
       {/* SECTION 1 — NAV */}
       <nav className="navbar">
         <div className="container nav-container">
-          <div className="nav-links nav-links-left">
+          <div className="nav-links nav-links-left desktop-only">
             <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#services" className="nav-link" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="mailto:hello@intent-digital.com" className="nav-link">CONTACT</a>
           </div>
 
-          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
           </a>
 
           <div className="nav-right">
-            <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta">
+            <a href="mailto:hello@intent-digital.com" className="btn btn-nav-cta desktop-only">
+              GET STARTED &rarr;
+            </a>
+            <button 
+              className="mobile-toggle-btn" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle Navigation Menu"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Nav Drawer */}
+        {mobileMenuOpen && (
+          <div className="mobile-nav-drawer">
+            <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
+            <a href="#services" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
+            <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
+            <a href="mailto:hello@intent-digital.com" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>CONTACT</a>
+            <a href="mailto:hello@intent-digital.com" className="btn btn-mobile-cta" onClick={() => setMobileMenuOpen(false)}>
               GET STARTED &rarr;
             </a>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* SECTION 2 — CINEMATIC EDITORIAL HERO */}
