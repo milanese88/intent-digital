@@ -1,19 +1,5 @@
 export const projectsData = [
   {
-    id: 'fouquets',
-    title: "Fouquet's Hotel & Residences Miami",
-    description: "Curated living and bespoke identity for South Florida's premier hospitality residence.",
-    image: "/portfolio/alcove-hotel.png",
-    href: "#fouquets"
-  },
-  {
-    id: 'boca-residences',
-    title: "The Residences at Boca Raton",
-    description: "Architectural luxury branding and heritage real estate marketing.",
-    image: "/portfolio/studio-sole.png",
-    href: "#boca-residences"
-  },
-  {
     id: 'cabinet',
     title: "Cabinet One-of-a-Kinds",
     description: "Live the art of uniqueness — e-commerce identity for bespoke artisan furniture.",
