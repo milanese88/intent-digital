@@ -34,24 +34,22 @@ export default function Contact({ navigateTo }) {
 
   return (
     <div className="home-page contact-page">
-      {/* NAVBAR */}
+      {/* NAVBAR (IMAGE 2 MATCHING STYLE) */}
       <nav className="navbar">
         <div className="container nav-container">
-          <div className="nav-links nav-links-left desktop-only">
+          <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
+            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+          </a>
+
+          <div className="nav-links desktop-only">
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
 
-          <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
-          </a>
-
-          <div className="nav-right">
-            <a href="#" className="btn btn-nav-cta desktop-only" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
-            </a>
+          <div className="nav-right mobile-only">
             <button 
               className="mobile-toggle-btn" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -69,10 +67,8 @@ export default function Contact({ navigateTo }) {
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
-            </a>
           </div>
         )}
       </nav>

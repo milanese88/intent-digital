@@ -13,17 +13,10 @@
 }
 
 .nav-container {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  width: 100%;
-}
-
-.nav-links-left {
   display: flex;
-  gap: 28px;
   align-items: center;
-  justify-content: flex-start;
+  gap: 48px;
+  width: 100%;
 }
 
 .nav-logo-link {
@@ -37,23 +30,30 @@
   opacity: 0.8;
 }
 
-.nav-logo-img {
-  height: 40px;
-  width: auto;
+.nav-seal-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
   display: block;
+}
+
+.nav-links {
+  display: flex;
+  gap: 36px;
+  align-items: center;
 }
 
 .nav-link {
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--espresso);
   opacity: 0.75;
   transition: var(--transition-smooth);
   position: relative;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 .nav-link::after {
@@ -62,17 +62,19 @@
   bottom: 0;
   left: 0;
   width: 0;
-  height: 2px;
-  background-color: var(--terracotta);
-  transition: var(--transition-smooth);
+  height: 2.5px;
+  background-color: var(--dusty-blue); /* Winter sky light baby blue underline matching Image 2 */
+  transition: width 0.3s ease;
 }
 
-.nav-link:hover {
+.nav-link:hover,
+.nav-link.active {
   color: var(--espresso);
   opacity: 1;
 }
 
-.nav-link:hover::after {
+.nav-link:hover::after,
+.nav-link.active::after {
   width: 100%;
 }
 
@@ -80,6 +82,7 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  margin-left: auto;
 }
 
 .btn-nav-cta {

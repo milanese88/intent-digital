@@ -39,10 +39,14 @@ export default function Home({ navigateTo }) {
   return (
     <div className="home-page">
       <IntroCurtain onComplete={() => setStartReveal(true)} />
-      {/* SECTION 1 — NAV */}
+      {/* SECTION 1 — NAV (IMAGE 2 MATCHING STYLE) */}
       <nav className="navbar">
         <div className="container nav-container">
-          <div className="nav-links nav-links-left desktop-only">
+          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+          </a>
+
+          <div className="nav-links desktop-only">
             <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
@@ -50,14 +54,7 @@ export default function Home({ navigateTo }) {
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
 
-          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <img src="/intent-script-logo.png" alt="Intent Digital" className="nav-logo-img" />
-          </a>
-
-          <div className="nav-right">
-            <a href="#" className="btn btn-nav-cta desktop-only" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
-            </a>
+          <div className="nav-right mobile-only">
             <button 
               className="mobile-toggle-btn" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -71,14 +68,12 @@ export default function Home({ navigateTo }) {
         {/* Mobile Nav Drawer */}
         {mobileMenuOpen && (
           <div className="mobile-nav-drawer">
+            <a href="#" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>HOME</a>
             <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            <a href="#" className="btn btn-mobile-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED &rarr;
-            </a>
           </div>
         )}
       </nav>
