@@ -761,12 +761,14 @@
 }
 
 .card-price {
-  font-family: 'Dream on Paper', 'Pinyon Script', 'Alex Brush', cursive, serif;
-  font-size: 46px;
+  font-family: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
+  font-stretch: condensed;
+  font-size: 42px;
   font-weight: 400;
   color: var(--espresso); /* Brown color */
   margin-bottom: 16px;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .card-price .currency {
