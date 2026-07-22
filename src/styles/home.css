@@ -1315,6 +1315,31 @@
   .footer-container {
     gap: 40px;
   }
+
+  .wave-divider {
+    height: 28px;
+  }
+
+  .wave-marquee-banner {
+    padding: 10px 0;
+  }
+
+  .wave-marquee-track span {
+    font-size: 18px;
+    letter-spacing: 0.1em;
+  }
+
+  .services-hero-section {
+    padding: 100px 20px 48px 20px;
+  }
+
+  .services-hero-subtitle {
+    font-size: 16px;
+  }
+
+  .services-custom-banner {
+    padding: 56px 20px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1332,6 +1357,19 @@
 
   .card-price {
     font-size: 36px;
+  }
+
+  .wave-divider {
+    height: 22px;
+  }
+
+  .wave-marquee-banner {
+    padding: 8px 0;
+  }
+
+  .wave-marquee-track span {
+    font-size: 15px;
+    letter-spacing: 0.08em;
   }
 }
 
