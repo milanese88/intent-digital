@@ -129,16 +129,17 @@ export default function Home({ navigateTo }) {
 
 
 
-      {/* PORTFOLIO SHOWCASE SECTION (9 LUXURY BRANDS GRID) */}
+      {/* PORTFOLIO SHOWCASE SECTION (FULL-WIDTH EDITORIAL SHOWCASE - IMAGE 2 MATCHING) */}
       <section id="portfolio" className="portfolio-section">
-        <div className="container">
-          <div className="section-header" style={{ marginBottom: '56px' }}>
+        <div className="portfolio-editorial-container">
+          <div className="section-header center" style={{ marginBottom: '64px' }}>
             <span className="section-tagline">OUR WORK</span>
             <h2 className="section-title">Brands we've built</h2>
           </div>
-          <div className="portfolio-3col-grid">
-            {/* 01 - Fouquet's */}
-            <div className="portfolio-brand-card">
+
+          <div className="portfolio-editorial-grid">
+            {/* 01 - Fouquet's (Large Split Card 6 Cols) */}
+            <div className="portfolio-brand-card card-span-6">
               <div className="portfolio-card-frame">
                 <img src="/portfolio/alcove-hotel.png" alt="Fouquet's Hotel & Residences" className="portfolio-brand-img" />
               </div>
@@ -146,8 +147,8 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">Curated Living, Redefined.</p>
             </div>
 
-            {/* 02 - The Residences at Boca Raton */}
-            <div className="portfolio-brand-card">
+            {/* 02 - The Residences at Boca Raton (Large Split Card 6 Cols) */}
+            <div className="portfolio-brand-card card-span-6">
               <div className="portfolio-card-frame">
                 <img src="/portfolio/studio-sole.png" alt="The Residences at Boca Raton" className="portfolio-brand-img" />
               </div>
@@ -155,17 +156,17 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">Our Legacy. Yours to Live.</p>
             </div>
 
-            {/* 03 - Four Seasons Naples */}
-            <div className="portfolio-brand-card">
-              <div className="portfolio-card-frame">
+            {/* 03 - Four Seasons Naples (Full Panoramic Hero Banner 12 Cols) */}
+            <div className="portfolio-brand-card card-span-12 card-banner-hero">
+              <div className="portfolio-card-frame frame-panoramic">
                 <img src="/portfolio/rose-roast.png" alt="Four Seasons Naples" className="portfolio-brand-img" />
               </div>
               <h3 className="portfolio-brand-title">Four Seasons Naples</h3>
-              <p className="portfolio-brand-tagline">Impressions of Paradise.</p>
+              <p className="portfolio-brand-tagline">Impressions of Paradise in Luxury Hospitality.</p>
             </div>
 
-            {/* 04 - Cabinet */}
-            <div className="portfolio-brand-card">
+            {/* 04 - Cabinet (3-Col Medium) */}
+            <div className="portfolio-brand-card card-span-4">
               <div className="portfolio-card-frame">
                 <img src="/work-cabinet.jpg" alt="Cabinet" className="portfolio-brand-img" />
               </div>
@@ -173,8 +174,8 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">Live the Art of Uniqueness.</p>
             </div>
 
-            {/* 05 - Lapressa Tailoring */}
-            <div className="portfolio-brand-card">
+            {/* 05 - Lapressa Tailoring (3-Col Medium) */}
+            <div className="portfolio-brand-card card-span-4">
               <div className="portfolio-card-frame">
                 <img src="/work-lapressa.jpg" alt="Lapressa Tailoring & Embroidery" className="portfolio-brand-img" />
               </div>
@@ -182,8 +183,8 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">Bespoke Embroidery &amp; Heritage Packaging.</p>
             </div>
 
-            {/* 06 - MR. KING Concierge */}
-            <div className="portfolio-brand-card">
+            {/* 06 - MR. KING Concierge (3-Col Medium) */}
+            <div className="portfolio-brand-card card-span-4">
               <div className="portfolio-card-frame">
                 <img src="/work-mrking.jpg" alt="MR. KING Concierge" className="portfolio-brand-img" />
               </div>
@@ -191,8 +192,8 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">At the Threshold of Your Desires.</p>
             </div>
 
-            {/* 07 - Fairmont Hotels */}
-            <div className="portfolio-brand-card">
+            {/* 07 - Fairmont Hotels (Large Split Card 6 Cols) */}
+            <div className="portfolio-brand-card card-span-6">
               <div className="portfolio-card-frame">
                 <img src="/portfolio/patio-coffee.png" alt="Fairmont Hotels & Resorts" className="portfolio-brand-img" />
               </div>
@@ -200,8 +201,8 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">Wellness Without Walls.</p>
             </div>
 
-            {/* 08 - Florentine Studio */}
-            <div className="portfolio-brand-card">
+            {/* 08 - Florentine Studio (Large Split Card 6 Cols) */}
+            <div className="portfolio-brand-card card-span-6">
               <div className="portfolio-card-frame">
                 <img src="/work-florentine.jpg" alt="Florentine Studio & Fine Interiors" className="portfolio-brand-img" />
               </div>
@@ -209,13 +210,13 @@ export default function Home({ navigateTo }) {
               <p className="portfolio-brand-tagline">In Pursuit of Pure Comfort.</p>
             </div>
 
-            {/* 09 - Toby's Estate Studio */}
-            <div className="portfolio-brand-card">
-              <div className="portfolio-card-frame">
+            {/* 09 - Toby's Estate Studio (Full Panoramic Hero Banner 12 Cols) */}
+            <div className="portfolio-brand-card card-span-12 card-banner-hero">
+              <div className="portfolio-card-frame frame-panoramic">
                 <img src="/hero-founder-cinematic.jpg" alt="Toby's Estate Studio" className="portfolio-brand-img" />
               </div>
               <h3 className="portfolio-brand-title">Toby's Estate Studio</h3>
-              <p className="portfolio-brand-tagline">Reintroducing Exceptional Craft.</p>
+              <p className="portfolio-brand-tagline">Reintroducing Exceptional Craft &amp; Identity.</p>
             </div>
           </div>
         </div>
