@@ -26,6 +26,7 @@ export default function Services({ navigateTo }) {
             <div className="services-nav-links desktop-only">
               <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
               <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
               <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
               <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
             </div>
