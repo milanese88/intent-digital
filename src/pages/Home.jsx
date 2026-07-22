@@ -210,7 +210,31 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
+      {/* WAVE MARQUEE MOTION BANNER */}
+      <div className="wave-marquee-section">
+        {/* Top Wave SVG */}
+        <div className="wave-divider wave-top">
+          <svg viewBox="0 0 1440 60" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 60C240 20 480 60 720 30C960 0 1200 40 1440 20V60H0Z" fill="var(--dusty-blue)"/>
+          </svg>
+        </div>
 
+        {/* Baby Blue Marquee Banner */}
+        <div className="wave-marquee-banner">
+          <div className="wave-marquee-track">
+            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
+            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+
+        {/* Bottom Wave SVG */}
+        <div className="wave-divider wave-bottom">
+          <svg viewBox="0 0 1440 60" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 0C240 40 480 0 720 30C960 60 1200 20 1440 40V0H0Z" fill="var(--dusty-blue)"/>
+          </svg>
+        </div>
+      </div>
 
       {/* SECTION 4 — WHY INTENT DIGITAL */}
       <section id="why-us" className="why-section">
