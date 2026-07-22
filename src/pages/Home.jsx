@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import IntroCurtain from '../components/IntroCurtain';
+import { projectsData } from '../data/projectsData';
 import '../styles/home.css';
 
 export default function Home({ navigateTo }) {
