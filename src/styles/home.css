@@ -193,13 +193,14 @@
   display: none;
 }
 
-/* Torn Paper Deckle Edge Divider */
+/* Torn Paper Deckle Edge Divider (100% Full Bleed Screen Width) */
 .hero-torn-paper-wrap {
   position: absolute;
   bottom: -2px;
-  left: 0;
-  right: 0;
-  width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  max-width: 100vw;
   overflow: hidden;
   line-height: 0;
   z-index: 10;
@@ -207,10 +208,12 @@
 }
 
 .hero-torn-paper-img {
-  width: 100%;
-  min-width: 100%;
-  height: clamp(50px, 7.5vw, 110px);
-  object-fit: fill;
+  width: 100vw;
+  min-width: 100vw;
+  max-width: 100vw;
+  height: clamp(60px, 8.5vw, 135px);
+  object-fit: cover;
+  object-position: top center;
   display: block;
 }
 
