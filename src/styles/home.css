@@ -390,7 +390,7 @@
 .hero-cinematic-banner-wrap {
   position: relative;
   width: 100%;
-  height: clamp(480px, 68vh, 780px);
+  min-height: 88vh;
   overflow: hidden;
 }
 
@@ -417,17 +417,17 @@
     180deg, 
     rgba(30, 18, 10, 0.12) 0%, 
     rgba(30, 18, 10, 0.45) 55%, 
-    rgba(30, 18, 10, 0.76) 100%
+    rgba(30, 18, 10, 0.78) 100%
   );
   z-index: 1;
 }
 
 .hero-cinematic-caption {
   position: absolute;
-  bottom: 42px;
+  bottom: 48px;
   left: clamp(24px, 5vw, 64px);
   z-index: 2;
-  max-width: 640px;
+  max-width: 660px;
   color: #FFFFFF;
   text-align: left;
 }
@@ -456,12 +456,26 @@
 .hero-cinematic-subtagline {
   font-family: 'Atelier Fleur', Georgia, serif;
   font-style: italic;
-  font-size: clamp(14.5px, 1.4vw, 17px);
+  font-size: clamp(14.5px, 1.4vw, 17.5px);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.92);
   line-height: 1.4;
-  margin: 0;
+  margin-bottom: 18px;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.hero-cinematic-action {
+  margin-top: 8px;
+}
+
+.hero-banner-btn {
+  color: #FFFFFF !important;
+  border-bottom-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.hero-banner-btn:hover {
+  color: var(--secondary-color) !important;
+  border-bottom-color: var(--secondary-color) !important;
 }
 
 .btn-pill-secondary {
@@ -3871,43 +3885,42 @@
   }
 
   /* 4. Home Page Mobile Refinements */
-  .hero-section, .hero-cinematic {
+  .hero-section.hero-cinematic,
+  .hero-cinematic-banner-wrap {
     min-height: 80vh !important;
-    padding: 60px 18px 40px 18px !important;
+    height: 80vh !important;
+    padding: 0 !important;
   }
 
-  .hero-script-main-title {
-    margin-bottom: 20px !important;
+  .hero-cinematic-caption {
+    bottom: 32px !important;
+    left: 20px !important;
+    right: 20px !important;
+    max-width: calc(100% - 40px) !important;
   }
 
-  .hero-script-title-img {
-    height: clamp(38px, 8.5vw, 56px) !important;
-    width: 90% !important;
-    max-width: 320px !important;
-    margin: 0 auto !important;
+  .hero-cinematic-seal {
+    width: 48px !important;
+    height: 48px !important;
+    margin-bottom: 12px !important;
   }
 
-  .hero-editorial-subtitle {
-    font-family: var(--font-display) !important;
-    font-size: clamp(17px, 4.5vw, 22px) !important;
-    font-weight: 300 !important;
-    font-style: italic !important;
-    line-height: 1.5 !important;
-    margin: 0 auto 30px auto !important;
-    max-width: 92% !important;
+  .hero-cinematic-tagline {
+    font-size: 10.5px !important;
+    letter-spacing: 0.14em !important;
+    line-height: 1.4 !important;
+    margin-bottom: 6px !important;
   }
 
-  .hero-editorial-actions {
-    flex-direction: column !important;
-    width: 100% !important;
-    gap: 12px !important;
-    align-items: center !important;
+  .hero-cinematic-subtagline {
+    font-size: 14.5px !important;
+    line-height: 1.35 !important;
+    margin-bottom: 16px !important;
   }
 
-  .hero-editorial-actions .btn-pill-hero-outline {
-    width: auto !important;
-    max-width: none !important;
-    padding: 8px 4px 6px 4px !important;
+  .hero-banner-btn {
+    font-size: 12.5px !important;
+    padding: 6px 2px 4px 2px !important;
   }
 
   .welcome-intro-section {
