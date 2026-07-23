@@ -117,10 +117,10 @@ export default function Home({ navigateTo }) {
               transition={{ duration: 0.8, ease: "easeOut", delay: 0.9 }}
               className="hero-editorial-actions"
             >
-              <a href="#" className="btn btn-pill-primary" onClick={(e) => handleNavClick(e, 'contact')}>
+              <a href="#" className="btn btn-pill-hero-outline" onClick={(e) => handleNavClick(e, 'contact')}>
                 Start your brand &rarr;
               </a>
-              <a href="#portfolio" className="btn btn-pill-secondary" onClick={(e) => handleScroll(e, 'portfolio')}>
+              <a href="#portfolio" className="btn btn-pill-hero-outline" onClick={(e) => handleScroll(e, 'portfolio')}>
                 Explore our work
               </a>
             </motion.div>
