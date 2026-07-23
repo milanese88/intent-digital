@@ -3003,7 +3003,7 @@
 
 .services-hero-title {
   font-family: var(--font-display);
-  font-style: italic;
+  font-style: normal;
   font-weight: 300;
   font-size: clamp(48px, 5.5vw, 76px);
   line-height: 1.1;
@@ -3146,7 +3146,7 @@
 
 .contact-main-title {
   font-family: var(--font-display);
-  font-style: italic;
+  font-style: normal;
   font-weight: 300;
   font-size: clamp(2.4rem, 3.8vw, 3.4rem);
   line-height: 1.15;
