@@ -110,6 +110,20 @@
   font-family: var(--font-script);
 }
 
+/* Universal Accessibility Rule: All Dusty Blue / Periwinkle Buttons & Badges Use Espresso Brown Text */
+.btn-pill-primary,
+.btn-cta-banner,
+.btn-footer-pill-cta,
+.btn-pill-top-submit,
+.btn-pill-bottom-submit,
+.news-cat-btn:hover,
+.news-cat-btn.active,
+.time-pill-btn.active,
+[class*="dusty-blue"],
+[class*="accent-blue-bg"] {
+  color: var(--primary-color);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

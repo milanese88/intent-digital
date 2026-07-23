@@ -3731,7 +3731,7 @@
 .day-num.active-slot:hover,
 .day-num.active-slot.selected {
   background-color: var(--accent-blue);
-  color: var(--bg-cream);
+  color: var(--primary-color) !important;
 }
 
 .times-day-title {
@@ -3779,7 +3779,7 @@
 .time-pill-btn:hover,
 .time-pill-btn.active {
   background-color: var(--accent-blue);
-  color: var(--bg-cream);
+  color: var(--primary-color) !important;
 }
 
 /* ==========================================================================
