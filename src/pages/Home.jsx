@@ -122,6 +122,14 @@ export default function Home({ navigateTo }) {
           </div>
         </div>
 
+        {/* Torn Paper Deckle Edge Section Divider */}
+        <div className="hero-torn-paper-wrap">
+          <img 
+            src="/torn-paper-divider.png" 
+            alt="Torn Paper Edge Divider" 
+            className="hero-torn-paper-img" 
+          />
+        </div>
       </header>
 
       {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
