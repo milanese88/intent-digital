@@ -3113,8 +3113,8 @@
 
 .btn-services-hero-cta {
   display: inline-block;
-  background-color: var(--espresso);
-  color: var(--cream);
+  background-color: var(--brand-accent-cognac);
+  color: #FFFFFF;
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 600;
@@ -3122,13 +3122,15 @@
   text-transform: uppercase;
   padding: 16px 36px;
   border-radius: 8px;
-  transition: var(--transition-smooth);
+  transition: var(--transition-editorial);
+  text-decoration: none;
 }
 
 .btn-services-hero-cta:hover {
-  background-color: var(--terracotta);
-  color: var(--espresso);
+  background-color: var(--brand-accent-cognac-hover);
+  color: #FFFFFF;
   transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(158, 75, 39, 0.3);
 }
 
 .services-hero-right {
