@@ -7,6 +7,42 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-regular-webfont.woff2') format('woff2'),
+       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-regular-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-italic-webfont.woff2') format('woff2'),
+       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-italic-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-webfont.woff2') format('woff2'),
+       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-webfont.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-italic-webfont.woff2') format('woff2'),
+       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-italic-webfont.woff') format('woff');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   /* Intent Digital Brand Palette Tokens (From Swatch Palette) */
   --primary-color: #371803;     /* Primary — Deep Warm Chocolate: headings, dark section fills, footers */
@@ -44,7 +80,7 @@
 
   /* Font Roles */
   --font-script: 'Dreams on Paper', cursive;
-  --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-display: 'Atelier Fleur', 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
   --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
   --font-numeral: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
 
@@ -103,6 +139,19 @@ h3, .h3-title {
   line-height: 1.25;
   font-weight: 400;
   letter-spacing: -0.02em;
+}
+
+/* Atelier Fleur Italic Highlight Typography for Title Words */
+h1 em, h1 i, h2 em, h2 i, h3 em, h3 i, h4 em, h4 i,
+.h1-title em, .h1-title i, .h2-title em, .h2-title i, .h3-title em, .h3-title i,
+.section-title em, .section-title i,
+.hero-title em, .hero-title i,
+.editorial-title em, .editorial-title i,
+.studio-hero-headline em, .studio-hero-headline i,
+.highlight-word, .italic-highlight {
+  font-family: 'Atelier Fleur', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
 }
 
 em, i, .serif-italic {
