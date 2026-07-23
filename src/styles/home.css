@@ -3694,32 +3694,43 @@
   }
 
   /* 4. Home Page Mobile Refinements */
-  .hero-editorial-section {
-    min-height: auto !important;
-    padding: 80px 20px 50px 20px !important;
+  .hero-section, .hero-cinematic {
+    min-height: 80vh !important;
+    padding: 60px 18px 40px 18px !important;
   }
 
-  .hero-editorial-title {
-    font-size: clamp(2.2rem, 7.5vw, 3.2rem) !important;
-    line-height: 1.15 !important;
-    margin-bottom: 16px !important;
+  .hero-script-main-title {
+    margin-bottom: 20px !important;
+  }
+
+  .hero-script-title-img {
+    height: clamp(38px, 8.5vw, 56px) !important;
+    width: 90% !important;
+    max-width: 320px !important;
+    margin: 0 auto !important;
   }
 
   .hero-editorial-subtitle {
-    font-size: 14.5px !important;
-    line-height: 1.6 !important;
-    margin-bottom: 28px !important;
+    font-family: var(--font-display) !important;
+    font-size: clamp(17px, 4.5vw, 22px) !important;
+    font-weight: 300 !important;
+    font-style: italic !important;
+    line-height: 1.5 !important;
+    margin: 0 auto 30px auto !important;
+    max-width: 92% !important;
   }
 
   .hero-editorial-actions {
     flex-direction: column !important;
     width: 100% !important;
     gap: 12px !important;
+    align-items: center !important;
   }
 
   .hero-editorial-actions .btn-pill-hero-outline {
     width: 100% !important;
-    max-width: 300px;
+    max-width: 280px !important;
+    padding: 13px 24px !important;
   }
 
   .welcome-intro-section {
