@@ -251,7 +251,7 @@ a:hover {
 }
 
 /* Dark (Espresso Ink) Section Styles */
-.dark-section, .cta-banner-section, .welcome-card-dark {
+.dark-section, .welcome-card-dark {
   background-color: var(--primary-color) !important;
   color: var(--bg-cream);
 }
