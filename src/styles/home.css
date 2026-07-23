@@ -3115,25 +3115,30 @@
 }
 
 .btn-services-hero-cta {
-  display: inline-block;
-  background-color: var(--brand-accent-cognac);
-  color: #FFFFFF;
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent !important;
+  color: var(--primary-color) !important;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 16px 36px;
-  border-radius: 8px;
+  padding: 6px 0 4px 0;
+  border: none !important;
+  border-bottom: 1.5px solid var(--primary-color) !important;
+  border-radius: 0 !important;
   transition: var(--transition-editorial);
   text-decoration: none;
 }
 
 .btn-services-hero-cta:hover {
-  background-color: var(--brand-accent-cognac-hover);
-  color: #FFFFFF;
+  background: transparent !important;
+  color: var(--brand-accent-cognac) !important;
+  border-bottom-color: var(--brand-accent-cognac) !important;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(158, 75, 39, 0.3);
+  box-shadow: none !important;
 }
 
 .services-hero-right {
