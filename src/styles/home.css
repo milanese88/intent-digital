@@ -884,8 +884,8 @@
   font-style: normal;
   font-weight: 300;
   font-size: clamp(2.2rem, 4vw, 3.5rem);
-  line-height: 1.12;
-  text-transform: uppercase;
+  line-height: 1.15;
+  text-transform: none;
   letter-spacing: -0.02em;
   color: var(--primary-color);
   max-width: 1000px;
