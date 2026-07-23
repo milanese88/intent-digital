@@ -133,12 +133,11 @@
 .nav-link {
   font-family: var(--font-sans);
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--espresso);
-  opacity: 0.75;
-  transition: var(--transition-smooth);
+  color: var(--color-text-secondary);
+  transition: var(--transition-editorial);
   position: relative;
   padding: 6px 0;
 }
@@ -149,14 +148,14 @@
   bottom: 0;
   left: 0;
   width: 0;
-  height: 2.5px;
-  background-color: var(--dusty-blue); /* Winter sky light baby blue underline matching Image 2 */
-  transition: width 0.3s ease;
+  height: 2px;
+  background-color: var(--brand-accent-cognac);
+  transition: width 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .nav-link:hover,
 .nav-link.active {
-  color: var(--espresso);
+  color: var(--brand-accent-cognac);
   opacity: 1;
 }
 
@@ -173,16 +172,18 @@
 }
 
 .btn-nav-cta {
-  background-color: var(--espresso);
-  color: var(--cream);
+  background-color: var(--brand-accent-cognac);
+  color: #FFFFFF;
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 10px 22px;
+  padding: 10px 24px;
   border-radius: 999px;
-  transition: var(--transition-smooth);
+  border: none;
+  transition: var(--transition-editorial);
+  text-decoration: none;
 }
 
 .btn-nav-cta:hover {
