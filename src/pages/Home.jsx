@@ -178,8 +178,8 @@ export default function Home({ navigateTo }) {
             {/* Left Column: Visual Mockup / On-Brand Image */}
             <div className="home-services-visual-wrap">
               <img 
-                src="/services-hero-staircase.jpg" 
-                alt="Intent Digital Studio Services & Architectural Brand Mockup" 
+                src="/services-studio-desk.jpg" 
+                alt="Creative branding studio workspace with camera and editorial prints" 
                 className="home-services-visual-img" 
                 loading="lazy"
               />
