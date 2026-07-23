@@ -430,6 +430,9 @@
   max-width: 660px;
   color: #FFFFFF;
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .hero-cinematic-seal {
@@ -437,6 +440,8 @@
   height: clamp(80px, 6.5vw, 105px);
   object-fit: contain;
   margin-bottom: 18px;
+  margin-left: -4px;
+  display: block;
   filter: brightness(0) invert(1) drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
   opacity: 0.98;
 }
