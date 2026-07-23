@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import '../styles/home.css';
 
 export default function Services({ navigateTo }) {
@@ -14,6 +15,7 @@ export default function Services({ navigateTo }) {
 
   return (
     <div className="home-page services-page">
+      <AnnouncementBanner />
       {/* SERVICES SPLIT HERO SECTION (MATCHING PICTURE 2 REFERENCE) */}
       <section className="services-split-hero">
         <div className="services-hero-left">
