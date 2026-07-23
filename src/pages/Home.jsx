@@ -94,20 +94,25 @@ export default function Home({ navigateTo }) {
               initial={{ opacity: 0, y: 20 }}
               animate={startReveal ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-              className="hero-script-main-title"
+              className="hero-brand-title"
             >
-              <img 
-                src="/creative-branding-studio-script.png" 
-                alt="A creative Branding Studio" 
-                className="hero-script-title-img" 
-              />
+              Intent Digital
             </motion.h1>
             
             <motion.p
               initial={{ opacity: 0, y: 20 }}
-              animate={startReveal ? { opacity: 0.95, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.5 }}
-              className="hero-editorial-subtitle"
+              animate={startReveal ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.4 }}
+              className="hero-tagline-montserrat"
+            >
+              A CREATIVE BRANDING STUDIO
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={startReveal ? { opacity: 0.85, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
+              className="hero-body-light"
             >
               We craft brand identities and digital experiences that feel authentic, considered, and unmistakably yours &mdash; from the first idea to the final detail.
             </motion.p>
