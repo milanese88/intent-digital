@@ -797,27 +797,29 @@
   }
 }
 
-/* Welcome Intro Section & Studio Offerings (Matching Screenshot 2) */
+/* Welcome Intro Section & Studio Offerings (Dark Espresso Ganache Theme Matching Screenshot 2) */
 .welcome-intro-section {
   padding: 100px 0 120px 0;
-  background-color: var(--bg-cream);
+  background-color: var(--primary-espresso);
+  color: var(--bg-cream);
   text-align: center;
-  border-bottom: 1px solid var(--neutral-oat);
+  border-bottom: 1px solid rgba(247, 241, 228, 0.15);
 }
 
 .welcome-intro-header {
-  margin-bottom: 52px;
+  margin-bottom: 56px;
 }
 
 .studio-hero-headline {
   font-family: var(--font-display);
-  font-style: italic;
+  font-style: normal;
   font-weight: 300;
-  font-size: clamp(2.3rem, 4.2vw, 3.8rem);
-  line-height: 1.18;
-  letter-spacing: -0.02em;
-  color: var(--primary-espresso);
-  max-width: 980px;
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bg-cream);
+  max-width: 1000px;
   margin: 0 auto;
 }
 
@@ -834,8 +836,8 @@
   aspect-ratio: 4 / 5;
   overflow: hidden;
   border-radius: 4px;
-  border: 1px solid var(--neutral-oat);
-  background-color: var(--primary-espresso);
+  border: 1px solid rgba(247, 241, 228, 0.18);
+  background-color: #241F19;
 }
 
 .studio-card .welcome-card-img {
@@ -857,7 +859,7 @@
 }
 
 .offerings-header-row {
-  border-top: 1px solid var(--neutral-oat);
+  border-top: 1px solid rgba(247, 241, 228, 0.18);
   padding-top: 18px;
   margin-bottom: 24px;
 }
@@ -867,12 +869,12 @@
   font-style: italic;
   font-weight: 400;
   font-size: 1.8rem;
-  color: var(--primary-espresso);
+  color: var(--bg-cream);
   margin: 0;
 }
 
 .offerings-columns-grid {
-  border-top: 1px solid var(--neutral-oat);
+  border-top: 1px solid rgba(247, 241, 228, 0.18);
   padding-top: 28px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -891,21 +893,21 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--primary-espresso);
+  color: var(--tint-soft-blue);
   margin-bottom: 14px;
   text-decoration: none;
   transition: opacity 0.3s ease;
 }
 
 .offering-link-title:hover {
-  opacity: 0.65;
+  opacity: 0.8;
 }
 
 .offering-desc {
   font-family: var(--font-sans);
   font-size: 14.5px;
   line-height: 1.65;
-  color: var(--primary-espresso);
+  color: var(--bg-cream);
   opacity: 0.85;
   margin: 0;
 }
