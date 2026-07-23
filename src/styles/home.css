@@ -3906,12 +3906,14 @@
     left: 20px !important;
     right: 20px !important;
     max-width: calc(100% - 40px) !important;
+    align-items: flex-start !important;
   }
 
   .hero-cinematic-seal {
     width: 68px !important;
     height: 68px !important;
     margin-bottom: 14px !important;
+    margin-left: -3px !important;
   }
 
   .hero-cinematic-tagline {
