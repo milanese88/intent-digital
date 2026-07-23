@@ -786,14 +786,15 @@
 
 .hero-eyebrow {
   display: block;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--espresso);
-  opacity: 0.75;
+  color: #FFFFFF;
+  opacity: 1;
   margin-bottom: 20px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .section-subtext {

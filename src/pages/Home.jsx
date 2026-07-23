@@ -86,7 +86,7 @@ export default function Home({ navigateTo }) {
           <div className="hero-editorial-content">
             <motion.span
               initial={{ opacity: 0, y: 15 }}
-              animate={startReveal ? { opacity: 0.8, y: 0 } : {}}
+              animate={startReveal ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
               className="hero-eyebrow"
             >
