@@ -3843,9 +3843,9 @@
   }
 
   .hero-editorial-actions .btn-pill-hero-outline {
-    width: 100% !important;
-    max-width: 280px !important;
-    padding: 13px 24px !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 8px 4px 6px 4px !important;
   }
 
   .welcome-intro-section {
