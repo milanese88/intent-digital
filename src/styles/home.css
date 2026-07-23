@@ -887,6 +887,21 @@
   }
 }
 
+.hero-script-eyebrow-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.hero-script-eyebrow-img {
+  height: clamp(38px, 4.5vw, 58px);
+  width: auto;
+  max-width: 380px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
+}
+
 .hero-eyebrow {
   display: block;
   font-family: var(--font-body);
