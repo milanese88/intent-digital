@@ -1477,7 +1477,7 @@
 }
 
 .cta-banner-title {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: clamp(40px, 5vw, 58px);
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -2132,7 +2132,7 @@
 }
 
 .wave-marquee-track span {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: clamp(20px, 2.6vw, 32px);
   font-weight: 500;
   letter-spacing: 0.12em;
@@ -2189,7 +2189,7 @@
 }
 
 .form-title {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: 36px;
   font-weight: 400;
   color: var(--espresso);
@@ -2352,7 +2352,7 @@
 }
 
 .contact-success-title {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: 38px;
   color: var(--espresso);
   margin-bottom: 12px;
@@ -2833,7 +2833,7 @@
 }
 
 .modal-article-title {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: clamp(32px, 4vw, 44px);
   line-height: 1.2;
   color: var(--espresso);
@@ -2877,7 +2877,7 @@
 }
 
 .modal-article-body h3 {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: 26px;
   margin: 32px 0 16px 0;
   color: var(--espresso);
@@ -2902,7 +2902,7 @@
 }
 
 .modal-cta-box h3 {
-  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-family: var(--font-display);
   font-size: 28px;
   margin-bottom: 8px;
 }
