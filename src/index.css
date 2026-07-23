@@ -252,7 +252,7 @@ a:hover {
 
 /* Dark (Espresso Ink) Section Styles */
 .dark-section, .cta-banner-section, .welcome-card-dark {
-  background-color: var(--primary-espresso);
+  background-color: var(--primary-color) !important;
   color: var(--bg-cream);
 }
 
@@ -261,13 +261,15 @@ a:hover {
   color: var(--bg-cream);
 }
 
-.dark-section .btn, .cta-banner-section .btn {
+.dark-section .btn, .cta-banner-section .btn, .cta-banner-section .btn-cta-banner {
   background-color: var(--accent-blue);
-  color: var(--bg-cream);
+  color: var(--primary-color) !important;
+  font-weight: 700;
 }
 
-.dark-section .btn:hover, .cta-banner-section .btn:hover {
+.dark-section .btn:hover, .cta-banner-section .btn:hover, .cta-banner-section .btn-cta-banner:hover {
   background-color: var(--accent-blue-hover);
+  color: var(--primary-color) !important;
 }
 
 #root {
