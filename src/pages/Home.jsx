@@ -84,14 +84,18 @@ export default function Home({ navigateTo }) {
         <div className="hero-bg-overlay"></div>
         <div className="container hero-container">
           <div className="hero-editorial-content">
-            <motion.span
+            <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={startReveal ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
-              className="hero-eyebrow"
+              className="hero-script-eyebrow-wrap"
             >
-              A CREATIVE BRANDING STUDIO
-            </motion.span>
+              <img 
+                src="/creative-branding-studio-script.png" 
+                alt="A creative Branding Studio" 
+                className="hero-script-eyebrow-img" 
+              />
+            </motion.div>
             
             <motion.h1
               initial={{ opacity: 0, y: 25 }}
