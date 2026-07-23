@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import '../styles/home.css';
 
 export default function Contact({ navigateTo }) {
@@ -42,6 +43,7 @@ export default function Contact({ navigateTo }) {
 
   return (
     <div className="home-page contact-page">
+      <AnnouncementBanner />
       {/* NAVBAR (IMAGE 2 MATCHING STYLE) */}
       <nav className="navbar">
         <div className="container nav-container">

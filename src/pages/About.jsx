@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import '../styles/home.css';
 
 export default function About({ navigateTo }) {
@@ -14,6 +15,7 @@ export default function About({ navigateTo }) {
 
   return (
     <div className="home-page about-page">
+      <AnnouncementBanner />
       {/* NAVBAR */}
       <nav className="navbar">
         <div className="container nav-container">

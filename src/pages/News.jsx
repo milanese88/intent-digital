@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import { newsArticles } from '../data/newsData';
 import '../styles/home.css';
 
@@ -109,6 +110,7 @@ export default function News({ navigateTo }) {
 
   return (
     <div className="home-page news-page">
+      <AnnouncementBanner />
       {/* NAVBAR (IMAGE 2 MATCHING STYLE) */}
       <nav className="navbar">
         <div className="container nav-container">
