@@ -1,30 +1,37 @@
 :root {
-  /* Intent Digital Palette Design Tokens */
-  --primary-espresso: #3A342B; /* Primary — Espresso Ink: headings, primary text, dark sections, footer */
-  --secondary-sage: #8E9C8B;   /* Secondary — Muted Sage: supporting elements, subheads, secondary UI */
-  --accent-blue: #7E9DAD;      /* Accent — Dusty Blue: buttons, links, calls-to-action, key highlights */
-  --accent-blue-hover: #6B8B9B;/* Accent Hover — Deepened Dusty Blue */
-  --neutral-oat: #D8CFBE;      /* Neutral — Warm Oat: cards, dividers, section fills, borders */
-  --bg-cream: #F7F1E4;         /* Lighter — Cream: main page background / canvas */
-  --text-cocoa: #241F19;       /* Darker — Deep Cocoa: body text on light backgrounds */
-  --tint-soft-blue: #A9C5D1;   /* Optional tint — Soft Blue: subtle background fills only */
+  /* Intent Digital Brand Palette Tokens (From Swatch Palette) */
+  --primary-color: #371803;     /* Primary — Deep Warm Chocolate: headings, dark section fills, footers */
+  --secondary-color: #A4BBDB;   /* 2nd Color — Periwinkle Blue: CTAs, links, active highlights, badges */
+  --accent-color: #8C796A;      /* Accent — Warm Taupe: supporting elements, secondary UI, subtle accents */
+  --lighter-tone: #E6E5E4;      /* Lighter Tone — Off-White: main page background / canvas */
+  --neutral-tone: #EBE6E3;      /* Neutral — Warm Oat: cards, dividers, section fills, borders */
+  --darker-tone: #2E2820;       /* Darker Tone — Deep Charcoal Espresso: body text on light canvas */
 
-  /* Legacy & Semantic Aliases */
-  --espresso: var(--primary-espresso);
-  --espresso-soft: var(--secondary-sage);
-  --cream: var(--bg-cream);
-  --dusty-blue: var(--accent-blue);
-  --terracotta: var(--accent-blue);
+  /* Semantic Aliases & Compatibility Tokens */
+  --primary-espresso: var(--primary-color);
+  --secondary-sage: var(--accent-color);
+  --accent-blue: var(--secondary-color);
+  --accent-blue-hover: #8EA7C7;
+  --neutral-oat: var(--neutral-tone);
+  --bg-cream: var(--lighter-tone);
+  --text-cocoa: var(--darker-tone);
+  --tint-soft-blue: var(--secondary-color);
+
+  --espresso: var(--primary-color);
+  --espresso-soft: var(--accent-color);
+  --cream: var(--lighter-tone);
+  --dusty-blue: var(--secondary-color);
+  --terracotta: var(--secondary-color);
 
   /* Opacity Variants */
-  --espresso-85: rgba(58, 52, 43, 0.85);
-  --espresso-20: rgba(58, 52, 43, 0.2);
-  --espresso-15: rgba(58, 52, 43, 0.15);
-  --espresso-12: rgba(58, 52, 43, 0.12);
-  --espresso-06: rgba(58, 52, 43, 0.06);
-  --cream-90: rgba(247, 241, 228, 0.9);
-  --cream-72: rgba(247, 241, 228, 0.72);
-  --cream-50: rgba(247, 241, 228, 0.5);
+  --espresso-85: rgba(55, 24, 3, 0.85);
+  --espresso-20: rgba(55, 24, 3, 0.2);
+  --espresso-15: rgba(55, 24, 3, 0.15);
+  --espresso-12: rgba(55, 24, 3, 0.12);
+  --espresso-06: rgba(55, 24, 3, 0.06);
+  --cream-90: rgba(230, 229, 228, 0.9);
+  --cream-72: rgba(230, 229, 228, 0.72);
+  --cream-50: rgba(230, 229, 228, 0.5);
 
   /* Font Roles */
   --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
