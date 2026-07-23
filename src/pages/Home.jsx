@@ -129,27 +129,57 @@ export default function Home({ navigateTo }) {
 
       </header>
 
-      {/* POSITIONING SECTION (IDENTITY PROBLEM BLOCK) */}
+      {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
       <section className="welcome-intro-section">
         <div className="container">
+          {/* Main Editorial Headline */}
           <div className="welcome-intro-header">
-            <span className="welcome-tagline">WELCOME TO INTENT DIGITAL</span>
-            <h2 className="welcome-title">
-              Most businesses don't have a marketing problem.
+            <h2 className="welcome-title studio-hero-headline">
+              Multi award-winning creative studio shaping brand identity and digital presence for clients worldwide.
             </h2>
-            <p className="welcome-intro-desc">
-              They have an identity problem. They look like everyone else, sound like everyone else, and wonder why no one remembers them. We're here to change that — with branding built on strategy, crafted with soul, and intentional in every detail.
-            </p>
           </div>
 
-          <div className="welcome-visuals-grid">
-            <div className="welcome-visual-card welcome-card-dark">
-              <div className="welcome-card-inner">
-                <img src="/intent-script-logo.png" alt="Intent Digital Studio" className="welcome-card-monogram" />
-              </div>
+          {/* Two Large Side-by-Side Feature Cards */}
+          <div className="welcome-visuals-grid studio-offerings-cards">
+            <div className="welcome-visual-card studio-card">
+              <img 
+                src="/offerings/brand-identity-card.jpg" 
+                alt="The Complete Brand Identity - Intent Digital Monogram Tray" 
+                className="welcome-card-img" 
+              />
             </div>
-            <div className="welcome-visual-card welcome-card-frame">
-              <img src="/work-florentine.jpg" alt="Intent Digital Client Work Showcase" className="welcome-card-img" />
+            <div className="welcome-visual-card studio-card">
+              <img 
+                src="/offerings/website-experience-card.jpg" 
+                alt="The Website Experience - Intent Digital Laptop Mockup" 
+                className="welcome-card-img" 
+              />
+            </div>
+          </div>
+
+          {/* Studio Offerings Section Below Cards */}
+          <div className="studio-offerings-footer">
+            <div className="offerings-header-row">
+              <h3 className="offerings-section-label">Studio Offerings</h3>
+            </div>
+            <div className="offerings-columns-grid">
+              <div className="offering-col">
+                <a href="#" className="offering-link-title" onClick={(e) => handleNavClick(e, 'services')}>
+                  THE COMPLETE BRAND IDENTITY &rarr;
+                </a>
+                <p className="offering-desc">
+                  A 6 to 8 week, end-to-end brand build that gives you a complete strategy, creative direction, and visual identity system, designed to launch your brand with clarity, confidence, and luxury-level presence.
+                </p>
+              </div>
+
+              <div className="offering-col">
+                <a href="#" className="offering-link-title" onClick={(e) => handleNavClick(e, 'services')}>
+                  THE WEBSITE EXPERIENCE &rarr;
+                </a>
+                <p className="offering-desc">
+                  A refined 4 to 8 week digital build transforming your brand into an elevated, seamless website crafted with intentional design, strategic structure, and a world-class user experience.
+                </p>
+              </div>
             </div>
           </div>
         </div>
