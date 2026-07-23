@@ -143,6 +143,31 @@ export default function Home({ navigateTo }) {
         </div>
       </header>
 
+      {/* CINEMATIC FULL-BLEED IMAGE SHOWCASE SECTION (MATCHING SCREENSHOT 1) */}
+      <section className="hero-cinematic-banner-section">
+        <div className="hero-cinematic-banner-wrap">
+          <img 
+            src="/services-hero-staircase.jpg" 
+            alt="Intent Digital Studio Environment" 
+            className="hero-cinematic-banner-img"
+          />
+          <div className="hero-cinematic-overlay"></div>
+          <div className="hero-cinematic-caption">
+            <img 
+              src="/seal-master-white.png" 
+              alt="Intent Digital Monogram Seal" 
+              className="hero-cinematic-seal"
+            />
+            <p className="hero-cinematic-tagline">
+              BRAND IDENTITY. WEBSITE EXPERIENCE. CONTENT DIRECTION.
+            </p>
+            <p className="hero-cinematic-subtagline">
+              For brands seeking distinction, intention, and world-class visual presence.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
       <section className="welcome-intro-section">
         <div className="container">
