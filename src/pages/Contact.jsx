@@ -84,29 +84,43 @@ export default function Contact({ navigateTo }) {
         )}
       </nav>
 
-      {/* CONTACT HERO & FORM WRAPPER */}
+      {/* CONTACT HERO & FORM WRAPPER (2-COLUMN SPLIT MATCHING SCREENSHOT 3) */}
       <section className="contact-form-section">
-        <div className="contact-container">
-          <div className="contact-header-text">
-            <p className="contact-greeting">We're so glad you're here.</p>
-            <p className="contact-subheading">
-              Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
-            </p>
+        <div className="contact-split-container">
+          {/* LEFT COLUMN: Founder Photo */}
+          <div className="contact-split-left">
+            <div className="contact-image-frame">
+              <img 
+                src="/contact-hero.jpg" 
+                alt="Intent Digital Founder working at studio desk" 
+                className="contact-hero-image" 
+              />
+            </div>
           </div>
 
-          {submitted ? (
-            <div className="contact-success-state">
-              <span className="contact-success-badge">&check; INQUIRY RECEIVED</span>
-              <h2 className="contact-success-title">Thank You, {formData.fullName || 'Founder'}!</h2>
-              <p className="contact-success-text">
-                We've received your project inquiry and scheduled consult slot for {selectedDate} at {selectedTime} ({communicationMethod}). Our creative team reviews every proposal carefully and will reach out with next steps.
+          {/* RIGHT COLUMN: Header Title & Form */}
+          <div className="contact-split-right">
+            <div className="contact-header-text">
+              <span className="contact-eyebrow">GET IN TOUCH</span>
+              <h1 className="contact-main-title">We're so glad you're here.</h1>
+              <p className="contact-subheading">
+                Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
               </p>
-              <button className="btn btn-pill-primary" onClick={() => setSubmitted(false)} style={{ marginTop: '24px' }}>
-                SUBMIT ANOTHER INQUIRY &rarr;
-              </button>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="contact-pill-form">
+
+            {submitted ? (
+              <div className="contact-success-state">
+                <span className="contact-success-badge">&check; INQUIRY RECEIVED</span>
+                <h2 className="contact-success-title">Thank You, {formData.fullName || 'Founder'}!</h2>
+                <p className="contact-success-text">
+                  We've received your project inquiry and scheduled consult slot for {selectedDate} at {selectedTime} ({communicationMethod}). Our creative team reviews every proposal carefully and will reach out with next steps.
+                </p>
+                <button className="btn btn-pill-primary" onClick={() => setSubmitted(false)} style={{ marginTop: '24px' }}>
+                  SUBMIT ANOTHER INQUIRY &rarr;
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="contact-pill-form">
               {/* ROW 1: Full Name + Email */}
               <div className="form-row-2col">
                 <div className="form-field-group">
@@ -407,6 +421,7 @@ export default function Contact({ navigateTo }) {
               </div>
             </form>
           )}
+          </div>
         </div>
       </section>
 

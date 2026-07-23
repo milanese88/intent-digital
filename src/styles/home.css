@@ -2833,40 +2833,108 @@
   }
 }
 
-/* Contact Page Pill Form & Scheduler Styles (Matching Screenshots 1 & 2) */
+/* Contact Page Pill Form & Scheduler Styles (Matching Screenshot 3 Split Layout) */
 .contact-form-section {
-  padding: 80px 0 120px 0;
+  padding: 60px 0 120px 0;
   background-color: var(--bg-cream);
 }
 
-.contact-container {
-  max-width: 860px;
+.contact-split-container {
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 4.5rem;
+  align-items: start;
+}
+
+.contact-split-left {
+  position: sticky;
+  top: 100px;
+}
+
+.contact-image-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 16px 40px rgba(58, 52, 43, 0.08);
+  border: 1px solid var(--neutral-oat);
+}
+
+.contact-hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transition: transform 0.6s ease;
+}
+
+.contact-image-frame:hover .contact-hero-image {
+  transform: scale(1.025);
+}
+
+.contact-split-right {
+  display: flex;
+  flex-direction: column;
 }
 
 .contact-header-text {
-  text-align: center;
-  margin-bottom: 56px;
+  text-align: left;
+  margin-bottom: 40px;
 }
 
-.contact-greeting {
+.contact-eyebrow {
+  display: block;
   font-family: var(--font-sans);
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--espresso);
-  margin-bottom: 14px;
-  opacity: 0.85;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--primary-espresso);
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+.contact-main-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: clamp(2.4rem, 3.8vw, 3.4rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--primary-espresso);
+  margin-bottom: 18px;
 }
 
 .contact-subheading {
   font-family: var(--font-sans);
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: var(--espresso);
-  opacity: 0.75;
-  max-width: 680px;
-  margin: 0 auto;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--primary-espresso);
+  opacity: 0.8;
+  margin: 0;
+}
+
+@media (max-width: 991px) {
+  .contact-split-container {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    padding: 0 20px;
+  }
+
+  .contact-split-left {
+    position: static;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .contact-header-text {
+    text-align: center;
+  }
 }
 
 .contact-pill-form {
