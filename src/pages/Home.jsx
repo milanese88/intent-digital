@@ -84,35 +84,26 @@ export default function Home({ navigateTo }) {
         <div className="hero-bg-overlay"></div>
         <div className="container hero-container">
           <div className="hero-editorial-content">
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
               animate={startReveal ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
-              className="hero-script-eyebrow-wrap"
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+              className="hero-script-main-title"
             >
               <img 
                 src="/creative-branding-studio-script.png" 
                 alt="A creative Branding Studio" 
-                className="hero-script-eyebrow-img" 
+                className="hero-script-title-img" 
               />
-            </motion.div>
-            
-            <motion.h1
-              initial={{ opacity: 0, y: 25 }}
-              animate={startReveal ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.9, ease: "easeOut", delay: 0.3 }}
-              className="hero-editorial-title"
-            >
-              Branding, made with intention.
             </motion.h1>
             
             <motion.p
               initial={{ opacity: 0, y: 20 }}
-              animate={startReveal ? { opacity: 0.9, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
+              animate={startReveal ? { opacity: 0.95, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut", delay: 0.5 }}
               className="hero-editorial-subtitle"
             >
-              We craft brand identities and digital experiences that feel authentic, considered, and unmistakably yours — from the first idea to the final detail.
+              We craft brand identities and digital experiences that feel authentic, considered, and unmistakably yours &mdash; from the first idea to the final detail.
             </motion.p>
             
             <motion.div

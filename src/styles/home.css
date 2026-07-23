@@ -223,16 +223,33 @@
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 
+.hero-script-main-title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.hero-script-title-img {
+  height: clamp(54px, 7vw, 92px);
+  width: auto;
+  max-width: 580px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.5));
+}
+
 .hero-editorial-subtitle {
-  font-family: var(--font-body);
-  font-size: clamp(16px, 1.8vw, 20px);
-  font-weight: 400;
-  line-height: 1.6;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 27px);
+  font-weight: 300;
+  font-style: italic;
+  line-height: 1.55;
   color: var(--cream);
-  opacity: 0.92;
-  margin-bottom: 40px;
-  max-width: 680px;
-  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);
+  opacity: 0.95;
+  margin: 0 auto 42px auto;
+  max-width: 780px;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.35);
+  letter-spacing: -0.01em;
 }
 
 .hero-editorial-actions {
