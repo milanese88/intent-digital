@@ -430,11 +430,11 @@
 }
 
 .hero-cinematic-seal {
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   object-fit: contain;
   margin-bottom: 14px;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+  filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
   opacity: 0.95;
 }
 
