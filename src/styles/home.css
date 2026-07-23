@@ -3635,11 +3635,12 @@
 }
 
 .offering-num {
-  font-family: var(--font-sans);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent-blue);
-  margin-bottom: 12px;
+  font-family: var(--font-script);
+  font-size: 42px;
+  font-weight: normal;
+  color: var(--secondary-color);
+  margin-bottom: 8px;
+  line-height: 1;
 }
 
 .offering-name {
