@@ -1653,16 +1653,7 @@
   background: radial-gradient(circle at center, var(--espresso) 0%, #1c1813 100%);
 }
 
-.noise-svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.05;
-  pointer-events: none;
-  mix-blend-mode: overlay;
-}
+
 
 .intro-skip-btn {
   position: absolute;

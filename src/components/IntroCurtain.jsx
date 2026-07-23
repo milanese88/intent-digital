@@ -51,14 +51,6 @@ export default function IntroCurtain({ onComplete }) {
           transition={{ duration: 0.8, ease: 'easeInOut' }}
           className="curtain-overlay"
         >
-          {/* Subtle paper-grain texture using SVG feTurbulence */}
-          <svg className="noise-svg">
-            <filter id="paper-noise">
-              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" />
-              <feColorMatrix type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.07 0" />
-            </filter>
-            <rect width="100%" height="100%" filter="url(#paper-noise)" />
-          </svg>
 
           {/* Skip Button */}
           <button onClick={skipIntro} className="intro-skip-btn">
