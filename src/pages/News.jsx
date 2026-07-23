@@ -104,68 +104,119 @@ export default function News({ navigateTo }) {
       {/* MAIN NEWS CONTENT */}
       <section className="news-main-section">
         <div className="container">
-          {/* FEATURED ARTICLE HERO CARD (When 'All' selected) */}
-          {selectedCategory === 'All' && featuredArticle && (
-            <div className="news-featured-card" onClick={() => setActiveArticle(featuredArticle)}>
-              <div className="featured-img-wrap">
-                <img src={featuredArticle.image} alt={featuredArticle.title} className="featured-img" />
-              </div>
-              <div className="featured-content">
-                <div className="news-meta-row">
-                  <span className="news-badge-cat">{featuredArticle.category}</span>
-                  <span className="news-location-pill">{featuredArticle.location}</span>
-                </div>
-                <h2 className="featured-title">{featuredArticle.title}</h2>
-                <p className="featured-summary">{featuredArticle.summary}</p>
-                <div className="featured-footer">
-                  <span className="news-date">{featuredArticle.date} &bull; {featuredArticle.readTime}</span>
-                  <span className="read-more-link">READ ARTICLE &rarr;</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ARTICLES 3-COLUMN GRID */}
           <div className="news-grid-header">
             <h2 className="news-section-title">
               {selectedCategory === 'All' ? 'Latest Journal & News Entries' : `${selectedCategory} Articles (${filteredArticles.length})`}
             </h2>
           </div>
 
-          <div className="news-3col-grid">
-            {gridArticles.map((article) => (
-              <article 
-                key={article.id} 
-                className="news-article-card" 
-                tabIndex={0}
-                role="button"
-                aria-label={`Read article: ${article.title}`}
-                onClick={() => setActiveArticle(article)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setActiveArticle(article);
-                  }
-                }}
-              >
-                <div className="article-img-wrap">
-                  <img src={article.image} alt={article.title} className="article-img" loading="lazy" />
-                </div>
-                <div className="article-card-body">
-                  <div className="news-meta-row">
-                    <span className="news-badge-cat">{article.category}</span>
-                    <span className="news-location-pill">{article.location}</span>
+          {/* EDITORIAL DESKTOP FEATURED LAYOUT (When 2 or more articles exist) */}
+          {filteredArticles.length > 0 && (
+            <div className="journal-editorial-split">
+              {/* LEFT COLUMN: Main Large Featured Article */}
+              {filteredArticles[0] && (
+                <article 
+                  className="journal-main-featured"
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Read article: ${filteredArticles[0].title}`}
+                  onClick={() => setActiveArticle(filteredArticles[0])}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveArticle(filteredArticles[0]);
+                    }
+                  }}
+                >
+                  <div className="featured-img-wrap">
+                    <img src={filteredArticles[0].image} alt={filteredArticles[0].title} className="featured-img" loading="lazy" />
                   </div>
-                  <h3 className="article-card-title">{article.title}</h3>
-                  <p className="article-card-summary">{article.summary}</p>
-                  <div className="article-card-footer">
-                    <span className="news-date">{article.date} &bull; {article.readTime}</span>
-                    <span className="read-more-link">READ &rarr;</span>
+                  <div className="featured-content">
+                    <div className="news-meta-row">
+                      <span className="news-location-pill">{filteredArticles[0].location}</span>
+                    </div>
+                    <h3 className="featured-title">{filteredArticles[0].title}</h3>
+                    <p className="featured-summary">{filteredArticles[0].summary}</p>
+                    <div className="featured-footer">
+                      <span className="news-date">{filteredArticles[0].date} &bull; {filteredArticles[0].readTime}</span>
+                      <span className="read-more-link">READ &rarr;</span>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              )}
+
+              {/* RIGHT COLUMN: Compact Stacked List (Articles 2 to 5) */}
+              <div className="journal-compact-list">
+                {filteredArticles.slice(1, 5).map((article) => (
+                  <article
+                    key={article.id}
+                    className="compact-article-card"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Read article: ${article.title}`}
+                    onClick={() => setActiveArticle(article)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setActiveArticle(article);
+                      }
+                    }}
+                  >
+                    <div className="compact-img-wrap">
+                      <img src={article.image} alt={article.title} className="compact-img" loading="lazy" />
+                    </div>
+                    <div className="compact-card-body">
+                      <div className="news-meta-row">
+                        <span className="news-location-pill">{article.location}</span>
+                      </div>
+                      <h4 className="compact-article-title">{article.title}</h4>
+                      <div className="compact-card-footer">
+                        <span className="news-date">{article.date} &bull; {article.readTime}</span>
+                        <span className="read-more-link">READ &rarr;</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECONDARY GRID FOR REMAINING ARTICLES (6+) */}
+          {filteredArticles.length > 5 && (
+            <div className="news-3col-grid" style={{ marginTop: '3rem' }}>
+              {filteredArticles.slice(5).map((article) => (
+                <article 
+                  key={article.id} 
+                  className="news-article-card" 
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Read article: ${article.title}`}
+                  onClick={() => setActiveArticle(article)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveArticle(article);
+                    }
+                  }}
+                >
+                  <div className="article-img-wrap">
+                    <img src={article.image} alt={article.title} className="article-img" loading="lazy" />
+                  </div>
+                  <div className="article-card-body">
+                    <div className="news-meta-row">
+                      <span className="news-location-pill">{article.location}</span>
+                    </div>
+                    <h3 className="article-card-title">{article.title}</h3>
+                    <p className="article-card-summary">{article.summary}</p>
+                    <div className="article-card-footer">
+                      <span className="news-date">{article.date} &bull; {article.readTime}</span>
+                      <span className="read-more-link">READ &rarr;</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -178,7 +229,6 @@ export default function News({ navigateTo }) {
             </button>
             <div className="article-modal-header">
               <div className="news-meta-row" style={{ marginBottom: '16px' }}>
-                <span className="news-badge-cat">{activeArticle.category}</span>
                 <span className="news-location-pill">{activeArticle.location}</span>
               </div>
               <h1 className="modal-article-title">{activeArticle.title}</h1>
