@@ -57,7 +57,7 @@ export default function Services({ navigateTo }) {
               Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
             </p>
             <a href="#" className="btn btn-services-hero-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              GET STARTED
+              Start your brand &rarr;
             </a>
           </div>
 
