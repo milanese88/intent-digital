@@ -433,12 +433,12 @@
 }
 
 .hero-cinematic-seal {
-  width: 58px;
-  height: 58px;
+  width: clamp(80px, 6.5vw, 105px);
+  height: clamp(80px, 6.5vw, 105px);
   object-fit: contain;
-  margin-bottom: 14px;
-  filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
-  opacity: 0.95;
+  margin-bottom: 18px;
+  filter: brightness(0) invert(1) drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
+  opacity: 0.98;
 }
 
 .hero-cinematic-tagline {
@@ -3904,9 +3904,9 @@
   }
 
   .hero-cinematic-seal {
-    width: 48px !important;
-    height: 48px !important;
-    margin-bottom: 12px !important;
+    width: 68px !important;
+    height: 68px !important;
+    margin-bottom: 14px !important;
   }
 
   .hero-cinematic-tagline {
