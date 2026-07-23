@@ -185,27 +185,33 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(55, 24, 3, 0.35) 0%,
-    rgba(55, 24, 3, 0.45) 45%,
-    rgba(230, 229, 228, 0.3) 70%,
-    rgba(230, 229, 228, 0.88) 88%,
-    var(--lighter-tone) 100%
-  );
+  background: rgba(45, 20, 3, 0.42);
   z-index: 1;
 }
 
 .hero-section.hero-cinematic::after {
-  content: '';
+  display: none;
+}
+
+/* Torn Paper Deckle Edge Divider */
+.hero-torn-paper-wrap {
   position: absolute;
-  bottom: 0;
+  bottom: -2px;
   left: 0;
   right: 0;
-  height: 140px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(230, 229, 228, 0.65) 50%, var(--lighter-tone) 100%);
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+  z-index: 10;
   pointer-events: none;
-  z-index: 1;
+}
+
+.hero-torn-paper-img {
+  width: 100%;
+  min-width: 100%;
+  height: clamp(50px, 7.5vw, 110px);
+  object-fit: fill;
+  display: block;
 }
 
 .hero-container {
