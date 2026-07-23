@@ -1753,7 +1753,7 @@
 
 .btn-footer-pill-cta {
   background-color: var(--accent-blue);
-  color: var(--bg-cream);
+  color: var(--primary-color) !important;
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
@@ -1764,13 +1764,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: var(--transition-smooth);
+  transition: var(--transition-editorial);
+  text-decoration: none;
 }
 
 .btn-footer-pill-cta:hover {
   background-color: var(--accent-blue-hover);
-  color: var(--bg-cream);
+  color: var(--primary-color) !important;
   transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(164, 187, 219, 0.4);
 }
 
 .footer-bottom-bar {
