@@ -815,9 +815,9 @@
   font-style: normal;
   font-weight: 300;
   font-size: clamp(2.2rem, 4vw, 3.5rem);
-  line-height: 1.15;
+  line-height: 1.12;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.02em;
   color: var(--bg-cream);
   max-width: 1000px;
   margin: 0 auto;
