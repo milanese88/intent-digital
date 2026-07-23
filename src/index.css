@@ -106,7 +106,7 @@
 }
 
 /* Dreams on Paper Font for Numbers & Step Badges */
-.num, .number, .why-num, .process-step-num, .step-num, .stat-number, .card-num, .number-badge, .step-number {
+.num, .number, .why-num, .process-step-num, .step-num, .stat-number, .card-num, .number-badge, .step-number, .offering-num {
   font-family: var(--font-script);
 }
 
