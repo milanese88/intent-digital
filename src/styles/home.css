@@ -375,27 +375,31 @@
   background: transparent !important;
   color: #FFFFFF !important;
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 14px 32px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(4px);
-  transition: var(--transition-smooth);
+  padding: 8px 4px 6px 4px;
+  border-radius: 0 !important;
+  border: none !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: none !important;
+  transition: all 0.3s ease;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .btn-pill-hero-outline:hover {
-  background-color: rgba(255, 255, 255, 0.18) !important;
-  border-color: #FFFFFF !important;
-  color: #FFFFFF !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  border-bottom-color: var(--secondary-color) !important;
+  color: var(--secondary-color) !important;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: none !important;
+  opacity: 0.9;
 }
 
 .btn-pill-secondary {
