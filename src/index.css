@@ -1,11 +1,20 @@
 :root {
-  /* Color Tokens (Site-Wide Palette) */
-  --espresso: #3A342B;
-  --espresso-soft: #5B5245;
-  --cream: #FAF8F5;
-  --terracotta: #E28E52;
-  --burnt-rose: #863E3F;
-  --dusty-blue: #A9C5D1;
+  /* Intent Digital Palette Design Tokens */
+  --primary-espresso: #3A342B; /* Primary — Espresso Ink: headings, primary text, dark sections, footer */
+  --secondary-sage: #8E9C8B;   /* Secondary — Muted Sage: supporting elements, subheads, secondary UI */
+  --accent-blue: #7E9DAD;      /* Accent — Dusty Blue: buttons, links, calls-to-action, key highlights */
+  --accent-blue-hover: #6B8B9B;/* Accent Hover — Deepened Dusty Blue */
+  --neutral-oat: #D8CFBE;      /* Neutral — Warm Oat: cards, dividers, section fills, borders */
+  --bg-cream: #F7F1E4;         /* Lighter — Cream: main page background / canvas */
+  --text-cocoa: #241F19;       /* Darker — Deep Cocoa: body text on light backgrounds */
+  --tint-soft-blue: #A9C5D1;   /* Optional tint — Soft Blue: subtle background fills only */
+
+  /* Legacy & Semantic Aliases */
+  --espresso: var(--primary-espresso);
+  --espresso-soft: var(--secondary-sage);
+  --cream: var(--bg-cream);
+  --dusty-blue: var(--accent-blue);
+  --terracotta: var(--accent-blue);
 
   /* Opacity Variants */
   --espresso-85: rgba(58, 52, 43, 0.85);
@@ -13,9 +22,9 @@
   --espresso-15: rgba(58, 52, 43, 0.15);
   --espresso-12: rgba(58, 52, 43, 0.12);
   --espresso-06: rgba(58, 52, 43, 0.06);
-  --cream-90: rgba(250, 248, 245, 0.9);
-  --cream-72: rgba(250, 248, 245, 0.72);
-  --cream-50: rgba(250, 248, 245, 0.5);
+  --cream-90: rgba(247, 241, 228, 0.9);
+  --cream-72: rgba(247, 241, 228, 0.72);
+  --cream-50: rgba(247, 241, 228, 0.5);
 
   /* Font Roles */
   --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
@@ -37,8 +46,8 @@
 }
 
 body {
-  background-color: var(--cream);
-  color: var(--espresso);
+  background-color: var(--bg-cream);
+  color: var(--text-cocoa);
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
@@ -88,7 +97,7 @@ p, span, label, input, select, textarea, button, a, li, small {
 
 h1, .h1-title {
   font-family: var(--font-display);
-  color: var(--espresso);
+  color: var(--primary-espresso);
   font-size: clamp(3rem, 5vw, 4rem);
   line-height: 1.1;
   font-weight: 300;
@@ -97,7 +106,7 @@ h1, .h1-title {
 
 h2, .section-title, .h2-title {
   font-family: var(--font-display);
-  color: var(--espresso);
+  color: var(--primary-espresso);
   font-size: clamp(2.2rem, 4vw, 3rem);
   line-height: 1.15;
   font-weight: 300;
@@ -106,7 +115,7 @@ h2, .section-title, .h2-title {
 
 h3, .h3-title {
   font-family: var(--font-display);
-  color: var(--espresso);
+  color: var(--primary-espresso);
   font-size: clamp(1.3rem, 2vw, 1.6rem);
   line-height: 1.25;
   font-weight: 400;
@@ -122,7 +131,7 @@ em, i, .serif-italic {
 p {
   font-family: var(--font-body);
   font-weight: 400;
-  color: var(--espresso);
+  color: var(--text-cocoa);
   font-size: 1rem;
   line-height: 1.6;
 }
@@ -130,7 +139,7 @@ p {
 .subheadline, .section-subtext, .hero-editorial-subtitle {
   font-family: var(--font-body);
   font-weight: 400;
-  color: var(--espresso-soft);
+  color: var(--secondary-sage);
   font-size: 1.15rem;
   line-height: 1.6;
 }
@@ -138,7 +147,7 @@ p {
 .eyebrow, .section-tagline, .hero-eyebrow, .welcome-tagline {
   font-family: var(--font-body);
   font-weight: 600;
-  color: var(--espresso-soft);
+  color: var(--secondary-sage);
   text-transform: uppercase;
   font-size: 0.8rem;
   letter-spacing: 3px;
@@ -147,7 +156,7 @@ p {
 
 .numeral, .why-num, .offering-num, .process-step-num {
   font-family: var(--font-numeral);
-  color: var(--espresso);
+  color: var(--primary-espresso);
   font-size: 3rem;
   line-height: 1;
 }
@@ -155,33 +164,46 @@ p {
 button, .btn, [class*="btn-"] {
   font-family: var(--font-body);
   font-weight: 600;
-  background-color: var(--dusty-blue);
-  color: var(--espresso);
+  background-color: var(--accent-blue);
+  color: var(--bg-cream);
   border-radius: 999px;
   letter-spacing: 1px;
   text-transform: uppercase;
   transition: var(--transition-smooth);
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+button:hover, .btn:hover, [class*="btn-"]:hover {
+  background-color: var(--accent-blue-hover);
 }
 
-/* Dark (Espresso) Section Styles */
+a {
+  color: var(--accent-blue);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-blue-hover);
+}
+
+/* Dark (Espresso Ink) Section Styles */
 .dark-section, .cta-banner-section, .welcome-card-dark {
-  background-color: var(--espresso);
-  color: var(--cream);
+  background-color: var(--primary-espresso);
+  color: var(--bg-cream);
 }
 
 .dark-section h1, .dark-section h2, .dark-section h3, .dark-section p,
 .cta-banner-section .cta-banner-title, .cta-banner-section .cta-banner-subtext {
-  color: var(--cream);
+  color: var(--bg-cream);
 }
 
 .dark-section .btn, .cta-banner-section .btn {
-  background-color: var(--dusty-blue);
-  color: var(--espresso);
+  background-color: var(--accent-blue);
+  color: var(--bg-cream);
+}
+
+.dark-section .btn:hover, .cta-banner-section .btn:hover {
+  background-color: var(--accent-blue-hover);
 }
 
 #root {

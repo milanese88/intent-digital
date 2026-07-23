@@ -1028,8 +1028,8 @@
 }
 
 .service-card {
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15); /* Espresso border */
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 24px;
   padding: 48px;
   box-shadow: 0 8px 30px rgba(52, 31, 26, 0.04);
@@ -1416,8 +1416,8 @@
 }
 
 .btn-footer-pill-cta {
-  background-color: #859DCE;
-  color: #FFFFFF;
+  background-color: var(--accent-blue);
+  color: var(--bg-cream);
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
@@ -1429,14 +1429,12 @@
   align-items: center;
   justify-content: center;
   transition: var(--transition-smooth);
-  box-shadow: 0 4px 14px rgba(133, 157, 206, 0.25);
 }
 
 .btn-footer-pill-cta:hover {
-  background-color: #728ABF;
-  color: #FFFFFF;
+  background-color: var(--accent-blue-hover);
+  color: var(--bg-cream);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(133, 157, 206, 0.35);
 }
 
 .footer-bottom-bar {
@@ -2083,9 +2081,9 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--espresso);
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  color: var(--primary-espresso);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   padding: 8px 16px;
   border-radius: 999px;
   transition: var(--transition-smooth);
@@ -2184,9 +2182,9 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--espresso);
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  color: var(--primary-espresso);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   padding: 10px 20px;
   border-radius: 999px;
   cursor: pointer;
@@ -2213,8 +2211,8 @@
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 40px;
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 20px;
   overflow: hidden;
   margin-bottom: 64px;
@@ -2346,8 +2344,8 @@
 }
 
 .news-article-card {
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -2453,8 +2451,8 @@
   position: absolute;
   top: 24px;
   right: 24px;
-  background: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -2584,8 +2582,8 @@
   grid-template-columns: 1fr 1fr;
   min-height: 85vh;
   width: 100%;
-  background-color: #FFFFFF;
-  border-bottom: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border-bottom: 1px solid var(--neutral-oat);
 }
 
 .services-hero-left {
@@ -2593,7 +2591,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background-color: #FFFFFF;
+  background-color: var(--bg-cream);
 }
 
 .services-hero-nav-row {
@@ -2705,7 +2703,7 @@
 /* Contact Page Pill Form & Scheduler Styles (Matching Screenshots 1 & 2) */
 .contact-form-section {
   padding: 80px 0 120px 0;
-  background-color: #FFFFFF;
+  background-color: var(--bg-cream);
 }
 
 .contact-container {
@@ -2774,26 +2772,26 @@
 .form-pill-input,
 .form-pill-select {
   width: 100%;
-  background-color: #FFFFFF;
-  border: 1.5px solid var(--dusty-blue);
+  background-color: var(--bg-cream);
+  border: 1.5px solid var(--neutral-oat);
   border-radius: 999px;
   padding: 14px 24px;
   font-family: var(--font-sans);
   font-size: 14px;
-  color: var(--espresso);
+  color: var(--text-cocoa);
   outline: none;
   transition: var(--transition-smooth);
 }
 
 .form-pill-textarea {
   width: 100%;
-  background-color: #FFFFFF;
-  border: 1.5px solid var(--dusty-blue);
+  background-color: var(--bg-cream);
+  border: 1.5px solid var(--neutral-oat);
   border-radius: 20px;
   padding: 16px 24px;
   font-family: var(--font-sans);
   font-size: 14px;
-  color: var(--espresso);
+  color: var(--text-cocoa);
   outline: none;
   transition: var(--transition-smooth);
 }
@@ -2878,8 +2876,8 @@
 }
 
 .scheduler-notice-bar {
-  background-color: #FFFFFF;
-  border-bottom: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border-bottom: 1px solid var(--neutral-oat);
   padding: 16px 24px;
   display: flex;
   justify-content: space-between;
@@ -2887,8 +2885,8 @@
   font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--espresso);
-  border-left: 4px solid #92B1B6;
+  color: var(--primary-espresso);
+  border-left: 4px solid var(--secondary-sage);
 }
 
 .optional-badge {
@@ -2901,7 +2899,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 32px;
   padding: 36px;
-  background-color: #FFFFFF;
+  background-color: var(--bg-cream);
   border-radius: 20px;
   margin: 24px;
   box-shadow: 0 10px 30px rgba(52, 31, 26, 0.04);
@@ -3041,8 +3039,8 @@
 }
 
 .about-col-card {
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 16px;
   padding: 48px;
   box-shadow: 0 10px 30px rgba(52, 31, 26, 0.03);
@@ -3053,7 +3051,7 @@
   font-size: clamp(26px, 2.8vw, 36px);
   font-weight: 400;
   line-height: 1.25;
-  color: var(--espresso);
+  color: var(--primary-espresso);
   margin-top: 12px;
   margin-bottom: 16px;
 }
@@ -3062,14 +3060,14 @@
   font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.65;
-  color: var(--espresso);
-  opacity: 0.8;
+  color: var(--text-cocoa);
+  opacity: 0.9;
 }
 
 .about-process-section {
   padding: 100px 0;
-  background-color: var(--cream);
-  border-bottom: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border-bottom: 1px solid var(--neutral-oat);
 }
 
 /* Services Offerings Grid */
@@ -3081,8 +3079,8 @@
 }
 
 .offering-card {
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 16px;
   padding: 44px;
   box-shadow: 0 8px 24px rgba(52, 31, 26, 0.03);
@@ -3099,7 +3097,7 @@
   font-family: var(--font-sans);
   font-size: 28px;
   font-weight: 700;
-  color: var(--dusty-blue);
+  color: var(--accent-blue);
   margin-bottom: 12px;
 }
 
@@ -3107,7 +3105,7 @@
   font-family: var(--font-serif);
   font-size: 32px;
   font-weight: 400;
-  color: var(--espresso);
+  color: var(--primary-espresso);
   margin-bottom: 4px;
 }
 
@@ -3115,8 +3113,7 @@
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 16px;
-  color: var(--espresso);
-  opacity: 0.75;
+  color: var(--secondary-sage);
   margin-bottom: 16px;
 }
 
@@ -3124,8 +3121,7 @@
   font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.65;
-  color: var(--espresso);
-  opacity: 0.82;
+  color: var(--text-cocoa);
 }
 
 /* Process Timeline List */
@@ -3141,8 +3137,8 @@
   display: flex;
   align-items: flex-start;
   gap: 28px;
-  background-color: #FFFFFF;
-  border: 1px solid var(--espresso-15);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
   border-radius: 12px;
   padding: 24px 32px;
   box-shadow: 0 4px 16px rgba(52, 31, 26, 0.02);
@@ -3193,15 +3189,15 @@
 
 .day-num.active-slot:hover,
 .day-num.active-slot.selected {
-  background-color: #92B1B6;
-  color: #FFFFFF;
+  background-color: var(--accent-blue);
+  color: var(--bg-cream);
 }
 
 .times-day-title {
   font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 700;
-  color: var(--espresso);
+  color: var(--primary-espresso);
   margin-bottom: 4px;
 }
 
@@ -3226,9 +3222,9 @@
   display: block;
   width: 100%;
   max-width: 140px;
-  background-color: #F0F6F7;
-  border: 1px solid var(--dusty-blue);
-  color: var(--espresso);
+  background-color: var(--bg-cream);
+  border: 1px solid var(--accent-blue);
+  color: var(--primary-espresso);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -3241,8 +3237,8 @@
 
 .time-pill-btn:hover,
 .time-pill-btn.active {
-  background-color: #92B1B6;
-  color: #FFFFFF;
+  background-color: var(--accent-blue);
+  color: var(--bg-cream);
 }
 
 @media (max-width: 768px) {
