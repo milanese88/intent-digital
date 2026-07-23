@@ -85,63 +85,8 @@ export default function Home({ navigateTo }) {
         )}
       </nav>
 
-      {/* SECTION 2 — CINEMATIC EDITORIAL HERO */}
+      {/* MAIN CINEMATIC EDITORIAL HERO SECTION */}
       <header className="hero-section hero-cinematic">
-        <div className="hero-bg-overlay"></div>
-        <div className="container hero-container">
-          <div className="hero-editorial-content">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={startReveal ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-              className="hero-brand-title"
-            >
-              Intent Digital
-            </motion.h1>
-            
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={startReveal ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.4 }}
-              className="hero-tagline-montserrat"
-            >
-              A CREATIVE BRANDING STUDIO
-            </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={startReveal ? { opacity: 0.85, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
-              className="hero-body-light"
-            >
-              We craft brand identities and digital experiences that feel authentic, considered, and unmistakably yours &mdash; from the first idea to the final detail.
-            </motion.p>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={startReveal ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.9 }}
-              className="hero-editorial-actions"
-            >
-              <a href="#" className="btn btn-pill-hero-outline" onClick={(e) => handleNavClick(e, 'contact')}>
-                Start your brand &rarr;
-              </a>
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Torn Paper Deckle Edge Section Divider */}
-        <div className="hero-torn-paper-wrap">
-          <img 
-            src="/torn-paper-divider.png" 
-            alt="Torn Paper Edge Divider" 
-            className="hero-torn-paper-img" 
-          />
-        </div>
-      </header>
-
-      {/* CINEMATIC FULL-BLEED IMAGE SHOWCASE SECTION (MATCHING SCREENSHOT 1) */}
-      <section className="hero-cinematic-banner-section">
         <div className="hero-cinematic-banner-wrap">
           <img 
             src="/services-hero-staircase.jpg" 
@@ -161,9 +106,14 @@ export default function Home({ navigateTo }) {
             <p className="hero-cinematic-subtagline">
               For brands seeking distinction, intention, and world-class visual presence.
             </p>
+            <div className="hero-cinematic-action">
+              <a href="#" className="btn btn-pill-hero-outline hero-banner-btn" onClick={(e) => handleNavClick(e, 'contact')}>
+                Start your brand &rarr;
+              </a>
+            </div>
           </div>
         </div>
-      </section>
+      </header>
 
       {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
       <section className="welcome-intro-section">
