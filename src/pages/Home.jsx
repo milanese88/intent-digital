@@ -127,14 +127,6 @@ export default function Home({ navigateTo }) {
           </div>
         </div>
 
-        {/* INFINITE MARQUEE TICKER BANNER */}
-        <div className="marquee-banner">
-          <div className="marquee-track">
-            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp; BRAND IDENTITY &nbsp;&bull;&nbsp; INTENT DIGITAL STUDIO &nbsp;&bull;&nbsp;&nbsp;</span>
-          </div>
-        </div>
       </header>
 
       {/* POSITIONING SECTION (IDENTITY PROBLEM BLOCK) */}
@@ -278,17 +270,6 @@ export default function Home({ navigateTo }) {
           </div>
         </div>
       </section>
-
-      {/* MARQUEE MOTION BANNER (STRAIGHT TOP & SCALLOPED BOTTOM) */}
-      <div className="wave-marquee-section">
-        <div className="wave-marquee-banner">
-          <div className="wave-marquee-track">
-            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
-            <span>BRAND IDENTITY &nbsp;&bull;&nbsp; DIGITAL PRESENCE &nbsp;&bull;&nbsp; CREATIVE DIRECTION &nbsp;&bull;&nbsp; EDITORIAL DESIGN &nbsp;&bull;&nbsp; VISUAL STRATEGY &nbsp;&bull;&nbsp; WEB ARCHITECTURE &nbsp;&bull;&nbsp;&nbsp;</span>
-          </div>
-        </div>
-      </div>
 
       {/* APPROACH / WHY INTENT DIGITAL SECTION */}
       <section id="why-us" className="why-section">
