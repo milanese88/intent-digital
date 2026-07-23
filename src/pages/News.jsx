@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { newsArticles } from '../data/newsData';
 import '../styles/home.css';
 
@@ -6,6 +6,81 @@ export default function News({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeArticle, setActiveArticle] = useState(null);
+
+  // SEO & Structured Data (JSON-LD) Injector
+  useEffect(() => {
+    // 1. Dynamic Page Title
+    const originalTitle = document.title;
+    if (activeArticle) {
+      document.title = activeArticle.seoTitle ? `${activeArticle.seoTitle} | Intent Digital` : `${activeArticle.title} | Intent Digital`;
+    } else {
+      document.title = "Journal & News | Intent Digital Studio Fort Lauderdale";
+    }
+
+    // 2. Dynamic Meta Description
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta');
+      metaDesc.name = 'description';
+      document.head.appendChild(metaDesc);
+    }
+    const defaultDesc = "Curated editorial news, luxury wellness studio spotlights, and high-impact branding insights from Intent Digital Studio in Fort Lauderdale.";
+    metaDesc.content = activeArticle ? (activeArticle.seoDescription || activeArticle.summary) : defaultDesc;
+
+    // 3. Dynamic JSON-LD Structured Data (Article + LocalBusiness)
+    const currentArticle = activeArticle || newsArticles[0];
+    const scriptId = 'news-jsonld-schema';
+    let scriptElem = document.getElementById(scriptId);
+    if (!scriptElem) {
+      scriptElem = document.createElement('script');
+      scriptElem.id = scriptId;
+      scriptElem.type = 'application/ld+json';
+      document.head.appendChild(scriptElem);
+    }
+
+    const schemaData = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Article",
+          "@id": `https://intentdigital.studio${currentArticle.slug || '#'}` ,
+          "headline": currentArticle.title,
+          "description": currentArticle.summary,
+          "image": currentArticle.image,
+          "datePublished": currentArticle.date,
+          "author": {
+            "@type": "Organization",
+            "name": "Intent Digital Studio",
+            "url": "https://intentdigital.studio"
+          },
+          "publisher": {
+            "@type": "Organization",
+            "name": "Intent Digital Studio",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://intentdigital.studio/seal-logo.png"
+            }
+          }
+        },
+        ...(currentArticle.businessName ? [{
+          "@type": "LocalBusiness",
+          "name": currentArticle.businessName,
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Fort Lauderdale",
+            "addressRegion": "FL",
+            "addressCountry": "US"
+          }
+        }] : [])
+      ]
+    };
+    scriptElem.textContent = JSON.stringify(schemaData);
+
+    return () => {
+      document.title = originalTitle;
+      metaDesc.content = defaultDesc;
+    };
+  }, [activeArticle]);
 
   const categories = [
     'All',
@@ -129,7 +204,7 @@ export default function News({ navigateTo }) {
                   }}
                 >
                   <div className="featured-img-wrap">
-                    <img src={filteredArticles[0].image} alt={filteredArticles[0].title} className="featured-img" loading="lazy" />
+                    <img src={filteredArticles[0].image} alt={filteredArticles[0].altText || filteredArticles[0].title} className="featured-img" loading="lazy" />
                   </div>
                   <div className="featured-content">
                     <div className="news-meta-row">
@@ -163,7 +238,7 @@ export default function News({ navigateTo }) {
                     }}
                   >
                     <div className="compact-img-wrap">
-                      <img src={article.image} alt={article.title} className="compact-img" loading="lazy" />
+                      <img src={article.image} alt={article.altText || article.title} className="compact-img" loading="lazy" />
                     </div>
                     <div className="compact-card-body">
                       <div className="news-meta-row">
@@ -200,7 +275,7 @@ export default function News({ navigateTo }) {
                   }}
                 >
                   <div className="article-img-wrap">
-                    <img src={article.image} alt={article.title} className="article-img" loading="lazy" />
+                    <img src={article.image} alt={article.altText || article.title} className="article-img" loading="lazy" />
                   </div>
                   <div className="article-card-body">
                     <div className="news-meta-row">
@@ -235,7 +310,7 @@ export default function News({ navigateTo }) {
               <p className="modal-article-date">{activeArticle.date} &bull; {activeArticle.readTime} &bull; By Intent Digital Studio</p>
             </div>
             <div className="modal-img-wrap">
-              <img src={activeArticle.image} alt={activeArticle.title} className="modal-img" />
+              <img src={activeArticle.image} alt={activeArticle.altText || activeArticle.title} className="modal-img" />
             </div>
             <div 
               className="modal-article-body" 
