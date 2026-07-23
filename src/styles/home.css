@@ -3494,6 +3494,7 @@
   padding: 8px 0;
   border-radius: 50%;
   color: var(--espresso);
+  font-weight: 400;
 }
 
 .day-num.muted {
