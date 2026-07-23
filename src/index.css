@@ -82,7 +82,7 @@
   --font-script: 'Dreams on Paper', cursive;
   --font-display: 'Atelier Fleur', 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
   --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
-  --font-numeral: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
+  --font-numeral: 'Dreams on Paper', cursive, var(--font-display);
 
   /* System Aliases */
   --font-serif: var(--font-display);
@@ -90,6 +90,11 @@
   --font-heading: var(--font-display);
 
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dreams on Paper Font for Numbers & Step Badges */
+.num, .number, .why-num, .process-step-num, .step-num, .stat-number, .card-num, .number-badge, .step-number {
+  font-family: var(--font-script);
 }
 
 * {

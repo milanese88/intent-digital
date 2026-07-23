@@ -1436,14 +1436,13 @@
 }
 
 .why-num {
-  font-family: var(--font-sans);
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--espresso);
-  margin-bottom: 12px;
-  opacity: 0.85;
+  font-family: var(--font-script);
+  font-size: 52px;
+  font-weight: normal;
+  color: var(--primary-color);
+  margin-bottom: 10px;
+  opacity: 0.95;
   line-height: 1;
-  letter-spacing: -0.02em;
 }
 
 .why-col-title {
@@ -3593,10 +3592,10 @@
 }
 
 .process-step-num {
-  font-family: var(--font-sans);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--dusty-blue);
+  font-family: var(--font-script);
+  font-size: 34px;
+  font-weight: normal;
+  color: var(--secondary-color);
   line-height: 1.2;
 }
 
