@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import IntroCurtain from '../components/IntroCurtain';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import { projectsData } from '../data/projectsData';
 import '../styles/home.css';
 
@@ -15,6 +16,7 @@ export default function Home({ navigateTo }) {
       setStartReveal(true);
     }
   }, []);
+
   const handleScroll = (e, id) => {
     e.preventDefault();
     setMobileMenuOpen(false);
@@ -40,6 +42,10 @@ export default function Home({ navigateTo }) {
   return (
     <div className="home-page">
       <IntroCurtain onComplete={() => setStartReveal(true)} />
+      
+      {/* TOP ANNOUNCEMENT MARQUEE BANNER */}
+      <AnnouncementBanner />
+
       {/* SECTION 1 — NAV (IMAGE 2 MATCHING STYLE) */}
       <nav className="navbar">
         <div className="container nav-container">
