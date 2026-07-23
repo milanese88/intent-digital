@@ -187,11 +187,11 @@
   bottom: 0;
   background: linear-gradient(
     180deg,
-    rgba(58, 52, 43, 0.35) 0%,
-    rgba(58, 52, 43, 0.45) 45%,
-    rgba(58, 52, 43, 0.75) 72%,
-    rgba(58, 52, 43, 0.95) 90%,
-    var(--primary-espresso) 100%
+    rgba(55, 24, 3, 0.35) 0%,
+    rgba(55, 24, 3, 0.45) 45%,
+    rgba(230, 229, 228, 0.3) 70%,
+    rgba(230, 229, 228, 0.88) 88%,
+    var(--lighter-tone) 100%
   );
   z-index: 1;
 }
@@ -203,7 +203,7 @@
   left: 0;
   right: 0;
   height: 140px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(58, 52, 43, 0.7) 50%, var(--primary-espresso) 100%);
+  background: linear-gradient(to bottom, transparent 0%, rgba(230, 229, 228, 0.65) 50%, var(--lighter-tone) 100%);
   pointer-events: none;
   z-index: 1;
 }
@@ -797,13 +797,13 @@
   }
 }
 
-/* Welcome Intro Section & Studio Offerings (Dark Espresso Ganache Theme Matching Screenshot 2) */
+/* Welcome Intro Section & Studio Offerings (Light Canvas Theme) */
 .welcome-intro-section {
   padding: 100px 0 120px 0;
-  background-color: var(--primary-espresso);
-  color: var(--bg-cream);
+  background-color: var(--lighter-tone);
+  color: var(--darker-tone);
   text-align: center;
-  border-bottom: 1px solid rgba(247, 241, 228, 0.15);
+  border-bottom: 1px solid var(--neutral-tone);
 }
 
 .welcome-intro-header {
@@ -818,7 +818,7 @@
   line-height: 1.12;
   text-transform: uppercase;
   letter-spacing: -0.02em;
-  color: var(--bg-cream);
+  color: var(--primary-color);
   max-width: 1000px;
   margin: 0 auto;
 }
@@ -836,8 +836,8 @@
   aspect-ratio: 4 / 5;
   overflow: hidden;
   border-radius: 4px;
-  border: 1px solid rgba(247, 241, 228, 0.18);
-  background-color: var(--primary-color);
+  border: 1px solid var(--neutral-tone);
+  background-color: var(--neutral-tone);
 }
 
 .studio-card .welcome-card-img {
@@ -859,7 +859,7 @@
 }
 
 .offerings-header-row {
-  border-top: 1px solid rgba(247, 241, 228, 0.18);
+  border-top: 1px solid var(--neutral-tone);
   padding-top: 18px;
   margin-bottom: 24px;
 }
@@ -869,12 +869,12 @@
   font-style: italic;
   font-weight: 400;
   font-size: 1.8rem;
-  color: var(--bg-cream);
+  color: var(--primary-color);
   margin: 0;
 }
 
 .offerings-columns-grid {
-  border-top: 1px solid rgba(247, 241, 228, 0.18);
+  border-top: 1px solid var(--neutral-tone);
   padding-top: 28px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -893,21 +893,21 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--tint-soft-blue);
+  color: var(--primary-color);
   margin-bottom: 14px;
   text-decoration: none;
   transition: opacity 0.3s ease;
 }
 
 .offering-link-title:hover {
-  opacity: 0.8;
+  opacity: 0.65;
 }
 
 .offering-desc {
   font-family: var(--font-sans);
   font-size: 14.5px;
   line-height: 1.65;
-  color: var(--bg-cream);
+  color: var(--darker-tone);
   opacity: 0.85;
   margin: 0;
 }
