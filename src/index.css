@@ -1,3 +1,12 @@
+@font-face {
+  font-family: 'Dreams on Paper';
+  src: url('/Fonts/dreamsonpaper-regular-webfont.woff2') format('woff2'),
+       url('/Fonts/dreamsonpaper-regular-webfont.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Intent Digital Brand Palette Tokens (From Swatch Palette) */
   --primary-color: #371803;     /* Primary — Deep Warm Chocolate: headings, dark section fills, footers */
@@ -34,6 +43,7 @@
   --cream-50: rgba(230, 229, 228, 0.5);
 
   /* Font Roles */
+  --font-script: 'Dreams on Paper', cursive;
   --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
   --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
   --font-numeral: 'Times New Roman MT Condensed', 'Times New Roman Condensed', 'Bodoni MT Condensed', 'Times New Roman', serif;
