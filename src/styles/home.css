@@ -468,12 +468,16 @@
   margin-top: 8px;
 }
 
-.hero-banner-btn {
+.hero-cinematic-caption .hero-banner-btn,
+.btn-pill-hero-outline.hero-banner-btn {
   color: #FFFFFF !important;
-  border-bottom-color: rgba(255, 255, 255, 0.9) !important;
+  border-bottom: 1.5px solid #FFFFFF !important;
+  border-bottom-color: #FFFFFF !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-.hero-banner-btn:hover {
+.hero-cinematic-caption .hero-banner-btn:hover,
+.btn-pill-hero-outline.hero-banner-btn:hover {
   color: var(--secondary-color) !important;
   border-bottom-color: var(--secondary-color) !important;
 }
