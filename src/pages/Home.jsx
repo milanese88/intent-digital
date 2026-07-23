@@ -126,9 +126,6 @@ export default function Home({ navigateTo }) {
               <a href="#" className="btn btn-pill-hero-outline" onClick={(e) => handleNavClick(e, 'contact')}>
                 Start your brand &rarr;
               </a>
-              <a href="#portfolio" className="btn btn-pill-hero-outline" onClick={(e) => handleScroll(e, 'portfolio')}>
-                Explore our work
-              </a>
             </motion.div>
           </div>
         </div>
@@ -154,7 +151,7 @@ export default function Home({ navigateTo }) {
           <div className="hero-cinematic-overlay"></div>
           <div className="hero-cinematic-caption">
             <img 
-              src="/seal-master-white.png" 
+              src="/seal-logo.png" 
               alt="Intent Digital Monogram Seal" 
               className="hero-cinematic-seal"
             />
