@@ -149,7 +149,7 @@ export default function Home({ navigateTo }) {
           {/* Main Editorial Headline */}
           <div className="welcome-intro-header">
             <h2 className="welcome-title studio-hero-headline">
-              Multi award-winning creative studio shaping brand identity and digital presence for clients worldwide.
+              Shaping brand identity and digital presence for clients worldwide.
             </h2>
           </div>
 
