@@ -65,12 +65,14 @@ export default function Home({ navigateTo }) {
         {/* Mobile Nav Drawer */}
         {mobileMenuOpen && (
           <div className="mobile-nav-drawer">
+            <button className="mobile-drawer-close" onClick={() => setMobileMenuOpen(false)}>✕</button>
             <a href="#" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>HOME</a>
             <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
             <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
           </div>
         )}
       </nav>

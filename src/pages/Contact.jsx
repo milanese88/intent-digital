@@ -212,6 +212,7 @@ export default function Contact({ navigateTo }) {
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
           </div>
 
           <div className="nav-right">
@@ -237,6 +238,7 @@ export default function Contact({ navigateTo }) {
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
           </div>
         )}
       </nav>
