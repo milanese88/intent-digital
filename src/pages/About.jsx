@@ -67,12 +67,7 @@ export default function About({ navigateTo }) {
               Intent Digital is a creative branding studio shaping identities that feel authentic, considered, and unmistakably alive — so your brand looks like who you truly are, and gets remembered for it.
             </p>
           </div>
-          <div className="unified-hero-image-wrap">
-            <img 
-              src="/hero-founder-cinematic.jpg" 
-              alt="Intent Digital Founder" 
-            />
-          </div>
+
         </div>
       </header>
 
