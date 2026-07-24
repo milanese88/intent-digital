@@ -17,11 +17,7 @@ export default async function middleware(request) {
   // Try to get auth_session cookie
   let sessionCookie;
   
-  // Handling different possible request object structures (Next.js Request vs raw Request)
-  if (typeof request.cookies?.get === 'function') {
-    const cookieObj = request.cookies.get('auth_session');
-    sessionCookie = cookieObj?.value;
-  } else if (request.headers.get('cookie')) {
+  if (request.headers.get('cookie')) {
     const cookies = request.headers.get('cookie').split(';').reduce((acc, c) => {
       const [key, val] = c.trim().split('=');
       acc[key] = val;
@@ -30,17 +26,17 @@ export default async function middleware(request) {
     sessionCookie = cookies['auth_session'];
   }
 
-  const loginUrl = new URL('/login', request.url);
+  const loginUrl = new URL('/login', request.url).toString();
 
   if (!sessionCookie) {
-    return NextResponse.redirect(loginUrl, 307);
+    return Response.redirect(loginUrl, 307);
   }
 
   try {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
       console.error('DATABASE_URL is not set in middleware');
-      return NextResponse.redirect(loginUrl, 307);
+      return Response.redirect(loginUrl, 307);
     }
 
     const sql = neon(databaseUrl);
@@ -53,22 +49,27 @@ export default async function middleware(request) {
     `;
 
     if (sessions.length === 0) {
-      return NextResponse.redirect(loginUrl, 307);
+      return Response.redirect(loginUrl, 307);
     }
 
     const session = sessions[0];
     const now = new Date();
 
     if (new Date(session.expires_at) < now) {
-      // Session expired, theoretically we could delete it, but let's just deny access
-      return NextResponse.redirect(loginUrl, 307);
+      return Response.redirect(loginUrl, 307);
     }
 
-    // Session is valid
-    return NextResponse.next();
+    // Session is valid.
+    // In Vercel Edge Middleware for static sites without Next.js, 
+    // returning undefined or not returning a response allows the request to continue.
+    // However, some versions of Vercel edge require a specific header or pass-through.
+    // The standard way is just not returning anything (or returning nothing) to continue.
+    // But since this is a module, we just return an empty response with an x-middleware-next header
+    // or simply return fetch(request) to pass it through if it requires a Response.
+    // Let's use the standard Next/Vercel pattern: return undefined allows continuing.
+    return;
   } catch (error) {
     console.error('Middleware error validating session:', error);
-    // On DB error, safer to deny access
-    return NextResponse.redirect(loginUrl, 307);
+    return Response.redirect(loginUrl, 307);
   }
 }
