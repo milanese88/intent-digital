@@ -418,7 +418,6 @@ export default function Contact({ navigateTo }) {
               </div>
             </form>
           )}
-          </div>
         </div>
       </section>
 
