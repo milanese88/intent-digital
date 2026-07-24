@@ -1468,15 +1468,18 @@
 }
 
 .unified-hero-container {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 60px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .unified-hero-content {
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
 }
 
@@ -1507,8 +1510,8 @@
   line-height: 1.6;
   color: var(--espresso);
   opacity: 0.85;
-  margin-bottom: 40px;
-  max-width: 90%;
+  margin: 0 auto 40px auto;
+  max-width: 760px;
 }
 
 .unified-hero-actions {
