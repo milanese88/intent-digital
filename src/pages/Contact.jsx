@@ -425,44 +425,47 @@ export default function Contact({ navigateTo }) {
                     </div>
 
                     <div className="calendar-widget">
-                      <div className="calendar-month-header">
-                        <span>July 2026</span>
+                      <div className="calendar-month-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button 
+                          type="button" 
+                          onClick={handlePrevMonth} 
+                          disabled={isCurrentMonthView}
+                          style={{ background: 'none', border: 'none', cursor: isCurrentMonthView ? 'not-allowed' : 'pointer', opacity: isCurrentMonthView ? 0.3 : 1, fontSize: '18px', color: 'var(--espresso)' }}
+                        >&lt;</button>
+                        <span>{displayMonth}</span>
+                        <button 
+                          type="button" 
+                          onClick={handleNextMonth}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--espresso)' }}
+                        >&gt;</button>
                       </div>
                       <div className="calendar-days-grid">
                         <span className="day-name">Sun</span><span className="day-name">Mon</span><span className="day-name">Tue</span><span className="day-name">Wed</span><span className="day-name">Thu</span><span className="day-name">Fri</span><span className="day-name">Sat</span>
                         
-                        <span className="day-num muted">28</span><span className="day-num muted">29</span><span className="day-num muted">30</span>
-                        <span className="day-num">1</span><span className="day-num">2</span><span className="day-num">3</span><span className="day-num">4</span>
-                        <span className="day-num">5</span><span className="day-num">6</span><span className="day-num">7</span><span className="day-num">8</span><span className="day-num">9</span><span className="day-num">10</span><span className="day-num">11</span>
-                        <span className="day-num">12</span><span className="day-num">13</span><span className="day-num">14</span><span className="day-num">15</span><span className="day-num">16</span><span className="day-num">17</span><span className="day-num">18</span>
-                        <span className="day-num">19</span><span className="day-num">20</span><span className="day-num">21</span><span className="day-num">22</span><span className="day-num">23</span><span className="day-num">24</span><span className="day-num">25</span>
-                        <span className="day-num">26</span><span className="day-num">27</span>
-                        
-                        <span 
-                          className={`day-num active-slot ${selectedDate === '2026-07-28' ? 'selected' : ''}`}
-                          onClick={() => setSelectedDate('2026-07-28')}
-                        >
-                          28
-                        </span>
-                        <span 
-                          className={`day-num active-slot ${selectedDate === '2026-07-29' ? 'selected' : ''}`}
-                          onClick={() => setSelectedDate('2026-07-29')}
-                        >
-                          29
-                        </span>
-                        <span 
-                          className={`day-num active-slot ${selectedDate === '2026-07-30' ? 'selected' : ''}`}
-                          onClick={() => setSelectedDate('2026-07-30')}
-                        >
-                          30
-                        </span>
-                        <span className="day-num">31</span>
+                        {calendarGrid.map((dayObj, index) => {
+                          const isSelected = selectedDate === dayObj.dateString;
+                          const className = `day-num ${!dayObj.isCurrentMonth || dayObj.isPast ? 'muted' : 'active-slot'} ${isSelected ? 'selected' : ''}`;
+                          return (
+                            <span 
+                              key={index}
+                              className={className}
+                              onClick={() => {
+                                if (dayObj.isCurrentMonth && !dayObj.isPast) {
+                                  setSelectedDate(dayObj.dateString);
+                                }
+                              }}
+                              style={{ cursor: dayObj.isCurrentMonth && !dayObj.isPast ? 'pointer' : 'default' }}
+                            >
+                              {dayObj.day}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
 
                   <div className="scheduler-right-times">
-                    <h4 className="times-day-title">Tuesday, July 28, 2026</h4>
+                    <h4 className="times-day-title">{formatDisplayDate(selectedDate)}</h4>
                     <span className="timezone-label">Eastern Time - US &amp; Canada</span>
 
                     <div className="time-slots-column">
