@@ -121,7 +121,7 @@
 .time-pill-btn.active,
 [class*="dusty-blue"],
 [class*="accent-blue-bg"] {
-  color: var(--lighter-tone) !important;
+  color: #FFFFFF !important;
 }
 
 * {
