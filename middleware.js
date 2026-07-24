@@ -1,17 +1,6 @@
-import { neon } from '@neondatabase/serverless';
-
 export const config = {
   matcher: ['/dashboard/:path*'] // Only run on dashboard routes
 };
-
-async function hashToken(token) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(token);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-}
 
 export default async function middleware(request) {
   // Try to get auth_session cookie
@@ -28,48 +17,11 @@ export default async function middleware(request) {
 
   const loginUrl = new URL('/login', request.url).toString();
 
+  // Basic structural check. Real database validation happens in the API routes 
+  // and the dashboard layout's server-side /api/auth-status check.
   if (!sessionCookie) {
     return Response.redirect(loginUrl, 307);
   }
 
-  try {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      console.error('DATABASE_URL is not set in middleware');
-      return Response.redirect(loginUrl, 307);
-    }
-
-    const sql = neon(databaseUrl);
-    const tokenHash = await hashToken(sessionCookie);
-
-    const sessions = await sql`
-      SELECT id, expires_at FROM sessions 
-      WHERE token_hash = ${tokenHash}
-      LIMIT 1
-    `;
-
-    if (sessions.length === 0) {
-      return Response.redirect(loginUrl, 307);
-    }
-
-    const session = sessions[0];
-    const now = new Date();
-
-    if (new Date(session.expires_at) < now) {
-      return Response.redirect(loginUrl, 307);
-    }
-
-    // Session is valid.
-    // In Vercel Edge Middleware for static sites without Next.js, 
-    // returning undefined or not returning a response allows the request to continue.
-    // However, some versions of Vercel edge require a specific header or pass-through.
-    // The standard way is just not returning anything (or returning nothing) to continue.
-    // But since this is a module, we just return an empty response with an x-middleware-next header
-    // or simply return fetch(request) to pass it through if it requires a Response.
-    // Let's use the standard Next/Vercel pattern: return undefined allows continuing.
-    return;
-  } catch (error) {
-    console.error('Middleware error validating session:', error);
-    return Response.redirect(loginUrl, 307);
-  }
+  return;
 }

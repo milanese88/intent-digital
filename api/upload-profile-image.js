@@ -1,79 +1,57 @@
-import { put } from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
 import { neon } from '@neondatabase/serverless';
-
-export const config = {
-  runtime: 'edge',
-};
+import { parse } from 'cookie';
+import crypto from 'crypto';
 
 async function hashToken(token) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(token);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
-  }
-
-  // Authenticate edge request manually
-  let sessionCookie;
-  const cookieHeader = req.headers.get('cookie');
-  if (cookieHeader) {
-    const cookies = cookieHeader.split(';').reduce((acc, c) => {
-      const [key, val] = c.trim().split('=');
-      acc[key] = val;
-      return acc;
-    }, {});
-    sessionCookie = cookies['auth_session'];
-  }
-
-  if (!sessionCookie) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
-    const sql = neon(process.env.DATABASE_URL);
-    const tokenHash = await hashToken(sessionCookie);
+    const jsonResponse = await handleUpload({
+      body: typeof req.body === 'string' ? JSON.parse(req.body) : req.body,
+      request: req,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        // Authenticate
+        const cookies = parse(req.headers.cookie || '');
+        const sessionCookie = cookies['auth_session'];
+        if (!sessionCookie) throw new Error('Unauthorized');
 
-    const sessions = await sql`
-      SELECT user_id, expires_at FROM sessions WHERE token_hash = ${tokenHash} LIMIT 1
-    `;
+        const sql = neon(process.env.DATABASE_URL);
+        const tokenHash = await hashToken(sessionCookie);
 
-    if (sessions.length === 0 || new Date(sessions[0].expires_at) < new Date()) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-    }
+        const sessions = await sql`
+          SELECT user_id, expires_at FROM sessions WHERE token_hash = ${tokenHash} LIMIT 1
+        `;
 
-    const userId = sessions[0].user_id;
+        if (sessions.length === 0 || new Date(sessions[0].expires_at) < new Date()) {
+          throw new Error('Unauthorized');
+        }
 
-    // Parse the file
-    const formData = await req.formData();
-    const file = formData.get('file');
-
-    if (!file) {
-      return new Response(JSON.stringify({ error: 'No file uploaded' }), { status: 400 });
-    }
-
-    // Upload to Vercel Blob
-    const blob = await put(file.name, file, { 
-      access: 'public',
-      token: process.env.BLOB_READ_WRITE_TOKEN
+        return {
+          allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
+          tokenPayload: JSON.stringify({ userId: sessions[0].user_id }),
+        };
+      },
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        // Update database using the payload we passed
+        const payload = JSON.parse(tokenPayload);
+        const sql = neon(process.env.DATABASE_URL);
+        await sql`
+          UPDATE admin_user SET profile_image_url = ${blob.url}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${payload.userId}
+        `;
+      },
     });
 
-    // Update DB
-    await sql`
-      UPDATE admin_user SET profile_image_url = ${blob.url}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${userId}
-    `;
-
-    return new Response(JSON.stringify({ url: blob.url }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(200).json(jsonResponse);
   } catch (error) {
-    console.error('Error uploading file:', error);
-    return new Response(JSON.stringify({ error: 'Server error during upload' }), { status: 500 });
+    console.error('Error in upload-profile-image:', error);
+    return res.status(400).json({ error: error.message });
   }
 }

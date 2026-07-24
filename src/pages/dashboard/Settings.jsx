@@ -71,20 +71,17 @@ export default function Settings() {
     formData.append('file', file);
 
     try {
-      const res = await fetch('/api/upload-profile-image', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
+      const { upload } = await import('@vercel/blob/client');
       
-      if (res.ok) {
-        setProfile(prev => ({ ...prev, profile_image_url: data.url }));
-        setProfileSuccess('Profile picture updated successfully.');
-      } else {
-        setProfileError(data.error || 'Failed to upload image.');
-      }
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload-profile-image',
+      });
+      
+      setProfile(prev => ({ ...prev, profile_image_url: newBlob.url }));
+      setProfileSuccess('Profile picture updated successfully.');
     } catch (err) {
-      setProfileError('A network error occurred.');
+      setProfileError('Failed to upload image.');
     } finally {
       setSaving(false);
     }
