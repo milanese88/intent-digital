@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { serialize } from 'cookie';
+import { getDb } from './lib/db.js';
+import { createSession } from './lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -39,12 +40,6 @@ export default async function handler(req, res) {
       return res.redirect('/login?error=expired_link');
     }
 
-    // Verify email matches
-    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-    if (!payload.email || payload.email !== adminEmail) {
-      return res.redirect('/login?error=invalid_link');
-    }
-
     // Recompute signature
     const expectedSignature = crypto
       .createHmac('sha256', authSecret)
@@ -59,29 +54,25 @@ export default async function handler(req, res) {
       return res.redirect('/login?error=invalid_link');
     }
 
-    // Success! Issue the secure cookie
-    const cookie = serialize('auth_session', 'authenticated', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // as requested
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: '/'
-    });
-    
-    res.setHeader('Set-Cookie', cookie);
+    // Email is valid and signature matched. Find user in DB.
+    const sql = getDb();
+    const cleanEmail = payload.email.trim().toLowerCase();
+
+    const users = await sql`
+      SELECT id FROM admin_user WHERE email = ${cleanEmail} LIMIT 1
+    `;
+
+    if (users.length === 0) {
+      return res.redirect('/login?error=invalid_link');
+    }
+
+    const user = users[0];
+
+    // Create a new DB-backed session
+    await createSession(user.id, res, req);
     
     // Redirect to the dashboard
-    // In this Vite setup, since it's an SPA, redirecting to /#admin might be needed if they don't have proper server-side catch-all,
-    // but looking at App.jsx it relies on window state, wait. 
-    // Wait, the React app uses state-based routing `currentPage === 'admin'`, so a hard redirect to `/admin` might just give a 404 on Vercel unless a `rewrites` is set up, OR we can redirect to `/?page=admin` and handle it in React.
-    // Let's redirect to `/?admin=true` or similar to trigger the SPA to load the admin state.
-    // However, I noticed the user asked to "redirect to the Owner Portal dashboard".
-    // I will redirect to `/?login_success=true` and in `App.jsx` check for this param, OR if Vercel has rewrites to `index.html`.
-    // I will check `vite.config.js` or `vercel.json`. 
-    // Usually SPAs have rewrites to `/`. Let's just redirect to `/?route=admin`. 
-    // Actually, I can redirect to `/` and let the UI know.
-    
-    return res.redirect('/?route=admin');
+    return res.redirect('/dashboard');
   } catch (error) {
     console.error('Error verifying magic link:', error);
     return res.redirect('/login?error=invalid_link');
