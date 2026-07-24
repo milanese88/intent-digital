@@ -1,18 +1,20 @@
 import React from 'react';
 
 export default function Overview() {
-  const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-
-  const stats = [
-    { label: 'Upcoming Bookings', value: '—' },
-    { label: 'New Inquiries This Week', value: '—' },
-    { label: 'Subscriber Count', value: '—' },
-    { label: 'Last Campaign Sent', value: '—' },
-  ];
-
   return (
     <div>
-      <div style={{ marginBottom: '48px' }}>
+      <div style={{ marginBottom: '48px', textAlign: 'center' }}>
+        <span style={{
+          display: 'block',
+          fontFamily: 'Montserrat, sans-serif',
+          fontSize: '12px',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'rgba(52, 41, 42, 0.6)',
+          marginBottom: '16px'
+        }}>
+          OWNER PORTAL
+        </span>
         <h1 style={{ 
           fontFamily: '"Cormorant Garamond", serif', 
           fontSize: '42px', 
@@ -20,66 +22,47 @@ export default function Overview() {
           color: '#34292A',
           margin: '0 0 8px 0'
         }}>
-          Welcome back, Florencia
+          Welcome Back, Florencia.
         </h1>
         <p style={{ 
           fontFamily: 'Montserrat, sans-serif', 
-          fontSize: '14px', 
+          fontSize: '15px', 
           color: 'rgba(52, 41, 42, 0.7)',
-          margin: 0
+          margin: '0 auto',
+          maxWidth: '600px',
+          lineHeight: '1.6'
         }}>
-          {date}
+          This is your private administrative dashboard. You can add secure management features here in the future.
         </p>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '24px'
+      <div style={{ 
+        maxWidth: '800px', 
+        margin: '0 auto', 
+        textAlign: 'center',
+        backgroundColor: '#fff', 
+        border: '1px solid rgba(52,41,42,0.1)', 
+        borderRadius: '16px', 
+        padding: '48px', 
+        boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)' 
       }}>
-        {stats.map((stat, i) => (
-          <div 
-            key={i}
-            className="stat-card"
-            style={{
-              border: '1px solid rgba(52, 41, 42, 0.1)',
-              borderRadius: '4px',
-              padding: '24px',
-              backgroundColor: '#fff',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-              cursor: 'default'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(52, 41, 42, 0.08)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            <p style={{ 
-              fontFamily: 'Montserrat, sans-serif', 
-              fontSize: '12px', 
-              fontWeight: 600, 
-              color: 'rgba(52, 41, 42, 0.6)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              margin: '0 0 12px 0'
-            }}>
-              {stat.label}
-            </p>
-            <p style={{ 
-              fontFamily: '"Cormorant Garamond", serif', 
-              fontSize: '36px', 
-              color: '#34292A',
-              margin: 0,
-              lineHeight: 1
-            }}>
-              {stat.value}
-            </p>
-          </div>
-        ))}
+        <h2 style={{ 
+          fontFamily: '"Cormorant Garamond", serif', 
+          fontSize: '24px', 
+          color: '#34292A',
+          marginBottom: '16px' 
+        }}>
+          Dashboard is Active
+        </h2>
+        <p style={{
+          fontFamily: 'Montserrat, sans-serif',
+          fontSize: '15px',
+          color: 'rgba(52, 41, 42, 0.7)',
+          lineHeight: '1.6',
+          margin: 0
+        }}>
+          Your secure backend is perfectly functioning. Cal.com API and Resend API are both integrated and waiting for submissions.
+        </p>
       </div>
     </div>
   );
