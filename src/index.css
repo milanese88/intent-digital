@@ -316,3 +316,22 @@ a:hover {
 .btn:active {
   transform: translateY(0);
 }
+
+/* Responsive Visibility Classes */
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+  .desktop-only {
+    display: block !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+}
