@@ -4019,15 +4019,10 @@
     gap: 2rem !important;
   }
 
-  .home-services-visual-wrap {
-    aspect-ratio: 16 / 9 !important;
-  }
-
   .home-services-visual-img {
-    max-height: none !important;
     width: 100% !important;
+    height: auto !important;
     object-fit: cover !important;
-    object-position: center 60% !important;
   }
 
   .why-grid {
