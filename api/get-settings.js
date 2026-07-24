@@ -1,4 +1,4 @@
-import { getUserFromSession } from './lib/session.js';
+import { getUserFromSession } from './_lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

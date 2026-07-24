@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { getDb } from './lib/db.js';
-import { createSession } from './lib/session.js';
+import { getDb } from './_lib/db.js';
+import { createSession } from './_lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
