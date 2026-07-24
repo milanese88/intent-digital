@@ -3538,14 +3538,10 @@
   background-color: var(--bg-cream);
 }
 
-.contact-split-container {
-  max-width: 1240px;
+.contact-form-container {
+  max-width: 800px;
   margin: 0 auto;
   padding: 0 32px;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 4.5rem;
-  align-items: start;
 }
 
 .contact-split-left {
