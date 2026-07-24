@@ -104,12 +104,7 @@ export default function Home({ navigateTo }) {
               </a>
             </div>
           </div>
-          <div className="unified-hero-image-wrap">
-            <img 
-              src="/services-hero-staircase.jpg" 
-              alt="Intent Digital Studio Environment" 
-            />
-          </div>
+
         </div>
       </header>
 
