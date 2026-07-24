@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
-import Overview from './dashboard/Overview.jsx';
-import Settings from './dashboard/Settings.jsx';
-import UserProfile from './dashboard/UserProfile.jsx';
 
-export default function DashboardLayout({ navigateTo, activeTab, setActiveTab }) {
+export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tabs = [
@@ -144,15 +141,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab })
         </header>
 
         <div style={{ padding: '40px 5%' }}>
-          {console.log('Rendering content area. activeTab:', activeTab, 'Overview type:', typeof Overview)}
-          {/* We will inject the active tab's component here from App.jsx or wrap it */}
-          {activeTab === 'overview' && <Overview />}
-          {activeTab === 'user' && <UserProfile />}
-          {activeTab === 'settings' && <Settings />}
-          <div style={{ color: 'red', marginTop: '20px' }}>
-            DEBUG: activeTab is "{activeTab}"
-            Is Overview defined? {Overview ? 'Yes' : 'No'}
-          </div>
+          {children}
         </div>
       </main>
 

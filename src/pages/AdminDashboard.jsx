@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from './DashboardLayout.jsx';
+import Overview from './dashboard/Overview.jsx';
+import Settings from './dashboard/Settings.jsx';
+import UserProfile from './dashboard/UserProfile.jsx';
 
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
@@ -28,5 +31,18 @@ export default function AdminDashboard({ navigateTo }) {
     );
   }
 
-  return <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={setActiveTab} />;
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'overview': return <Overview />;
+      case 'user': return <UserProfile />;
+      case 'settings': return <Settings />;
+      default: return null;
+    }
+  };
+
+  return (
+    <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={setActiveTab}>
+      {renderActiveTab()}
+    </DashboardLayout>
+  );
 }
