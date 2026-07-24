@@ -5,7 +5,19 @@ import '../styles/home.css';
 export default function Contact({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('2026-07-28');
+  
+  const today = new Date();
+  
+  const formatDate = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState(formatDate(today));
+  const [currentViewDate, setCurrentViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedTime, setSelectedTime] = useState('01:15 PM');
   const [communicationMethod, setCommunicationMethod] = useState('Zoom');
 
@@ -22,6 +34,77 @@ export default function Contact({ navigateTo }) {
     details: '',
     referral: 'Instagram'
   });
+
+  const getDaysInMonth = (year, month) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year, month) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const currentYear = currentViewDate.getFullYear();
+  const currentMonth = currentViewDate.getMonth();
+  const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+  const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+
+  const calendarGrid = [];
+  const daysInPrevMonth = getDaysInMonth(currentYear, currentMonth - 1);
+  
+  for (let i = 0; i < firstDay; i++) {
+    calendarGrid.push({
+      day: daysInPrevMonth - firstDay + i + 1,
+      isCurrentMonth: false,
+      dateString: formatDate(new Date(currentYear, currentMonth - 1, daysInPrevMonth - firstDay + i + 1)),
+      isPast: true
+    });
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(currentYear, currentMonth, i);
+    const dString = formatDate(d);
+    const isPast = d < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    calendarGrid.push({
+      day: i,
+      isCurrentMonth: true,
+      dateString: dString,
+      isPast: isPast
+    });
+  }
+
+  const totalSlots = calendarGrid.length;
+  const paddingAfter = totalSlots % 7 === 0 ? 0 : 7 - (totalSlots % 7);
+  for (let i = 1; i <= paddingAfter; i++) {
+    calendarGrid.push({
+      day: i,
+      isCurrentMonth: false,
+      dateString: formatDate(new Date(currentYear, currentMonth + 1, i)),
+      isPast: false 
+    });
+  }
+
+  const handlePrevMonth = () => {
+    if (currentMonth > today.getMonth() || currentYear > today.getFullYear()) {
+      setCurrentViewDate(new Date(currentYear, currentMonth - 1, 1));
+    }
+  };
+
+  const handleNextMonth = () => {
+    setCurrentViewDate(new Date(currentYear, currentMonth + 1, 1));
+  };
+  
+  const isCurrentMonthView = currentMonth === today.getMonth() && currentYear === today.getFullYear();
+  
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const displayMonth = `${monthNames[currentMonth]} ${currentYear}`;
+
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00'); 
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return `${days[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  };
 
   const handleNavClick = (e, page, targetId) => {
     e.preventDefault();
