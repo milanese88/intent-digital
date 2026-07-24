@@ -4,6 +4,8 @@ import About from './pages/About.jsx';
 import Services from './pages/Services.jsx';
 import Contact from './pages/Contact.jsx';
 import News from './pages/News.jsx';
+import Login from './pages/Login.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -45,6 +47,14 @@ function App() {
 
   if (currentPage === 'news') {
     return <News navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'login') {
+    return <Login navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'admin') {
+    return <AdminDashboard navigateTo={navigateTo} />;
   }
 
   return <Home navigateTo={navigateTo} />;
