@@ -190,8 +190,8 @@ export default function News({ navigateTo }) {
       {/* MAIN NEWS CONTENT */}
       <section className="news-main-section">
         <div className="container">
-          <div className="news-grid-header">
-            <h2 className="news-section-title">
+          <div className="global-section-header align-left" style={{ marginBottom: '24px' }}>
+            <h2 className="global-section-title" style={{ fontSize: 'clamp(32px, 4vw, 42px)' }}>
               {selectedCategory === 'All' ? 'Latest Journal & News Entries' : `${selectedCategory} Articles (${filteredArticles.length})`}
             </h2>
           </div>
