@@ -2747,38 +2747,83 @@
   margin: 0 auto 36px auto;
 }
 
-.news-category-bar {
+.news-filter-wrapper {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   justify-content: center;
   margin-top: 24px;
 }
 
-.news-cat-btn {
+.news-filter-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.news-filter-dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background-color: var(--bg-cream);
+  border: 1px solid var(--neutral-oat);
+  padding: 14px 28px;
+  border-radius: 999px;
   font-family: var(--font-body);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--primary-espresso);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  min-width: 300px;
+}
+
+.news-filter-dropdown-toggle:hover {
+  background-color: rgba(169, 197, 209, 0.2);
+  border-color: var(--dusty-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(30, 21, 9, 0.08);
+}
+
+.news-filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
   background-color: var(--bg-cream);
   border: 1px solid var(--neutral-oat);
-  padding: 10px 20px;
-  border-radius: 999px;
+  border-radius: 16px;
+  padding: 8px;
+  width: max-content;
+  min-width: 300px;
+  box-shadow: 0 16px 40px rgba(30, 21, 9, 0.08);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.news-filter-dropdown-item {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--primary-espresso);
   cursor: pointer;
   transition: var(--transition-smooth);
 }
 
-.news-cat-btn:hover {
-  background-color: rgba(169, 197, 209, 0.2);
-  border-color: var(--dusty-blue);
+.news-filter-dropdown-item:hover {
+  background-color: var(--neutral-oat);
 }
 
-.news-cat-btn.active {
+.news-filter-dropdown-item.active {
   background-color: var(--espresso);
   color: var(--cream);
-  border-color: var(--espresso);
 }
 
 .news-main-section {
