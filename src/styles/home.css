@@ -3959,28 +3959,29 @@
 }
 
 .services-process-section .process-step-item {
-  background-color: rgba(250, 248, 245, 0.035) !important;
-  border: 1px solid rgba(250, 248, 245, 0.12) !important;
-  box-shadow: none !important;
+  background-color: var(--bg-cream) !important;
+  border: 1px solid var(--neutral-oat) !important;
+  box-shadow: 0 4px 16px rgba(30, 21, 9, 0.04) !important;
   transition: all 0.35s ease;
 }
 
 .services-process-section .process-step-item:hover {
-  background-color: rgba(250, 248, 245, 0.06) !important;
-  border-color: rgba(250, 248, 245, 0.22) !important;
+  background-color: #ffffff !important;
+  border-color: rgba(30, 21, 9, 0.15) !important;
   transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(30, 21, 9, 0.08) !important;
 }
 
 .services-process-section .process-step-num {
-  color: var(--secondary-color, #BDD3E2) !important; /* dusty blue accent for contrast */
+  color: var(--primary-color) !important; /* dark brown for the number to match fonts requirement */
 }
 
 .services-process-section .process-step-title {
-  color: var(--bg-cream) !important;
+  color: var(--primary-color) !important;
 }
 
 .services-process-section .process-step-desc {
-  color: rgba(250, 248, 245, 0.75) !important;
+  color: rgba(30, 21, 9, 0.8) !important;
 }
 
 @media (max-width: 992px) {
