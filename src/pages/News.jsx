@@ -186,7 +186,6 @@ export default function News({ navigateTo }) {
             ))}
           </div>
         </div>
-      </header>
 
       {/* MAIN NEWS CONTENT */}
       <section className="news-main-section">
