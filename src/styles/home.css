@@ -2,7 +2,7 @@
 .top-announcement-banner {
   background-color: var(--primary-color);
   color: var(--lighter-tone);
-  height: 38px;
+  padding: 10px 0;
   display: flex;
   align-items: center;
   position: relative;
