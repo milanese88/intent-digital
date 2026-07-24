@@ -153,9 +153,36 @@ export default function Contact({ navigateTo }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (!selectedTime) {
+      alert("Please select a time slot.");
+      return;
+    }
+    
+    const payload = {
+      start: selectedTime,
+      responses: {
+        name: formData.fullName,
+        email: formData.email,
+        notes: `Business: ${formData.businessName}, Phone: ${formData.phone}, Website: ${formData.website}, Instagram: ${formData.instagram}, Location: ${formData.location}, Launch: ${formData.launchDate}, Budget: ${formData.budget}, Method: ${communicationMethod}, Details: ${formData.details}`
+      },
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+
+    try {
+      const res = await fetch('/api/book-slot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Booking failed');
+      
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Booking error:", err);
+      alert("There was a problem booking your slot. Please try again.");
+    }
   };
 
   return (
