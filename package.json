@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.6.1",
+    "bcryptjs": "^3.0.3",
     "cookie": "^2.0.1",
     "motion": "^12.42.2",
     "react": "^19.2.7",
