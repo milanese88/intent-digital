@@ -1590,7 +1590,7 @@
 /* CTA Banner Section (Cream background, espresso text, dusty blue button with brown text) */
 .cta-banner-section {
   background-color: var(--bg-cream) !important;
-  color: var(--primary-color);
+  color: var(--primary-color) !important;
   padding: 100px 0;
   text-align: center;
 }
@@ -1607,14 +1607,14 @@
   font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 1.15;
-  color: var(--primary-color);
+  color: var(--primary-color) !important;
   margin-bottom: 16px;
   max-width: 760px;
 }
 
 .cta-banner-subtext {
   font-size: 18px;
-  color: var(--primary-color);
+  color: var(--primary-color) !important;
   opacity: 0.8;
   margin-bottom: 36px;
 }
