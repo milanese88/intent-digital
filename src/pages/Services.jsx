@@ -16,66 +16,69 @@ export default function Services({ navigateTo }) {
   return (
     <div className="home-page services-page">
       <AnnouncementBanner />
-      {/* SERVICES SPLIT HERO SECTION (MATCHING PICTURE 2 REFERENCE) */}
-      <section className="services-split-hero">
-        <div className="services-hero-left">
-          <div className="services-hero-nav-row">
-            <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
-              <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
-            </a>
-            <div className="services-nav-links desktop-only">
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
-              <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-              <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            </div>
-            <div className="mobile-only" style={{ marginLeft: 'auto' }}>
-              <button 
-                className="mobile-toggle-btn" 
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="Toggle Navigation Menu"
-              >
-                {mobileMenuOpen ? '✕' : '☰'}
-              </button>
-            </div>
+      {/* SERVICES PAGE HERO — REFERENCE LAYOUT */}
+      <section className="services-split-hero services-split-hero-v2">
+        {/* Nav Bar — Full Width */}
+        <div className="services-hero-nav-bar">
+          <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
+            <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
+          </a>
+          <div className="services-nav-links desktop-only">
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+            <a href="#" className="nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
-
-          {mobileMenuOpen && (
-            <div className="mobile-nav-drawer" style={{ position: 'relative', top: 0, width: '100%' }}>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
-              <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-              <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            </div>
-          )}
-
-        {/* LEFT: Hero Image */}
-        <div className="services-hero-img-panel">
-          <img 
-            src="/services-hero-writing.jpg" 
-            alt="Creative branding strategist writing at desk" 
-            className="services-hero-staircase-img" 
-          />
-          <div className="services-hero-img-overlay"></div>
+          <div className="mobile-only" style={{ marginLeft: 'auto' }}>
+            <button 
+              className="mobile-toggle-btn" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle Navigation Menu"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+          </div>
         </div>
 
-        {/* RIGHT: Dark Content Panel */}
-        <div className="services-hero-dark-panel">
-          <p className="services-hero-label">
-            COMPREHENSIVE BRAND SERVICES<br />
-            <span>INCLUDING BRAND IDENTITY, WEBSITE DESIGN, CONTENT DIRECTION</span>
-          </p>
-          <h1 className="services-hero-headline">
-            More than visuals, branding that makes an impact.
-          </h1>
-          <p className="services-hero-italic-copy">
-            You don't need just a brand that looks good — you need one that connects, inspires, and drives success. A brand that tells your story with clarity, builds recognition and trust, and gives you the confidence to show up boldly.
-          </p>
-          <a href="#" className="btn services-hero-cta-outline" onClick={(e) => handleNavClick(e, 'contact')}>
-            Yes! I'm so ready &nbsp;&rarr;
-          </a>
+        {mobileMenuOpen && (
+          <div className="mobile-nav-drawer" style={{ position: 'relative', top: 0, width: '100%' }}>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home')}>HOME</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
+            <a href="#" className="mobile-nav-link active" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'home', 'portfolio')}>CLIENT WORK</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
+            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+          </div>
+        )}
+
+        {/* Two-Column Hero Split */}
+        <div className="services-hero-split-grid">
+          {/* LEFT: Hero Image */}
+          <div className="services-hero-img-panel">
+            <img 
+              src="/services-hero-writing.jpg" 
+              alt="Creative branding strategist writing at desk" 
+              className="services-hero-staircase-img" 
+            />
+            <div className="services-hero-img-overlay"></div>
+          </div>
+
+          {/* RIGHT: Dark Content Panel */}
+          <div className="services-hero-dark-panel">
+            <p className="services-hero-label">
+              COMPREHENSIVE BRAND SERVICES<br />
+              <span>INCLUDING BRAND IDENTITY, WEBSITE DESIGN, CONTENT DIRECTION</span>
+            </p>
+            <h1 className="services-hero-headline">
+              More than visuals, branding that makes an impact.
+            </h1>
+            <p className="services-hero-italic-copy">
+              You don't need just a brand that looks good — you need one that connects, inspires, and drives success. A brand that tells your story with clarity, builds recognition and trust, and gives you the confidence to show up boldly.
+            </p>
+            <a href="#" className="btn services-hero-cta-outline" onClick={(e) => handleNavClick(e, 'contact')}>
+              Yes! I'm so ready &nbsp;&rarr;
+            </a>
+          </div>
         </div>
       </section>
 
