@@ -1615,10 +1615,10 @@
 
 .service-card {
   background-color: var(--bg-cream);
-  border: 1px solid var(--neutral-oat);
-  border-radius: 24px;
-  padding: 48px;
-  box-shadow: 0 8px 30px rgba(52, 31, 26, 0.04);
+  border: 1px solid rgba(30, 21, 9, 0.12);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 6px 20px rgba(30, 21, 9, 0.03);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1626,9 +1626,9 @@
 }
 
 .service-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 40px var(--espresso-06);
-  border-color: var(--terracotta);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(30, 21, 9, 0.07);
+  border-color: rgba(30, 21, 9, 0.24);
 }
 
 .card-top {
@@ -3953,9 +3953,9 @@
 
 .package-card {
   background-color: var(--bg-cream);
-  border: 1px solid rgba(30, 21, 9, 0.14);
-  border-radius: 14px;
-  padding: 44px 32px 36px 32px;
+  border: 1px solid rgba(30, 21, 9, 0.12);
+  border-radius: 16px;
+  padding: 40px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -3966,8 +3966,8 @@
 
 .package-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 36px rgba(30, 21, 9, 0.08);
-  border-color: rgba(30, 21, 9, 0.28);
+  box-shadow: 0 16px 36px rgba(30, 21, 9, 0.07);
+  border-color: rgba(30, 21, 9, 0.24);
 }
 
 .package-card-featured {
@@ -4131,10 +4131,10 @@
   align-items: flex-start;
   gap: 28px;
   background-color: var(--bg-cream);
-  border: 1px solid var(--neutral-oat);
-  border-radius: 12px;
-  padding: 24px 32px;
-  box-shadow: 0 4px 16px rgba(52, 31, 26, 0.02);
+  border: 1px solid rgba(30, 21, 9, 0.12);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 6px 20px rgba(30, 21, 9, 0.03);
 }
 
 .process-step-num {
@@ -4190,9 +4190,9 @@
 
 .services-process-section .process-step-item:hover {
   background-color: #ffffff !important;
-  border-color: rgba(30, 21, 9, 0.15) !important;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(30, 21, 9, 0.08) !important;
+  border-color: rgba(30, 21, 9, 0.24) !important;
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(30, 21, 9, 0.07) !important;
 }
 
 .services-process-section .process-step-num {
