@@ -46,7 +46,7 @@
 :root {
   /* Intent Digital Brand Palette Tokens — Terrane Dark Brown System */
   --primary-color: #1E1509;        /* Primary — Terrane Dark Brown */
-  --secondary-color: #A4BBDB;      /* Secondary — Periwinkle Slate Blue */
+  --secondary-color: #41101B;      /* Secondary — Cherry */
   --accent-color: #8C796A;         /* Accent — Warm Taupe */
   --lighter-tone: #FAF8F5;         /* Lighter Tone — Toasted Cream / Off-White Canvas */
   --neutral-tone: #EBE6E3;         /* Neutral — Warm Oat */
@@ -67,7 +67,7 @@
   --primary-espresso: var(--primary-color);
   --secondary-sage: var(--accent-color);
   --accent-blue: var(--secondary-color);
-  --accent-blue-hover: #8EA7C7;
+  --accent-blue-hover: #5E1627;
   --neutral-oat: var(--neutral-tone);
   --bg-cream: var(--lighter-tone);
   --text-cocoa: var(--color-text-primary);
@@ -110,7 +110,7 @@
   font-family: var(--font-script);
 }
 
-/* Universal Accessibility Rule: All Dusty Blue / Periwinkle Buttons & Badges Use Espresso Brown Text */
+/* Universal Accessibility Rule: All Cherry Buttons & Badges Use Light Text */
 .btn-pill-primary,
 .btn-cta-banner,
 .btn-footer-pill-cta,
@@ -121,7 +121,7 @@
 .time-pill-btn.active,
 [class*="dusty-blue"],
 [class*="accent-blue-bg"] {
-  color: var(--primary-color);
+  color: var(--lighter-tone) !important;
 }
 
 * {
