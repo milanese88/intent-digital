@@ -66,10 +66,11 @@ export default function Services({ navigateTo }) {
 
         <div className="services-hero-right">
           <img 
-            src="/services-hero-staircase.jpg" 
-            alt="Architectural Spiral Staircase & Black Door" 
+            src="/services-hero-writing.jpg" 
+            alt="Creative branding strategist writing at desk" 
             className="services-hero-staircase-img" 
           />
+          <div className="services-hero-img-overlay"></div>
         </div>
       </section>
 
