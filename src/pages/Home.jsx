@@ -86,39 +86,29 @@ export default function Home({ navigateTo }) {
       </nav>
 
       {/* MAIN CINEMATIC EDITORIAL HERO SECTION */}
-      <header className="hero-section hero-cinematic">
-        <div className="hero-cinematic-banner-wrap">
-          <img 
-            src="/services-hero-staircase.jpg" 
-            alt="Intent Digital Studio Environment" 
-            className="hero-cinematic-banner-img"
-          />
-          <div className="hero-cinematic-overlay"></div>
-          
-          {/* Large Editorial Hero Headline */}
-          <h1 className="hero-editorial-headline">
-            <span className="hero-headline-regular">Goodbye cookie-cutter.</span>
-            <br />
-            <span className="hero-headline-italic">Hello intentional.</span>
-          </h1>
-
-          <div className="hero-cinematic-caption">
-            <img 
-              src="/seal-logo.png" 
-              alt="Intent Digital Monogram Seal" 
-              className="hero-cinematic-seal"
-            />
-            <p className="hero-cinematic-tagline">
-              BRAND IDENTITY. WEBSITE EXPERIENCE. CONTENT DIRECTION.
+      {/* UNIFIED HERO SECTION */}
+      <header className="unified-hero-section">
+        <div className="container unified-hero-container">
+          <div className="unified-hero-content">
+            <span className="unified-hero-tagline">INTENT DIGITAL STUDIO</span>
+            <h1 className="unified-hero-title">
+              Goodbye cookie-cutter.<br />
+              <i>Hello intentional.</i>
+            </h1>
+            <p className="unified-hero-subheadline">
+              Brand identity, website experience, and content direction for brands seeking distinction, intention, and world-class visual presence.
             </p>
-            <p className="hero-cinematic-subtagline">
-              For brands seeking distinction, intention, and world-class visual presence.
-            </p>
-            <div className="hero-cinematic-action">
-              <a href="#" className="btn btn-pill-hero-outline hero-banner-btn" onClick={(e) => handleNavClick(e, 'contact')}>
+            <div className="unified-hero-actions">
+              <a href="#" className="btn btn-cta" onClick={(e) => handleNavClick(e, 'contact')}>
                 Start your brand &rarr;
               </a>
             </div>
+          </div>
+          <div className="unified-hero-image-wrap">
+            <img 
+              src="/services-hero-staircase.jpg" 
+              alt="Intent Digital Studio Environment" 
+            />
           </div>
         </div>
       </header>

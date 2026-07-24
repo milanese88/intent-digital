@@ -51,51 +51,33 @@ export default function Services({ navigateTo }) {
           </div>
         )}
 
-        {/* Full-Width Solid Brown Hero Grid */}
-        <div className="services-hero-solid-brown-wrap">
-          {/* CENTER: Dark Content Panel */}
-          <div className="services-hero-dark-panel center-panel">
-            <span className="services-hero-eyebrow">
-              ATTRACTING THE CLIENTS YOUR BUSINESS DESERVES
-            </span>
-            <h1 className="services-hero-headline-v2">
+      {/* UNIFIED HERO SECTION */}
+      <header className="unified-hero-section theme-dark">
+        <div className="container unified-hero-container">
+          <div className="unified-hero-content">
+            <span className="unified-hero-tagline">ATTRACTING THE CLIENTS YOUR BUSINESS DESERVES</span>
+            <h1 className="unified-hero-title">
               Creative design<br />
-              <span className="services-headline-italic">for</span> Confident<br />
+              <i>for</i> Confident<br />
               Branding
             </h1>
-            
-            <div className="services-hero-paragraphs">
-              <p className="services-hero-paragraph">
-                Let's get into it. We work closely with you and your brand to develop a new visual identity that propels your business to new levels of polish and success.
-              </p>
-              <p className="services-hero-paragraph">
-                It's all about honing and evolving a style that feels undeniably "you", one that can be instantly recognised as your business and signal to your ideal customer that they're in the right place.
-              </p>
-              <p className="services-hero-paragraph">
-                All of our custom designs are drawn or painted by hand and are created under your taste and preference.
-              </p>
-            </div>
-
-            {/* Circular Rotating Scroll Dial */}
-            <div className="scroll-dive-dial-wrap">
-              <svg viewBox="0 0 100 100" className="scroll-dive-svg">
-                <defs>
-                  <path 
-                    id="circlePath" 
-                    d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" 
-                  />
-                </defs>
-                <text className="scroll-dive-text">
-                  <textPath href="#circlePath" startOffset="0%">
-                    DIVE IN • LET'S &nbsp; DIVE IN • LET'S &nbsp; 
-                  </textPath>
-                </text>
-              </svg>
-              <div className="scroll-dive-arrow">&darr;</div>
+            <p className="unified-hero-subheadline">
+              We work closely with you and your brand to develop a new visual identity that propels your business to new levels of polish and success. It's all about honing and evolving a style that feels undeniably "you", one that can be instantly recognised as your business.
+            </p>
+            <div className="unified-hero-actions">
+              <a href="#packages" className="btn btn-cta" onClick={(e) => handleNavClick(e, 'contact')}>
+                Inquire Now &rarr;
+              </a>
             </div>
           </div>
+          <div className="unified-hero-image-wrap">
+            <img 
+              src="/services-hero-right-visual.png" 
+              alt="Creative Design and Branding" 
+            />
+          </div>
         </div>
-      </section>
+      </header>
 
       {/* THE SERVICES LIST — 3 CURATED PACKAGES */}
       <section className="services-section">
