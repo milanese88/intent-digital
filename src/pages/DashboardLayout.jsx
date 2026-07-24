@@ -184,21 +184,3 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab })
     </div>
   );
 }
-
-// Inline placeholder for now, will move to separate files later
-function Overview() {
-  return <div>Overview Component</div>;
-}
-
-function Settings() {
-  return <div>Settings Component</div>;
-}
-
-function Placeholder({ title }) {
-  return (
-    <div>
-      <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '32px', letterSpacing: '-0.02em', color: '#34292A', marginBottom: '16px' }}>{title}</h1>
-      <p style={{ fontFamily: 'Montserrat, sans-serif', color: 'rgba(52, 41, 42, 0.7)' }}>Coming soon.</p>
-    </div>
-  );
-}
