@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 
 export default function Login({ navigateTo }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ export default function Login({ navigateTo }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ email, password })
       });
 
       const data = await res.json();
@@ -84,6 +85,20 @@ export default function Login({ navigateTo }) {
           <h1 className="unified-hero-title" style={{ fontSize: '32px', marginBottom: '24px' }}>Owner Login</h1>
           
           <form onSubmit={handleLogin} className="contact-pill-form" style={{ padding: '32px' }}>
+            <div className="form-field-group" style={{ marginBottom: '16px' }}>
+              <label className="form-pill-label" htmlFor="email">Email</label>
+              <input 
+                type="email" 
+                id="email" 
+                name="email" 
+                className="form-pill-input" 
+                required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ textAlign: 'center' }}
+              />
+            </div>
+
             <div className="form-field-group">
               <label className="form-pill-label" htmlFor="password">Admin Password</label>
               <input 
@@ -98,10 +113,10 @@ export default function Login({ navigateTo }) {
               />
             </div>
 
-            {error && <p style={{ color: 'red', fontSize: '14px', marginBottom: '16px' }}>{error}</p>}
+            {error && <p style={{ color: 'red', fontSize: '14px', marginBottom: '16px', marginTop: '16px' }}>{error}</p>}
 
-            <button type="submit" className="btn btn-pill-primary" style={{ width: '100%', marginTop: '16px' }} disabled={loading}>
-              {loading ? 'Authenticating...' : 'LOG IN &rarr;'}
+            <button type="submit" className="btn btn-pill-primary" style={{ width: '100%', marginTop: '24px' }} disabled={loading}>
+              {loading ? 'Authenticating...' : 'Log In'}
             </button>
           </form>
         </div>
