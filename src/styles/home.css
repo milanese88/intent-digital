@@ -527,7 +527,7 @@
 
 .btn-pill-secondary {
   background-color: var(--dusty-blue);
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
@@ -542,7 +542,7 @@
 
 .btn-pill-secondary:hover {
   background-color: var(--espresso);
-  color: var(--dusty-blue);
+  color: var(--lighter-tone) !important;
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(30, 21, 9, 0.12);
 }
@@ -1834,7 +1834,7 @@
 
 .btn-cta-banner {
   background-color: var(--dusty-blue);
-  color: var(--primary-color) !important;
+  color: var(--lighter-tone) !important;
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -2685,7 +2685,7 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
   background-color: var(--dusty-blue);
   padding: 6px 16px;
   border-radius: 999px;
