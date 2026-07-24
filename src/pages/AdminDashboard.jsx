@@ -11,8 +11,15 @@ export default function AdminDashboard({ navigateTo }) {
 
   useEffect(() => {
     const verifySession = async () => {
-      // DEV MOCK: Always succeed
-      setLoading(false);
+      try {
+        const res = await fetch('/api/verify');
+        if (!res.ok) {
+          throw new Error('Unauthorized');
+        }
+        setLoading(false);
+      } catch (err) {
+        navigateTo('login');
+      }
     };
     verifySession();
   }, [navigateTo]);
