@@ -3770,19 +3770,20 @@
 
 .package-best-seller-angel {
   position: absolute;
-  top: -44px;
-  left: -22px;
-  width: 115px;
+  top: -55px;
+  right: -30px;
+  left: auto;
+  width: 160px;
   height: auto;
   pointer-events: none;
   z-index: 5;
-  transform: rotate(-10deg);
-  filter: drop-shadow(0 4px 10px rgba(30, 21, 9, 0.08));
+  transform: rotate(12deg);
+  filter: drop-shadow(0 4px 12px rgba(30, 21, 9, 0.08));
   transition: transform 0.35s ease;
 }
 
 .package-card-featured:hover .package-best-seller-angel {
-  transform: rotate(-6deg) scale(1.05);
+  transform: rotate(16deg) scale(1.05);
 }
 
 .package-num {
