@@ -1184,7 +1184,7 @@
 /* Home Services Summary Section (Two-Column Editorial Layout) */
 .home-services-summary-section {
   padding: 100px 0;
-  background-color: var(--cream);
+  background-color: var(--neutral-oat);
   border-bottom: 1px solid var(--espresso-15);
   text-align: left;
 }
