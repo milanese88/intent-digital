@@ -1,6 +1,7 @@
 import { handleUpload } from '@vercel/blob/client';
 import { neon } from '@neondatabase/serverless';
-import { parse } from 'cookie';
+import cookie from 'cookie';
+const { parse } = cookie;
 import crypto from 'crypto';
 
 async function hashToken(token) {

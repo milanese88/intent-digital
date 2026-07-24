@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDb } from './db.js';
-import { parse, serialize } from 'cookie';
+import cookie from 'cookie';
+const { parse, serialize } = cookie;
 
 export function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');

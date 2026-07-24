@@ -1,4 +1,5 @@
-import { parse, serialize } from 'cookie';
+import cookie from 'cookie';
+const { parse, serialize } = cookie;
 import { getDb } from './_lib/db.js';
 import { hashToken } from './_lib/session.js';
 
