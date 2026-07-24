@@ -3230,16 +3230,26 @@
 }
 
 @media (max-width: 992px) {
-  .services-split-hero {
+  .services-hero-split-grid {
     grid-template-columns: 1fr;
   }
 
-  .services-hero-left {
-    padding: 24px 24px 48px 24px;
+  .services-split-hero-v2 .services-hero-nav-bar {
+    padding: 20px 24px;
   }
 
-  .services-hero-right {
-    min-height: 420px;
+  .services-hero-img-panel {
+    min-height: 320px;
+    order: 1;
+  }
+
+  .services-hero-dark-panel {
+    padding: 48px 28px;
+    order: 2;
+  }
+
+  .services-hero-headline {
+    font-size: clamp(26px, 6vw, 36px) !important;
   }
 
   .mobile-only-inline {
