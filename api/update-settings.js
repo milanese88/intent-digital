@@ -1,5 +1,5 @@
-import { getUserFromSession } from './lib/session.js';
-import { getDb } from './lib/db.js';
+import { getUserFromSession } from './_lib/session.js';
+import { getDb } from './_lib/db.js';
 import bcrypt from 'bcryptjs';
 
 export default async function handler(req, res) {

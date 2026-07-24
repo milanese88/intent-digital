@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { getDb } from './lib/db.js';
+import { getDb } from './_lib/db.js';
 
 // In-memory rate limiting (Note: resets on serverless cold starts)
 const rateLimitMap = new Map();

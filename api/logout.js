@@ -1,6 +1,6 @@
 import { parse, serialize } from 'cookie';
-import { getDb } from './lib/db.js';
-import { hashToken } from './lib/session.js';
+import { getDb } from './_lib/db.js';
+import { hashToken } from './_lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
