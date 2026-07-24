@@ -1485,11 +1485,12 @@
 }
 
 .unified-hero-tagline {
+  display: block;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: capitalize;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--espresso);
   opacity: 0.7;
   margin-bottom: 16px;
@@ -1500,7 +1501,7 @@
   font-size: clamp(48px, 6vw, 84px);
   font-weight: 300;
   letter-spacing: -0.02em;
-  line-height: 1.05;
+  line-height: 1.15;
   color: var(--espresso);
   margin-bottom: 24px;
 }
@@ -1817,11 +1818,11 @@
 .cta-banner-title {
   font-family: var(--font-display);
   font-size: clamp(40px, 5vw, 58px);
-  font-weight: 400;
-  letter-spacing: -0.015em;
+  font-weight: 300;
+  letter-spacing: -0.02em;
   line-height: 1.15;
   color: var(--primary-color) !important;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   max-width: 760px;
 }
 
