@@ -71,12 +71,7 @@ export default function Services({ navigateTo }) {
               </a>
             </div>
           </div>
-          <div className="unified-hero-image-wrap">
-            <img 
-              src="/services-hero-right-visual.png" 
-              alt="Creative Design and Branding" 
-            />
-          </div>
+
         </div>
       </header>
 
