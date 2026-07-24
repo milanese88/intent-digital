@@ -263,13 +263,13 @@ a:hover {
 
 .dark-section .btn, .cta-banner-section .btn, .cta-banner-section .btn-cta-banner {
   background-color: var(--accent-blue);
-  color: var(--primary-color) !important;
+  color: #FFFFFF !important;
   font-weight: 700;
 }
 
 .dark-section .btn:hover, .cta-banner-section .btn:hover, .cta-banner-section .btn-cta-banner:hover {
   background-color: var(--accent-blue-hover);
-  color: var(--primary-color) !important;
+  color: #FFFFFF !important;
 }
 
 #root {
