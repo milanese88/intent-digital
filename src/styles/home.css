@@ -3139,14 +3139,16 @@
 
 /* CENTER: Dark Content Panel */
 .services-hero-dark-panel.center-panel {
-  background-color: var(--primary-color);
+  background-color: transparent;
   color: var(--bg-cream);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  padding: 60px 48px;
+  padding: 0;
+  width: 100%;
+  max-width: 800px;
 }
 
 .services-hero-eyebrow {
