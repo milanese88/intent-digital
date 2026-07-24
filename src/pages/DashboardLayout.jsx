@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import Overview from './dashboard/Overview.jsx';
+import Settings from './dashboard/Settings.jsx';
+import Placeholder from './dashboard/Placeholder.jsx';
 
 export default function DashboardLayout({ navigateTo, activeTab, setActiveTab }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
