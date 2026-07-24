@@ -55,13 +55,24 @@ export default function Contact({ navigateTo }) {
 
       try {
         const res = await fetch(`/api/get-availability?dateFrom=${dateFrom}&dateTo=${dateTo}`);
-        if (!res.ok) throw new Error('Failed to fetch availability');
-        const data = await res.json();
+        
+        // The backend might return a 500 with a JSON error message if env vars are missing
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          throw new Error(`Server returned a non-JSON response (Status: ${res.status})`);
+        }
+        
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to fetch availability (Status: ${res.status})`);
+        }
+        
         // Cal.com returns slots as an object with date keys: { "2026-07-28": [ { time: "2026-07-28T13:15:00.000Z" } ] }
         setAvailableSlots(data.slots || {});
       } catch (err) {
-        console.error(err);
-        setSlotError('Could not load time slots.');
+        console.error("Calendar Sync Error:", err);
+        setSlotError(err.message || 'Could not load time slots.');
       } finally {
         setIsLoadingSlots(false);
       }
