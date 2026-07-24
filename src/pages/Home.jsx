@@ -6,16 +6,7 @@ import { projectsData } from '../data/projectsData';
 import '../styles/home.css';
 
 export default function Home({ navigateTo }) {
-  const [startReveal, setStartReveal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const introSeen = sessionStorage.getItem('introSeen');
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (introSeen || prefersReducedMotion) {
-      setStartReveal(true);
-    }
-  }, []);
 
   const handleScroll = (e, id) => {
     e.preventDefault();
@@ -41,7 +32,6 @@ export default function Home({ navigateTo }) {
 
   return (
     <div className="home-page">
-      <IntroCurtain onComplete={() => setStartReveal(true)} />
       
       {/* TOP ANNOUNCEMENT MARQUEE BANNER */}
       <AnnouncementBanner />
