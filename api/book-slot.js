@@ -1,3 +1,5 @@
+import { generateEmailHTML } from './email-template.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -5,6 +7,7 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.CAL_COM_API_KEY || process.env.CAL_API_KEY;
   const eventTypeId = process.env.CAL_EVENT_TYPE_ID || process.env.CAL_COM_EVENT_TYPE_ID || '6441308';
+  const resendApiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey || !eventTypeId) {
     return res.status(500).json({ 
@@ -45,6 +48,48 @@ export default async function handler(req, res) {
     }
 
     const json = await response.json();
+
+    // After successful booking, optionally send the branded email via Resend
+    if (resendApiKey && resendApiKey !== 'your_resend_api_key_here') {
+      try {
+        // Format the date nicely for the email
+        const d = new Date(start);
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: timeZone || 'America/New_York' };
+        const formattedDate = new Intl.DateTimeFormat('en-US', options).format(d);
+        
+        // Extract method if possible from notes or default to Zoom
+        const notesStr = responses.notes || '';
+        let method = 'Zoom';
+        if (notesStr.includes('Method: ')) {
+          method = notesStr.split('Method: ')[1].split(',')[0];
+        }
+
+        const emailHtml = generateEmailHTML({ 
+          name: responses.name, 
+          formattedDate, 
+          method 
+        });
+
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'Intent Digital <hello@intentdigital.com>', // MUST BE VERIFIED IN RESEND
+            to: responses.email,
+            subject: 'Consultation Confirmed - Intent Digital',
+            html: emailHtml
+          })
+        });
+        console.log(`Branded email sent to ${responses.email}`);
+      } catch (emailError) {
+        // We don't want to fail the overall request if the email fails, just log it.
+        console.error('Failed to send branded email:', emailError);
+      }
+    }
+
     return res.status(200).json(json.data);
   } catch (error) {
     console.error('Error booking slot with Cal.com:', error);
