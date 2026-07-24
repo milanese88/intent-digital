@@ -228,7 +228,12 @@ export default function EmailTemplates() {
                 value={editForm.body || ''} 
                 onChange={handleFormChange} 
                 rows={12}
-                style={{ resize: 'vertical' }}
+                style={{ 
+                  resize: 'vertical',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  fontFamily: 'Montserrat, sans-serif'
+                }}
                 required
               />
               <p style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)', marginTop: '8px', fontFamily: 'Montserrat' }}>
