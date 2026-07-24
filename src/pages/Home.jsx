@@ -48,6 +48,7 @@ export default function Home({ navigateTo }) {
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
+            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
           </div>
 
           <div className="nav-right mobile-only">
