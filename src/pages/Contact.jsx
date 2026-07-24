@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import '../styles/home.css';
 
@@ -18,8 +18,14 @@ export default function Contact({ navigateTo }) {
 
   const [selectedDate, setSelectedDate] = useState(formatDate(today));
   const [currentViewDate, setCurrentViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedTime, setSelectedTime] = useState('01:15 PM');
+  const [selectedTime, setSelectedTime] = useState(null);
   const [communicationMethod, setCommunicationMethod] = useState('Zoom');
+  
+  // API State
+  const [availableSlots, setAvailableSlots] = useState({});
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotError, setSlotError] = useState(null);
+
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -34,6 +40,34 @@ export default function Contact({ navigateTo }) {
     details: '',
     referral: 'Instagram'
   });
+
+  useEffect(() => {
+    async function fetchSlots() {
+      setIsLoadingSlots(true);
+      setSlotError(null);
+      
+      const currentYear = currentViewDate.getFullYear();
+      const currentMonth = currentViewDate.getMonth();
+      const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
+      
+      const dateFrom = formatDate(new Date(currentYear, currentMonth, 1)) + "T00:00:00Z";
+      const dateTo = formatDate(new Date(currentYear, currentMonth, lastDay)) + "T23:59:59Z";
+
+      try {
+        const res = await fetch(`/api/get-availability?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+        if (!res.ok) throw new Error('Failed to fetch availability');
+        const data = await res.json();
+        // Cal.com returns slots as an object with date keys: { "2026-07-28": [ { time: "2026-07-28T13:15:00.000Z" } ] }
+        setAvailableSlots(data.slots || {});
+      } catch (err) {
+        console.error(err);
+        setSlotError('Could not load time slots.');
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    }
+    fetchSlots();
+  }, [currentViewDate]);
 
   const getDaysInMonth = (year, month) => {
     return new Date(year, month + 1, 0).getDate();
@@ -469,28 +503,31 @@ export default function Contact({ navigateTo }) {
                     <span className="timezone-label">Eastern Time - US &amp; Canada</span>
 
                     <div className="time-slots-column">
-                      <span className="time-period-label">PM</span>
-                      <button 
-                        type="button" 
-                        className={`time-pill-btn ${selectedTime === '01:15 PM' ? 'active' : ''}`}
-                        onClick={() => setSelectedTime('01:15 PM')}
-                      >
-                        01:15 PM
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`time-pill-btn ${selectedTime === '02:30 PM' ? 'active' : ''}`}
-                        onClick={() => setSelectedTime('02:30 PM')}
-                      >
-                        02:30 PM
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`time-pill-btn ${selectedTime === '04:00 PM' ? 'active' : ''}`}
-                        onClick={() => setSelectedTime('04:00 PM')}
-                      >
-                        04:00 PM
-                      </button>
+                      {isLoadingSlots ? (
+                        <p style={{ fontSize: '13px', opacity: 0.7 }}>Loading available times...</p>
+                      ) : slotError ? (
+                        <p style={{ fontSize: '13px', color: 'red' }}>{slotError}</p>
+                      ) : availableSlots[selectedDate] && availableSlots[selectedDate].length > 0 ? (
+                        <>
+                          <span className="time-period-label">Available Times</span>
+                          {availableSlots[selectedDate].map((slotObj, idx) => {
+                            const dateObj = new Date(slotObj.time);
+                            const timeString = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            return (
+                              <button 
+                                key={idx}
+                                type="button" 
+                                className={`time-pill-btn ${selectedTime === slotObj.time ? 'active' : ''}`}
+                                onClick={() => setSelectedTime(slotObj.time)}
+                              >
+                                {timeString}
+                              </button>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <p style={{ fontSize: '13px', opacity: 0.7 }}>No slots available for this date.</p>
+                      )}
                     </div>
                   </div>
                 </div>
