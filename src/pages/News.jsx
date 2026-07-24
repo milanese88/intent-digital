@@ -163,12 +163,7 @@ export default function News({ navigateTo }) {
               Curated editorial news, upcoming luxury retail &amp; dining in Fort Lauderdale &amp; Las Olas, Palm Beach market trends, wellness studios, and high-impact branding insights from Intent Digital Studio.
             </p>
           </div>
-          <div className="unified-hero-image-wrap">
-            <img 
-              src="/site-bg-toile.jpg" 
-              alt="Luxury Lifestyle & Editorial News" 
-            />
-          </div>
+
         </div>
       </header>
 
