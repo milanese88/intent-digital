@@ -97,58 +97,101 @@ export default function Services({ navigateTo }) {
         </div>
       </section>
 
-      {/* THE SERVICES LIST */}
+      {/* THE SERVICES LIST — 3 CURATED PACKAGES */}
       <section className="services-section">
         <div className="container">
-          <div className="services-offerings-grid">
-            {/* 01 - Brand Strategy */}
-            <div className="offering-card">
-              <div className="offering-num">01</div>
-              <h2 className="offering-name">Brand Strategy</h2>
-              <p className="offering-tagline">The thinking behind the beauty.</p>
-              <p className="offering-desc">
-                Before a single color is chosen, we define who your brand is, who it's for, and what makes it unforgettable. Strategy is the foundation everything else is built on.
-              </p>
+          <div className="services-section-header">
+            <span className="section-tagline">CURATED OFFERINGS</span>
+            <h2 className="section-title">Designed for distinction, crafted for growth.</h2>
+          </div>
+
+          <div className="services-packages-grid">
+            {/* PACKAGE 01 - BRANDING */}
+            <div className="package-card">
+              <div className="package-card-header">
+                <div className="package-num">01</div>
+                <h3 className="package-title">Branding</h3>
+                <p className="package-desc">
+                  For the visionary founder seeking a comprehensive brand identity packed with every strategic advantage and elevated detail.
+                </p>
+              </div>
+
+              <div className="package-deliverables">
+                <span className="deliverables-heading">INCLUDES:</span>
+                <ul className="deliverables-list">
+                  <li><span className="deliv-bullet">•</span> Brand Personality</li>
+                  <li><span className="deliv-bullet">•</span> Full logo suite</li>
+                  <li><span className="deliv-bullet">•</span> Typography</li>
+                  <li><span className="deliv-bullet">•</span> Colors</li>
+                  <li><span className="deliv-bullet">•</span> Patterns</li>
+                  <li><span className="deliv-bullet">•</span> Icons</li>
+                  <li><span className="deliv-bullet">•</span> Social media templates</li>
+                  <li><span className="deliv-bullet">•</span> Brand guidelines</li>
+                </ul>
+              </div>
+
+              <div className="package-card-footer">
+                <a href="#" className="btn btn-package-inquire" onClick={(e) => handleNavClick(e, 'contact')}>
+                  Inquire &nbsp;&rarr;
+                </a>
+              </div>
             </div>
 
-            {/* 02 - Visual Identity */}
-            <div className="offering-card">
-              <div className="offering-num">02</div>
-              <h2 className="offering-name">Visual Identity</h2>
-              <p className="offering-tagline">Your brand, made visible.</p>
-              <p className="offering-desc">
-                Logos, color, typography, and a cohesive visual system — designed to feel authentic and stay consistent everywhere your brand appears, complete with brand guidelines to keep it that way.
-              </p>
+            {/* PACKAGE 02 - WEBSITE + BRANDING */}
+            <div className="package-card package-card-featured">
+              <div className="package-card-header">
+                <span className="package-badge">MOST POPULAR</span>
+                <div className="package-num">02</div>
+                <h3 className="package-title">Website + Branding</h3>
+                <p className="package-desc">
+                  Everything in the Branding package + a custom website designed for seamless user experience and maximum conversion.
+                </p>
+              </div>
+
+              <div className="package-deliverables">
+                <span className="deliverables-heading">INCLUDES:</span>
+                <ul className="deliverables-list">
+                  <li><span className="deliv-bullet">•</span> Creative direction</li>
+                  <li><span className="deliv-bullet">•</span> Logo suite and brand marks</li>
+                  <li><span className="deliv-bullet">•</span> Color palette</li>
+                  <li><span className="deliv-bullet">•</span> Typography</li>
+                  <li><span className="deliv-bullet">•</span> Brand &amp; strategy guidelines</li>
+                  <li><span className="deliv-bullet">•</span> 5+ page Showit website</li>
+                </ul>
+              </div>
+
+              <div className="package-card-footer">
+                <a href="#" className="btn btn-package-inquire" onClick={(e) => handleNavClick(e, 'contact')}>
+                  Inquire &nbsp;&rarr;
+                </a>
+              </div>
             </div>
 
-            {/* 03 - Messaging & Voice */}
-            <div className="offering-card">
-              <div className="offering-num">03</div>
-              <h2 className="offering-name">Messaging &amp; Voice</h2>
-              <p className="offering-tagline">The words that sound like you.</p>
-              <p className="offering-desc">
-                We shape a voice and message that's clear, confident, and unmistakably yours — so your brand doesn't just look considered, it reads that way too.
-              </p>
-            </div>
+            {/* PACKAGE 03 - PERSONAL BRANDING PHOTOGRAPHY + CONTENT CREATION */}
+            <div className="package-card">
+              <div className="package-card-header">
+                <div className="package-num">03</div>
+                <h3 className="package-title">Personal Branding Photography + Content Creation</h3>
+                <p className="package-desc">
+                  A monthly retainer service to keep your branding content high quality, fresh, and visually consistent across every touchpoint.
+                </p>
+              </div>
 
-            {/* 04 - Web Architecture */}
-            <div className="offering-card">
-              <div className="offering-num">04</div>
-              <h2 className="offering-name">Web Architecture</h2>
-              <p className="offering-tagline">A digital home with intention.</p>
-              <p className="offering-desc">
-                Thoughtful, beautiful websites that turn your identity into an experience — designed to feel like your brand and invite visitors to explore, connect, and reach out.
-              </p>
-            </div>
+              <div className="package-deliverables">
+                <span className="deliverables-heading">INCLUDES:</span>
+                <ul className="deliverables-list">
+                  <li><span className="deliv-bullet">•</span> Personal brand photography &amp; headshots</li>
+                  <li><span className="deliv-bullet">•</span> Ongoing content creation on retainer</li>
+                  <li><span className="deliv-bullet">•</span> Social media visual direction</li>
+                  <li><span className="deliv-bullet">•</span> Brand consistency &amp; retainer support</li>
+                </ul>
+              </div>
 
-            {/* 05 - Content Creation */}
-            <div className="offering-card offering-card-full">
-              <div className="offering-num">05</div>
-              <h2 className="offering-name">Content Creation</h2>
-              <p className="offering-tagline">Keeping your brand alive.</p>
-              <p className="offering-desc">
-                Professional photography, headshots, product and social content, and content guidelines — created in your visual language on an ongoing retainer, so your brand always looks its best.
-              </p>
+              <div className="package-card-footer">
+                <a href="#" className="btn btn-package-inquire" onClick={(e) => handleNavClick(e, 'contact')}>
+                  Inquire &nbsp;&rarr;
+                </a>
+              </div>
             </div>
           </div>
         </div>
