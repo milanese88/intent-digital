@@ -1,4 +1,5 @@
-import { generateEmailHTML } from './email-template.js';
+import { generateEmailHTML } from './_lib/email-template.js';
+import { getDb } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -52,6 +53,7 @@ export default async function handler(req, res) {
     // After successful booking, optionally send the branded email via Resend
     if (resendApiKey && resendApiKey !== 'your_resend_api_key_here') {
       try {
+        const sql = getDb();
         // Format the date nicely for the email
         const d = new Date(start);
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: timeZone || 'America/New_York' };
@@ -64,10 +66,45 @@ export default async function handler(req, res) {
           method = notesStr.split('Method: ')[1].split(',')[0];
         }
 
+        // Fetch custom template
+        const templates = await sql`
+          SELECT subject, body FROM email_templates
+          WHERE category = 'contact_reply' AND is_active = true
+          LIMIT 1
+        `;
+
+        let customSubject = null;
+        let customBody = null;
+
+        if (templates && templates.length > 0) {
+          const t = templates[0];
+          const nameMatch = new RegExp('{{name}}', 'g');
+          const emailMatch = new RegExp('{{email}}', 'g');
+          // message can be found in responses.notes but this is a booking form.
+          // Wait, the prompt says substitute {{name}}, {{email}} and {{message}}
+          // If we are booking a slot, the message might be in notes. We'll use notesStr.
+          const messageMatch = new RegExp('{{message}}', 'g');
+          
+          if (t.subject) {
+            customSubject = t.subject
+              .replace(nameMatch, responses.name || '')
+              .replace(emailMatch, responses.email || '')
+              .replace(messageMatch, notesStr || '');
+          }
+          if (t.body) {
+            customBody = t.body
+              .replace(nameMatch, responses.name || '')
+              .replace(emailMatch, responses.email || '')
+              .replace(messageMatch, notesStr || '');
+          }
+        }
+
         const emailHtml = generateEmailHTML({ 
           name: responses.name, 
           formattedDate, 
-          method 
+          method,
+          customBody,
+          customSubject
         });
 
         await fetch('https://api.resend.com/emails', {
@@ -79,7 +116,7 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             from: 'Intent Digital <hello@intentdigital.com>', // MUST BE VERIFIED IN RESEND
             to: responses.email,
-            subject: 'Consultation Confirmed - Intent Digital',
+            subject: customSubject || 'Consultation Confirmed - Intent Digital',
             html: emailHtml
           })
         });

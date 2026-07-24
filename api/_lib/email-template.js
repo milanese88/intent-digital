@@ -1,10 +1,30 @@
-export const generateEmailHTML = ({ name, formattedDate, method }) => {
-  return `
+export const generateEmailHTML = ({ name, formattedDate, method, customBody, customSubject }) => {
+  const contentBody = customBody ? customBody : `
+          <h1>Request Confirmed.</h1>
+          <p>Hello ${name},</p>
+          <p>Thank you for reaching out to Intent Digital. We have successfully received your consultation request and calendar booking.</p>
+          <p>We are looking forward to discussing your vision and how our branding agency can elevate your digital presence.</p>
+          
+          <div class="details-box">
+            <div class="detail-item">
+              <span class="detail-label">Date & Time</span>
+              <span class="detail-value">${formattedDate}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Meeting Method</span>
+              <span class="detail-value">${method}</span>
+            </div>
+          </div>
+
+          <p>If you need to reschedule or have any additional details to share before our call, simply reply directly to this email.</p>
+  `;
+
+  return \`
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Booking Confirmation - Intent Digital</title>
+      <title>${customSubject || 'Booking Confirmation - Intent Digital'}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Montserrat:wght@400;500;600&display=swap');
         
@@ -58,6 +78,7 @@ export const generateEmailHTML = ({ name, formattedDate, method }) => {
           line-height: 1.6;
           color: #34292A;
           margin-bottom: 20px;
+          white-space: pre-wrap; /* Support multi-line custom body text */
         }
 
         .details-box {
@@ -123,23 +144,7 @@ export const generateEmailHTML = ({ name, formattedDate, method }) => {
         </div>
         
         <div class="content">
-          <h1>Request Confirmed.</h1>
-          <p>Hello ${name},</p>
-          <p>Thank you for reaching out to Intent Digital. We have successfully received your consultation request and calendar booking.</p>
-          <p>We are looking forward to discussing your vision and how our branding agency can elevate your digital presence.</p>
-          
-          <div class="details-box">
-            <div class="detail-item">
-              <span class="detail-label">Date & Time</span>
-              <span class="detail-value">${formattedDate}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Meeting Method</span>
-              <span class="detail-value">${method}</span>
-            </div>
-          </div>
-
-          <p>If you need to reschedule or have any additional details to share before our call, simply reply directly to this email.</p>
+          \${contentBody}
         </div>
 
         <div class="footer">

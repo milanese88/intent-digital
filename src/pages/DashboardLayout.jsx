@@ -6,7 +6,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
   const tabs = [
     { id: 'overview', label: 'DASHBOARD' },
     { id: 'user', label: 'USER' },
-    { id: 'settings', label: 'SETTINGS' }
+    { id: 'settings', label: 'SETTINGS' },
+    { id: 'email-templates', label: 'EMAIL TEMPLATES' }
   ];
 
   const handleLogout = async () => {
