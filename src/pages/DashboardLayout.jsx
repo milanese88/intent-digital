@@ -1,16 +1,15 @@
+import React, { useState } from 'react';
 import Overview from './dashboard/Overview.jsx';
 import Settings from './dashboard/Settings.jsx';
-import Placeholder from './dashboard/Placeholder.jsx';
+import UserProfile from './dashboard/UserProfile.jsx';
 
 export default function DashboardLayout({ navigateTo, activeTab, setActiveTab }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'settings', label: 'Settings' },
-    { id: 'marketing', label: 'Marketing E-mails' },
-    { id: 'calendar', label: 'Calendar' },
-    { id: 'booking', label: 'Booking Forms' },
+    { id: 'overview', label: 'DASHBOARD' },
+    { id: 'user', label: 'USER' },
+    { id: 'settings', label: 'SETTINGS' }
   ];
 
   const handleLogout = async () => {
@@ -65,6 +64,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab })
               fontSize: '13px',
               fontWeight: activeTab === tab.id ? 600 : 400,
               color: '#34292A',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
               cursor: 'pointer',
               transition: 'background 0.2s ease',
               width: '100%'
@@ -145,8 +146,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab })
         <div style={{ padding: '40px 5%' }}>
           {/* We will inject the active tab's component here from App.jsx or wrap it */}
           {activeTab === 'overview' && <Overview />}
+          {activeTab === 'user' && <UserProfile />}
           {activeTab === 'settings' && <Settings />}
-          {['marketing', 'calendar', 'booking'].includes(activeTab) && <Placeholder title={tabs.find(t => t.id === activeTab).label} />}
         </div>
       </main>
 
