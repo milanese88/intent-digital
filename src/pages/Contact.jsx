@@ -262,7 +262,6 @@ export default function Contact({ navigateTo }) {
 
             {submitted ? (
               <div className="contact-success-state">
-                <span className="contact-success-badge">&check; INQUIRY RECEIVED</span>
                 <h2 className="contact-success-title">Thank You, {formData.fullName || 'Founder'}!</h2>
                 <p className="contact-success-text">
                   We've received your project inquiry and scheduled consult slot for {selectedDate} at {selectedTime} ({communicationMethod}). Our creative team reviews every proposal carefully and will reach out with next steps.
