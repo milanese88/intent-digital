@@ -1198,7 +1198,7 @@
 
 .home-services-visual-wrap {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 16 / 10;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 16px 40px rgba(52, 31, 26, 0.06);
@@ -1209,6 +1209,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 60%;
   display: block;
 }
 
@@ -4020,10 +4021,15 @@
     gap: 2rem !important;
   }
 
+  .home-services-visual-wrap {
+    aspect-ratio: 16 / 9 !important;
+  }
+
   .home-services-visual-img {
-    max-height: 360px !important;
+    max-height: none !important;
     width: 100% !important;
     object-fit: cover !important;
+    object-position: center 60% !important;
   }
 
   .why-grid {
