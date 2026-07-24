@@ -1777,9 +1777,9 @@
   font-family: var(--font-script);
   font-size: 52px;
   font-weight: normal;
-  color: var(--primary-color);
+  color: var(--dusty-blue);
   margin-bottom: 10px;
-  opacity: 0.95;
+  opacity: 1;
   line-height: 1;
 }
 
