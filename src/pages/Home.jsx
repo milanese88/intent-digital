@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import IntroCurtain from '../components/IntroCurtain';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { projectsData } from '../data/projectsData';
 import '../styles/home.css';
