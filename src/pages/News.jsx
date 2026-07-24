@@ -6,6 +6,7 @@ import '../styles/home.css';
 export default function News({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [activeArticle, setActiveArticle] = useState(null);
 
   // SEO & Structured Data (JSON-LD) Injector
@@ -167,20 +168,39 @@ export default function News({ navigateTo }) {
         </div>
       </header>
 
-      {/* CATEGORY FILTER BAR */}
+      {/* CATEGORY FILTER DROPDOWN */}
       <div className="container" style={{ marginTop: '40px' }}>
-        <div className="news-category-bar">
-            {categories.map((cat) => (
-              <button 
-                key={cat} 
-                className={`news-cat-btn ${selectedCategory === cat ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
+        <div className="news-filter-wrapper">
+          <div className="news-filter-dropdown-container">
+            <button 
+              className="news-filter-dropdown-toggle"
+              onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+            >
+              <span>{selectedCategory === 'All' ? 'Filter by Topic' : selectedCategory}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            
+            {filterDropdownOpen && (
+              <div className="news-filter-dropdown-menu">
+                {categories.map((cat) => (
+                  <button 
+                    key={cat} 
+                    className={`news-filter-dropdown-item ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setFilterDropdownOpen(false);
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
       {/* MAIN NEWS CONTENT */}
       <section className="news-main-section">
