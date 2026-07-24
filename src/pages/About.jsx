@@ -54,14 +54,25 @@ export default function About({ navigateTo }) {
         )}
       </nav>
 
-      {/* HERO SECTION */}
-      <header className="about-hero-section">
-        <div className="container center-text">
-          <span className="section-tagline">ABOUT INTENT DIGITAL</span>
-          <h1 className="about-hero-title">A studio built on intention.</h1>
-          <p className="about-hero-subheadline">
-            Intent Digital is a creative branding studio shaping identities that feel authentic, considered, and unmistakably alive — so your brand looks like who you truly are, and gets remembered for it.
-          </p>
+      {/* UNIFIED HERO SECTION */}
+      <header className="unified-hero-section">
+        <div className="container unified-hero-container">
+          <div className="unified-hero-content">
+            <span className="unified-hero-tagline">ABOUT INTENT DIGITAL</span>
+            <h1 className="unified-hero-title">
+              A studio built<br />
+              <i>on intention.</i>
+            </h1>
+            <p className="unified-hero-subheadline">
+              Intent Digital is a creative branding studio shaping identities that feel authentic, considered, and unmistakably alive — so your brand looks like who you truly are, and gets remembered for it.
+            </p>
+          </div>
+          <div className="unified-hero-image-wrap">
+            <img 
+              src="/hero-founder-cinematic.jpg" 
+              alt="Intent Digital Founder" 
+            />
+          </div>
         </div>
       </header>
 
