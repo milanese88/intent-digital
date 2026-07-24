@@ -4556,6 +4556,13 @@
     gap: 20px !important;
   }
 
+  .scheduler-box-grid {
+    grid-template-columns: 1fr !important;
+    padding: 20px !important;
+    margin: 12px 0 !important;
+    gap: 24px !important;
+  }
+
   .footer-grid-layout {
     grid-template-columns: 1fr !important;
     gap: 2.5rem !important;
