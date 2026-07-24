@@ -4136,9 +4136,7 @@
   }
 
   .hero-editorial-headline {
-    font-size: clamp(28px, 8vw, 42px) !important;
-    top: 45% !important;
-    padding: 0 20px !important;
+    display: none !important;
   }
 
   .hero-cinematic-caption {
