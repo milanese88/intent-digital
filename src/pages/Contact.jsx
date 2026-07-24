@@ -93,7 +93,7 @@ export default function Contact({ navigateTo }) {
           <div className="contact-split-left">
             <div className="contact-image-frame">
               <img 
-                src="/contact-hero.jpg" 
+                src="/bb5a8145cd5888844301ac922a78598a.jpg" 
                 alt="Intent Digital Founder working at studio desk" 
                 className="contact-hero-image" 
               />
