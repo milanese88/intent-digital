@@ -1407,6 +1407,57 @@
   color: var(--bg-cream);
 }
 /* ==========================================================================
+   GLOBAL INTERACTIVE HOVER STATES & TRANSITIONS
+   ========================================================================== */
+.btn,
+.btn-cta,
+.btn-pill-primary,
+.btn-pill-secondary,
+.btn-pill-hero-outline,
+.btn-cta-banner,
+.btn-footer-pill-cta,
+.btn-pill-top-submit,
+.btn-pill-bottom-submit,
+.btn-card,
+.time-pill-btn,
+.news-cat-btn,
+.btn-submit-inquiry {
+  transition: var(--transition-smooth) !important;
+}
+
+/* Standardize Hover Lift & Shadow for Interactive Elements */
+.btn:hover,
+.btn-cta:hover,
+.btn-pill-primary:hover,
+.btn-pill-secondary:hover,
+.btn-pill-hero-outline:hover,
+.btn-cta-banner:hover,
+.btn-footer-pill-cta:hover,
+.btn-pill-top-submit:hover,
+.btn-pill-bottom-submit:hover,
+.time-pill-btn:hover,
+.news-cat-btn:hover,
+.btn-submit-inquiry:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(30, 21, 9, 0.1);
+}
+
+/* Standardize Card Hover Elevate */
+.service-card,
+.package-card,
+.article-card,
+.contact-image-frame {
+  transition: var(--transition-smooth) !important;
+}
+
+.service-card:hover,
+.package-card:hover,
+.article-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 16px 40px rgba(30, 21, 9, 0.08) !important;
+}
+
+/* ==========================================================================
    UNIFIED HERO SYSTEM (Global Split Layout across all pages)
    ========================================================================== */
 .unified-hero-section {
