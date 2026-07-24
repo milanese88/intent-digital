@@ -94,6 +94,14 @@ export default function Home({ navigateTo }) {
             className="hero-cinematic-banner-img"
           />
           <div className="hero-cinematic-overlay"></div>
+          
+          {/* Large Editorial Hero Headline */}
+          <h1 className="hero-editorial-headline">
+            <span className="hero-headline-regular">Goodbye cookie-cutter.</span>
+            <br />
+            <span className="hero-headline-italic">Hello intentional.</span>
+          </h1>
+
           <div className="hero-cinematic-caption">
             <img 
               src="/seal-logo.png" 

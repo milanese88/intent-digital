@@ -423,6 +423,38 @@
   z-index: 1;
 }
 
+/* Large Editorial Hero Headline — Atelier Fleur Regular + Italic Mix */
+.hero-editorial-headline {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #FFFFFF;
+  font-size: clamp(42px, 6.5vw, 88px);
+  line-height: 1.12;
+  font-weight: 400;
+  margin: 0;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 960px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.35), 0 1px 6px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.hero-headline-regular {
+  font-family: 'Atelier Fleur', Georgia, serif;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.hero-headline-italic {
+  font-family: 'Atelier Fleur', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
 .hero-cinematic-caption {
   position: absolute;
   bottom: 48px;
@@ -3912,6 +3944,12 @@
     min-height: 80vh !important;
     height: 80vh !important;
     padding: 0 !important;
+  }
+
+  .hero-editorial-headline {
+    font-size: clamp(28px, 8vw, 42px) !important;
+    top: 45% !important;
+    padding: 0 20px !important;
   }
 
   .hero-cinematic-caption {
