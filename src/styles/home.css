@@ -3946,8 +3946,8 @@
   /* 4. Home Page Mobile Refinements */
   .hero-section.hero-cinematic,
   .hero-cinematic-banner-wrap {
-    min-height: 80vh !important;
-    height: 80vh !important;
+    min-height: unset !important;
+    height: clamp(280px, 65vw, 420px) !important;
     padding: 0 !important;
   }
 
