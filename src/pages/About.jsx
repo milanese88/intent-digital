@@ -80,10 +80,10 @@ export default function About({ navigateTo }) {
       <section className="about-block-section">
         <div className="container">
           <div className="about-block-grid">
-            <div className="about-block-content">
-              <span className="section-tagline">WHO WE ARE</span>
-              <h2 className="about-block-title">Creativity, guided by intention.</h2>
-              <p className="about-block-body">
+            <div className="global-section-header align-left" style={{ marginBottom: 0 }}>
+              <span className="global-section-tagline">WHO WE ARE</span>
+              <h2 className="global-section-title" style={{ fontSize: 'clamp(32px, 4vw, 48px)' }}>Creativity, guided by intention.</h2>
+              <p className="global-section-subtext">
                 We're a creative branding studio for businesses that want to feel authentic and communicate their soul. We shape visual direction — identity, messaging, and digital presence — for brands in hospitality, real estate, lifestyle, and beyond. Timeless, elegant, and always considered.
               </p>
             </div>

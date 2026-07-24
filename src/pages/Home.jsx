@@ -117,8 +117,8 @@ export default function Home({ navigateTo }) {
       <section className="welcome-intro-section">
         <div className="container">
           {/* Main Editorial Headline */}
-          <div className="welcome-intro-header">
-            <h2 className="welcome-title studio-hero-headline">
+          <div className="global-section-header align-left">
+            <h2 className="global-section-title" style={{ maxWidth: '900px', fontSize: 'clamp(32px, 4.5vw, 48px)' }}>
               Shaping brand identity and digital presence for clients worldwide.
             </h2>
           </div>
@@ -251,10 +251,10 @@ export default function Home({ navigateTo }) {
       {/* OUR WORK SECTION — 4-COLUMN PORTRAIT GALLERY */}
       <section id="portfolio" className="our-work-section">
         <div className="our-work-container">
-          <div className="section-header center">
-            <span className="section-tagline">OUR WORK</span>
-            <h2 className="section-title">Brands we've built.</h2>
-            <p className="section-subtext">
+          <div className="global-section-header">
+            <span className="global-section-tagline">OUR WORK</span>
+            <h2 className="global-section-title">Brands we've built.</h2>
+            <p className="global-section-subtext">
               A look at the identities we've shaped — each one crafted with the same intention we'd bring to yours.
             </p>
           </div>
@@ -288,10 +288,10 @@ export default function Home({ navigateTo }) {
       {/* APPROACH / WHY INTENT DIGITAL SECTION */}
       <section id="why-us" className="why-section">
         <div className="container">
-          <div className="section-header">
-            <span className="section-tagline">OUR APPROACH</span>
-            <h2 className="section-title">Intentional from the very first call.</h2>
-            <p className="section-subtext" style={{ maxWidth: '780px', margin: '16px auto 0 auto' }}>
+          <div className="global-section-header">
+            <span className="global-section-tagline">OUR APPROACH</span>
+            <h2 className="global-section-title">Intentional from the very first call.</h2>
+            <p className="global-section-subtext">
               Great branding isn't decoration — it's meaning made visible. Every color, type choice, and detail we design carries a reason. That's the difference between a brand that simply looks good and one that feels right — and gets remembered.
             </p>
           </div>

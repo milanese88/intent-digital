@@ -83,9 +83,9 @@ export default function Services({ navigateTo }) {
       {/* THE SERVICES LIST — 3 CURATED PACKAGES */}
       <section className="services-section">
         <div className="container">
-          <div className="services-section-header">
-            <span className="section-tagline">CURATED OFFERINGS</span>
-            <h2 className="section-title">Designed for distinction, crafted for growth.</h2>
+          <div className="global-section-header">
+            <span className="global-section-tagline">CURATED OFFERINGS</span>
+            <h2 className="global-section-title">Designed for distinction, crafted for growth.</h2>
           </div>
 
           <div className="services-packages-grid">
@@ -187,10 +187,10 @@ export default function Services({ navigateTo }) {
       {/* THE PROCESS SECTION */}
       <section className="why-section services-process-section">
         <div className="container">
-          <div className="section-header center">
-            <span className="section-tagline">THE PROCESS</span>
-            <h2 className="section-title">What working together looks like.</h2>
-            <p className="section-subtext" style={{ maxWidth: '780px', margin: '16px auto 0 auto' }}>
+          <div className="global-section-header theme-dark">
+            <span className="global-section-tagline">THE PROCESS</span>
+            <h2 className="global-section-title">What working together looks like.</h2>
+            <p className="global-section-subtext">
               We keep things clear and intentional from the very first call. Here's the journey we'll take together:
             </p>
           </div>
