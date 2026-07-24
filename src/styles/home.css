@@ -549,7 +549,7 @@
 
 .btn-pill-primary {
   background-color: var(--dusty-blue);
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
@@ -563,7 +563,7 @@
 
 .btn-pill-primary:hover {
   background-color: var(--accent-blue-hover);
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(189, 211, 226, 0.45);
 }
@@ -2003,7 +2003,7 @@
 
 .btn-footer-pill-cta {
   background-color: var(--accent-blue);
-  color: var(--primary-color) !important;
+  color: var(--lighter-tone) !important;
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 700;
@@ -2020,7 +2020,7 @@
 
 .btn-footer-pill-cta:hover {
   background-color: var(--accent-blue-hover);
-  color: var(--primary-color) !important;
+  color: var(--lighter-tone) !important;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(164, 187, 219, 0.4);
 }
@@ -3703,7 +3703,7 @@
 .btn-pill-top-submit,
 .btn-pill-bottom-submit {
   background-color: var(--dusty-blue);
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
@@ -3718,7 +3718,7 @@
 .btn-pill-top-submit:hover,
 .btn-pill-bottom-submit:hover {
   background-color: var(--accent-blue-hover);
-  color: var(--espresso);
+  color: var(--lighter-tone) !important;
 }
 
 .form-submit-wrap {
@@ -4230,7 +4230,7 @@
 .day-num.active-slot:hover,
 .day-num.active-slot.selected {
   background-color: var(--accent-blue);
-  color: var(--primary-color) !important;
+  color: var(--lighter-tone) !important;
 }
 
 .times-day-title {
@@ -4278,7 +4278,7 @@
 .time-pill-btn:hover,
 .time-pill-btn.active {
   background-color: var(--accent-blue);
-  color: var(--primary-color) !important;
+  color: var(--lighter-tone) !important;
 }
 
 /* ==========================================================================
