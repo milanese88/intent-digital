@@ -202,7 +202,7 @@ export default function Services({ navigateTo }) {
       </section>
 
       {/* THE PROCESS SECTION */}
-      <section className="why-section">
+      <section className="why-section services-process-section">
         <div className="container">
           <div className="section-header center">
             <span className="section-tagline">THE PROCESS</span>
