@@ -56,8 +56,8 @@ export default function Services({ navigateTo }) {
           {/* LEFT: Hero Image Panel */}
           <div className="services-hero-img-panel left-panel">
             <img 
-              src="/services-hero-writing.jpg" 
-              alt="Creative branding strategist writing at desk" 
+              src="/services-hero-staircase.jpg" 
+              alt="Architectural spiral staircase and door" 
               className="services-hero-staircase-img" 
             />
             <div className="services-hero-img-overlay"></div>
