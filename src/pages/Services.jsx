@@ -51,18 +51,8 @@ export default function Services({ navigateTo }) {
           </div>
         )}
 
-        {/* Three-Column Hero Grid */}
-        <div className="services-hero-split-grid services-hero-three-column-grid">
-          {/* LEFT: Hero Image Panel */}
-          <div className="services-hero-img-panel left-panel">
-            <img 
-              src="/services-hero-staircase.jpg" 
-              alt="Architectural spiral staircase and door" 
-              className="services-hero-staircase-img" 
-            />
-            <div className="services-hero-img-overlay"></div>
-          </div>
-
+        {/* Full-Width Solid Brown Hero Grid */}
+        <div className="services-hero-solid-brown-wrap">
           {/* CENTER: Dark Content Panel */}
           <div className="services-hero-dark-panel center-panel">
             <span className="services-hero-eyebrow">
@@ -103,16 +93,6 @@ export default function Services({ navigateTo }) {
               </svg>
               <div className="scroll-dive-arrow">&darr;</div>
             </div>
-          </div>
-
-          {/* RIGHT: Hero Image Panel */}
-          <div className="services-hero-img-panel right-panel">
-            <img 
-              src="/services-hero-right-visual.png" 
-              alt="Luxury leather clutch, sunglasses, and iced coffee" 
-              className="services-hero-staircase-img" 
-            />
-            <div className="services-hero-img-overlay"></div>
           </div>
         </div>
       </section>

@@ -3126,48 +3126,15 @@
   align-items: center;
 }
 
-.services-hero-split-grid.services-hero-three-column-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.6fr 1fr;
+.services-hero-solid-brown-wrap {
   width: 100%;
-  min-height: 620px;
-}
-
-/* LEFT & RIGHT Image Panels */
-.services-hero-img-panel {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.services-hero-img-panel .services-hero-staircase-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-  transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.services-hero-img-panel .services-hero-img-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(30, 21, 9, 0.15);
-  pointer-events: none;
-  transition: background-color 0.6s ease;
-}
-
-/* Hover effects for both side image columns */
-.services-hero-img-panel:hover .services-hero-staircase-img {
-  transform: scale(1.035);
-}
-
-.services-hero-img-panel:hover .services-hero-img-overlay {
-  background: rgba(30, 21, 9, 0.35); /* soft hover cover shade darker */
+  background-color: var(--primary-color);
+  min-height: 560px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  box-sizing: border-box;
 }
 
 /* CENTER: Dark Content Panel */
