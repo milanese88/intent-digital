@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   const { dateFrom, dateTo } = req.query;
 
   const apiKey = process.env.CAL_COM_API_KEY || process.env.CAL_API_KEY;
-  const eventTypeId = process.env.CAL_EVENT_TYPE_ID || process.env.CAL_COM_EVENT_TYPE_ID;
+  const eventTypeId = process.env.CAL_EVENT_TYPE_ID || process.env.CAL_COM_EVENT_TYPE_ID || '6441308';
 
   if (!apiKey || !eventTypeId) {
     return res.status(500).json({ 
