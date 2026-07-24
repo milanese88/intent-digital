@@ -1,4 +1,6 @@
-import { serialize } from 'cookie';
+import bcrypt from 'bcryptjs';
+import { getDb } from './lib/db.js';
+import { createSession } from './lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -6,26 +8,38 @@ export default async function handler(req, res) {
   }
 
   const { email, password } = req.body;
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const adminEmail = process.env.ADMIN_EMAIL || 'mn.florenciaok@gmail.com';
 
-  if (!adminPassword) {
-    return res.status(500).json({ error: 'Server configuration error: ADMIN_PASSWORD not set.' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
   }
 
-  if (password === adminPassword && email.toLowerCase() === adminEmail.toLowerCase()) {
-    // Set a secure HttpOnly cookie
-    const cookie = serialize('auth_session', 'authenticated', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: '/'
-    });
+  try {
+    const sql = getDb();
     
-    res.setHeader('Set-Cookie', cookie);
+    // Find the user by email
+    const users = await sql`
+      SELECT id, password_hash FROM admin_user WHERE email = ${email.trim().toLowerCase()} LIMIT 1
+    `;
+
+    if (users.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = users[0];
+
+    // Compare password
+    const isValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Create a new session
+    await createSession(user.id, res, req);
+    
     return res.status(200).json({ success: true });
-  } else {
-    return res.status(401).json({ error: 'Invalid email or password' });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Server error during login' });
   }
 }
