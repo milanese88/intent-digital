@@ -144,10 +144,15 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab })
         </header>
 
         <div style={{ padding: '40px 5%' }}>
+          {console.log('Rendering content area. activeTab:', activeTab, 'Overview type:', typeof Overview)}
           {/* We will inject the active tab's component here from App.jsx or wrap it */}
           {activeTab === 'overview' && <Overview />}
           {activeTab === 'user' && <UserProfile />}
           {activeTab === 'settings' && <Settings />}
+          <div style={{ color: 'red', marginTop: '20px' }}>
+            DEBUG: activeTab is "{activeTab}"
+            Is Overview defined? {Overview ? 'Yes' : 'No'}
+          </div>
         </div>
       </main>
 
