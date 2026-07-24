@@ -8,7 +8,18 @@ import Login from './pages/Login.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const route = params.get('route');
+      if (route) {
+        // Optionally clean up the URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return route;
+      }
+    }
+    return 'home';
+  });
 
   const navigateTo = (page, targetId) => {
     setCurrentPage(page);
