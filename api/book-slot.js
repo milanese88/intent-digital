@@ -17,12 +17,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = `https://api.cal.com/v1/bookings?apiKey=${apiKey}`;
+    const url = `https://api.cal.com/v2/bookings`;
     
     const payload = {
       eventTypeId: parseInt(eventTypeId, 10),
       start: start, // ISO 8601 string
       responses: responses,
+      metadata: {},
       timeZone: timeZone || 'America/New_York',
       language: 'en'
     };
@@ -30,6 +31,7 @@ export default async function handler(req, res) {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
@@ -40,8 +42,8 @@ export default async function handler(req, res) {
       throw new Error(`Cal.com booking failed: ${response.status} ${JSON.stringify(errData)}`);
     }
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    const json = await response.json();
+    return res.status(200).json(json.data);
   } catch (error) {
     console.error('Error booking slot with Cal.com:', error);
     return res.status(500).json({ error: 'Failed to book appointment' });
