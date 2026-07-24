@@ -51,10 +51,10 @@ export default function Services({ navigateTo }) {
           </div>
         )}
 
-        {/* Two-Column Hero Split */}
-        <div className="services-hero-split-grid">
-          {/* LEFT: Hero Image */}
-          <div className="services-hero-img-panel">
+        {/* Three-Column Hero Grid */}
+        <div className="services-hero-split-grid services-hero-three-column-grid">
+          {/* LEFT: Hero Image Panel */}
+          <div className="services-hero-img-panel left-panel">
             <img 
               src="/services-hero-writing.jpg" 
               alt="Creative branding strategist writing at desk" 
@@ -63,21 +63,56 @@ export default function Services({ navigateTo }) {
             <div className="services-hero-img-overlay"></div>
           </div>
 
-          {/* RIGHT: Dark Content Panel */}
-          <div className="services-hero-dark-panel">
-            <p className="services-hero-label">
-              COMPREHENSIVE BRAND SERVICES<br />
-              <span>INCLUDING BRAND IDENTITY, WEBSITE DESIGN, CONTENT DIRECTION</span>
-            </p>
-            <h1 className="services-hero-headline">
-              More than visuals, branding that makes an impact.
+          {/* CENTER: Dark Content Panel */}
+          <div className="services-hero-dark-panel center-panel">
+            <span className="services-hero-eyebrow">
+              ATTRACTING THE CLIENTS YOUR BUSINESS DESERVES
+            </span>
+            <h1 className="services-hero-headline-v2">
+              Creative design<br />
+              <span className="services-headline-italic">for</span> Confident<br />
+              Branding
             </h1>
-            <p className="services-hero-italic-copy">
-              You don't need just a brand that looks good — you need one that connects, inspires, and drives success. A brand that tells your story with clarity, builds recognition and trust, and gives you the confidence to show up boldly.
-            </p>
-            <a href="#" className="btn services-hero-cta-outline" onClick={(e) => handleNavClick(e, 'contact')}>
-              Yes! I'm so ready &nbsp;&rarr;
-            </a>
+            
+            <div className="services-hero-paragraphs">
+              <p className="services-hero-paragraph">
+                Let's get into it. We work closely with you and your brand to develop a new visual identity that propels your business to new levels of polish and success.
+              </p>
+              <p className="services-hero-paragraph">
+                It's all about honing and evolving a style that feels undeniably "you", one that can be instantly recognised as your business and signal to your ideal customer that they're in the right place.
+              </p>
+              <p className="services-hero-paragraph">
+                All of our custom designs are drawn or painted by hand and are created under your taste and preference.
+              </p>
+            </div>
+
+            {/* Circular Rotating Scroll Dial */}
+            <div className="scroll-dive-dial-wrap">
+              <svg viewBox="0 0 100 100" className="scroll-dive-svg">
+                <defs>
+                  <path 
+                    id="circlePath" 
+                    d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" 
+                  />
+                </defs>
+                <text className="scroll-dive-text">
+                  <textPath href="#circlePath" startOffset="0%">
+                    DIVE IN • LET'S &nbsp; DIVE IN • LET'S &nbsp; 
+                  </textPath>
+                </text>
+              </svg>
+              <div className="scroll-dive-arrow">&darr;</div>
+            </div>
+          </div>
+
+          {/* RIGHT: Hero Image Panel */}
+          <div className="services-hero-img-panel right-panel">
+            <img 
+              src="/services-hero-right-visual.png" 
+              alt="Luxury leather clutch, sunglasses, and iced coffee" 
+              className="services-hero-staircase-img" 
+            />
+            <div className="services-hero-img-overlay"></div>
           </div>
         </div>
       </section>
