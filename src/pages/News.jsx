@@ -150,21 +150,31 @@ export default function News({ navigateTo }) {
         )}
       </nav>
 
-      {/* NEWS HERO */}
-      <header className="news-hero-section">
-        <div className="container">
-          <div className="section-header" style={{ marginBottom: '20px' }}>
-            <span className="section-tagline">JOURNAL &amp; INSIGHTS</span>
-            <h1 className="section-title" style={{ fontSize: 'clamp(38px, 5.2vw, 60px)' }}>
-              South Florida Luxury Real Estate,<br />Dining, Lifestyle &amp; Brand Strategy
+      {/* UNIFIED HERO SECTION */}
+      <header className="unified-hero-section">
+        <div className="container unified-hero-container">
+          <div className="unified-hero-content">
+            <span className="unified-hero-tagline">JOURNAL &amp; INSIGHTS</span>
+            <h1 className="unified-hero-title">
+              South Florida Luxury<br />
+              <i>Real Estate &amp; Lifestyle</i>
             </h1>
+            <p className="unified-hero-subheadline">
+              Curated editorial news, upcoming luxury retail &amp; dining in Fort Lauderdale &amp; Las Olas, Palm Beach market trends, wellness studios, and high-impact branding insights from Intent Digital Studio.
+            </p>
           </div>
-          <p className="news-hero-subtitle">
-            Curated editorial news, upcoming luxury retail &amp; dining in Fort Lauderdale &amp; Las Olas, Palm Beach market trends, wellness studios, and high-impact branding insights from Intent Digital Studio.
-          </p>
+          <div className="unified-hero-image-wrap">
+            <img 
+              src="/site-bg-toile.jpg" 
+              alt="Luxury Lifestyle & Editorial News" 
+            />
+          </div>
+        </div>
+      </header>
 
-          {/* CATEGORY FILTER BAR */}
-          <div className="news-category-bar">
+      {/* CATEGORY FILTER BAR */}
+      <div className="container" style={{ marginTop: '40px' }}>
+        <div className="news-category-bar">
             {categories.map((cat) => (
               <button 
                 key={cat} 
