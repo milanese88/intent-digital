@@ -86,29 +86,24 @@ export default function Contact({ navigateTo }) {
         )}
       </nav>
 
-      {/* CONTACT HERO & FORM WRAPPER (2-COLUMN SPLIT MATCHING SCREENSHOT 3) */}
-      <section className="contact-form-section">
-        <div className="contact-split-container">
-          {/* LEFT COLUMN: Founder Photo */}
-          <div className="contact-split-left">
-            <div className="contact-image-frame">
-              <img 
-                src="/bb5a8145cd5888844301ac922a78598a.jpg" 
-                alt="Intent Digital Founder working at studio desk" 
-                className="contact-hero-image" 
-              />
-            </div>
+      {/* UNIFIED HERO SECTION */}
+      <header className="unified-hero-section">
+        <div className="container unified-hero-container">
+          <div className="unified-hero-content">
+            <span className="unified-hero-tagline">GET IN TOUCH</span>
+            <h1 className="unified-hero-title">
+              We're so glad you're here.
+            </h1>
+            <p className="unified-hero-subheadline">
+              Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
+            </p>
           </div>
+        </div>
+      </header>
 
-          {/* RIGHT COLUMN: Header Title & Form */}
-          <div className="contact-split-right">
-            <div className="global-section-header align-left" style={{ marginBottom: '40px' }}>
-              <span className="global-section-tagline">GET IN TOUCH</span>
-              <h1 className="global-section-title">We're so glad you're here.</h1>
-              <p className="global-section-subtext">
-                Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
-              </p>
-            </div>
+      {/* CONTACT FORM SECTION */}
+      <section className="contact-form-section">
+        <div className="contact-form-container">
 
             {submitted ? (
               <div className="contact-success-state">
