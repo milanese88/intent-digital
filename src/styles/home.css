@@ -526,7 +526,7 @@
 }
 
 .btn-pill-secondary {
-  background-color: rgba(250, 247, 242, 0.92);
+  background-color: var(--dusty-blue);
   color: var(--espresso);
   font-family: var(--font-sans);
   font-size: 12.5px;
@@ -535,15 +535,16 @@
   text-transform: uppercase;
   padding: 14px 30px;
   border-radius: 999px;
-  border: 1px solid rgba(250, 247, 242, 0.9);
+  border: 1px solid var(--dusty-blue);
   backdrop-filter: blur(8px);
   transition: var(--transition-smooth);
 }
 
 .btn-pill-secondary:hover {
-  background-color: var(--cream);
+  background-color: var(--espresso);
+  color: var(--dusty-blue);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 24px rgba(30, 21, 9, 0.12);
 }
 
 .btn-pill-primary {
