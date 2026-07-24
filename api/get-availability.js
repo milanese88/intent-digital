@@ -17,16 +17,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Cal.com v1 Slots API
-    const url = `https://api.cal.com/v1/slots?apiKey=${apiKey}&eventTypeId=${eventTypeId}&startTime=${dateFrom}&endTime=${dateTo}`;
+    // Cal.com v2 Slots API
+    // The dates should be YYYY-MM-DD for the v2 endpoint
+    const url = `https://api.cal.com/v2/slots/available?eventTypeId=${eventTypeId}&startTime=${dateFrom.substring(0,10)}&endTime=${dateTo.substring(0,10)}`;
     
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
     if (!response.ok) {
       throw new Error(`Cal.com API responded with status ${response.status}`);
     }
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    const json = await response.json();
+    // v2 returns { status: "success", data: { slots: { ... } } }
+    return res.status(200).json(json.data);
   } catch (error) {
     console.error('Error fetching availability from Cal.com:', error);
     return res.status(500).json({ error: 'Failed to fetch availability' });
