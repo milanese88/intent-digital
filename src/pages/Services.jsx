@@ -51,26 +51,31 @@ export default function Services({ navigateTo }) {
             </div>
           )}
 
-          <div className="services-hero-content-wrap">
-            <h1 className="services-hero-title">Creative Branding</h1>
-            <p className="services-hero-copy">
-              Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
-            </p>
-            <a href="#" className="btn btn-services-hero-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-              Start your brand &rarr;
-            </a>
-          </div>
-
-          <div className="services-hero-footer-blank"></div>
-        </div>
-
-        <div className="services-hero-right">
+        {/* LEFT: Hero Image */}
+        <div className="services-hero-img-panel">
           <img 
             src="/services-hero-writing.jpg" 
             alt="Creative branding strategist writing at desk" 
             className="services-hero-staircase-img" 
           />
           <div className="services-hero-img-overlay"></div>
+        </div>
+
+        {/* RIGHT: Dark Content Panel */}
+        <div className="services-hero-dark-panel">
+          <p className="services-hero-label">
+            COMPREHENSIVE BRAND SERVICES<br />
+            <span>INCLUDING BRAND IDENTITY, WEBSITE DESIGN, CONTENT DIRECTION</span>
+          </p>
+          <h1 className="services-hero-headline">
+            More than visuals, branding that makes an impact.
+          </h1>
+          <p className="services-hero-italic-copy">
+            You don't need just a brand that looks good — you need one that connects, inspires, and drives success. A brand that tells your story with clarity, builds recognition and trust, and gives you the confidence to show up boldly.
+          </p>
+          <a href="#" className="btn services-hero-cta-outline" onClick={(e) => handleNavClick(e, 'contact')}>
+            Yes! I'm so ready &nbsp;&rarr;
+          </a>
         </div>
       </section>
 
