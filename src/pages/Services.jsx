@@ -16,8 +16,8 @@ export default function Services({ navigateTo }) {
   return (
     <div className="home-page services-page">
       <AnnouncementBanner />
-      {/* SERVICES PAGE HERO — REFERENCE LAYOUT */}
-      <section className="services-split-hero services-split-hero-v2">
+      {/* SERVICES PAGE NAV */}
+      <div className="services-split-hero services-split-hero-v2">
         {/* Nav Bar — Full Width */}
         <div className="services-hero-nav-bar">
           <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
@@ -50,6 +50,7 @@ export default function Services({ navigateTo }) {
             <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
           </div>
         )}
+      </div>
 
       {/* UNIFIED HERO SECTION */}
       <header className="unified-hero-section theme-dark">

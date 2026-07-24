@@ -3389,7 +3389,7 @@
   margin: 0 auto;
   padding: 0 32px;
   display: grid;
-  grid-template-columns: 0.85fr 1.15fr;
+  grid-template-columns: 1.15fr 0.85fr;
   gap: 4.5rem;
   align-items: start;
 }
@@ -3397,6 +3397,7 @@
 .contact-split-left {
   position: sticky;
   top: 100px;
+  order: 2;
 }
 
 .contact-image-frame {
@@ -3424,6 +3425,7 @@
 .contact-split-right {
   display: flex;
   flex-direction: column;
+  order: 1;
 }
 
 .contact-header-text {
@@ -3447,7 +3449,7 @@
   font-family: var(--font-display);
   font-style: normal;
   font-weight: 300;
-  font-size: clamp(2.4rem, 3.8vw, 3.4rem);
+  font-size: clamp(48px, 6vw, 84px);
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--primary-espresso);
