@@ -140,7 +140,11 @@ export default function Services({ navigateTo }) {
             {/* PACKAGE 02 - WEBSITE + BRANDING */}
             <div className="package-card package-card-featured">
               <div className="package-card-header">
-                <span className="package-badge">MOST POPULAR</span>
+                <img 
+                  src="/best-seller-angel.png" 
+                  alt="Best Seller" 
+                  className="package-best-seller-angel" 
+                />
                 <div className="package-num">02</div>
                 <h3 className="package-title">Website + Branding</h3>
                 <p className="package-desc">
