@@ -48,12 +48,23 @@ export default function Home({ navigateTo }) {
             <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
           </div>
 
-          <div className="nav-right mobile-only">
+          <div className="nav-right">
+            <a 
+              href="#" 
+              className="desktop-only" 
+              onClick={(e) => handleNavClick(e, 'login')}
+              style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: '#34292A', fontFamily: 'Montserrat, sans-serif', fontSize: '12px', fontWeight: 500, letterSpacing: '0.05em', marginRight: '20px' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              LOG IN
+            </a>
             <button 
-              className="mobile-toggle-btn" 
+              className="mobile-toggle-btn mobile-only" 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle Navigation Menu"
             >
