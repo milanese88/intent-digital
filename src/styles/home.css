@@ -3768,6 +3768,23 @@
   text-transform: uppercase;
 }
 
+.package-best-seller-angel {
+  position: absolute;
+  top: -44px;
+  left: -22px;
+  width: 115px;
+  height: auto;
+  pointer-events: none;
+  z-index: 5;
+  transform: rotate(-10deg);
+  filter: drop-shadow(0 4px 10px rgba(30, 21, 9, 0.08));
+  transition: transform 0.35s ease;
+}
+
+.package-card-featured:hover .package-best-seller-angel {
+  transform: rotate(-6deg) scale(1.05);
+}
+
 .package-num {
   font-family: 'Dreams on Paper', cursive, var(--font-script);
   font-size: 42px;
