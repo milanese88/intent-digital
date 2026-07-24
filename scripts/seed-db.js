@@ -17,30 +17,33 @@ async function seed() {
   try {
     console.log('Creating tables...');
     
+    // Drop existing tables to apply new schema
+    await sql`DROP TABLE IF EXISTS sessions, admin_user CASCADE`;
+
     // Create admin_user table
     await sql`
-      CREATE TABLE IF NOT EXISTS admin_user (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(255),
-        full_name VARCHAR(255),
+      CREATE TABLE admin_user (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT UNIQUE NOT NULL,
+        username TEXT,
+        full_name TEXT,
         profile_image_url TEXT,
         password_hash TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `;
 
     // Create sessions table
     await sql`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES admin_user(id) ON DELETE CASCADE,
-        token_hash VARCHAR(255) UNIQUE NOT NULL,
-        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      CREATE TABLE sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES admin_user(id) ON DELETE CASCADE,
+        token_hash TEXT UNIQUE NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         user_agent TEXT,
-        ip_address VARCHAR(45)
+        ip_address TEXT
       )
     `;
 
