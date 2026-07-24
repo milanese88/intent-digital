@@ -3973,7 +3973,7 @@
 }
 
 .services-process-section .process-step-num {
-  color: var(--primary-color) !important; /* dark brown for the number to match fonts requirement */
+  color: var(--secondary-color) !important; /* dusty blue accent */
 }
 
 .services-process-section .process-step-title {
