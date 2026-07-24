@@ -102,10 +102,10 @@ export default function Contact({ navigateTo }) {
 
           {/* RIGHT COLUMN: Header Title & Form */}
           <div className="contact-split-right">
-            <div className="contact-header-text">
-              <span className="contact-eyebrow">GET IN TOUCH</span>
-              <h1 className="contact-main-title">We're so glad you're here.</h1>
-              <p className="contact-subheading">
+            <div className="global-section-header align-left" style={{ marginBottom: '40px' }}>
+              <span className="global-section-tagline">GET IN TOUCH</span>
+              <h1 className="global-section-title">We're so glad you're here.</h1>
+              <p className="global-section-subtext">
                 Tell us a little about you and your business &mdash; this takes about 3 minutes, then you'll pick a time for your free consult call.
               </p>
             </div>
