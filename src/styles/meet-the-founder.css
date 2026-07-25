@@ -2,4 +2,75 @@
   background-color: var(--bg-cream);
   padding: 0;
   margin: 0;
+  width: 100%;
+}
+
+.meet-founder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100%;
+}
+
+.meet-founder-img-col {
+  width: 100%;
+}
+
+.meet-founder-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  border-radius: 0;
+}
+
+.meet-founder-info-col {
+  padding: 78px 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.meet-founder-eyebrow {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+}
+
+.meet-founder-greeting {
+  font-family: var(--font-script);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--secondary-color);
+  margin: 16px 0 10px 0;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.meet-founder-headline {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1.1;
+  letter-spacing: -.025em;
+  color: var(--color-text-primary);
+  margin: 0 0 22px 0;
+}
+
+.meet-founder-headline-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.meet-founder-lede {
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: var(--color-text-primary);
+  margin: 0;
 }
