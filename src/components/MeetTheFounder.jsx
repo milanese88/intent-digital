@@ -107,8 +107,6 @@ export default function MeetTheFounder({ navigateTo }) {
           </div>
         </div>
       </section>
-
-      <SectionDivider flip={true} color="var(--neutral-oat)" topColor="var(--bg-cream)" />
     </>
   );
 }
