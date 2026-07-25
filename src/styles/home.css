@@ -553,6 +553,14 @@
   box-shadow: 0 10px 24px rgba(30, 21, 9, 0.12);
 }
 
+.btn-cta {
+  background-color: var(--dusty-blue) !important;
+}
+
+.btn-cta:hover {
+  background-color: var(--espresso) !important;
+}
+
 .btn-pill-primary {
   background-color: var(--dusty-blue);
   color: #FFFFFF !important;
@@ -1469,7 +1477,6 @@
   width: 100%;
   background-color: var(--bg-cream);
   padding: 80px 0 100px 0;
-  border-bottom: 1px solid var(--neutral-oat);
 }
 
 .unified-hero-container {
