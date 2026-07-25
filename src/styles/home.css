@@ -1028,7 +1028,7 @@
 /* Welcome Intro Section & Studio Offerings (Light Canvas Theme) */
 .welcome-intro-section {
   padding: 100px 0 120px 0;
-  background-color: var(--lighter-tone);
+  background-color: var(--bg-cream-deep);
   color: var(--darker-tone);
   text-align: center;
   border-bottom: 1px solid var(--neutral-tone);

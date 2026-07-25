@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import SectionDivider from '../components/SectionDivider';
 import { projectsData } from '../data/projectsData';
 import '../styles/home.css';
 
@@ -110,6 +111,7 @@ export default function Home({ navigateTo }) {
 
         </div>
       </header>
+      <SectionDivider color="var(--bg-cream-deep)" />
 
       {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
       <section className="welcome-intro-section">
