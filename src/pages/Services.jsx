@@ -195,12 +195,12 @@ export default function Services({ navigateTo }) {
         </div>
       </section>
 
-      <SectionDivider color="var(--primary-color)" topColor="rgba(207, 225, 226, 0.28)" />
+      <SectionDivider color="var(--neutral-oat)" topColor="rgba(207, 225, 226, 0.28)" />
 
       {/* THE PROCESS SECTION */}
       <section className="why-section services-process-section">
         <div className="container">
-          <div className="global-section-header theme-dark">
+          <div className="global-section-header">
             <span className="global-section-tagline">THE PROCESS</span>
             <h2 className="global-section-title">What working together looks like.</h2>
             <p className="global-section-subtext">

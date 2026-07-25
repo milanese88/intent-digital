@@ -4215,23 +4215,25 @@
   opacity: 0.8;
 }
 
-/* Services Process Section (Solid Brown Background) */
+/* Services Process Section (Warm Oat Background) */
 .services-process-section {
-  background-color: var(--primary-color) !important; /* solid Terrane brown */
-  color: var(--bg-cream) !important;
+  background-color: var(--neutral-oat) !important;
+  color: var(--espresso) !important;
   padding: 120px 0;
 }
 
 .services-process-section .section-tagline {
-  color: rgba(250, 248, 245, 0.7) !important;
+  color: var(--accent-color) !important;
 }
 
-.services-process-section .section-title {
-  color: var(--bg-cream) !important;
+.services-process-section .section-title,
+.services-process-section .global-section-title {
+  color: var(--espresso) !important;
 }
 
-.services-process-section .section-subtext {
-  color: rgba(250, 248, 245, 0.75) !important;
+.services-process-section .section-subtext,
+.services-process-section .global-section-subtext {
+  color: var(--color-text-muted) !important;
 }
 
 .services-process-section .process-step-item {
