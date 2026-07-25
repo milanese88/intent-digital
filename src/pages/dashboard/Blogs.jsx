@@ -1,5 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Helper to format date to local string like "24 Jul 2026 at 9:00 AM"
+const formatLocal = (isoString) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+};
+
+// Helper for `<input type="datetime-local">` which expects "YYYY-MM-DDThh:mm" in local time
+const toLocalDatetimeInput = (isoString) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d)) return '';
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 export default function Blogs() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -7,10 +24,32 @@ export default function Blogs() {
   const [activePostId, setActivePostId] = useState(null);
   
   const [editForm, setEditForm] = useState(null);
+  const [localScheduledFor, setLocalScheduledFor] = useState('');
+  
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // View mode
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Calendar State
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && viewMode === 'calendar') {
+        setViewMode('list');
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [viewMode]);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -36,6 +75,7 @@ export default function Blogs() {
   const handleEditClick = (post) => {
     setActivePostId(post.id);
     setEditForm({ ...post });
+    setLocalScheduledFor(post.scheduled_for ? toLocalDatetimeInput(post.scheduled_for) : '');
     setStatusMessage('');
     setErrorMsg('');
   };
@@ -76,17 +116,41 @@ export default function Blogs() {
     setStatusMessage('');
     setErrorMsg('');
 
+    let payloadScheduledFor = editForm.scheduled_for;
+
+    if (action === 'schedule') {
+      if (!localScheduledFor) {
+        setErrorMsg('Please select a date and time to schedule.');
+        setSaving(false);
+        return;
+      }
+      // Convert local datetime string to UTC ISO string
+      const d = new Date(localScheduledFor);
+      if (isNaN(d)) {
+        setErrorMsg('Invalid date time.');
+        setSaving(false);
+        return;
+      }
+      if (d <= new Date()) {
+        setErrorMsg('Scheduled time must be in the future.');
+        setSaving(false);
+        return;
+      }
+      payloadScheduledFor = d.toISOString();
+    }
+
     try {
       const res = await fetch('/api/blog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: action, // 'update', 'publish', or 'unpublish'
+          action: action, 
           id: editForm.id,
           title: editForm.title,
           excerpt: editForm.excerpt,
           content: editForm.content,
-          cover_image_url: editForm.cover_image_url
+          cover_image_url: editForm.cover_image_url,
+          scheduled_for: payloadScheduledFor
         })
       });
 
@@ -95,9 +159,12 @@ export default function Blogs() {
         let msg = 'Draft saved successfully.';
         if (action === 'publish') msg = 'Post published successfully.';
         if (action === 'unpublish') msg = 'Post unpublished successfully.';
+        if (action === 'schedule') msg = 'Post scheduled successfully.';
+        if (action === 'unschedule') msg = 'Post unscheduled successfully.';
         
         setStatusMessage(msg);
         setEditForm({ ...data });
+        setLocalScheduledFor(data.scheduled_for ? toLocalDatetimeInput(data.scheduled_for) : '');
         await fetchPosts();
       } else {
         setErrorMsg(data.error || 'Failed to save post.');
@@ -112,27 +179,18 @@ export default function Blogs() {
   const uploadCoverImage = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     if (file.size > 5 * 1024 * 1024) {
       setErrorMsg('File too large (max 5MB)');
       return;
     }
-    
     setSaving(true);
     setStatusMessage('Uploading image...');
     try {
-      // Vercel Blob requires importing upload, but since we have an API route to handle the token generation:
-      // Wait, we need to use the '@vercel/blob/client' upload function locally here.
-      // Wait, the client-side upload wrapper uses '@vercel/blob/client'.
-      // Let's import it if we can, otherwise we use standard fetch to the API.
-      // Actually, `@vercel/blob/client` is exactly what was requested.
       const { upload } = await import('@vercel/blob/client');
-      
       const newBlob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/upload-blog-image',
       });
-      
       setEditForm(prev => ({ ...prev, cover_image_url: newBlob.url }));
       setStatusMessage('Image uploaded successfully. Remember to save.');
     } catch (err) {
@@ -141,6 +199,178 @@ export default function Blogs() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Grouped Lists
+  const scheduledPosts = posts.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for));
+  const draftPosts = posts.filter(p => p.status === 'draft').sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const publishedPosts = posts.filter(p => p.status === 'published').sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+  // Calendar Helpers
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  const goToday = () => setCurrentMonth(new Date());
+
+  const renderCalendar = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => <div key={`blank-${i}`} className="cal-cell empty"></div>);
+    const days = [];
+    
+    const todayStr = new Date().toDateString();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(year, month, d);
+      const isToday = cellDate.toDateString() === todayStr;
+      
+      // Find posts for this day (scheduled or published)
+      const dayPosts = posts.filter(p => {
+        if (p.status === 'draft') return false;
+        const targetDate = p.status === 'scheduled' ? new Date(p.scheduled_for) : new Date(p.published_at);
+        return targetDate.getFullYear() === year && targetDate.getMonth() === month && targetDate.getDate() === d;
+      });
+
+      days.push(
+        <div key={d} className={`cal-cell ${isToday ? 'today' : ''}`} style={{ 
+          border: '1px solid rgba(52, 41, 42, 0.1)', 
+          minHeight: '100px', 
+          padding: '8px',
+          backgroundColor: isToday ? 'rgba(65, 16, 27, 0.03)' : '#fff'
+        }}>
+          <div style={{ fontWeight: isToday ? 700 : 500, color: isToday ? 'var(--secondary-color)' : '#34292A', marginBottom: '8px' }}>
+            {d}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {dayPosts.map(p => (
+              <div 
+                key={p.id} 
+                onClick={() => handleEditClick(p)}
+                style={{
+                  fontSize: '10px',
+                  fontFamily: 'Montserrat, sans-serif',
+                  padding: '4px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: p.status === 'scheduled' ? 'var(--secondary-color)' : 'rgba(52,41,42,0.1)',
+                  color: p.status === 'scheduled' ? '#fff' : '#34292A',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {p.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    const totalSlots = blanks.length + days.length;
+    const endBlanksCount = totalSlots % 7 === 0 ? 0 : 7 - (totalSlots % 7);
+    const endBlanks = Array.from({ length: endBlanksCount }, (_, i) => <div key={`end-blank-${i}`} className="cal-cell empty"></div>);
+    
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '24px', color: '#34292A', margin: 0 }}>
+            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </h3>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={prevMonth} className="btn-cherry-outline" style={{ padding: '8px 16px', fontSize: '11px' }}>&lt;</button>
+            <button onClick={goToday} className="btn-cherry-outline" style={{ padding: '8px 16px', fontSize: '11px' }}>Today</button>
+            <button onClick={nextMonth} className="btn-cherry-outline" style={{ padding: '8px 16px', fontSize: '11px' }}>&gt;</button>
+          </div>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'rgba(52, 41, 42, 0.6)' }}>{day}</div>
+          ))}
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+          {blanks}
+          {days}
+          {endBlanks}
+        </div>
+
+        {draftPosts.length > 0 && (
+          <div style={{ marginTop: '32px' }}>
+            <h4 style={{ fontFamily: 'Montserrat', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Undated Drafts</h4>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {draftPosts.map(p => (
+                <div 
+                  key={p.id}
+                  onClick={() => handleEditClick(p)}
+                  style={{
+                    fontSize: '11px',
+                    fontFamily: 'Montserrat, sans-serif',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(52,41,42,0.1)',
+                    color: '#34292A',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {p.title}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderListGroup = (title, items, isScheduled = false) => {
+    if (items.length === 0) return null;
+    return (
+      <div style={{ marginBottom: '32px' }}>
+        <h4 style={{ fontFamily: 'Montserrat', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', color: '#34292A' }}>
+          {title} ({items.length})
+        </h4>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          {items.map(p => (
+            <div 
+              key={p.id} 
+              style={{
+                border: '1px solid rgba(52, 41, 42, 0.2)',
+                borderRadius: '8px',
+                padding: '16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: activePostId === p.id ? 'rgba(52, 41, 42, 0.03)' : 'transparent',
+                cursor: 'pointer'
+              }}
+              onClick={() => handleEditClick(p)}
+            >
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#34292A' }}>{p.title}</h3>
+                <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                  {p.status === 'scheduled' ? `Scheduled for ${formatLocal(p.scheduled_for)}` : 
+                   p.status === 'published' ? `Published ${formatLocal(p.published_at)}` : 
+                   `Last edited ${formatLocal(p.updated_at)}`}
+                </span>
+              </div>
+              <div>
+                {p.status === 'published' ? (
+                  <span className="badge-cherry" style={{ width: '120px' }}>Published</span>
+                ) : p.status === 'scheduled' ? (
+                  <span className="badge-cherry" style={{ width: '120px' }}>Scheduled</span>
+                ) : (
+                  <span className="badge-cherry" style={{ width: '120px', backgroundColor: 'rgba(52,41,42,0.1)', color: '#34292A' }}>Draft</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (loading && posts.length === 0) {
@@ -170,49 +400,40 @@ export default function Blogs() {
         marginBottom: '32px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: 0 }}>All Posts</h2>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: 0 }}>All Posts</h2>
+            {!isMobile && (
+              <div style={{ display: 'flex', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(52,41,42,0.2)' }}>
+                <button 
+                  onClick={() => setViewMode('list')} 
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', background: viewMode === 'list' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600 }}
+                >
+                  LIST
+                </button>
+                <button 
+                  onClick={() => setViewMode('calendar')} 
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', borderLeft: '1px solid rgba(52,41,42,0.2)', background: viewMode === 'calendar' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600 }}
+                >
+                  CALENDAR
+                </button>
+              </div>
+            )}
+          </div>
           <button className="btn-cherry" onClick={handleNewPost} disabled={saving}>
             New Post
           </button>
         </div>
         
-        <div style={{ display: 'grid', gap: '16px' }}>
-          {posts.length === 0 && <p style={{ color: 'rgba(52, 41, 42, 0.6)' }}>No posts found.</p>}
-          {posts.map(p => (
-            <div 
-              key={p.id} 
-              style={{
-                border: '1px solid rgba(52, 41, 42, 0.2)',
-                borderRadius: '8px',
-                padding: '16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: activePostId === p.id ? 'rgba(52, 41, 42, 0.03)' : 'transparent',
-                cursor: 'pointer'
-              }}
-              onClick={() => handleEditClick(p)}
-            >
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#34292A' }}>{p.title}</h3>
-                <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)' }}>
-                  {new Date(p.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              <div>
-                {p.status === 'published' ? (
-                  <span className="badge-cherry" style={{ width: '120px' }}>
-                    Published
-                  </span>
-                ) : (
-                  <span className="badge-cherry" style={{ width: '120px', backgroundColor: 'rgba(52,41,42,0.1)', color: '#34292A' }}>
-                    Draft
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        {viewMode === 'calendar' && !isMobile ? (
+          renderCalendar()
+        ) : (
+          <div>
+            {posts.length === 0 && <p style={{ color: 'rgba(52, 41, 42, 0.6)' }}>No posts found.</p>}
+            {renderListGroup('Scheduled', scheduledPosts, true)}
+            {renderListGroup('Drafts', draftPosts)}
+            {renderListGroup('Published', publishedPosts)}
+          </div>
+        )}
       </div>
 
       {editForm && (
@@ -299,7 +520,21 @@ export default function Blogs() {
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+            {editForm.status !== 'published' && (
+              <div style={{ marginTop: '16px', borderTop: '1px solid rgba(52,41,42,0.1)', paddingTop: '16px' }}>
+                <label className="form-pill-label" htmlFor="schedule_date">Schedule Publication</label>
+                <input 
+                  type="datetime-local" 
+                  id="schedule_date"
+                  className="form-pill-input"
+                  style={{ width: 'fit-content' }}
+                  value={localScheduledFor}
+                  onChange={(e) => setLocalScheduledFor(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
               <button type="button" onClick={(e) => savePost(e, 'update')} className="btn-cherry" disabled={saving}>
                 Save Draft
               </button>
@@ -309,9 +544,24 @@ export default function Blogs() {
                   Unpublish
                 </button>
               ) : (
-                <button type="button" onClick={(e) => savePost(e, 'publish')} className="btn-cherry" disabled={saving}>
-                  Publish
-                </button>
+                <>
+                  <button 
+                    type="button" 
+                    onClick={(e) => savePost(e, 'schedule')} 
+                    className="btn-cherry" 
+                    disabled={saving || !localScheduledFor || new Date(localScheduledFor) <= new Date()}
+                  >
+                    Schedule
+                  </button>
+                  {editForm.status === 'scheduled' && (
+                    <button type="button" onClick={(e) => savePost(e, 'unschedule')} className="btn-cherry-outline" disabled={saving}>
+                      Unschedule
+                    </button>
+                  )}
+                  <button type="button" onClick={(e) => savePost(e, 'publish')} className="btn-cherry" disabled={saving}>
+                    Publish Now
+                  </button>
+                </>
               )}
             </div>
           </form>

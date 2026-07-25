@@ -9,6 +9,16 @@ export default async function handler(req, res) {
     const sql = neon(process.env.DATABASE_URL);
     const { slug } = req.query;
 
+    // Safety net: Promote any due scheduled posts to 'published'
+    // in case the cron job hasn't run yet.
+    await sql`
+      UPDATE blog_posts 
+      SET status = 'published', 
+          published_at = COALESCE(published_at, scheduled_for),
+          scheduled_for = NULL
+      WHERE status = 'scheduled' AND scheduled_for <= CURRENT_TIMESTAMP
+    `;
+
     if (slug) {
       // Fetch a specific published post by slug
       const posts = await sql`

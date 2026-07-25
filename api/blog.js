@@ -89,10 +89,42 @@ export default async function handler(req, res) {
       if (action === 'publish') {
         const { id } = req.body;
         // Sets status to 'published' and published_at = now() if it is currently null
+        // Clears scheduled_for when forcing publish
         const posts = await sql`
           UPDATE blog_posts 
           SET status = 'published', 
               published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+              scheduled_for = NULL,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
+        return res.status(200).json(posts[0]);
+      }
+
+      if (action === 'schedule') {
+        const { id, scheduled_for } = req.body;
+        if (!scheduled_for || new Date(scheduled_for) <= new Date()) {
+          return res.status(400).json({ error: 'Scheduled time must be in the future.' });
+        }
+        
+        const posts = await sql`
+          UPDATE blog_posts 
+          SET status = 'scheduled',
+              scheduled_for = ${scheduled_for},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${id}
+          RETURNING *
+        `;
+        return res.status(200).json(posts[0]);
+      }
+
+      if (action === 'unschedule') {
+        const { id } = req.body;
+        const posts = await sql`
+          UPDATE blog_posts 
+          SET status = 'draft',
+              scheduled_for = NULL,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
           RETURNING *
@@ -105,6 +137,7 @@ export default async function handler(req, res) {
         const posts = await sql`
           UPDATE blog_posts 
           SET status = 'draft',
+              scheduled_for = NULL,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ${id}
           RETURNING *
