@@ -156,21 +156,12 @@ export default function EmailTemplates() {
               </div>
               <div>
                 {t.is_active ? (
-                  <span style={{ 
-                    backgroundColor: '#859DCE', 
-                    color: '#fff', 
-                    padding: '4px 8px', 
-                    borderRadius: '4px', 
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    textTransform: 'uppercase'
-                  }}>
+                  <span className="badge-cherry">
                     Active
                   </span>
                 ) : (
                   <button 
-                    className="btn btn-pill-primary"
-                    style={{ padding: '6px 12px', fontSize: '11px' }}
+                    className="btn-cherry"
                     onClick={(e) => {
                       e.stopPropagation();
                       activateTemplate(t.id, t.category);
@@ -241,7 +232,7 @@ export default function EmailTemplates() {
               </p>
             </div>
 
-            <button type="submit" className="btn btn-pill-primary" style={{ width: 'fit-content' }} disabled={saving}>
+            <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </form>

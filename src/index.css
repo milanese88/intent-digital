@@ -317,6 +317,60 @@ a:hover {
   transform: translateY(0);
 }
 
+/* Shared Dashboard Button Styles */
+.btn-cherry, .btn-cherry-outline, .badge-cherry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  transition: var(--transition-smooth);
+}
+
+.btn-cherry {
+  background-color: var(--secondary-color);
+  color: var(--bg-cream) !important;
+  border: none;
+  padding: 14px 30px;
+  cursor: pointer;
+}
+
+.btn-cherry:hover {
+  background-color: var(--accent-blue-hover);
+  color: var(--bg-cream) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(65, 16, 27, 0.25);
+}
+
+.btn-cherry:active, .btn-cherry-outline:active {
+  transform: translateY(0);
+}
+
+.btn-cherry-outline {
+  background-color: transparent;
+  color: var(--secondary-color) !important;
+  border: 1px solid var(--secondary-color);
+  padding: 13px 29px;
+  cursor: pointer;
+}
+
+.btn-cherry-outline:hover {
+  background-color: var(--secondary-color);
+  color: var(--bg-cream) !important;
+}
+
+.badge-cherry {
+  background-color: var(--secondary-color);
+  color: var(--bg-cream) !important;
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: default;
+}
+
 /* Responsive Visibility Classes */
 @media (min-width: 768px) {
   .mobile-only {

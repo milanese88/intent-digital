@@ -242,8 +242,7 @@ export default function Settings() {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="btn btn-pill-primary"
-              style={{ padding: '8px 16px', fontSize: '13px' }}
+              className="btn-cherry-outline"
               disabled={saving}
             >
               Upload New Picture
@@ -288,7 +287,7 @@ export default function Settings() {
           {profileError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{profileError}</p>}
           {profileSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
 
-          <button type="submit" className="btn btn-pill-primary" style={{ width: 'fit-content' }} disabled={saving}>
+          <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
             {saving ? 'Saving...' : 'Save Profile'}
           </button>
         </form>
@@ -358,7 +357,7 @@ export default function Settings() {
           {passwordError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{passwordError}</p>}
           {passwordSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{passwordSuccess}</p>}
 
-          <button type="submit" className="btn btn-pill-primary" style={{ width: 'fit-content' }} disabled={saving}>
+          <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
             {saving ? 'Updating...' : 'Update Password'}
           </button>
         </form>
