@@ -169,6 +169,8 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
+      <SectionDivider color="var(--neutral-oat)" />
+
       {/* OUR SERVICES SECTION — TWO-COLUMN EDITORIAL LAYOUT */}
       <section id="services" className="home-services-summary-section">
         <div className="container">

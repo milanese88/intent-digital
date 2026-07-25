@@ -1039,7 +1039,6 @@
   background-color: var(--bg-cream-deep);
   color: var(--darker-tone);
   text-align: center;
-  border-bottom: 1px solid var(--neutral-tone);
 }
 
 .welcome-intro-header {
