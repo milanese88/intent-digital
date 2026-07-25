@@ -4,6 +4,7 @@ import Overview from './dashboard/Overview.jsx';
 import Settings from './dashboard/Settings.jsx';
 import UserProfile from './dashboard/UserProfile.jsx';
 import EmailTemplates from './dashboard/EmailTemplates.jsx';
+import Blogs from './dashboard/Blogs.jsx';
 
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function AdminDashboard({ navigateTo }) {
       case 'user': return <UserProfile />;
       case 'settings': return <Settings />;
       case 'email-templates': return <EmailTemplates />;
+      case 'blogs': return <Blogs />;
       default: return null;
     }
   };

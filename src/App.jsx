@@ -10,6 +10,11 @@ import AdminDashboard from './pages/AdminDashboard.jsx';
 function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/news')) {
+        return 'news';
+      }
+
       const params = new URLSearchParams(window.location.search);
       const route = params.get('route');
       if (route) {
@@ -21,7 +26,27 @@ function App() {
     return 'home';
   });
 
-  const navigateTo = (page, targetId) => {
+  const [newsSlug, setNewsSlug] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/news/')) {
+        return path.split('/news/')[1].split('/')[0];
+      }
+    }
+    return null;
+  });
+
+  const navigateTo = (page, targetId, slug = null) => {
+    if (page === 'news') {
+      const newPath = slug ? `/news/${slug}` : '/news';
+      window.history.pushState({}, '', newPath);
+      setNewsSlug(slug);
+    } else if (page === 'home') {
+      window.history.pushState({}, '', '/');
+    } else {
+      window.history.pushState({}, '', `/?route=${page}`);
+    }
+
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -57,7 +82,7 @@ function App() {
   }
 
   if (currentPage === 'news') {
-    return <News navigateTo={navigateTo} />;
+    return <News navigateTo={navigateTo} slug={newsSlug} />;
   }
 
   if (currentPage === 'login') {
