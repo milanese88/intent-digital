@@ -182,26 +182,72 @@
   margin: 9px 0 0 0;
 }
 
-@media (max-width: 768px) {
+/* Responsive Rules */
+@media (max-width: 900px) {
   .meet-founder-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .meet-founder-info-col {
-    padding: 48px 24px;
+    padding: 52px 28px 60px;
   }
-  
+
+  .meet-founder-greeting {
+    font-size: 30px;
+  }
+
+  .meet-founder-headline {
+    font-size: 34px;
+  }
+
   .meet-founder-qa-block {
-    padding: 48px 24px;
+    padding: 60px 28px 68px;
   }
-  
+
   .meet-founder-qa-row {
     grid-template-columns: 1fr;
-    gap: 16px;
-    padding: 24px 0;
+    gap: 14px;
   }
-  
+
+  .meet-founder-qa-question {
+    font-size: 28px;
+  }
+
   .meet-founder-closing-block {
-    padding: 48px 24px;
+    padding: 62px 28px 70px;
+  }
+
+  .meet-founder-closing-statement {
+    font-size: 24px;
+    max-width: none;
+  }
+
+  .meet-founder-signature-name {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .meet-founder-info-col {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .meet-founder-qa-block {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .meet-founder-closing-block {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .meet-founder-headline {
+    font-size: 30px;
+  }
+
+  .meet-founder-closing-statement {
+    font-size: 22px;
   }
 }
