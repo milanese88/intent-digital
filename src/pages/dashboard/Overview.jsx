@@ -16,7 +16,7 @@ export default function Overview() {
           OWNER PORTAL
         </span>
         <h1 style={{ 
-          fontFamily: '"Cormorant Garamond", serif', 
+          fontFamily: '"Atelier Fleur", serif', 
           fontSize: '42px', 
           letterSpacing: '-0.02em', 
           color: '#34292A',
@@ -47,7 +47,7 @@ export default function Overview() {
         boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)' 
       }}>
         <h2 style={{ 
-          fontFamily: '"Cormorant Garamond", serif', 
+          fontFamily: '"Atelier Fleur", serif', 
           fontSize: '24px', 
           color: '#34292A',
           marginBottom: '16px' 

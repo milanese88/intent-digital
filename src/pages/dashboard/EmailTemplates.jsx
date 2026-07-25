@@ -111,7 +111,7 @@ export default function EmailTemplates() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{ 
-        fontFamily: '"Cormorant Garamond", serif', 
+        fontFamily: '"Atelier Fleur", serif', 
         fontSize: '42px', 
         letterSpacing: '-0.02em', 
         color: '#34292A',
@@ -130,7 +130,7 @@ export default function EmailTemplates() {
         padding: '32px',
         marginBottom: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Available Templates</h2>
+        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Available Templates</h2>
         
         <div style={{ display: 'grid', gap: '16px' }}>
           {templates.map(t => (
@@ -192,7 +192,7 @@ export default function EmailTemplates() {
           borderRadius: '8px', 
           padding: '32px'
         }}>
-          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>
+          <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>
             Edit: {editForm.name}
           </h2>
 
@@ -248,7 +248,7 @@ export default function EmailTemplates() {
 
           {/* Live Preview */}
           <div style={{ marginTop: '48px', borderTop: '1px solid rgba(52, 41, 42, 0.1)', paddingTop: '32px' }}>
-            <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#34292A', marginBottom: '16px' }}>Live Preview</h3>
+            <h3 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '20px', color: '#34292A', marginBottom: '16px' }}>Live Preview</h3>
             <div style={{ 
               backgroundColor: '#FAF8F5', 
               padding: '24px', 

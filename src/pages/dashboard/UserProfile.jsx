@@ -196,7 +196,7 @@ export default function UserProfile() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{ 
-        fontFamily: '"Cormorant Garamond", serif', 
+        fontFamily: '"Atelier Fleur", serif', 
         fontSize: '42px', 
         letterSpacing: '-0.02em', 
         color: '#34292A',
@@ -212,7 +212,7 @@ export default function UserProfile() {
         padding: '32px',
         marginBottom: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Profile Information</h2>
+        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Profile Information</h2>
         
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{
@@ -300,7 +300,7 @@ export default function UserProfile() {
         borderRadius: '8px', 
         padding: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Change Password</h2>
+        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Change Password</h2>
         
         <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
