@@ -290,34 +290,45 @@ export default function Home({ navigateTo }) {
       {/* APPROACH / WHY INTENT DIGITAL SECTION */}
       <section id="why-us" className="why-section">
         <div className="container">
-          <div className="global-section-header">
-            <span className="global-section-tagline">OUR APPROACH</span>
-            <h2 className="global-section-title">Intentional from the very first call.</h2>
-            <p className="global-section-subtext">
-              Great branding isn't decoration — it's meaning made visible. Every color, type choice, and detail we design carries a reason. That's the difference between a brand that simply looks good and one that feels right — and gets remembered.
-            </p>
-          </div>
-          <div className="why-grid">
-            <div className="why-col">
-              <div className="why-num">01</div>
-              <h3 className="why-col-title">Strategy first</h3>
-              <p className="why-col-text">
-                Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
+          <div className="why-split-container">
+            {/* Left Column: Eyebrow, headline, and paragraph */}
+            <div className="why-left-col">
+              <span className="global-section-tagline">OUR APPROACH</span>
+              <h2 className="global-section-title">Intentional from the very first call.</h2>
+              <p className="global-section-subtext">
+                Great branding isn't decoration — it's meaning made visible. Every color, type choice, and detail we design carries a reason. That's the difference between a brand that simply looks good and one that feels right — and gets remembered.
               </p>
             </div>
-            <div className="why-col">
-              <div className="why-num">02</div>
-              <h3 className="why-col-title">Done with you</h3>
-              <p className="why-col-text">
-                Collaborative process so your brand actually feels like you. No handoffs over a brick wall—we work hand-in-hand to build alignment.
-              </p>
-            </div>
-            <div className="why-col">
-              <div className="why-num">03</div>
-              <h3 className="why-col-title">Built to last</h3>
-              <p className="why-col-text">
-                No recycled templates. Your brand is yours. Crafted custom from scratch, allowing you to scale confidently.
-              </p>
+            
+            {/* Right Column: Ruled items stack */}
+            <div className="why-right-col">
+              <div className="why-item-row">
+                <div className="why-item-num">01</div>
+                <div className="why-item-content">
+                  <h3 className="why-item-title">Strategy first</h3>
+                  <p className="why-item-text">
+                    Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
+                  </p>
+                </div>
+              </div>
+              <div className="why-item-row">
+                <div className="why-item-num">02</div>
+                <div className="why-item-content">
+                  <h3 className="why-item-title">Done with you</h3>
+                  <p className="why-item-text">
+                    Collaborative process so your brand actually feels like you. No handoffs over a brick wall—we work hand-in-hand to build alignment.
+                  </p>
+                </div>
+              </div>
+              <div className="why-item-row">
+                <div className="why-item-num">03</div>
+                <div className="why-item-content">
+                  <h3 className="why-item-title">Built to last</h3>
+                  <p className="why-item-text">
+                    No recycled templates. Your brand is yours. Crafted custom from scratch, allowing you to scale confidently.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

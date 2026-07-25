@@ -1773,42 +1773,95 @@
   background-color: var(--cream);
   border-top: none;
   border-bottom: none;
+  padding: 100px 0;
 }
 
-.why-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 40px;
+.why-split-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 80px;
+  align-items: flex-start;
 }
 
-.why-col {
-  padding: 12px 0;
+.why-left-col {
+  flex: 0 0 45%;
+  max-width: 45%;
+  text-align: left;
 }
 
-.why-num {
+.why-left-col .global-section-tagline {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  margin-bottom: 16px;
+}
+
+.why-left-col .global-section-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4vw, 46px);
+  color: var(--espresso);
+  margin-bottom: 24px;
+  line-height: 1.15;
+}
+
+.why-left-col .global-section-subtext {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.why-right-col {
+  flex: 0 0 calc(55% - 80px);
+  width: calc(55% - 80px);
+  display: flex;
+  flex-direction: column;
+}
+
+.why-item-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 30px 0;
+  border-bottom: 1px solid var(--espresso-15);
+}
+
+.why-item-row:first-child {
+  border-top: 1px solid var(--espresso-15);
+}
+
+.why-item-num {
+  flex: 0 0 64px;
+  width: 64px;
   font-family: var(--font-script);
-  font-size: 52px;
+  font-size: 30px;
   font-weight: normal;
   color: var(--dusty-blue);
-  margin-bottom: 10px;
-  opacity: 1;
   line-height: 1;
 }
 
-.why-col-title {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  letter-spacing: -0.3px;
-  color: var(--espresso);
-  margin-bottom: 12px;
+.why-item-content {
+  flex: 1;
 }
 
-.why-col-text {
+.why-item-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  color: var(--espresso);
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.why-item-text {
   font-family: var(--font-sans);
   font-size: 15px;
-  color: var(--espresso);
-  opacity: 0.75;
+  color: var(--color-text-muted);
   line-height: 1.6;
+  margin: 0;
 }
 
 /* CTA Banner Section (Cream background, espresso text, dusty blue button with brown text) */
@@ -2137,10 +2190,6 @@
     border-radius: 16px;
   }
 
-  .why-grid {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
 
   .portfolio-3col-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -4485,10 +4534,6 @@
     object-fit: cover !important;
   }
 
-  .why-grid {
-    grid-template-columns: 1fr !important;
-    gap: 1.5rem !important;
-  }
 
   .cta-banner-section {
     padding: 60px 20px !important;
