@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import SectionDivider from '../components/SectionDivider';
 import '../styles/home.css';
 
 export default function Services({ navigateTo }) {
@@ -66,7 +67,7 @@ export default function Services({ navigateTo }) {
       </div>
 
       {/* UNIFIED HERO SECTION */}
-      <header className="unified-hero-section theme-dark">
+      <header className="unified-hero-section">
         <div className="container unified-hero-container">
           <div className="unified-hero-content">
             <span className="unified-hero-tagline">ATTRACTING THE CLIENTS YOUR BUSINESS DESERVES</span>
@@ -87,6 +88,8 @@ export default function Services({ navigateTo }) {
 
         </div>
       </header>
+
+      <SectionDivider color="rgba(207, 225, 226, 0.28)" topColor="var(--bg-cream)" />
 
       {/* THE SERVICES LIST — 3 CURATED PACKAGES */}
       <section className="services-section">

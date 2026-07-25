@@ -1580,7 +1580,6 @@
 .services-section {
   padding: 100px 0;
   background-color: rgba(207, 225, 226, 0.28); /* Soft light baby blue background */
-  border-top: 1px solid var(--espresso-15);
   border-bottom: 1px solid var(--espresso-15);
 }
 
