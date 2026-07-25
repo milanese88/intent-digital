@@ -156,12 +156,13 @@ export default function EmailTemplates() {
               </div>
               <div>
                 {t.is_active ? (
-                  <span className="badge-cherry">
+                  <span className="badge-cherry" style={{ width: '240px' }}>
                     Active
                   </span>
                 ) : (
                   <button 
                     className="btn-cherry"
+                    style={{ width: '240px' }}
                     onClick={(e) => {
                       e.stopPropagation();
                       activateTemplate(t.id, t.category);
