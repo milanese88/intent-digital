@@ -3,11 +3,14 @@ import React, { useState } from 'react';
 export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const tabs = [
+  const topTabs = [
     { id: 'overview', label: 'DASHBOARD' },
-    { id: 'user', label: 'USER' },
-    { id: 'settings', label: 'SETTINGS' },
     { id: 'email-templates', label: 'EMAIL TEMPLATES' }
+  ];
+
+  const bottomTabs = [
+    { id: 'user', label: 'USER' },
+    { id: 'settings', label: 'SETTINGS' }
   ];
 
   const handleLogout = async () => {
@@ -23,6 +26,31 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
     setActiveTab(tabId);
     setMobileMenuOpen(false);
   };
+
+  const renderTab = (tab) => (
+    <button
+      key={tab.id}
+      onClick={() => handleTabClick(tab.id)}
+      style={{
+        background: activeTab === tab.id ? 'rgba(52, 41, 42, 0.05)' : 'transparent',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '12px 16px',
+        textAlign: 'left',
+        fontFamily: 'Montserrat, sans-serif',
+        fontSize: '13px',
+        fontWeight: activeTab === tab.id ? 600 : 400,
+        color: '#34292A',
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        transition: 'background 0.2s ease',
+        width: '100%'
+      }}
+    >
+      {tab.label}
+    </button>
+  );
 
   const SidebarContent = () => (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -47,32 +75,14 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
         </h2>
       </div>
 
-      <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabClick(tab.id)}
-            style={{
-              background: activeTab === tab.id ? 'rgba(52, 41, 42, 0.05)' : 'transparent',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              textAlign: 'left',
-              fontFamily: 'Montserrat, sans-serif',
-              fontSize: '13px',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: '#34292A',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              transition: 'background 0.2s ease',
-              width: '100%'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <nav style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {topTabs.map(renderTab)}
       </nav>
+
+      <div style={{ marginTop: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ height: '1px', backgroundColor: 'rgba(52,41,42,0.1)', margin: '16px 8px 8px 8px' }} />
+        {bottomTabs.map(renderTab)}
+      </div>
 
       <div style={{ padding: '24px 16px' }}>
         <button 
