@@ -111,7 +111,7 @@ export default function Home({ navigateTo }) {
 
         </div>
       </header>
-      <SectionDivider color="var(--bg-cream-deep)" />
+      <SectionDivider color="var(--bg-cream-deep)" topColor="var(--bg-cream)" />
 
       {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
       <section className="welcome-intro-section">
@@ -169,7 +169,7 @@ export default function Home({ navigateTo }) {
         </div>
       </section>
 
-      <SectionDivider color="var(--neutral-oat)" />
+      <SectionDivider color="var(--neutral-oat)" topColor="var(--bg-cream-deep)" />
 
       {/* OUR SERVICES SECTION — TWO-COLUMN EDITORIAL LAYOUT */}
       <section id="services" className="home-services-summary-section">
