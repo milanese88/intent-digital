@@ -27,7 +27,7 @@ export default function MeetTheFounder({ navigateTo }) {
 
           <div className="meet-founder-info-col">
             <span className="meet-founder-eyebrow">MEET THE FOUNDER</span>
-            <span className="meet-founder-greeting">Hi, I'm Florencia</span>
+            <span className="meet-founder-greeting">Hi, I’m Florencia</span>
             <h2 className="meet-founder-headline">
               I was named after the city where{" "}<span className="meet-founder-headline-italic">art was born.</span>
             </h2>
@@ -39,47 +39,51 @@ export default function MeetTheFounder({ navigateTo }) {
 
         {/* Q&A Block */}
         <div className="meet-founder-qa-block">
+          {/* Row 1 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">Florencia?</div>
             <div className="meet-founder-qa-answer">
               <p>
-                Florencia in Spanish. Florence in English. Firenze in Italian — the cradle of art. I did not choose the name, but I have spent my life trying to earn it.
+                Florencia in Spanish.{" "}<span className="qa-italic">Florence</span>{" "}in English.{" "}<span className="qa-italic">Firenze</span>{" "}in Italian — the cradle of art.{" "}<span className="qa-bold">I did not choose the name, but I have spent my life trying to earn it.</span>
               </p>
             </div>
           </div>
 
+          {/* Row 2 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">How I got here</div>
             <div className="meet-founder-qa-answer">
               <p>
-                Marketing and IT. Social media, Google Ads, SEO, campaigns, websites built and maintained — technical, measurable, effective work. But every project reached a moment where something had to look and feel like something, and that was always the moment I woke up. Now it is the whole job.
+                Marketing and IT. Social media, Google Ads, SEO, campaigns, websites built and maintained — technical, measurable, effective work. But every project reached a moment where something had to{" "}<span className="qa-italic">look</span>{" "}and{" "}<span className="qa-italic">feel</span>{" "}like something, and{" "}<span className="qa-bold">that was always the moment I woke up.</span>{" "}Now it is the whole job.
               </p>
             </div>
           </div>
 
+          {/* Row 3 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">What I believe</div>
             <div className="meet-founder-qa-answer">
               <p>
-                Branding is not a logo and a couple of colours. Branding is the experience. It is the bridge between you and the people you are meant to reach — or the reason they scroll straight past.
+                <span className="qa-bold">Branding is not a logo and a couple of colours. Branding is the experience.</span>{" "}It is the bridge between you and the people you are meant to reach — or the reason they scroll straight past.
               </p>
               <p>
                 Design is a language. It communicates through visuals, and visuals create emotion long before anyone reads a word you have written. By the time someone reaches your copy, your identity has already told them who you are.
               </p>
               <p>
-                There is a reason for that, and it is not taste — it is neuromarketing. The brain processes what it sees before it processes what it says. In a fraction of a second it decides whether this is the thing it was looking for. If it is, we stop. If it is not, we scroll.
+                There is a reason for that, and it is not taste — it is{" "}<span className="qa-italic">neuromarketing.</span>{" "}The brain processes what it sees before it processes what it says. In a fraction of a second it decides whether this is the thing it was looking for.{" "}<span className="qa-bold">If it is, we stop. If it is not, we scroll.</span>
               </p>
               <p>
-                My work is making sure your brand is worth stopping for.
+                <span className="qa-bold">My work is making sure your brand is worth stopping for.</span>
               </p>
             </div>
           </div>
 
+          {/* Row 4 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">What I can't stand</div>
             <div className="meet-founder-qa-answer">
               <p>
-                Brands that look like every other brand. Repetitive. Interchangeable. Honestly? Boring. Your business is none of those things, and your brand should not look like it is.
+                Brands that look like every other brand. Repetitive. Interchangeable. Honestly?{" "}<span className="qa-bold">Boring.</span>{" "}Your business is none of those things, and your brand should not look like it is.
               </p>
             </div>
           </div>

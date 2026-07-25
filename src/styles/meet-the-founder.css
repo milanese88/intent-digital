@@ -10,6 +10,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 0;
   width: 100%;
+  align-items: start;
 }
 
 .meet-founder-img-col {
@@ -22,6 +23,7 @@
   object-fit: cover;
   display: block;
   border-radius: 0;
+  max-height: 620px;
 }
 
 .meet-founder-info-col {
@@ -110,6 +112,7 @@
   font-size: 15.5px;
   line-height: 1.9;
   color: var(--color-text-primary);
+  max-width: 68ch;
 }
 
 .meet-founder-qa-answer p {
