@@ -130,6 +130,12 @@
   align-items: center;
 }
 
+@media (max-width: 900px) {
+  .nav-links {
+    gap: 24px;
+  }
+}
+
 .nav-link {
   font-family: var(--font-sans);
   font-size: 14px;
