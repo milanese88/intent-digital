@@ -1866,7 +1866,7 @@
 
 /* CTA Banner Section (Cream background, espresso text, dusty blue button with brown text) */
 .cta-banner-section {
-  background-color: var(--bg-cream) !important;
+  background-color: var(--neutral-oat) !important;
   color: var(--primary-color) !important;
   padding: 100px 0;
   text-align: center;
