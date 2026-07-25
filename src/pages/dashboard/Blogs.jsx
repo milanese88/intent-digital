@@ -406,13 +406,13 @@ export default function Blogs() {
               <div style={{ display: 'flex', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(52,41,42,0.2)' }}>
                 <button 
                   onClick={() => setViewMode('list')} 
-                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', background: viewMode === 'list' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600 }}
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', background: viewMode === 'list' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600, color: '#34292A' }}
                 >
                   LIST
                 </button>
                 <button 
                   onClick={() => setViewMode('calendar')} 
-                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', borderLeft: '1px solid rgba(52,41,42,0.2)', background: viewMode === 'calendar' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600 }}
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', borderLeft: '1px solid rgba(52,41,42,0.2)', background: viewMode === 'calendar' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600, color: '#34292A' }}
                 >
                   CALENDAR
                 </button>
