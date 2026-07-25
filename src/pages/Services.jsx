@@ -274,13 +274,15 @@ export default function Services({ navigateTo }) {
       {/* CLOSING CTA SECTION */}
       <section className="cta-banner-section">
         <div className="container cta-banner-container">
-          <h2 className="cta-banner-title">Ready to build something worth remembering?</h2>
-          <p className="cta-banner-subtext">
-            Tell us about your brand and where you want to take it — we'll guide the rest, with intention every step of the way.
-          </p>
-          <a href="#" className="btn btn-cta-banner" onClick={(e) => handleNavClick(e, 'contact')}>
-            Start your project &rarr;
-          </a>
+          <div className="cta-card">
+            <h2 className="cta-banner-title">Ready to build something worth remembering?</h2>
+            <p className="cta-banner-subtext">
+              Tell us about your brand and where you want to take it — we'll guide the rest, with intention every step of the way.
+            </p>
+            <a href="#" className="btn btn-cta-banner" onClick={(e) => handleNavClick(e, 'contact')}>
+              Start your project &rarr;
+            </a>
+          </div>
         </div>
       </section>
 

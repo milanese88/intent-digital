@@ -1866,7 +1866,7 @@
 .cta-banner-section {
   background-color: var(--neutral-oat) !important;
   color: var(--primary-color) !important;
-  padding: 100px 0;
+  padding: 66px 44px 72px !important;
   text-align: center;
 }
 
@@ -1876,7 +1876,19 @@
   align-items: center;
 }
 
-.cta-banner-title {
+.cta-card {
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  background-color: var(--bg-cream) !important;
+  border: 1px solid var(--espresso-12) !important;
+  border-radius: 16px !important;
+  padding: 74px 64px 80px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.cta-card .cta-banner-title {
   font-family: var(--font-display);
   font-size: clamp(40px, 5vw, 58px);
   font-weight: 300;
@@ -1884,14 +1896,19 @@
   line-height: 1.15;
   color: var(--primary-color) !important;
   margin-bottom: 24px;
-  max-width: 760px;
+  max-width: 16ch !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
-.cta-banner-subtext {
+.cta-card .cta-banner-subtext {
   font-size: 18px;
   color: var(--primary-color) !important;
   opacity: 0.8;
   margin-bottom: 36px;
+  max-width: 62ch !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .btn-cta-banner {
@@ -2260,6 +2277,14 @@
 
   .cta-banner-title {
     font-size: 28px;
+  }
+
+  .cta-banner-section {
+    padding: 38px 18px 44px !important;
+  }
+
+  .cta-card {
+    padding: 40px 22px 46px !important;
   }
 
   .card-price {
@@ -2765,6 +2790,12 @@
   .contact-grid {
     grid-template-columns: 1fr;
     gap: 36px;
+  }
+  .cta-banner-section {
+    padding: 48px 28px 54px !important;
+  }
+  .cta-card {
+    padding: 52px 34px 58px !important;
   }
 }
 
