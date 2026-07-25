@@ -2,7 +2,14 @@ import React from 'react';
 import SectionDivider from './SectionDivider';
 import '../styles/meet-the-founder.css';
 
-export default function MeetTheFounder() {
+export default function MeetTheFounder({ navigateTo }) {
+  const handleNavClick = (e, page, targetId) => {
+    e.preventDefault();
+    if (navigateTo) {
+      navigateTo(page, targetId);
+    }
+  };
+
   return (
     <>
       <SectionDivider color="var(--bg-cream)" topColor="var(--neutral-oat)" />
@@ -32,7 +39,6 @@ export default function MeetTheFounder() {
 
         {/* Q&A Block */}
         <div className="meet-founder-qa-block">
-          {/* Row 1 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">Florencia?</div>
             <div className="meet-founder-qa-answer">
@@ -42,7 +48,6 @@ export default function MeetTheFounder() {
             </div>
           </div>
 
-          {/* Row 2 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">How I got here</div>
             <div className="meet-founder-qa-answer">
@@ -52,7 +57,6 @@ export default function MeetTheFounder() {
             </div>
           </div>
 
-          {/* Row 3 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">What I believe</div>
             <div className="meet-founder-qa-answer">
@@ -71,7 +75,6 @@ export default function MeetTheFounder() {
             </div>
           </div>
 
-          {/* Row 4 */}
           <div className="meet-founder-qa-row">
             <div className="meet-founder-qa-question">What I can't stand</div>
             <div className="meet-founder-qa-answer">
@@ -79,6 +82,24 @@ export default function MeetTheFounder() {
                 Brands that look like every other brand. Repetitive. Interchangeable. Honestly? Boring. Your business is none of those things, and your brand should not look like it is.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Closing Block */}
+        <div className="meet-founder-closing-block">
+          <p className="meet-founder-closing-statement">
+            That is the work I am{" "}<span className="meet-founder-closing-italic">here</span>{" "}to do — and I would love to do it for you.
+          </p>
+
+          <div style={{ marginTop: '32px' }}>
+            <a href="#" className="btn btn-cta" onClick={(e) => handleNavClick(e, 'contact')}>
+              START YOUR BRAND
+            </a>
+          </div>
+
+          <div className="meet-founder-signature-wrap">
+            <h3 className="meet-founder-signature-name">Florencia</h3>
+            <span className="meet-founder-signature-title">FOUNDER, INTENT DIGITAL</span>
           </div>
         </div>
       </section>

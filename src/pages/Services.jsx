@@ -269,7 +269,7 @@ export default function Services({ navigateTo }) {
         </div>
       </section>
 
-      <MeetTheFounder />
+      <MeetTheFounder navigateTo={navigateTo} />
 
       {/* CLOSING CTA SECTION */}
       <section className="cta-banner-section">

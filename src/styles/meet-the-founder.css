@@ -130,6 +130,58 @@
   font-weight: 400;
 }
 
+/* Closing Block Styles */
+.meet-founder-closing-block {
+  background-color: var(--bg-cream);
+  padding: 82px 74px 88px;
+  width: 100%;
+}
+
+.meet-founder-closing-statement {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 1.42;
+  color: var(--color-text-primary);
+  max-width: 20ch;
+  margin: 0;
+}
+
+.meet-founder-closing-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.meet-founder-signature-wrap {
+  border-top: 1px solid var(--espresso-15);
+  margin-top: 40px;
+  padding-top: 20px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.meet-founder-signature-name {
+  font-family: var(--font-script);
+  font-size: 32px;
+  line-height: 1;
+  color: var(--secondary-color);
+  margin: 0;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.meet-founder-signature-title {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  margin: 9px 0 0 0;
+}
+
 @media (max-width: 768px) {
   .meet-founder-grid {
     grid-template-columns: 1fr;
@@ -147,5 +199,9 @@
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 24px 0;
+  }
+  
+  .meet-founder-closing-block {
+    padding: 48px 24px;
   }
 }
