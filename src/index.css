@@ -257,9 +257,17 @@ a:hover {
   color: var(--bg-cream);
 }
 
-.dark-section h1, .dark-section h2, .dark-section h3, .dark-section p,
-.cta-banner-section .cta-banner-title, .cta-banner-section .cta-banner-subtext {
+.dark-section h1, .dark-section h2, .dark-section h3, .dark-section p {
   color: var(--bg-cream);
+}
+
+.cta-banner-title {
+  color: var(--espresso) !important;
+}
+
+.cta-banner-subtext {
+  color: var(--espresso) !important;
+  opacity: 1 !important;
 }
 
 .dark-section .btn, .cta-banner-section .btn, .cta-banner-section .btn-cta-banner {
