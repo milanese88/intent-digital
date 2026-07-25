@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import SectionDivider from '../components/SectionDivider';
+import MeetTheFounder from '../components/MeetTheFounder';
 import '../styles/home.css';
 
 export default function Services({ navigateTo }) {
@@ -267,6 +268,8 @@ export default function Services({ navigateTo }) {
           </div>
         </div>
       </section>
+
+      <MeetTheFounder />
 
       {/* CLOSING CTA SECTION */}
       <section className="cta-banner-section">
