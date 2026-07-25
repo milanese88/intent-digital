@@ -195,6 +195,8 @@ export default function Services({ navigateTo }) {
         </div>
       </section>
 
+      <SectionDivider color="var(--primary-color)" topColor="rgba(207, 225, 226, 0.28)" />
+
       {/* THE PROCESS SECTION */}
       <section className="why-section services-process-section">
         <div className="container">
