@@ -7,10 +7,11 @@
 
 .meet-founder-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  grid-template-columns: 0.92fr 1.08fr;
+  column-gap: 56px;
   width: 100%;
-  align-items: start;
+  align-items: center;
+  padding: 72px 64px 78px;
 }
 
 .meet-founder-img-col {
@@ -23,12 +24,14 @@
   object-fit: cover;
   object-position: top;
   display: block;
-  border-radius: 0;
-  max-height: 620px;
+  border-radius: 2px;
+  max-height: 560px;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .meet-founder-info-col {
-  padding: 78px 64px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -190,10 +193,16 @@
 @media (max-width: 900px) {
   .meet-founder-grid {
     grid-template-columns: 1fr;
+    row-gap: 40px;
+    padding: 56px 40px 60px;
+  }
+
+  .meet-founder-img {
+    max-height: 420px;
   }
 
   .meet-founder-info-col {
-    padding: 52px 28px 60px;
+    padding: 0;
   }
 
   .meet-founder-greeting {
@@ -232,9 +241,12 @@
 }
 
 @media (max-width: 480px) {
-  .meet-founder-info-col {
-    padding-left: 20px;
-    padding-right: 20px;
+  .meet-founder-grid {
+    padding: 44px 24px 48px;
+  }
+
+  .meet-founder-img {
+    max-height: 340px;
   }
 
   .meet-founder-qa-block {

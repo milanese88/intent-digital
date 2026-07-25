@@ -92,7 +92,7 @@ export default function MeetTheFounder({ navigateTo }) {
         {/* Closing Block */}
         <div className="meet-founder-closing-block">
           <p className="meet-founder-closing-statement">
-            That is the work I am here to do — and I would{" "}<span className="meet-founder-closing-italic">love</span>{" "}to do it for you.
+            That is the work I am here to do — and I would{" "}<span className="meet-founder-closing-italic">love</span>{" to do it for you."}
           </p>
 
           <div style={{ marginTop: '32px' }}>
