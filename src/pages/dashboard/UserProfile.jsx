@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 export default function UserProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   // Profile state
   const [profile, setProfile] = useState({
     username: '',
@@ -22,7 +22,7 @@ export default function UserProfile() {
   });
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  
+
   // UI states
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -72,12 +72,12 @@ export default function UserProfile() {
 
     try {
       const { upload } = await import('@vercel/blob/client');
-      
+
       const newBlob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/upload-profile-image',
       });
-      
+
       setProfile(prev => ({ ...prev, profile_image_url: newBlob.url }));
       setProfileSuccess('Profile picture updated successfully.');
     } catch (err) {
@@ -100,7 +100,7 @@ export default function UserProfile() {
         body: JSON.stringify({ type: 'profile', data: profile })
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setProfileSuccess('Profile updated successfully.');
       } else {
@@ -124,7 +124,7 @@ export default function UserProfile() {
       setSaving(false);
       return;
     }
-    
+
     if (passwords.newPassword !== passwords.confirmPassword) {
       setPasswordError('New passwords do not match.');
       setSaving(false);
@@ -138,7 +138,7 @@ export default function UserProfile() {
         body: JSON.stringify(passwords)
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setPasswordSuccess('Password changed successfully.');
         setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -195,25 +195,25 @@ export default function UserProfile() {
 
   return (
     <div style={{ maxWidth: '800px' }}>
-      <h1 style={{ 
-        fontFamily: '"Atelier Fleur", serif', 
-        fontSize: '42px', 
-        letterSpacing: '-0.02em', 
+      <h1 style={{
+        fontFamily: '"Atelier Fleur", serif',
+        fontSize: '42px',
+        letterSpacing: '-0.02em',
         color: '#34292A',
         margin: '0 0 32px 0'
       }}>
         User Profile
       </h1>
 
-      <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
-        borderRadius: '8px', 
+      <div style={{
+        backgroundColor: '#fff',
+        border: '1px solid rgba(52, 41, 42, 0.1)',
+        borderRadius: '8px',
         padding: '32px',
         marginBottom: '32px'
       }}>
         <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Profile Information</h2>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{
             width: '80px',
@@ -233,14 +233,14 @@ export default function UserProfile() {
             {!profile.profile_image_url && <span style={{ color: 'rgba(52, 41, 42, 0.4)' }}>No Image</span>}
           </div>
           <div>
-            <input 
-              type="file" 
+            <input
+              type="file"
               accept="image/jpeg, image/png, image/webp"
               ref={fileInputRef}
               style={{ display: 'none' }}
               onChange={uploadImage}
             />
-            <button 
+            <button
               onClick={() => fileInputRef.current?.click()}
               className="btn-cherry-outline"
               disabled={saving}
@@ -254,36 +254,36 @@ export default function UserProfile() {
         <form onSubmit={saveProfile} style={{ display: 'grid', gap: '16px' }}>
           <div>
             <label className="form-pill-label" htmlFor="full_name">Full Name</label>
-            <input 
-              className="form-pill-input" 
-              id="full_name" 
-              name="full_name" 
-              value={profile.full_name} 
-              onChange={handleProfileChange} 
+            <input
+              className="form-pill-input"
+              id="full_name"
+              name="full_name"
+              value={profile.full_name}
+              onChange={handleProfileChange}
             />
           </div>
           <div>
             <label className="form-pill-label" htmlFor="username">Username</label>
-            <input 
-              className="form-pill-input" 
-              id="username" 
-              name="username" 
-              value={profile.username} 
-              onChange={handleProfileChange} 
+            <input
+              className="form-pill-input"
+              id="username"
+              name="username"
+              value={profile.username}
+              onChange={handleProfileChange}
             />
           </div>
           <div>
             <label className="form-pill-label" htmlFor="email">Email Address</label>
-            <input 
-              className="form-pill-input" 
-              type="email" 
-              id="email" 
-              name="email" 
-              value={profile.email} 
-              onChange={handleProfileChange} 
+            <input
+              className="form-pill-input"
+              type="email"
+              id="email"
+              name="email"
+              value={profile.email}
+              onChange={handleProfileChange}
             />
           </div>
-          
+
           {profileError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{profileError}</p>}
           {profileSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
 
@@ -293,24 +293,24 @@ export default function UserProfile() {
         </form>
       </div>
 
-      <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
-        borderRadius: '8px', 
+      <div style={{
+        backgroundColor: '#fff',
+        border: '1px solid rgba(52, 41, 42, 0.1)',
+        borderRadius: '8px',
         padding: '32px'
       }}>
         <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Change Password</h2>
-        
+
         <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
             <label className="form-pill-label" htmlFor="currentPassword">Current Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showCurrent ? "text" : "password"} 
-              id="currentPassword" 
-              name="currentPassword" 
-              value={passwords.currentPassword} 
-              onChange={handlePasswordChange} 
+            <input
+              className="form-pill-input"
+              type={showCurrent ? "text" : "password"}
+              id="currentPassword"
+              name="currentPassword"
+              value={passwords.currentPassword}
+              onChange={handlePasswordChange}
               required
               style={{ paddingRight: '40px' }}
             />
@@ -319,13 +319,13 @@ export default function UserProfile() {
 
           <div style={{ position: 'relative' }}>
             <label className="form-pill-label" htmlFor="newPassword">New Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showNew ? "text" : "password"} 
-              id="newPassword" 
-              name="newPassword" 
-              value={passwords.newPassword} 
-              onChange={handlePasswordChange} 
+            <input
+              className="form-pill-input"
+              type={showNew ? "text" : "password"}
+              id="newPassword"
+              name="newPassword"
+              value={passwords.newPassword}
+              onChange={handlePasswordChange}
               required
               minLength={10}
               style={{ paddingRight: '40px' }}
@@ -341,19 +341,19 @@ export default function UserProfile() {
 
           <div style={{ position: 'relative' }}>
             <label className="form-pill-label" htmlFor="confirmPassword">Confirm New Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showConfirm ? "text" : "password"} 
-              id="confirmPassword" 
-              name="confirmPassword" 
-              value={passwords.confirmPassword} 
-              onChange={handlePasswordChange} 
+            <input
+              className="form-pill-input"
+              type={showConfirm ? "text" : "password"}
+              id="confirmPassword"
+              name="confirmPassword"
+              value={passwords.confirmPassword}
+              onChange={handlePasswordChange}
               required
               style={{ paddingRight: '40px' }}
             />
             <EyeButton show={showConfirm} toggle={() => setShowConfirm(!showConfirm)} />
           </div>
-          
+
           {passwordError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{passwordError}</p>}
           {passwordSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{passwordSuccess}</p>}
 
