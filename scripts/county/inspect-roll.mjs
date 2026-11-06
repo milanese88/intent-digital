@@ -65,12 +65,26 @@ const DOR_QUAL_CODE_DESCRIPTIONS = {
   '08': "Disqualified — Property trade or exchange transaction",
   '09': "Disqualified — Deed conveying unpartitioned interest",
   '10': "Disqualified — Personal property included exceeds 5% of purchase price",
-  '11': "Disqualified — Charitable, religious, or non-profit institution involved",
+  '11': "Disqualified — Corrective deed, quitclaim deed, tenancy creation, or nominal/convenience transfer",
   '12': "Disqualified — Non-conventional financing, unusual seller financing, or interest terms",
   '13': "Disqualified — Physical change or substantial alteration occurred between sale and roll date",
   '14': "Disqualified — Multi-parcel contract or package transaction",
   '15': "Disqualified — Sale between co-tenants or dissolution of tenancy",
   '16': "Disqualified — Non-conveyance of full fee simple title",
+  '17': "Disqualified — Common elements / recreational facilities transfer",
+  '18': "Disqualified — Time-share interest conveyance",
+  '19': "Disqualified — Mobile home transferred without title to land",
+  '20': "Disqualified — Land contract / contract for deed",
+  '21': "Disqualified — Conveyance to non-profit or charitable institution",
+  '30': "Disqualified — Multi-parcel or split parcel package sale",
+  '36': "Disqualified — Real estate investment trust or master limited partnership transfer",
+  '37': "Disqualified — Nominal consideration / intra-family transfer / transfer without documentary stamps",
+  '38': "Disqualified — Deed in satisfaction of existing debt",
+  '39': "Disqualified — Option to purchase exercised",
+  '40': "Disqualified — Trust, estate, or fiduciary administration transfer",
+  '41': "Disqualified — Sale involving religious organization",
+  '43': "Disqualified — Short sale or distressed lender-approved liquidation",
+  '99': "Disqualified — Other non-arm's length transaction or unverified transfer",
   '00': "Disqualified / Unverified — No qualification determination or unverified transfer",
   'U':  "Disqualified / Unverified — Non-arm's length or unverified"
 };
@@ -88,7 +102,7 @@ const FIELD_ALIASES = {
   living_sqft: ['TOT_LVG_AREA', 'LVG_AREA', 'LIV_AREA', 'HEATED_AREA', 'TOT_LVG_AR', 'BLDG_SQFT'],
   year_built: ['ACT_YR_BLT', 'ACT_YEAR_BLT', 'YEAR_BUILT', 'ACT_YR', 'YR_BLT'],
   eff_year_built: ['EFF_YR_BLT', 'EFF_YEAR_BLT', 'EFF_YR', 'EFF_YEAR'],
-  land_sqft: ['LND_SQFT', 'LAND_SQFT', 'LND_SF', 'LOT_SQFT'],
+  land_sqft: ['LND_SQFOOT', 'LND_SQFT', 'LAND_SQFT', 'LND_SF', 'LOT_SQFT'],
   units: ['NO_RES_UNTS', 'RES_UNITS', 'UNITS', 'NO_UNITS', 'NUM_UNITS'],
   just_value: ['JV', 'JUST_VAL', 'JUST_VALUE', 'MKT_VAL', 'TOTAL_JUST_VALUE'],
   sale_price: ['SALE_PRC', 'SALE_PRC1', 'SALE_PRICE', 'PRICE', 'SL_PRICE'],
@@ -249,10 +263,10 @@ async function inspectRollFile(filePath) {
         const upperHeaders = headers.map(h => h.toUpperCase());
         const upperName = fileName.toUpperCase();
 
-        if (upperName.includes('NAL') || upperHeaders.includes('DOR_UC') || upperHeaders.includes('TOT_LVG_AREA')) {
-          fileType = 'NAL';
-        } else if (upperName.includes('SDF') || (upperHeaders.includes('SALE_PRC') && upperHeaders.includes('QUAL_CD'))) {
+        if (upperName.includes('SDF') || (upperHeaders.includes('SALE_PRC') && !upperHeaders.includes('JV'))) {
           fileType = 'SDF';
+        } else if (upperName.includes('NAL') || upperHeaders.includes('TOT_LVG_AREA') || upperHeaders.includes('JV')) {
+          fileType = 'NAL';
         }
 
         console.log(`- Format: Delimiter [${delimiter === '\t' ? '\\t' : delimiter}], Detected Type: [${fileType}]`);
@@ -278,7 +292,12 @@ async function inspectRollFile(filePath) {
             sample[key] = rawVal;
           }
         }
-        if (Object.keys(sample).length > 0) {
+        // In NAL, prefer residential parcels with living square footage; in SDF, prefer records with non-zero sales price
+        const isIdeal = fileType === 'NAL'
+          ? (sample.living_sqft && sample.living_sqft !== '0' && sample.address)
+          : (fileType === 'SDF' ? (sample.sale_price && Number(sample.sale_price) > 1000) : true);
+
+        if (isIdeal) {
           sampleRows.push(sample);
         }
       }
@@ -491,43 +510,63 @@ function printDatabaseSizeEstimate(nalStats, sdfStats) {
 // MAIN EXECUTION
 // ============================================================================
 async function main() {
-  const targetPath = process.argv[2] ? path.resolve(process.cwd(), process.argv[2]) : DEFAULT_DATA_DIR;
+  const rawArgs = process.argv.slice(2);
+  const countyFilter = rawArgs.find(a => a.startsWith('--county='))?.split('=')[1]
+    || rawArgs.find(a => a.startsWith('--filter='))?.split('=')[1];
+  const fileArgs = rawArgs.filter(a => !a.startsWith('--'));
 
   console.log(`===============================================================================`);
   console.log(`INTENT DIGITAL — FLORIDA DOR ROLL INSPECTOR`);
-  console.log(`Target Path: ${targetPath}`);
+  if (countyFilter) console.log(`County Filter: ${countyFilter}`);
   console.log(`===============================================================================`);
 
-  if (!fs.existsSync(targetPath)) {
-    console.error(`\n[!] Directory or file not found: ${targetPath}`);
-    console.log(`\nPlease create the directory and place your Broward NAL and SDF files there:`);
-    console.log(`  mkdir -p data/county/`);
-    console.log(`  node scripts/county/inspect-roll.mjs\n`);
-    process.exit(1);
-  }
-
   let filesToInspect = [];
-  const stat = fs.statSync(targetPath);
 
-  if (stat.isFile()) {
-    filesToInspect.push(targetPath);
+  if (fileArgs.length > 0) {
+    for (const arg of fileArgs) {
+      const targetPath = path.resolve(process.cwd(), arg);
+      if (!fs.existsSync(targetPath)) {
+        console.error(`\n[!] Target file or directory not found: ${targetPath}`);
+        continue;
+      }
+      const stat = fs.statSync(targetPath);
+      if (stat.isFile()) {
+        filesToInspect.push(targetPath);
+      } else if (stat.isDirectory()) {
+        const entries = fs.readdirSync(targetPath);
+        const validExtensions = ['.csv', '.txt', '.tsv', '.zip', '.gz'];
+        entries
+          .filter(f => validExtensions.includes(path.extname(f).toLowerCase()))
+          .forEach(f => filesToInspect.push(path.join(targetPath, f)));
+      }
+    }
   } else {
-    const entries = fs.readdirSync(targetPath);
+    if (!fs.existsSync(DEFAULT_DATA_DIR)) {
+      console.error(`\n[!] Data directory not found: ${DEFAULT_DATA_DIR}`);
+      console.log(`Please create data/county/ and place roll files there.`);
+      process.exit(1);
+    }
+    const entries = fs.readdirSync(DEFAULT_DATA_DIR);
     const validExtensions = ['.csv', '.txt', '.tsv', '.zip', '.gz'];
     filesToInspect = entries
       .filter(f => validExtensions.includes(path.extname(f).toLowerCase()))
-      .map(f => path.join(targetPath, f));
+      .map(f => path.join(DEFAULT_DATA_DIR, f));
   }
 
+  if (countyFilter) {
+    const cfLower = countyFilter.toLowerCase();
+    filesToInspect = filesToInspect.filter(f => path.basename(f).toLowerCase().includes(cfLower));
+  }
+
+  // Sort so NAL comes first, then SDF
+  filesToInspect.sort((a, b) => {
+    const aIsNal = a.toUpperCase().includes('NAL') ? 0 : 1;
+    const bIsNal = b.toUpperCase().includes('NAL') ? 0 : 1;
+    return aIsNal - bIsNal;
+  });
+
   if (filesToInspect.length === 0) {
-    console.log(`\n[i] No roll files found in ${targetPath}`);
-    console.log(`\nTo inspect Broward County data, download the NAL and SDF files from the`);
-    console.log(`Florida Department of Revenue Property Tax Oversight (PTO) Data Portal:`);
-    console.log(`  https://floridarevenue.com/property/Pages/DataPortal.aspx`);
-    console.log(`  County: Broward (Code 16)`);
-    console.log(`  Files:  NAL162024 (Real Property Roll) and SDF162024 (Sales Data File)`);
-    console.log(`  Place them in: data/county/`);
-    console.log(`  Then run:      node scripts/county/inspect-roll.mjs\n`);
+    console.log(`\n[i] No roll files matched the criteria.`);
     return;
   }
 
