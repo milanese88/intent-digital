@@ -107,7 +107,9 @@ export default async function handler(req, res) {
             eff_year_built,
             land_sqft,
             units,
-            just_value
+            just_value,
+            lat,
+            lng
           FROM county_parcels
           WHERE zip = ${targetZip}
           ORDER BY address ASC
@@ -117,53 +119,120 @@ export default async function handler(req, res) {
       }
       return res.status(200).json([]);
     }
-    const county = req.query?.county ? String(req.query.county).trim() : 'Broward';
+    const county = req.query?.county ? String(req.query.county).trim() : null;
     const prefixPattern = `${normalizedQuery.toLowerCase()}%`;
 
     let rows;
-    if (targetZip && /^\d{5}$/.test(targetZip)) {
-      rows = await sql`
-        SELECT 
-          county,
-          parcel_id,
-          address,
-          city,
-          zip,
-          use_code,
-          living_sqft,
-          year_built,
-          eff_year_built,
-          land_sqft,
-          units,
-          just_value
-        FROM county_parcels
-        WHERE county = ${county}
-          AND lower(address) LIKE ${prefixPattern}
-          AND zip = ${targetZip}
-        ORDER BY address ASC
-        LIMIT 8;
-      `;
+    if (county && county !== 'all') {
+      if (targetZip && /^\d{5}$/.test(targetZip)) {
+        rows = await sql`
+          SELECT 
+            county,
+            parcel_id,
+            address,
+            city,
+            zip,
+            use_code,
+            living_sqft,
+            year_built,
+            eff_year_built,
+            land_sqft,
+            units,
+            just_value,
+            lat,
+            lng
+          FROM county_parcels
+          WHERE county = ${county}
+            AND lower(address) LIKE ${prefixPattern}
+            AND zip = ${targetZip}
+          ORDER BY address ASC
+          LIMIT 8;
+        `;
+      } else {
+        rows = await sql`
+          SELECT 
+            county,
+            parcel_id,
+            address,
+            city,
+            zip,
+            use_code,
+            living_sqft,
+            year_built,
+            eff_year_built,
+            land_sqft,
+            units,
+            just_value,
+            lat,
+            lng
+          FROM county_parcels
+          WHERE county = ${county}
+            AND lower(address) LIKE ${prefixPattern}
+          ORDER BY address ASC
+          LIMIT 8;
+        `;
+      }
     } else {
-      rows = await sql`
-        SELECT 
-          county,
-          parcel_id,
-          address,
-          city,
-          zip,
-          use_code,
-          living_sqft,
-          year_built,
-          eff_year_built,
-          land_sqft,
-          units,
-          just_value
-        FROM county_parcels
-        WHERE county = ${county}
-          AND lower(address) LIKE ${prefixPattern}
-        ORDER BY address ASC
-        LIMIT 8;
-      `;
+      // Search across both counties
+      if (targetZip && /^\d{5}$/.test(targetZip)) {
+        rows = await sql`
+          SELECT * FROM (
+            (
+              SELECT 
+                county, parcel_id, address, city, zip, use_code,
+                living_sqft, year_built, eff_year_built, land_sqft, units, just_value, lat, lng
+              FROM county_parcels
+              WHERE county = 'Broward'
+                AND lower(address) LIKE ${prefixPattern}
+                AND zip = ${targetZip}
+              ORDER BY address ASC
+              LIMIT 8
+            )
+            UNION ALL
+            (
+              SELECT 
+                county, parcel_id, address, city, zip, use_code,
+                living_sqft, year_built, eff_year_built, land_sqft, units, just_value, lat, lng
+              FROM county_parcels
+              WHERE county = 'Palm Beach'
+                AND lower(address) LIKE ${prefixPattern}
+                AND zip = ${targetZip}
+              ORDER BY address ASC
+              LIMIT 8
+            )
+          ) sub
+          ORDER BY address ASC
+          LIMIT 8;
+        `;
+      } else {
+        rows = await sql`
+          SELECT * FROM (
+            (
+              SELECT 
+                county, parcel_id, address, city, zip, use_code,
+                living_sqft, year_built, eff_year_built, land_sqft, units, just_value, lat, lng
+              FROM county_parcels
+              WHERE county = 'Broward'
+                AND lower(address) LIKE ${prefixPattern}
+              ORDER BY address ASC
+              LIMIT 8
+            )
+            UNION ALL
+            (
+              SELECT 
+                county, parcel_id, address, city, zip, use_code,
+                living_sqft, year_built, eff_year_built, land_sqft, units, just_value, lat, lng
+              FROM county_parcels
+              WHERE county = 'Palm Beach'
+                AND lower(address) LIKE ${prefixPattern}
+              ORDER BY address ASC
+              LIMIT 8
+            )
+          ) sub
+          ORDER BY address ASC
+          LIMIT 8;
+        `;
+      }
     }
 
     return res.status(200).json(rows);

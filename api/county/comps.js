@@ -2,6 +2,23 @@ import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
 
 /**
+ * Calculates Haversine distance in miles between two lat/lng points
+ */
+function haversineDistanceMiles(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 3958.8; // Earth's radius in miles
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
  * Calculates the median of an array of numbers
  */
 function calculateMedian(numbers) {
@@ -37,7 +54,7 @@ export default async function handler(req, res) {
 
     const sql = getDb();
 
-    // 1. Fetch Subject Parcel (strictly non-PII)
+    // 1. Fetch Subject Parcel (strictly non-PII, including lat/lng)
     const subjects = await sql`
       SELECT 
         county,
@@ -50,7 +67,9 @@ export default async function handler(req, res) {
         nbrhd_cd,
         mkt_ar,
         year_built,
-        eff_year_built
+        eff_year_built,
+        lat,
+        lng
       FROM county_parcels
       WHERE county = ${county} AND parcel_id = ${parcelId}
       LIMIT 1;
@@ -62,6 +81,9 @@ export default async function handler(req, res) {
 
     const subject = subjects[0];
     const subjectSqft = Number(subject.living_sqft) || 0;
+    const subLat = subject.lat != null ? Number(subject.lat) : null;
+    const subLng = subject.lng != null ? Number(subject.lng) : null;
+    const hasCoordinates = subLat != null && subLng != null && !isNaN(subLat) && !isNaN(subLng);
 
     if (subjectSqft <= 0) {
       return res.status(200).json({
@@ -70,7 +92,7 @@ export default async function handler(req, res) {
           median_price_per_sqft: null,
           renovated_median_price_per_sqft: null,
           tier: 1,
-          tier_label: 'Same neighborhood',
+          tier_label: hasCoordinates ? 'Within 0.5 mi' : 'Same neighborhood',
           window_months: 12,
           sqft_min: 0,
           sqft_max: 0
@@ -87,22 +109,44 @@ export default async function handler(req, res) {
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
 
-    // Helper to query distinct candidate parcels for a specific tier and window
-    async function queryTierCandidates(tierNum, windowMonths) {
+    // Helper to query candidate parcels for a specific tier
+    async function queryTierCandidates(tierKey, tierNum, windowMonths, seenParcels) {
       const qualCondition = includeDistressed
         ? sql`(c.is_market = true OR c.is_distressed = true)`
         : sql`c.is_market = true`;
 
       let tierWhere;
-      if (tierNum === 1) {
+      let maxDist = null;
+
+      if (tierKey === 'dist_05') {
+        maxDist = 0.5;
+        const deltaLat = maxDist / 69.0;
+        const deltaLng = maxDist / (69.0 * Math.cos(subLat * Math.PI / 180));
+        const minLat = subLat - deltaLat;
+        const maxLat = subLat + deltaLat;
+        const minLng = subLng - deltaLng;
+        const maxLng = subLng + deltaLng;
+        tierWhere = sql`p.lat BETWEEN ${minLat} AND ${maxLat} AND p.lng BETWEEN ${minLng} AND ${maxLng}`;
+      } else if (tierKey === 'dist_10') {
+        maxDist = 1.0;
+        const deltaLat = maxDist / 69.0;
+        const deltaLng = maxDist / (69.0 * Math.cos(subLat * Math.PI / 180));
+        const minLat = subLat - deltaLat;
+        const maxLat = subLat + deltaLat;
+        const minLng = subLng - deltaLng;
+        const maxLng = subLng + deltaLng;
+        tierWhere = sql`p.lat BETWEEN ${minLat} AND ${maxLat} AND p.lng BETWEEN ${minLng} AND ${maxLng}`;
+      } else if (tierKey === 'nbrhd') {
         if (!subject.nbrhd_cd) return [];
         tierWhere = sql`p.nbrhd_cd = ${subject.nbrhd_cd}`;
-      } else if (tierNum === 2) {
+      } else if (tierKey === 'mkt_zip') {
         if (!subject.mkt_ar || !subject.zip) return [];
-        tierWhere = sql`p.mkt_ar = ${subject.mkt_ar} AND p.zip = ${subject.zip} AND (p.nbrhd_cd IS NULL OR p.nbrhd_cd <> ${subject.nbrhd_cd || ''})`;
-      } else {
+        tierWhere = sql`p.mkt_ar = ${subject.mkt_ar} AND p.zip = ${subject.zip}`;
+      } else if (tierKey === 'zip') {
         if (!subject.zip) return [];
-        tierWhere = sql`p.zip = ${subject.zip} AND (p.mkt_ar IS NULL OR p.mkt_ar <> ${subject.mkt_ar || ''}) AND (p.nbrhd_cd IS NULL OR p.nbrhd_cd <> ${subject.nbrhd_cd || ''})`;
+        tierWhere = sql`p.zip = ${subject.zip}`;
+      } else {
+        return [];
       }
 
       const rows = await sql`
@@ -115,14 +159,15 @@ export default async function handler(req, res) {
           p.land_sqft,
           p.year_built,
           p.eff_year_built,
+          p.lat,
+          p.lng,
           s.sale_price,
           s.sale_year,
           s.sale_month,
           s.qual_code,
           COALESCE(c.label, 'Transfer') AS code_label,
           COALESCE(c.label, 'Transfer') AS label,
-          COALESCE(c.is_distressed, false) AS is_distressed,
-          ${tierNum}::int AS tier
+          COALESCE(c.is_distressed, false) AS is_distressed
         FROM county_sales s
         JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
         LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
@@ -138,36 +183,66 @@ export default async function handler(req, res) {
         ORDER BY s.county, s.parcel_id, s.sale_year DESC, s.sale_month DESC NULLS LAST, s.id DESC;
       `;
 
-      return rows;
-    }
+      const results = [];
+      for (const row of rows) {
+        if (seenParcels.has(row.parcel_id)) continue;
 
-    // Run search across tiers (1 -> 2 -> 3), stopping when total count >= 5
-    async function runTieredSearch(windowMonths) {
-      let combined = [];
-      let tierUsed = 1;
-      let tierLabel = 'Same neighborhood';
-
-      // Tier 1: same nbrhd_cd
-      const t1 = await queryTierCandidates(1, windowMonths);
-      combined = [...t1];
-
-      if (combined.length < 5) {
-        // Tier 2: same mkt_ar and same zip
-        const t2 = await queryTierCandidates(2, windowMonths);
-        combined = [...combined, ...t2];
-        if (combined.length >= t1.length && t2.length > 0) {
-          tierUsed = 2;
-          tierLabel = t1.length > 0 ? 'Same neighborhood & market area' : 'Same market area & ZIP';
+        let distance_mi = null;
+        if (hasCoordinates && row.lat != null && row.lng != null) {
+          const rawDist = haversineDistanceMiles(subLat, subLng, Number(row.lat), Number(row.lng));
+          if (rawDist != null) {
+            distance_mi = Math.round(rawDist * 10) / 10;
+          }
         }
+
+        // For distance tiers, strictly enforce the haversine radius
+        if (maxDist != null) {
+          if (distance_mi == null || distance_mi > maxDist) {
+            continue;
+          }
+        }
+
+        seenParcels.add(row.parcel_id);
+        results.push({
+          ...row,
+          tier: tierNum,
+          distance_mi
+        });
       }
 
-      if (combined.length < 5) {
-        // Tier 3: same zip
-        const t3 = await queryTierCandidates(3, windowMonths);
-        combined = [...combined, ...t3];
-        if (t3.length > 0) {
-          tierUsed = 3;
-          tierLabel = 'Same ZIP';
+      return results;
+    }
+
+    // Run search across tiers, stopping when total count >= 5
+    async function runTieredSearch(windowMonths) {
+      const seenParcels = new Set([subject.parcel_id]);
+      let combined = [];
+      let tierUsed = 1;
+      let tierLabel = hasCoordinates ? 'Within 0.5 mi' : 'Same neighborhood';
+
+      const tierConfigs = hasCoordinates
+        ? [
+            { key: 'dist_05', num: 1, label: 'Within 0.5 mi' },
+            { key: 'dist_10', num: 2, label: 'Within 1 mi' },
+            { key: 'nbrhd', num: 3, label: 'Same neighborhood' },
+            { key: 'mkt_zip', num: 4, label: 'Same market area & ZIP' },
+            { key: 'zip', num: 5, label: 'Same ZIP' }
+          ]
+        : [
+            { key: 'nbrhd', num: 1, label: 'Same neighborhood' },
+            { key: 'mkt_zip', num: 2, label: 'Same market area & ZIP' },
+            { key: 'zip', num: 3, label: 'Same ZIP' }
+          ];
+
+      for (const t of tierConfigs) {
+        const found = await queryTierCandidates(t.key, t.num, windowMonths, seenParcels);
+        if (found.length > 0) {
+          combined = [...combined, ...found];
+          tierUsed = t.num;
+          tierLabel = t.label;
+        }
+        if (combined.length >= 5) {
+          break;
         }
       }
 
@@ -187,12 +262,19 @@ export default async function handler(req, res) {
       searchResult = await runTieredSearch(24);
     }
 
-    // Rank by: tier, then size closeness (abs sqft difference), then most recent sale
+    // Rank by: tier, then distance (if in distance tiers), then size closeness (abs sqft difference), then most recent sale
     searchResult.candidates.sort((a, b) => {
       if (a.tier !== b.tier) return a.tier - b.tier;
+
+      if ((a.tier === 1 || a.tier === 2) && a.distance_mi != null && b.distance_mi != null) {
+        const distDiff = a.distance_mi - b.distance_mi;
+        if (Math.abs(distDiff) >= 0.05) return distDiff;
+      }
+
       const diffA = Math.abs(Number(a.living_sqft) - subjectSqft);
       const diffB = Math.abs(Number(b.living_sqft) - subjectSqft);
       if (diffA !== diffB) return diffA - diffB;
+
       const dateA = Number(a.sale_year) * 12 + (Number(a.sale_month) || 1);
       const dateB = Number(b.sale_year) * 12 + (Number(b.sale_month) || 1);
       return dateB - dateA;
@@ -216,6 +298,9 @@ export default async function handler(req, res) {
         land_sqft: c.land_sqft != null ? Number(c.land_sqft) : null,
         year_built: yb,
         eff_year_built: eff,
+        lat: c.lat != null ? Number(c.lat) : null,
+        lng: c.lng != null ? Number(c.lng) : null,
+        distance_mi: c.distance_mi != null ? Number(c.distance_mi) : null,
         sale_price: price,
         sale_year: Number(c.sale_year),
         sale_month: c.sale_month != null ? Number(c.sale_month) : null,

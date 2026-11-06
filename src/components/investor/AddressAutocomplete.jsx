@@ -287,9 +287,16 @@ export default function AddressAutocomplete({
     const zip = parcel.zip || '';
     const county = parcel.county || 'Broward';
 
-    // Forward geocode with Mapbox to get lat/lng for map pin
-    const geoQuery = `${niceAddress}, ${niceCity}, FL ${zip}`.trim();
-    const { lat, lng } = await forwardGeocodeMapbox(geoQuery, MAPBOX_TOKEN, sessionToken);
+    let lat = parcel.lat != null ? Number(parcel.lat) : null;
+    let lng = parcel.lng != null ? Number(parcel.lng) : null;
+
+    // Fall back to Mapbox only if the parcel has no coordinates
+    if (lat == null || lng == null) {
+      const geoQuery = `${niceAddress}, ${niceCity}, FL ${zip}`.trim();
+      const coords = await forwardGeocodeMapbox(geoQuery, MAPBOX_TOKEN, sessionToken);
+      lat = coords.lat;
+      lng = coords.lng;
+    }
 
     if (onSelect) {
       onSelect({
@@ -480,6 +487,7 @@ export default function AddressAutocomplete({
                 const typePart = getUseCodeLabel(item.use_code);
                 const sqftPart = item.living_sqft ? `${Number(item.living_sqft).toLocaleString()} sf` : null;
                 const builtPart = item.year_built ? `Built ${item.year_built}` : null;
+                const countyName = item.county || 'Broward';
                 const subtitle = [cityPart, typePart, sqftPart, builtPart].filter(Boolean).join(' · ');
 
                 return (
@@ -498,8 +506,25 @@ export default function AddressAutocomplete({
                       borderLeft: isSelected ? '3px solid var(--secondary-color, #41101B)' : '3px solid transparent'
                     }}
                   >
-                    <div className="investor-autocomplete-street" style={{ fontWeight: 600 }}>
-                      {formattedAddr}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <span className="investor-autocomplete-street" style={{ fontWeight: 600 }}>
+                        {formattedAddr}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          color: 'var(--secondary-color, #41101B)',
+                          backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                          border: '1px solid rgba(133, 157, 206, 0.35)',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {countyName}
+                      </span>
                     </div>
                     <div className="investor-autocomplete-subtitle">
                       {subtitle}
