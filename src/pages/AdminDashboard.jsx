@@ -5,6 +5,7 @@ import Settings from './dashboard/Settings.jsx';
 import UserProfile from './dashboard/UserProfile.jsx';
 import EmailTemplates from './dashboard/EmailTemplates.jsx';
 import Blogs from './dashboard/Blogs.jsx';
+import InvestorStudio from '../components/investor/InvestorStudio.jsx';
 
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,7 @@ export default function AdminDashboard({ navigateTo }) {
       case 'settings': return <Settings />;
       case 'email-templates': return <EmailTemplates />;
       case 'blogs': return <Blogs />;
+      case 'investor': return <InvestorStudio />;
       default: return null;
     }
   };

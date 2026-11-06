@@ -6,7 +6,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
   const topTabs = [
     { id: 'overview', label: 'DASHBOARD' },
     { id: 'email-templates', label: 'EMAIL TEMPLATES' },
-    { id: 'blogs', label: 'BLOGS' }
+    { id: 'blogs', label: 'BLOGS' },
+    { id: 'investor', label: 'INVESTOR STUDIO' }
   ];
 
   const bottomTabs = [
