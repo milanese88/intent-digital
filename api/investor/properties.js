@@ -109,6 +109,10 @@ function validateProperty(body) {
     errors.listing_url = 'Listing URL must start with http:// or https://';
   }
 
+  // Parcel ID & Parcel County
+  const parcel_id = body.parcel_id != null && String(body.parcel_id).trim() !== '' ? String(body.parcel_id).trim() : null;
+  const parcel_county = body.parcel_county != null && String(body.parcel_county).trim() !== '' ? String(body.parcel_county).trim() : null;
+
   return {
     errors,
     data: {
@@ -132,7 +136,9 @@ function validateProperty(body) {
       condition,
       roof_year,
       listing_url,
-      notes
+      notes,
+      parcel_id,
+      parcel_county
     }
   };
 }
@@ -151,7 +157,91 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const id = req.query?.id;
       if (id) {
-        const rows = await sql`
+        let rows;
+        try {
+          rows = await sql`
+            SELECT 
+              id,
+              owner_email,
+              address,
+              city,
+              state,
+              zip,
+              county,
+              lat,
+              lng,
+              property_type,
+              units,
+              beds,
+              baths,
+              sqft,
+              lot_sqft,
+              year_built,
+              list_price,
+              status,
+              strategy,
+              condition,
+              roof_year,
+              listing_url,
+              notes,
+              parcel_id,
+              parcel_county,
+              created_at,
+              updated_at
+            FROM investor_properties
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            LIMIT 1
+          `;
+        } catch (colErr) {
+          if (colErr.code === '42703') {
+            rows = await sql`
+              SELECT 
+                id,
+                owner_email,
+                address,
+                city,
+                state,
+                zip,
+                county,
+                lat,
+                lng,
+                property_type,
+                units,
+                beds,
+                baths,
+                sqft,
+                lot_sqft,
+                year_built,
+                list_price,
+                status,
+                strategy,
+                condition,
+                roof_year,
+                listing_url,
+                notes,
+                NULL::text AS parcel_id,
+                NULL::text AS parcel_county,
+                created_at,
+                updated_at
+              FROM investor_properties
+              WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+              LIMIT 1
+            `;
+          } else {
+            throw colErr;
+          }
+        }
+
+        if (rows.length === 0) {
+          return res.status(404).json({ error: 'Property not found.' });
+        }
+
+        return res.status(200).json(rows[0]);
+      }
+
+      let properties;
+      try {
+        properties = await sql`
           SELECT 
             id,
             owner_email,
@@ -176,51 +266,53 @@ export default async function handler(req, res) {
             roof_year,
             listing_url,
             notes,
+            parcel_id,
+            parcel_county,
             created_at,
             updated_at
           FROM investor_properties
-          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-          LIMIT 1
+          WHERE lower(owner_email) = ${cleanEmail}
+          ORDER BY created_at DESC
         `;
-
-        if (rows.length === 0) {
-          return res.status(404).json({ error: 'Property not found.' });
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          properties = await sql`
+            SELECT 
+              id,
+              owner_email,
+              address,
+              city,
+              state,
+              zip,
+              county,
+              lat,
+              lng,
+              property_type,
+              units,
+              beds,
+              baths,
+              sqft,
+              lot_sqft,
+              year_built,
+              list_price,
+              status,
+              strategy,
+              condition,
+              roof_year,
+              listing_url,
+              notes,
+              NULL::text AS parcel_id,
+              NULL::text AS parcel_county,
+              created_at,
+              updated_at
+            FROM investor_properties
+            WHERE lower(owner_email) = ${cleanEmail}
+            ORDER BY created_at DESC
+          `;
+        } else {
+          throw colErr;
         }
-
-        return res.status(200).json(rows[0]);
       }
-
-      const properties = await sql`
-        SELECT 
-          id,
-          owner_email,
-          address,
-          city,
-          state,
-          zip,
-          county,
-          lat,
-          lng,
-          property_type,
-          units,
-          beds,
-          baths,
-          sqft,
-          lot_sqft,
-          year_built,
-          list_price,
-          status,
-          strategy,
-          condition,
-          roof_year,
-          listing_url,
-          notes,
-          created_at,
-          updated_at
-        FROM investor_properties
-        WHERE lower(owner_email) = ${cleanEmail}
-        ORDER BY created_at DESC
-      `;
 
       return res.status(200).json(properties);
     }
@@ -232,56 +324,120 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
-      const rows = await sql`
-        INSERT INTO investor_properties (
-          owner_email,
-          address,
-          city,
-          state,
-          zip,
-          county,
-          lat,
-          lng,
-          property_type,
-          units,
-          beds,
-          baths,
-          sqft,
-          lot_sqft,
-          year_built,
-          list_price,
-          status,
-          strategy,
-          condition,
-          roof_year,
-          listing_url,
-          notes
-        ) VALUES (
-          ${cleanEmail},
-          ${data.address},
-          ${data.city},
-          ${data.state},
-          ${data.zip},
-          ${data.county},
-          ${data.lat},
-          ${data.lng},
-          ${data.property_type},
-          ${data.units},
-          ${data.beds},
-          ${data.baths},
-          ${data.sqft},
-          ${data.lot_sqft},
-          ${data.year_built},
-          ${data.list_price},
-          ${data.status},
-          ${data.strategy},
-          ${data.condition},
-          ${data.roof_year},
-          ${data.listing_url},
-          ${data.notes}
-        )
-        RETURNING *
-      `;
+      let rows;
+      try {
+        rows = await sql`
+          INSERT INTO investor_properties (
+            owner_email,
+            address,
+            city,
+            state,
+            zip,
+            county,
+            lat,
+            lng,
+            property_type,
+            units,
+            beds,
+            baths,
+            sqft,
+            lot_sqft,
+            year_built,
+            list_price,
+            status,
+            strategy,
+            condition,
+            roof_year,
+            listing_url,
+            notes,
+            parcel_id,
+            parcel_county
+          ) VALUES (
+            ${cleanEmail},
+            ${data.address},
+            ${data.city},
+            ${data.state},
+            ${data.zip},
+            ${data.county},
+            ${data.lat},
+            ${data.lng},
+            ${data.property_type},
+            ${data.units},
+            ${data.beds},
+            ${data.baths},
+            ${data.sqft},
+            ${data.lot_sqft},
+            ${data.year_built},
+            ${data.list_price},
+            ${data.status},
+            ${data.strategy},
+            ${data.condition},
+            ${data.roof_year},
+            ${data.listing_url},
+            ${data.notes},
+            ${data.parcel_id},
+            ${data.parcel_county}
+          )
+          RETURNING *
+        `;
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          rows = await sql`
+            INSERT INTO investor_properties (
+              owner_email,
+              address,
+              city,
+              state,
+              zip,
+              county,
+              lat,
+              lng,
+              property_type,
+              units,
+              beds,
+              baths,
+              sqft,
+              lot_sqft,
+              year_built,
+              list_price,
+              status,
+              strategy,
+              condition,
+              roof_year,
+              listing_url,
+              notes
+            ) VALUES (
+              ${cleanEmail},
+              ${data.address},
+              ${data.city},
+              ${data.state},
+              ${data.zip},
+              ${data.county},
+              ${data.lat},
+              ${data.lng},
+              ${data.property_type},
+              ${data.units},
+              ${data.beds},
+              ${data.baths},
+              ${data.sqft},
+              ${data.lot_sqft},
+              ${data.year_built},
+              ${data.list_price},
+              ${data.status},
+              ${data.strategy},
+              ${data.condition},
+              ${data.roof_year},
+              ${data.listing_url},
+              ${data.notes}
+            )
+            RETURNING *
+          `;
+          rows[0].parcel_id = data.parcel_id;
+          rows[0].parcel_county = data.parcel_county;
+        } else {
+          throw colErr;
+        }
+      }
 
       return res.status(200).json(rows[0]);
     }
@@ -298,36 +454,172 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
-      const rows = await sql`
-        UPDATE investor_properties
-        SET
-          address = ${data.address},
-          city = ${data.city},
-          state = ${data.state},
-          zip = ${data.zip},
-          county = ${data.county},
-          lat = ${data.lat},
-          lng = ${data.lng},
-          property_type = ${data.property_type},
-          units = ${data.units},
-          beds = ${data.beds},
-          baths = ${data.baths},
-          sqft = ${data.sqft},
-          lot_sqft = ${data.lot_sqft},
-          year_built = ${data.year_built},
-          list_price = ${data.list_price},
-          status = ${data.status},
-          strategy = ${data.strategy},
-          condition = ${data.condition},
-          roof_year = ${data.roof_year},
-          listing_url = ${data.listing_url},
-          notes = ${data.notes}
-        WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-        RETURNING *
-      `;
+      let rows;
+      try {
+        rows = await sql`
+          UPDATE investor_properties
+          SET
+            address = ${data.address},
+            city = ${data.city},
+            state = ${data.state},
+            zip = ${data.zip},
+            county = ${data.county},
+            lat = ${data.lat},
+            lng = ${data.lng},
+            property_type = ${data.property_type},
+            units = ${data.units},
+            beds = ${data.beds},
+            baths = ${data.baths},
+            sqft = ${data.sqft},
+            lot_sqft = ${data.lot_sqft},
+            year_built = ${data.year_built},
+            list_price = ${data.list_price},
+            status = ${data.status},
+            strategy = ${data.strategy},
+            condition = ${data.condition},
+            roof_year = ${data.roof_year},
+            listing_url = ${data.listing_url},
+            notes = ${data.notes},
+            parcel_id = ${data.parcel_id},
+            parcel_county = ${data.parcel_county}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+          RETURNING *
+        `;
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].parcel_id = data.parcel_id;
+            rows[0].parcel_county = data.parcel_county;
+          }
+        } else {
+          throw colErr;
+        }
+      }
 
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Property not found.' });
+      }
+
+      return res.status(200).json(rows[0]);
+    }
+
+    // PATCH: Partial update (for discrepancy sync or linking folio)
+    if (req.method === 'PATCH') {
+      const id = req.body?.id || req.query?.id;
+      if (!id) {
+        return res.status(400).json({ error: 'Property ID is required for update.' });
+      }
+
+      // Fetch current property
+      const current = await sql`
+        SELECT * FROM investor_properties
+        WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+        LIMIT 1
+      `;
+      if (current.length === 0) {
+        return res.status(404).json({ error: 'Property not found.' });
+      }
+
+      const merged = { ...current[0], ...req.body };
+      const { errors, data } = validateProperty(merged);
+      if (Object.keys(errors).length > 0) {
+        return res.status(400).json({ error: Object.values(errors)[0], errors });
+      }
+
+      let rows;
+      try {
+        rows = await sql`
+          UPDATE investor_properties
+          SET
+            address = ${data.address},
+            city = ${data.city},
+            state = ${data.state},
+            zip = ${data.zip},
+            county = ${data.county},
+            lat = ${data.lat},
+            lng = ${data.lng},
+            property_type = ${data.property_type},
+            units = ${data.units},
+            beds = ${data.beds},
+            baths = ${data.baths},
+            sqft = ${data.sqft},
+            lot_sqft = ${data.lot_sqft},
+            year_built = ${data.year_built},
+            list_price = ${data.list_price},
+            status = ${data.status},
+            strategy = ${data.strategy},
+            condition = ${data.condition},
+            roof_year = ${data.roof_year},
+            listing_url = ${data.listing_url},
+            notes = ${data.notes},
+            parcel_id = ${data.parcel_id},
+            parcel_county = ${data.parcel_county}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+          RETURNING *
+        `;
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].parcel_id = data.parcel_id;
+            rows[0].parcel_county = data.parcel_county;
+          }
+        } else {
+          throw colErr;
+        }
       }
 
       return res.status(200).json(rows[0]);

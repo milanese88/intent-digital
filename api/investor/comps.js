@@ -102,6 +102,8 @@ function validateComp(body, isUpdate = false) {
   const zip = body.zip != null && String(body.zip).trim() !== '' ? String(body.zip).trim() : null;
   const source = body.source != null && String(body.source).trim() !== '' ? String(body.source).trim() : null;
   const included = body.included !== undefined ? Boolean(body.included) : true;
+  const parcel_id = body.parcel_id != null && String(body.parcel_id).trim() !== '' ? String(body.parcel_id).trim() : null;
+  const parcel_county = body.parcel_county != null && String(body.parcel_county).trim() !== '' ? String(body.parcel_county).trim() : null;
 
   return {
     errors,
@@ -118,7 +120,9 @@ function validateComp(body, isUpdate = false) {
       baths,
       year_built,
       included,
-      source
+      source,
+      parcel_id,
+      parcel_county
     }
   };
 }
@@ -148,7 +152,76 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Property not found.' });
         }
 
-        const comps = await sql`
+        let comps;
+        try {
+          comps = await sql`
+            SELECT
+              id,
+              owner_email,
+              property_id,
+              address,
+              city,
+              zip,
+              lat,
+              lng,
+              sold_date,
+              sold_price,
+              sqft,
+              beds,
+              baths,
+              year_built,
+              price_per_sqft,
+              distance_mi,
+              included,
+              source,
+              parcel_id,
+              parcel_county,
+              created_at
+            FROM investor_comps
+            WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+            ORDER BY sold_date DESC NULLS LAST, created_at DESC
+          `;
+        } catch (colErr) {
+          if (colErr.code === '42703') {
+            comps = await sql`
+              SELECT
+                id,
+                owner_email,
+                property_id,
+                address,
+                city,
+                zip,
+                lat,
+                lng,
+                sold_date,
+                sold_price,
+                sqft,
+                beds,
+                baths,
+                year_built,
+                price_per_sqft,
+                distance_mi,
+                included,
+                source,
+                NULL::text AS parcel_id,
+                NULL::text AS parcel_county,
+                created_at
+              FROM investor_comps
+              WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+              ORDER BY sold_date DESC NULLS LAST, created_at DESC
+            `;
+          } else {
+            throw colErr;
+          }
+        }
+
+        return res.status(200).json(comps);
+      }
+
+      // No property_id: return all comps for the logged-in user
+      let allComps;
+      try {
+        allComps = await sql`
           SELECT
             id,
             owner_email,
@@ -168,41 +241,46 @@ export default async function handler(req, res) {
             distance_mi,
             included,
             source,
+            parcel_id,
+            parcel_county,
             created_at
           FROM investor_comps
-          WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+          WHERE lower(owner_email) = ${cleanEmail}
           ORDER BY sold_date DESC NULLS LAST, created_at DESC
         `;
-
-        return res.status(200).json(comps);
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          allComps = await sql`
+            SELECT
+              id,
+              owner_email,
+              property_id,
+              address,
+              city,
+              zip,
+              lat,
+              lng,
+              sold_date,
+              sold_price,
+              sqft,
+              beds,
+              baths,
+              year_built,
+              price_per_sqft,
+              distance_mi,
+              included,
+              source,
+              NULL::text AS parcel_id,
+              NULL::text AS parcel_county,
+              created_at
+            FROM investor_comps
+            WHERE lower(owner_email) = ${cleanEmail}
+            ORDER BY sold_date DESC NULLS LAST, created_at DESC
+          `;
+        } else {
+          throw colErr;
+        }
       }
-
-      // No property_id: return all comps for the logged-in user
-      const allComps = await sql`
-        SELECT
-          id,
-          owner_email,
-          property_id,
-          address,
-          city,
-          zip,
-          lat,
-          lng,
-          sold_date,
-          sold_price,
-          sqft,
-          beds,
-          baths,
-          year_built,
-          price_per_sqft,
-          distance_mi,
-          included,
-          source,
-          created_at
-        FROM investor_comps
-        WHERE lower(owner_email) = ${cleanEmail}
-        ORDER BY sold_date DESC NULLS LAST, created_at DESC
-      `;
 
       return res.status(200).json(allComps);
     }
@@ -235,44 +313,96 @@ export default async function handler(req, res) {
         distance_mi = calculateDistanceMi(prop[0].lat, prop[0].lng, data.lat, data.lng);
       }
 
-      const rows = await sql`
-        INSERT INTO investor_comps (
-          owner_email,
-          property_id,
-          address,
-          city,
-          zip,
-          lat,
-          lng,
-          sold_date,
-          sold_price,
-          sqft,
-          beds,
-          baths,
-          year_built,
-          distance_mi,
-          included,
-          source
-        ) VALUES (
-          ${cleanEmail},
-          ${propertyId},
-          ${data.address},
-          ${data.city},
-          ${data.zip},
-          ${data.lat},
-          ${data.lng},
-          ${data.sold_date},
-          ${data.sold_price},
-          ${data.sqft},
-          ${data.beds},
-          ${data.baths},
-          ${data.year_built},
-          ${distance_mi},
-          ${data.included},
-          ${data.source}
-        )
-        RETURNING *
-      `;
+      let rows;
+      try {
+        rows = await sql`
+          INSERT INTO investor_comps (
+            owner_email,
+            property_id,
+            address,
+            city,
+            zip,
+            lat,
+            lng,
+            sold_date,
+            sold_price,
+            sqft,
+            beds,
+            baths,
+            year_built,
+            distance_mi,
+            included,
+            source,
+            parcel_id,
+            parcel_county
+          ) VALUES (
+            ${cleanEmail},
+            ${propertyId},
+            ${data.address},
+            ${data.city},
+            ${data.zip},
+            ${data.lat},
+            ${data.lng},
+            ${data.sold_date},
+            ${data.sold_price},
+            ${data.sqft},
+            ${data.beds},
+            ${data.baths},
+            ${data.year_built},
+            ${distance_mi},
+            ${data.included},
+            ${data.source},
+            ${data.parcel_id},
+            ${data.parcel_county}
+          )
+          RETURNING *
+        `;
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          rows = await sql`
+            INSERT INTO investor_comps (
+              owner_email,
+              property_id,
+              address,
+              city,
+              zip,
+              lat,
+              lng,
+              sold_date,
+              sold_price,
+              sqft,
+              beds,
+              baths,
+              year_built,
+              distance_mi,
+              included,
+              source
+            ) VALUES (
+              ${cleanEmail},
+              ${propertyId},
+              ${data.address},
+              ${data.city},
+              ${data.zip},
+              ${data.lat},
+              ${data.lng},
+              ${data.sold_date},
+              ${data.sold_price},
+              ${data.sqft},
+              ${data.beds},
+              ${data.baths},
+              ${data.year_built},
+              ${distance_mi},
+              ${data.included},
+              ${data.source}
+            )
+            RETURNING *
+          `;
+          rows[0].parcel_id = data.parcel_id;
+          rows[0].parcel_county = data.parcel_county;
+        } else {
+          throw colErr;
+        }
+      }
 
       return res.status(200).json(rows[0]);
     }
@@ -340,6 +470,8 @@ export default async function handler(req, res) {
       const finalYearBuilt = data.year_built !== undefined ? data.year_built : currentComp.year_built;
       const finalIncluded = data.included !== undefined ? data.included : currentComp.included;
       const finalSource = data.source !== undefined ? data.source : currentComp.source;
+      const finalParcelId = data.parcel_id !== undefined ? data.parcel_id : (currentComp.parcel_id || null);
+      const finalParcelCounty = data.parcel_county !== undefined ? data.parcel_county : (currentComp.parcel_county || null);
 
       // Calculate distance_mi if both property and comp have lat/lng
       let finalDistance = null;
@@ -347,26 +479,60 @@ export default async function handler(req, res) {
         finalDistance = calculateDistanceMi(prop[0].lat, prop[0].lng, finalLat, finalLng);
       }
 
-      const rows = await sql`
-        UPDATE investor_comps
-        SET
-          address = ${finalAddress},
-          city = ${finalCity},
-          zip = ${finalZip},
-          lat = ${finalLat},
-          lng = ${finalLng},
-          sold_date = ${finalSoldDate},
-          sold_price = ${finalSoldPrice},
-          sqft = ${finalSqft},
-          beds = ${finalBeds},
-          baths = ${finalBaths},
-          year_built = ${finalYearBuilt},
-          distance_mi = ${finalDistance},
-          included = ${finalIncluded},
-          source = ${finalSource}
-        WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-        RETURNING *
-      `;
+      let rows;
+      try {
+        rows = await sql`
+          UPDATE investor_comps
+          SET
+            address = ${finalAddress},
+            city = ${finalCity},
+            zip = ${finalZip},
+            lat = ${finalLat},
+            lng = ${finalLng},
+            sold_date = ${finalSoldDate},
+            sold_price = ${finalSoldPrice},
+            sqft = ${finalSqft},
+            beds = ${finalBeds},
+            baths = ${finalBaths},
+            year_built = ${finalYearBuilt},
+            distance_mi = ${finalDistance},
+            included = ${finalIncluded},
+            source = ${finalSource},
+            parcel_id = ${finalParcelId},
+            parcel_county = ${finalParcelCounty}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+          RETURNING *
+        `;
+      } catch (colErr) {
+        if (colErr.code === '42703') {
+          rows = await sql`
+            UPDATE investor_comps
+            SET
+              address = ${finalAddress},
+              city = ${finalCity},
+              zip = ${finalZip},
+              lat = ${finalLat},
+              lng = ${finalLng},
+              sold_date = ${finalSoldDate},
+              sold_price = ${finalSoldPrice},
+              sqft = ${finalSqft},
+              beds = ${finalBeds},
+              baths = ${finalBaths},
+              year_built = ${finalYearBuilt},
+              distance_mi = ${finalDistance},
+              included = ${finalIncluded},
+              source = ${finalSource}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].parcel_id = finalParcelId;
+            rows[0].parcel_county = finalParcelCounty;
+          }
+        } else {
+          throw colErr;
+        }
+      }
 
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Comp not found.' });
