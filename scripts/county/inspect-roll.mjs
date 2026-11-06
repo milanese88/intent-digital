@@ -253,7 +253,7 @@ async function inspectRollFile(filePath) {
       if (fileType === 'NAL') {
         const zipIdx = rawHeaderMap['PHY_ZIPCD'];
         const zipVal = zipIdx !== undefined ? row[zipIdx]?.trim() : '';
-        if (!/^\d{5}$/.test(zipVal)) {
+        if (zipVal !== '' && !/^\d{5}$/.test(zipVal)) {
           invalidZip++;
           isMalformed = true;
         }

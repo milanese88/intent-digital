@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import dotenv from 'dotenv';
 import shapefile from 'shapefile';
 import proj4 from 'proj4';
 import polylabel from 'polylabel';
+import { parse } from 'csv-parse';
 import { getDb } from '../../api/_lib/db.js';
 
 dotenv.config({ path: '.env.local' });
@@ -144,7 +145,8 @@ function locateShapefileFiles(countyName) {
     throw new Error(`Data directory ${dataDir} does not exist.`);
   }
 
-  const countyLower = countyName.toLowerCase();
+  const countyNormalized = countyName.toLowerCase().replace(/[\s_-]+/g, '');
+  const matchesCounty = (str) => str.toLowerCase().replace(/[\s_-]+/g, '').includes(countyNormalized);
 
   // 1. Check if unzipped .shp already exists in data/county or a subfolder
   const findFiles = (dir) => {
@@ -163,7 +165,7 @@ function locateShapefileFiles(countyName) {
   };
 
   const allFiles = findFiles(dataDir);
-  const shpFile = allFiles.find(f => f.endsWith('.shp') && path.basename(f).toLowerCase().includes(countyLower));
+  const shpFile = allFiles.find(f => f.endsWith('.shp') && matchesCounty(path.basename(f)));
 
   if (shpFile) {
     const base = shpFile.slice(0, -4);
@@ -175,10 +177,10 @@ function locateShapefileFiles(countyName) {
   }
 
   // 2. Check for zip file to extract
-  const zipFile = allFiles.find(f => f.endsWith('.zip') && path.basename(f).toLowerCase().includes(countyLower) && (path.basename(f).toLowerCase().includes('pin') || path.basename(f).toLowerCase().includes('par')));
+  const zipFile = allFiles.find(f => f.endsWith('.zip') && matchesCounty(path.basename(f)) && (path.basename(f).toLowerCase().includes('pin') || path.basename(f).toLowerCase().includes('par')));
 
   if (!zipFile) {
-    throw new Error(`No shapefile or zip found for ${countyName} in data/county/. Please place the zip file (e.g. broward_2026pin.zip) in data/county/.`);
+    throw new Error(`No shapefile or zip found for ${countyName} in data/county/. Please place the zip file (e.g. palmbeach_2026pin.zip) in data/county/.`);
   }
 
   const extractDir = path.join(dataDir, path.basename(zipFile, '.zip'));
@@ -220,12 +222,60 @@ async function run() {
   const transformer = proj4(prjWkt, 'WGS84');
 
   const sql = getDb();
+  let residentialSet = new Set();
 
-  // Load existing residential parcels for this county into a Set
-  console.log(`Loading residential parcels for ${county} from county_parcels...`);
-  const rows = await sql`SELECT parcel_id FROM county_parcels WHERE county = ${county}`;
-  const residentialSet = new Set(rows.map(r => String(r.parcel_id).trim()));
-  console.log(`Total residential parcels in DB: ${residentialSet.size.toLocaleString()}`);
+  try {
+    console.log(`Checking existing residential parcels for ${county} in county_parcels...`);
+    const rows = await sql`SELECT parcel_id FROM county_parcels WHERE county = ${county}`;
+    residentialSet = new Set(rows.map(r => String(r.parcel_id).trim()));
+    if (residentialSet.size > 0) {
+      console.log(`Loaded ${residentialSet.size.toLocaleString()} residential parcels for ${county} from DB.`);
+    }
+  } catch (err) {
+    // If DB query fails or table empty, fall through to NAL file
+  }
+
+  // If no parcels in DB for this county, load target residential parcel IDs directly from NAL file
+  if (residentialSet.size === 0) {
+    console.log(`No parcels in DB for ${county}. Streaming target residential parcels from NAL file...`);
+    const dataDir = path.resolve('data/county');
+    const nalFiles = fs.readdirSync(dataDir);
+    const countyLower = county.toLowerCase();
+    const nalFile = nalFiles.find(f => f.toLowerCase().includes(countyLower) && f.toUpperCase().includes('NAL'));
+    if (!nalFile) {
+      throw new Error(`Neither DB parcels nor NAL file found for ${county}.`);
+    }
+    const nalPath = path.resolve(dataDir, nalFile);
+    console.log(`Streaming NAL file: ${nalFile}...`);
+    const child = spawn('unzip', ['-p', nalPath]);
+    const parser = parse({ relax_column_count: true, relax_quotes: true, skip_empty_lines: true });
+    child.stdout.pipe(parser);
+    const RESIDENTIAL_CODES = new Set(['000', '001', '002', '004', '008']);
+    let headers = null;
+    let idIdx = -1;
+    let useIdx = -1;
+    for await (const row of parser) {
+      if (!headers) {
+        headers = row.map(h => h.trim().toUpperCase());
+        idIdx = headers.indexOf('PARCEL_ID');
+        useIdx = headers.indexOf('DOR_UC');
+        continue;
+      }
+      const use = row[useIdx]?.trim().padStart(3, '0');
+      if (RESIDENTIAL_CODES.has(use)) {
+        const id = row[idIdx]?.trim();
+        if (id) residentialSet.add(id);
+      }
+    }
+    child.kill();
+    console.log(`Loaded ${residentialSet.size.toLocaleString()} residential parcels from NAL file.`);
+  }
+
+  const knownParcels = {
+    'broward': { id: '504209040280', addr: '924 SW 15 TER, Fort Lauderdale', minLat: 26.05, maxLat: 26.15, minLng: -80.20, maxLng: -80.12, target: '26.11 N, -80.16 W' },
+    'palm beach': { id: '74434307010000010', addr: '1901 EMBASSY DR, West Palm Beach', minLat: 26.68, maxLat: 26.78, minLng: -80.12, maxLng: -80.04, target: '26.73 N, -80.08 W' }
+  };
+  const targetKnown = knownParcels[county.toLowerCase()] || knownParcels['broward'];
 
   console.log(`Streaming shapefile...`);
   const source = await shapefile.open(files.shp, files.dbf, { encoding: 'utf-8' });
@@ -288,14 +338,14 @@ async function run() {
         const lat = Math.round(wgsLat * 1e6) / 1e6;
         const lng = Math.round(wgsLng * 1e6) / 1e6;
 
-        // Check known parcel: 924 SW 15 TER (504209040280)
-        if (parcelId === '504209040280') {
+        // Check known parcel
+        if (parcelId === targetKnown.id) {
           knownParcelCoords = { lat, lng };
-          console.log(`\n>>> VERIFIED KNOWN PARCEL 504209040280 (924 SW 15 TER):`);
+          console.log(`\n>>> VERIFIED KNOWN PARCEL ${targetKnown.id} (${targetKnown.addr}):`);
           console.log(`    Computed coordinates: Lat ${lat} N, Lng ${lng} W`);
-          const latOk = lat >= 26.05 && lat <= 26.15;
-          const lngOk = lng >= -80.20 && lng <= -80.12;
-          console.log(`    Sanity check (around 26.11 N, -80.16 W): ${latOk && lngOk ? 'PASSED ✓' : 'FAILED ✗'}\n`);
+          const latOk = lat >= targetKnown.minLat && lat <= targetKnown.maxLat;
+          const lngOk = lng >= targetKnown.minLng && lng <= targetKnown.maxLng;
+          console.log(`    Sanity check (around ${targetKnown.target}): ${latOk && lngOk ? 'PASSED ✓' : 'FAILED ✗'}\n`);
           verifiedKnown = true;
         }
 
@@ -334,6 +384,18 @@ async function run() {
       process.stdout.write(`\rRead ${totalShapes.toLocaleString()} shapes | Matched: ${matchedCount.toLocaleString()} | Elapsed: ${elapsedSec}s...`);
     }
   }
+
+  // Always save coordinates to local JSON cache file for one-pass import
+  const countySlug = county.toLowerCase().replace(/\s+/g, '-');
+  const cacheFilePath = path.resolve('data/county', `${countySlug}-coords.json`);
+  console.log(`\nWriting coordinates cache to: ${cacheFilePath}...`);
+  const cacheObj = {};
+  for (const [pId, { lat, lng }] of bestParcelsMap) {
+    cacheObj[pId] = [lat, lng];
+  }
+  fs.writeFileSync(cacheFilePath, JSON.stringify(cacheObj));
+  const cacheSizeMb = (fs.statSync(cacheFilePath).size / (1024 * 1024)).toFixed(1);
+  console.log(`[✓] Cache file saved: ${path.basename(cacheFilePath)} (${cacheSizeMb} MB with ${Object.keys(cacheObj).length.toLocaleString()} parcels)`);
 
   // Database write pass (if live import)
   if (!isDryRun) {
@@ -376,10 +438,11 @@ async function run() {
   console.log(`Coordinate coverage:            ${matchPct}% of residential parcels`);
   console.log(`Inside-polygon check:           ${samplePassedCount.toLocaleString()} / ${sampledCount.toLocaleString()} passed (${passRate}%)`);
   if (knownParcelCoords) {
-    console.log(`Known parcel (504209040280):    Lat ${knownParcelCoords.lat}, Lng ${knownParcelCoords.lng}`);
+    console.log(`Known parcel (${targetKnown.id} · ${targetKnown.addr}): Lat ${knownParcelCoords.lat}, Lng ${knownParcelCoords.lng}`);
   }
+  console.log(`Cache file:                     ${path.basename(cacheFilePath)} (${cacheSizeMb} MB)`);
   console.log(`Time elapsed:                   ${durationSec}s`);
-  console.log(`Known parcel verification:      ${verifiedKnown ? 'Confirmed (504209040280 landed near 26.11 N, -80.16 W)' : 'Not encountered'}`);
+  console.log(`Known parcel verification:      ${verifiedKnown ? 'Confirmed (' + targetKnown.target + ')' : 'Not encountered'}`);
 
   if (isDryRun) {
     console.log(`\n[DRY RUN COMPLETE] No data was written to the database.`);

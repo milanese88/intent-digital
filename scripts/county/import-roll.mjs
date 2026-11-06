@@ -12,13 +12,17 @@
  * - Maps every field strictly by header name, never by hardcoded array index.
  * - Validation engine: checks column count matches headers, PARCEL_ID is present,
  *   and PHY_ZIPCD is a valid 5-digit zip. Aborts if malformed rows exceed 0.5%.
+ * - One-pass import: precomputed coordinate cache (from DOR GIS shapefiles) is loaded
+ *   into memory and inserted directly with lat/lng, avoiding subsequent UPDATE table bloat.
  * - Imports residential parcels (DOR Use Codes 000, 001, 002, 004, 008) into county_parcels.
  * - Imports SDF sales transactions + NAL historical sales (deduplicated) into county_sales.
+ * - Tracks sales categories: Market (01, 02) vs Distressed (12, 18, 19, 38) vs Other.
  * - Skips $0 and $100-or-less transfers (nominal/non-market).
  * - Zero PII: Owner names, mailing addresses, fiduciary and exemption data are never stored.
  * - Supports --dry-run to simulate and verify counts before touching the database.
  * 
  * Usage:
+ *   node scripts/county/import-roll.mjs --county="Palm Beach" [--dry-run]
  *   node scripts/county/import-roll.mjs --county=Broward [--dry-run]
  */
 
@@ -115,12 +119,20 @@ function formatBytes(bytes) {
  */
 async function main() {
   const args = process.argv.slice(2);
-  const countyArg = args.find(a => a.startsWith('--county='))?.split('=')[1] || 'Broward';
+  const rawCountyArg = args.find(a => a.startsWith('--county='))?.split('=')[1] || 'Broward';
   const isDryRun = args.includes('--dry-run');
+
+  // Normalize county name
+  let countyName = rawCountyArg.trim();
+  if (/palm/i.test(countyName)) {
+    countyName = 'Palm Beach';
+  } else if (/broward/i.test(countyName)) {
+    countyName = 'Broward';
+  }
 
   console.log(`===============================================================================`);
   console.log(`INTENT DIGITAL — COUNTY ROLL IMPORT TO NEON POSTGRESQL`);
-  console.log(`Target County: [${countyArg}] | Execution Mode: [${isDryRun ? 'DRY-RUN (Simulate only)' : 'PRODUCTION IMPORT'}]`);
+  console.log(`Target County: [${countyName}] | Execution Mode: [${isDryRun ? 'DRY-RUN (Simulate only)' : 'PRODUCTION IMPORT'}]`);
   console.log(`CSV Engine: RFC-4180 streaming parser (csv-parse) with header-based mapping`);
   console.log(`===============================================================================`);
 
@@ -150,24 +162,52 @@ async function main() {
     }
   }
 
+  // Check for precomputed coordinate cache (one-pass import optimization)
+  const countySlug = countyName.toLowerCase().replace(/[\s_]+/g, '-');
+  const countyNoSpace = countyName.toLowerCase().replace(/[\s_]+/g, '');
+  const possibleCacheFiles = [
+    path.join(DEFAULT_DATA_DIR, `${countySlug}-coords.json`),
+    path.join(DEFAULT_DATA_DIR, `${countyNoSpace}-coords.json`),
+    path.join(DEFAULT_DATA_DIR, `${countyName.toLowerCase()}-coords.json`)
+  ];
+
+  let coordsCache = null;
+  let coordsCachePath = null;
+  for (const p of possibleCacheFiles) {
+    if (fs.existsSync(p)) {
+      coordsCachePath = p;
+      break;
+    }
+  }
+
+  if (coordsCachePath) {
+    console.log(`\n[✓] Found precomputed coordinate cache: ${path.basename(coordsCachePath)}`);
+    const rawJson = fs.readFileSync(coordsCachePath, 'utf8');
+    coordsCache = JSON.parse(rawJson);
+    console.log(`    Loaded ${Object.keys(coordsCache).length.toLocaleString()} parcel coordinates into memory.`);
+    console.log(`    Parcels will be imported with coordinates in ONE PASS (no table bloat).\n`);
+  } else {
+    console.log(`\n[i] No coordinate cache found for ${countyName} in ${DEFAULT_DATA_DIR}. Parcels will be imported with null coordinates.\n`);
+  }
+
   // Locate County NAL and SDF files in data/county/
   const files = fs.readdirSync(DEFAULT_DATA_DIR);
-  const countyPattern = countyArg.toLowerCase();
+  const countySearchToken = countyName.toLowerCase().replace(/[\s_-]+/g, '');
   
-  const nalFile = files.find(f => f.toLowerCase().includes(countyPattern) && f.toUpperCase().includes('NAL'));
-  const sdfFile = files.find(f => f.toLowerCase().includes(countyPattern) && f.toUpperCase().includes('SDF'));
+  const nalFile = files.find(f => f.toLowerCase().replace(/[\s_-]+/g, '').includes(countySearchToken) && f.toUpperCase().includes('NAL'));
+  const sdfFile = files.find(f => f.toLowerCase().replace(/[\s_-]+/g, '').includes(countySearchToken) && f.toUpperCase().includes('SDF'));
 
   if (!nalFile || !sdfFile) {
-    console.error(`\n[!] Missing roll file(s) for ${countyArg} in ${DEFAULT_DATA_DIR}`);
-    if (!nalFile) console.error(`  - Missing NAL file for ${countyArg}`);
-    if (!sdfFile) console.error(`  - Missing SDF file for ${countyArg}`);
+    console.error(`\n[!] Missing roll file(s) for ${countyName} in ${DEFAULT_DATA_DIR}`);
+    if (!nalFile) console.error(`  - Missing NAL file for ${countyName}`);
+    if (!sdfFile) console.error(`  - Missing SDF file for ${countyName}`);
     process.exit(1);
   }
 
   const nalPath = path.join(DEFAULT_DATA_DIR, nalFile);
   const sdfPath = path.join(DEFAULT_DATA_DIR, sdfFile);
 
-  console.log(`\nFound Source Archives:`);
+  console.log(`Found Source Archives:`);
   console.log(`  - NAL: ${nalFile} (${(fs.statSync(nalPath).size / (1024 * 1024)).toFixed(1)} MB)`);
   console.log(`  - SDF: ${sdfFile} (${(fs.statSync(sdfPath).size / (1024 * 1024)).toFixed(1)} MB)\n`);
 
@@ -192,12 +232,33 @@ async function main() {
 
   let totalResidentialParcels = 0;
   let parcelsImported = 0;
+  let parcelsWithCoords = 0;
 
   let totalSdfResidentialSales = 0;
   let sdfSalesImported = 0;
 
   let totalNalSalesKept = 0;
   let nalSalesImported = 0;
+
+  let uniqueMarketSales = 0;
+  let uniqueDistressedSales = 0;
+  let uniqueOtherSales = 0;
+
+  function classifySale(qualCd) {
+    const code = String(qualCd || '').trim();
+    if (code === '01' || code === '02') {
+      uniqueMarketSales++;
+    } else if (['12', '18', '19', '38'].includes(code)) {
+      uniqueDistressedSales++;
+    } else {
+      uniqueOtherSales++;
+    }
+  }
+
+  // Known target parcel for sanity verification
+  const knownTargetId = countyName === 'Palm Beach' ? '74434307010000010' : '504209040280';
+  let knownParcelRecord = null;
+  const knownParcelSales = [];
 
   const parcelBatch = [];
   const salesBatch = [];
@@ -225,6 +286,8 @@ async function main() {
       just_value = EXCLUDED.just_value,
       nbrhd_cd = EXCLUDED.nbrhd_cd,
       mkt_ar = EXCLUDED.mkt_ar,
+      lat = COALESCE(EXCLUDED.lat, county_parcels.lat),
+      lng = COALESCE(EXCLUDED.lng, county_parcels.lng),
       roll_year = EXCLUDED.roll_year,
       imported_at = now()
   `;
@@ -324,12 +387,13 @@ async function main() {
       const orPage = row[sdfMap['OR_PAGE']]?.trim() || '';
       const clerkNo = row[sdfMap['CLERK_NO']]?.trim() || '';
 
-      const saleKey = `${countyArg}|${parcelId}|${saleYr}|${saleMo}|${salePrice}|${orBook}|${orPage}`;
+      const saleKey = `${countyName}|${parcelId}|${saleYr}|${saleMo}|${salePrice}|${orBook}|${orPage}`;
       if (uniqueSalesKeys.has(saleKey)) continue;
       uniqueSalesKeys.add(saleKey);
+      classifySale(qualCd);
 
       const record = {
-        county: countyArg,
+        county: countyName,
         parcel_id: parcelId,
         sale_price: salePrice,
         sale_year: saleYr,
@@ -342,6 +406,10 @@ async function main() {
         clerk_no: clerkNo,
         source: 'SDF'
       };
+
+      if (parcelId === knownTargetId) {
+        knownParcelSales.push(record);
+      }
 
       if (!isDryRun) {
         salesBatch.push(record);
@@ -404,9 +472,9 @@ async function main() {
       }
 
       const rawZip = row[nalMap['PHY_ZIPCD']]?.trim() || '';
-      // Valid zip must be a 5-digit number
+      // Valid zip: 5 digits if present; empty is valid (null in DB), non-empty must match 5 digits
       const is5DigitZip = /^\d{5}$/.test(rawZip);
-      if (!is5DigitZip) {
+      if (rawZip !== '' && !is5DigitZip) {
         validation.nal.invalidZip++;
         isRowMalformed = true;
       }
@@ -448,8 +516,15 @@ async function main() {
       const mktAr = row[nalMap['MKT_AR']]?.trim() || null;
       const rollYear = row[nalMap['ASMNT_YR']] ? parseInt(row[nalMap['ASMNT_YR']], 10) || 2026 : 2026;
 
+      let lat = null;
+      let lng = null;
+      if (coordsCache && coordsCache[parcelId]) {
+        [lat, lng] = coordsCache[parcelId];
+        parcelsWithCoords++;
+      }
+
       const parcelRecord = {
-        county: countyArg,
+        county: countyName,
         parcel_id: parcelId,
         address: address,
         city: city,
@@ -463,10 +538,14 @@ async function main() {
         just_value: justValue,
         nbrhd_cd: nbrhdCd,
         mkt_ar: mktAr,
-        lat: null,
-        lng: null,
+        lat: lat,
+        lng: lng,
         roll_year: rollYear
       };
+
+      if (parcelId === knownTargetId || (address && address.toUpperCase().includes(countyName === 'Palm Beach' ? '1901 EMBASSY' : '924 SW 15 TER'))) {
+        knownParcelRecord = { ...parcelRecord };
+      }
 
       if (!isDryRun) {
         parcelBatch.push(parcelRecord);
@@ -491,13 +570,14 @@ async function main() {
         const vi1 = row[nalMap['VI_CD1']]?.trim() || null;
         const multi1 = row[nalMap['MULTI_PAR_SAL1']]?.trim() || null;
 
-        const key1 = `${countyArg}|${parcelId}|${yr1}|${mo1}|${prc1}|${book1}|${page1}`;
+        const key1 = `${countyName}|${parcelId}|${yr1}|${mo1}|${prc1}|${book1}|${page1}`;
         if (!uniqueSalesKeys.has(key1)) {
           uniqueSalesKeys.add(key1);
+          classifySale(qual1);
           totalNalSalesKept++;
 
           const sale1Record = {
-            county: countyArg,
+            county: countyName,
             parcel_id: parcelId,
             sale_price: prc1,
             sale_year: yr1,
@@ -510,6 +590,10 @@ async function main() {
             clerk_no: clerk1,
             source: 'NAL'
           };
+
+          if (parcelId === knownTargetId) {
+            knownParcelSales.push(sale1Record);
+          }
 
           if (!isDryRun) {
             salesBatch.push(sale1Record);
@@ -536,13 +620,14 @@ async function main() {
         const vi2 = row[nalMap['VI_CD2']]?.trim() || null;
         const multi2 = row[nalMap['MULTI_PAR_SAL2']]?.trim() || null;
 
-        const key2 = `${countyArg}|${parcelId}|${yr2}|${mo2}|${prc2}|${book2}|${page2}`;
+        const key2 = `${countyName}|${parcelId}|${yr2}|${mo2}|${prc2}|${book2}|${page2}`;
         if (!uniqueSalesKeys.has(key2)) {
           uniqueSalesKeys.add(key2);
+          classifySale(qual2);
           totalNalSalesKept++;
 
           const sale2Record = {
-            county: countyArg,
+            county: countyName,
             parcel_id: parcelId,
             sale_price: prc2,
             sale_year: yr2,
@@ -555,6 +640,10 @@ async function main() {
             clerk_no: clerk2,
             source: 'NAL'
           };
+
+          if (parcelId === knownTargetId) {
+            knownParcelSales.push(sale2Record);
+          }
 
           if (!isDryRun) {
             salesBatch.push(sale2Record);
@@ -599,7 +688,7 @@ async function main() {
   const malformedPct = totalRowsInspected > 0 ? ((totalMalformedRows / totalRowsInspected) * 100) : 0;
 
   console.log(`===============================================================================`);
-  console.log(`DATA INTEGRITY & VALIDATION REPORT: ${countyArg.toUpperCase()} COUNTY`);
+  console.log(`DATA INTEGRITY & VALIDATION REPORT: ${countyName.toUpperCase()} COUNTY`);
   console.log(`===============================================================================`);
   console.log(`1. NAL (Real Property Roll) Validation:`);
   console.log(`   - Total Rows Inspected:               ${validation.nal.totalRows.toLocaleString()}`);
@@ -638,14 +727,39 @@ async function main() {
   // ==========================================================================
   // FINAL REPORT & STORAGE SIZING
   // ==========================================================================
+  const coordCoveragePct = totalResidentialParcels > 0 ? ((parcelsWithCoords / totalResidentialParcels) * 100) : 0;
+
   console.log(`\n===============================================================================`);
-  console.log(`IMPORT SUMMARY REPORT: ${countyArg.toUpperCase()} COUNTY`);
+  console.log(`IMPORT SUMMARY REPORT: ${countyName.toUpperCase()} COUNTY`);
   console.log(`===============================================================================`);
   console.log(`Execution Mode: ${isDryRun ? 'DRY-RUN (Simulated — No DB Changes Made)' : 'REAL IMPORT'}`);
-  console.log(`- Target Residential Parcels: ${totalResidentialParcels.toLocaleString()} (use codes 000, 001, 002, 004, 008)`);
-  console.log(`- Total Unique Sales (> $100): ${uniqueSalesKeys.size.toLocaleString()}`);
-  console.log(`  * From SDF:                 ${sdfSalesImported.toLocaleString()}`);
-  console.log(`  * From NAL (deduplicated):  ${nalSalesImported.toLocaleString()}`);
+  console.log(`- Target Residential Parcels:   ${totalResidentialParcels.toLocaleString()} (use codes 000, 001, 002, 004, 008)`);
+  console.log(`  * Precomputed Coordinates:     ${parcelsWithCoords.toLocaleString()} (${coordCoveragePct.toFixed(2)}% coverage)`);
+  console.log(`- Total Unique Sales (> $100):   ${uniqueSalesKeys.size.toLocaleString()}`);
+  console.log(`  * Market Sales (01, 02):       ${uniqueMarketSales.toLocaleString()} (${((uniqueMarketSales / uniqueSalesKeys.size) * 100).toFixed(1)}%)`);
+  console.log(`  * Distressed (12, 18, 19, 38): ${uniqueDistressedSales.toLocaleString()} (${((uniqueDistressedSales / uniqueSalesKeys.size) * 100).toFixed(1)}%)`);
+  console.log(`  * Other Transfer Types:        ${uniqueOtherSales.toLocaleString()} (${((uniqueOtherSales / uniqueSalesKeys.size) * 100).toFixed(1)}%)`);
+  console.log(`  * Unique SDF Sales:            ${sdfSalesImported.toLocaleString()}`);
+  console.log(`  * Unique NAL Historical Sales: ${nalSalesImported.toLocaleString()}`);
+
+  if (knownParcelRecord) {
+    console.log(`\n-------------------------------------------------------------------------------`);
+    console.log(`KNOWN PARCEL VERIFICATION [${knownTargetId}]:`);
+    console.log(`- Parcel ID:    ${knownParcelRecord.parcel_id}`);
+    console.log(`- County:       ${knownParcelRecord.county}`);
+    console.log(`- Address:      ${knownParcelRecord.address}, ${knownParcelRecord.city}, FL ${knownParcelRecord.zip}`);
+    console.log(`- Use Code:     ${knownParcelRecord.use_code} (${knownParcelRecord.use_code === '001' ? 'Single-Family' : 'Residential'})`);
+    console.log(`- Living Area:  ${knownParcelRecord.living_sqft ? knownParcelRecord.living_sqft.toLocaleString() + ' sqft' : 'N/A'}`);
+    console.log(`- Lot Size:     ${knownParcelRecord.land_sqft ? knownParcelRecord.land_sqft.toLocaleString() + ' sqft' : 'N/A'}`);
+    console.log(`- Year Built:   ${knownParcelRecord.year_built || 'N/A'} (Effective: ${knownParcelRecord.eff_year_built || 'N/A'})`);
+    console.log(`- Just Value:   $${knownParcelRecord.just_value ? knownParcelRecord.just_value.toLocaleString() : 'N/A'}`);
+    console.log(`- Coordinates:  Lat: ${knownParcelRecord.lat}, Lng: ${knownParcelRecord.lng}`);
+    console.log(`- Sales Found:  ${knownParcelSales.length} recorded sale(s)`);
+    knownParcelSales.forEach((s, i) => {
+      console.log(`  ${i + 1}. $${s.sale_price ? s.sale_price.toLocaleString() : 0} on ${s.sale_month}/${s.sale_year} (Code: ${s.qual_code}, Source: ${s.source})`);
+    });
+    console.log(`-------------------------------------------------------------------------------`);
+  }
 
   if (!isDryRun && pool) {
     try {
@@ -691,11 +805,11 @@ async function main() {
     const estTotalBytes = estParcelBytes + estSalesBytes;
 
     console.log(`\n--- ESTIMATED NEON STORAGE FOOTPRINT ---`);
-    console.log(`- county_parcels (672,710 rows): ~${formatBytes(estParcelBytes)} (table + 3 B-Tree indexes)`);
-    console.log(`- county_sales   (55,396 rows): ~${formatBytes(estSalesBytes)} (table + 2 B-Tree indexes)`);
+    console.log(`- county_parcels (${totalResidentialParcels.toLocaleString()} rows): ~${formatBytes(estParcelBytes)} (table + 4 B-Tree indexes)`);
+    console.log(`- county_sales   (${uniqueSalesKeys.size.toLocaleString()} rows): ~${formatBytes(estSalesBytes)} (table + 2 B-Tree indexes)`);
     console.log(`- county_sale_codes (33 reference rows): < 0.1 MB`);
     console.log(`-------------------------------------------------------------------------------`);
-    console.log(`>> TOTAL ESTIMATED DATABASE FOOTPRINT: ~${formatBytes(estTotalBytes)}`);
+    console.log(`>> TOTAL ESTIMATED NEW STORAGE FOR ${countyName.toUpperCase()}: ~${formatBytes(estTotalBytes)}`);
     console.log(`===============================================================================\n`);
   }
 }

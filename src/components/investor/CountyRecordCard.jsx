@@ -263,7 +263,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 letterSpacing: '0.02em'
               }}
             >
-              Broward County Property Appraiser · 2026 roll
+              {property?.parcel_county || property?.county || 'Broward'} County Property Appraiser · 2026 roll
             </span>
           </div>
 
@@ -494,8 +494,25 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                       }}
                     >
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--espresso, #34292A)', marginBottom: '3px' }}>
-                          {niceAddr}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '3px' }}>
+                          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--espresso, #34292A)' }}>
+                            {niceAddr}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              letterSpacing: '0.04em',
+                              color: 'var(--secondary-color, #41101B)',
+                              backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                              border: '1px solid rgba(133, 157, 206, 0.35)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {match.county || 'Broward'}
+                          </span>
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.65)' }}>
                           {cityZip} · <span style={{ fontWeight: 500 }}>{typeLabel}</span> · {sqftStr} {builtStr ? `· ${builtStr}` : ''}
