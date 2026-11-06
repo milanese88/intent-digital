@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import dotenv from 'dotenv'
-import http from 'http'
+import fs from 'fs'
+import path from 'path'
 
 // Load environment variables for local dev
 dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.production.local' });
+dotenv.config();
 
 // Simple Vite middleware to mimic Vercel Serverless Functions locally
 const vercelApiMock = () => {
@@ -22,7 +25,6 @@ const vercelApiMock = () => {
 
             const fetchUrl = `https://api.cal.com/v2/slots/available?eventTypeId=${eventTypeId}&startTime=${dateFrom.substring(0,10)}&endTime=${dateTo.substring(0,10)}`;
             
-            // Use native global fetch (Node 18+)
             const fetchRes = await fetch(fetchUrl, {
               headers: { 'Authorization': `Bearer ${apiKey}` }
             });
@@ -72,6 +74,60 @@ const vercelApiMock = () => {
             }
           });
           return;
+        }
+
+        // General serverless function runner for local dev
+        if (req.url.startsWith('/api/')) {
+          const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+          const endpoint = urlObj.pathname.replace('/api/', '');
+          const filePath = path.resolve(`./api/${endpoint}.js`);
+
+          if (fs.existsSync(filePath)) {
+            let bodyStr = '';
+            req.on('data', chunk => { bodyStr += chunk; });
+            req.on('end', async () => {
+              try {
+                if (bodyStr) {
+                  try {
+                    req.body = JSON.parse(bodyStr);
+                  } catch {
+                    req.body = bodyStr;
+                  }
+                } else {
+                  req.body = {};
+                }
+
+                req.query = Object.fromEntries(urlObj.searchParams.entries());
+
+                res.status = function(code) {
+                  this.statusCode = code;
+                  return this;
+                };
+                res.json = function(data) {
+                  this.setHeader('Content-Type', 'application/json');
+                  this.end(JSON.stringify(data));
+                  return this;
+                };
+                res.redirect = function(url, status = 302) {
+                  this.statusCode = status;
+                  this.setHeader('Location', url);
+                  this.end();
+                  return this;
+                };
+
+                const mod = await import(`file://${filePath}?t=${Date.now()}`);
+                await mod.default(req, res);
+              } catch (err) {
+                console.error('Vite local API error:', err);
+                if (!res.writableEnded) {
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: err.message }));
+                }
+              }
+            });
+            return;
+          }
         }
 
         next();
