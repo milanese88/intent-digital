@@ -20,7 +20,7 @@ export default function About({ navigateTo }) {
       <nav className="navbar">
         <div className="container nav-container">
           <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+            <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="nav-seal-img" />
           </a>
 
           <div className="nav-links desktop-only">
@@ -164,7 +164,7 @@ export default function About({ navigateTo }) {
 
             <div className="footer-col-center">
               <div className="footer-seal-wrapper">
-                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-main-seal" />
+                <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="footer-main-seal" />
               </div>
             </div>
 

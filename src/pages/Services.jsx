@@ -23,7 +23,7 @@ export default function Services({ navigateTo }) {
         {/* Nav Bar — Full Width */}
         <div className="services-hero-nav-bar">
           <a href="#" className="services-seal-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="services-seal-img" />
+            <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="services-seal-img" />
           </a>
           <div className="services-nav-links desktop-only">
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'about')}>ABOUT</a>
@@ -302,7 +302,7 @@ export default function Services({ navigateTo }) {
 
             <div className="footer-col-center">
               <div className="footer-seal-wrapper">
-                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-main-seal" />
+                <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="footer-main-seal" />
               </div>
             </div>
 

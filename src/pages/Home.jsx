@@ -40,7 +40,7 @@ export default function Home({ navigateTo }) {
       <nav className="navbar">
         <div className="container nav-container">
           <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+            <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="nav-seal-img" />
           </a>
 
           <div className="nav-links desktop-only">
@@ -365,7 +365,7 @@ export default function Home({ navigateTo }) {
             {/* Center Column: Centered Seal logo + Social icons */}
             <div className="footer-col-center">
               <div className="footer-seal-wrapper">
-                <img src="/seal-logo.png" alt="Intent Digital Seal" className="footer-main-seal" />
+                <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="footer-main-seal" />
               </div>
               <div className="footer-social-row">
                 <a href="#" className="social-icon-link" aria-label="Facebook">

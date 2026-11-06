@@ -59,9 +59,9 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
       <div style={{ padding: '40px 24px', textAlign: 'center' }}>
         <a href="#" onClick={(e) => { e.preventDefault(); navigateTo && navigateTo('home'); }}>
           <img 
-            src="/seal-logo.png" 
-            alt="Intent Digital Seal" 
-            style={{ width: '48px', height: '48px', marginBottom: '16px' }} 
+            src="/intent-digital-logo-web.png" 
+            alt="Intent Digital Logo" 
+            style={{ width: '52px', height: '52px', marginBottom: '16px', objectFit: 'contain' }} 
           />
         </a>
         <h2 style={{ 
@@ -144,7 +144,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           top: 0,
           zIndex: 40
         }}>
-          <img src="/seal-logo.png" alt="Intent Digital Seal" style={{ width: '32px', height: '32px' }} />
+          <img src="/intent-digital-logo-web.png" alt="Intent Digital Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           <button 
             onClick={() => setMobileMenuOpen(true)}
             style={{ background: 'none', border: 'none', fontSize: '24px', color: '#34292A', cursor: 'pointer' }}

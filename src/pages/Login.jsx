@@ -133,7 +133,7 @@ export default function Login({ navigateTo }) {
       <nav className="navbar">
         <div className="container nav-container">
           <a href="#" className="nav-logo-link" onClick={(e) => handleNavClick(e, 'home')}>
-            <img src="/seal-logo.png" alt="Intent Digital Seal" className="nav-seal-img" />
+            <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="nav-seal-img" />
           </a>
           <div className="nav-links desktop-only">
             <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'home', 'why-us')}>ABOUT</a>
