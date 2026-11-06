@@ -20,6 +20,19 @@ function validateProperty(body) {
   const county = body.county != null && String(body.county).trim() !== '' ? String(body.county).trim() : null;
   const state = 'FL';
 
+  // Coordinates: lat (-90 to 90), lng (-180 to 180)
+  const parseCoord = (val, fieldKey, label, min, max) => {
+    if (val == null || String(val).trim() === '') return null;
+    const num = Number(val);
+    if (isNaN(num) || num < min || num > max) {
+      errors[fieldKey] = `${label} must be a valid number between ${min} and ${max}.`;
+      return null;
+    }
+    return num;
+  };
+  const lat = parseCoord(body.lat, 'lat', 'Latitude', -90, 90);
+  const lng = parseCoord(body.lng, 'lng', 'Longitude', -180, 180);
+
   // Property Type
   let property_type = body.property_type != null && String(body.property_type).trim() !== '' ? String(body.property_type).trim().toLowerCase() : null;
   if (property_type && !ALLOWED_PROPERTY_TYPES.includes(property_type)) {
@@ -104,6 +117,8 @@ function validateProperty(body) {
       state,
       zip,
       county,
+      lat,
+      lng,
       property_type,
       units,
       beds,
@@ -184,6 +199,8 @@ export default async function handler(req, res) {
           state,
           zip,
           county,
+          lat,
+          lng,
           property_type,
           units,
           beds,
@@ -205,6 +222,8 @@ export default async function handler(req, res) {
           ${data.state},
           ${data.zip},
           ${data.county},
+          ${data.lat},
+          ${data.lng},
           ${data.property_type},
           ${data.units},
           ${data.beds},
@@ -246,6 +265,8 @@ export default async function handler(req, res) {
           state = ${data.state},
           zip = ${data.zip},
           county = ${data.county},
+          lat = ${data.lat},
+          lng = ${data.lng},
           property_type = ${data.property_type},
           units = ${data.units},
           beds = ${data.beds},

@@ -1,4 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 export default function InvestorStudio() {
   const [properties, setProperties] = useState([]);
@@ -26,12 +39,24 @@ export default function InvestorStudio() {
   const [formErrors, setFormErrors] = useState({});
   const [toast, setToast] = useState(null);
 
+  // Mapbox Autocomplete state
+  const [mapboxSessionToken, setMapboxSessionToken] = useState(() => generateUUID());
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isAddressFocused, setIsAddressFocused] = useState(false);
+  const autocompleteRef = useRef(null);
+  const justSelectedRef = useRef(false);
+
   // Form field state
   const [formData, setFormData] = useState({
     address: '',
     city: '',
     zip: '',
     county: '',
+    lat: null,
+    lng: null,
     property_type: 'single_family',
     units: 1,
     beds: '',
@@ -88,6 +113,124 @@ export default function InvestorStudio() {
     fetchProperties();
   }, []);
 
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Mapbox Search Box API: Debounced address suggest (250ms, >= 3 chars, South Florida bias)
+  useEffect(() => {
+    if (!MAPBOX_TOKEN || !formData.address || formData.address.trim().length < 3 || !isAddressFocused) {
+      return;
+    }
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const q = encodeURIComponent(formData.address.trim());
+        const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${q}&access_token=${MAPBOX_TOKEN}&session_token=${mapboxSessionToken}&types=address&country=US&proximity=-80.14,26.12&limit=6&language=en`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          setIsSearching(false);
+          return;
+        }
+        const data = await res.json();
+        const list = data.suggestions || [];
+        setSuggestions(list);
+        setIsDropdownOpen(list.length > 0);
+        setSelectedIndex(-1);
+      } catch (err) {
+        // Silently fall back to normal text input
+        setSuggestions([]);
+        setIsDropdownOpen(false);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [formData.address, mapboxSessionToken, isAddressFocused]);
+
+  // Handle selecting an autocomplete suggestion (Retrieve API)
+  const handleSelectSuggestion = async (suggestion) => {
+    justSelectedRef.current = true;
+    setIsDropdownOpen(false);
+    setSuggestions([]);
+    setSelectedIndex(-1);
+
+    let streetAddress = suggestion.name || formData.address;
+    let city = '';
+    let zip = '';
+    let county = '';
+    let lat = null;
+    let lng = null;
+
+    if (MAPBOX_TOKEN && suggestion.mapbox_id) {
+      try {
+        const retrieveUrl = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(suggestion.mapbox_id)}?access_token=${MAPBOX_TOKEN}&session_token=${mapboxSessionToken}`;
+        const res = await fetch(retrieveUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const feat = data.features?.[0];
+          if (feat) {
+            const props = feat.properties || {};
+            const ctx = props.context || {};
+
+            // Street address only
+            if (props.name) {
+              streetAddress = props.name;
+            } else if (props.address && props.street) {
+              streetAddress = `${props.address} ${props.street}`;
+            }
+
+            // City
+            city = ctx.place?.name || ctx.locality?.name || '';
+
+            // ZIP
+            zip = ctx.postcode?.name || '';
+
+            // County mapping (Broward, Palm Beach, Miami-Dade, Other)
+            const rawDistrict = (ctx.district?.name || ctx.county?.name || '').toLowerCase();
+            if (rawDistrict.includes('broward')) county = 'Broward';
+            else if (rawDistrict.includes('palm beach')) county = 'Palm Beach';
+            else if (rawDistrict.includes('miami') || rawDistrict.includes('dade')) county = 'Miami-Dade';
+            else county = 'Other';
+
+            // Coordinates [lng, lat]
+            const coords = feat.geometry?.coordinates || [];
+            lng = coords[0] != null ? coords[0] : (props.coordinates?.longitude ?? null);
+            lat = coords[1] != null ? coords[1] : (props.coordinates?.latitude ?? null);
+          }
+        }
+      } catch (err) {
+        console.warn('Mapbox retrieve failed:', err);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      address: streetAddress,
+      city: city || prev.city,
+      zip: zip || prev.zip,
+      county: county || prev.county,
+      lat: lat != null ? Number(lat) : null,
+      lng: lng != null ? Number(lng) : null
+    }));
+
+    // Generate fresh session token for future searches
+    setMapboxSessionToken(generateUUID());
+  };
+
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
     setAppliedFilters({
@@ -107,11 +250,16 @@ export default function InvestorStudio() {
   // Open panel in Add mode
   const handleOpenAdd = () => {
     setEditingProperty(null);
+    setMapboxSessionToken(generateUUID());
+    setSuggestions([]);
+    setIsDropdownOpen(false);
     setFormData({
       address: '',
       city: '',
       zip: '',
       county: '',
+      lat: null,
+      lng: null,
       property_type: 'single_family',
       units: 1,
       beds: '',
@@ -135,11 +283,16 @@ export default function InvestorStudio() {
   // Open panel in Edit mode
   const handleOpenEdit = (p) => {
     setEditingProperty(p);
+    setMapboxSessionToken(generateUUID());
+    setSuggestions([]);
+    setIsDropdownOpen(false);
     setFormData({
       address: p.address || '',
       city: p.city || '',
       zip: p.zip || '',
       county: p.county || '',
+      lat: p.lat != null ? Number(p.lat) : null,
+      lng: p.lng != null ? Number(p.lng) : null,
       property_type: p.property_type || 'single_family',
       units: p.units != null ? p.units : 1,
       beds: p.beds != null ? p.beds : '',
@@ -165,6 +318,8 @@ export default function InvestorStudio() {
     setIsPanelOpen(false);
     setIsDeleteConfirming(false);
     setFormErrors({});
+    setIsDropdownOpen(false);
+    setSuggestions([]);
   };
 
   const handleFormFieldChange = (field, value) => {
@@ -175,6 +330,50 @@ export default function InvestorStudio() {
         delete updated[field];
         return updated;
       });
+    }
+  };
+
+  // Address input change clears lat/lng if user manually edits
+  const handleAddressInputChange = (e) => {
+    const val = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      address: val,
+      lat: null,
+      lng: null
+    }));
+    if (formErrors.address) {
+      setFormErrors(prev => {
+        const updated = { ...prev };
+        delete updated.address;
+        return updated;
+      });
+    }
+    if (val.trim().length >= 3 && MAPBOX_TOKEN) {
+      setIsDropdownOpen(true);
+    } else {
+      setIsDropdownOpen(false);
+      setSuggestions([]);
+    }
+  };
+
+  // Address keyboard navigation (combobox)
+  const handleAddressKeyDown = (e) => {
+    if (!isDropdownOpen || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        e.preventDefault();
+        handleSelectSuggestion(suggestions[selectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
     }
   };
 
@@ -191,7 +390,6 @@ export default function InvestorStudio() {
     setFormErrors({});
     setIsSaving(true);
 
-    // Basic client validation
     if (!formData.address.trim()) {
       setFormErrors({ address: 'Address is required.' });
       setIsSaving(false);
@@ -204,6 +402,8 @@ export default function InvestorStudio() {
       city: formData.city.trim() || null,
       zip: formData.zip.trim() || null,
       county: formData.county.trim() || null,
+      lat: formData.lat != null ? Number(formData.lat) : null,
+      lng: formData.lng != null ? Number(formData.lng) : null,
       property_type: formData.property_type || null,
       units: formData.property_type === 'multifamily_2_9' ? (Number(formData.units) || 1) : 1,
       beds: formData.beds !== '' ? Number(formData.beds) : null,
@@ -245,7 +445,6 @@ export default function InvestorStudio() {
         return;
       }
 
-      // Success: update property list immediately in memory
       if (isEdit) {
         setProperties(prev => prev.map(p => (p.id === data.id ? data : p)));
       } else {
@@ -586,6 +785,85 @@ export default function InvestorStudio() {
           margin-bottom: 14px;
         }
 
+        /* Form Polish: Custom Select Styling with Subtle Chevron */
+        .investor-form-select {
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2334292A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
+          padding-right: 36px;
+          cursor: pointer;
+          height: 42px;
+        }
+        .investor-form-select.placeholder-active {
+          color: rgba(52, 41, 42, 0.45) !important;
+        }
+        .investor-form-select option {
+          color: var(--espresso, #1E1509);
+          background-color: #ffffff;
+        }
+        .investor-form-select option[value=""] {
+          color: rgba(52, 41, 42, 0.45);
+        }
+
+        /* Form Polish: Remove number spinner arrows */
+        .investor-form-input::-webkit-outer-spin-button,
+        .investor-form-input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .investor-form-input[type="number"] {
+          -moz-appearance: textfield;
+          appearance: textfield;
+        }
+
+        /* Mapbox Autocomplete Dropdown */
+        .investor-autocomplete-container {
+          position: relative;
+          width: 100%;
+        }
+        .investor-autocomplete-dropdown {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 0;
+          right: 0;
+          background: #ffffff;
+          border: 1px solid rgba(52, 41, 42, 0.16);
+          border-radius: 8px;
+          box-shadow: 0 10px 28px rgba(52, 41, 42, 0.12);
+          z-index: 1300;
+          max-height: 280px;
+          overflow-y: auto;
+          padding: 6px 0;
+          margin: 0;
+          list-style: none;
+        }
+        .investor-autocomplete-item {
+          padding: 10px 14px;
+          cursor: pointer;
+          transition: background-color 0.15s ease;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .investor-autocomplete-item:hover,
+        .investor-autocomplete-item.active {
+          background-color: rgba(65, 16, 27, 0.05);
+        }
+        .investor-autocomplete-street {
+          font-family: var(--font-sans, 'Montserrat', sans-serif);
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--espresso, #1E1509);
+        }
+        .investor-autocomplete-subtitle {
+          font-family: var(--font-sans, 'Montserrat', sans-serif);
+          font-size: 11.5px;
+          color: rgba(52, 41, 42, 0.55);
+        }
+
         /* Responsive Breakpoints */
         @media (max-width: 860px) {
           .investor-search-bar {
@@ -658,7 +936,6 @@ export default function InvestorStudio() {
 
       {/* HERO SECTION - MATCHING DASHBOARD / OVERVIEW EXACTLY */}
       <header style={{ marginBottom: '40px', textAlign: 'center' }}>
-        {/* Eyebrow: Matches "OWNER PORTAL" in Overview.jsx */}
         <span style={{
           display: 'block',
           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -671,7 +948,6 @@ export default function InvestorStudio() {
           INVESTOR STUDIO · PRIVATE
         </span>
 
-        {/* Headline: Scaled display serif, italic on line 2, centered */}
         <h1 className="investor-hero-title" style={{
           fontSize: 'clamp(36px, 4.5vw, 56px)',
           margin: '0 auto 20px auto',
@@ -682,7 +958,6 @@ export default function InvestorStudio() {
           <i>Know the numbers.</i>
         </h1>
 
-        {/* Body Text: Matches Overview.jsx intro paragraph, centered, max-width ~620px */}
         <p style={{
           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
           fontSize: '15px',
@@ -765,7 +1040,6 @@ export default function InvestorStudio() {
 
       {/* SAVED PROPERTIES SECTION */}
       <section style={{ marginTop: '64px' }}>
-        {/* Section Heading & Add Button */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -821,7 +1095,6 @@ export default function InvestorStudio() {
               </button>
             )}
 
-            {/* + ADD PROPERTY BUTTON (Burgundy pill matching SEARCH) */}
             <button
               type="button"
               onClick={handleOpenAdd}
@@ -868,7 +1141,7 @@ export default function InvestorStudio() {
           </div>
         )}
 
-        {/* EMPTY STATE - MATCHING "DASHBOARD IS ACTIVE" CARD + ADD BUTTON */}
+        {/* EMPTY STATE */}
         {!loading && !error && properties.length === 0 && (
           <div className="investor-empty-card" style={{
             maxWidth: '800px',
@@ -898,7 +1171,6 @@ export default function InvestorStudio() {
             }}>
               Add your first property to start running comps and numbers.
             </p>
-            {/* Same burgundy button inside empty state card */}
             <button
               type="button"
               onClick={handleOpenAdd}
@@ -915,7 +1187,7 @@ export default function InvestorStudio() {
           </div>
         )}
 
-        {/* EMPTY FILTER STATE - NO MATCHES */}
+        {/* EMPTY FILTER STATE */}
         {!loading && !error && properties.length > 0 && filteredProperties.length === 0 && (
           <div className="investor-empty-card" style={{
             maxWidth: '800px',
@@ -985,7 +1257,6 @@ export default function InvestorStudio() {
                     justifyContent: 'center',
                     color: 'rgba(250, 248, 245, 0.35)'
                   }}>
-                    {/* Status Pill in Cream */}
                     <div style={{
                       position: 'absolute',
                       top: '12px',
@@ -1003,7 +1274,6 @@ export default function InvestorStudio() {
                       {formatStatus(p.status)}
                     </div>
 
-                    {/* Architectural placeholder icon */}
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                       <polyline points="9 22 9 12 15 12 15 22"></polyline>
@@ -1012,7 +1282,6 @@ export default function InvestorStudio() {
 
                   {/* Card Body */}
                   <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    {/* List Price */}
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1024,7 +1293,6 @@ export default function InvestorStudio() {
                       {formatPrice(p.list_price)}
                     </div>
 
-                    {/* Address & City, State Zip */}
                     <div style={{
                       fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                       fontSize: '14px',
@@ -1046,7 +1314,6 @@ export default function InvestorStudio() {
                       </div>
                     )}
 
-                    {/* Specs Line (e.g. 3 bd · 2 ba · 1,640 sqft · Built 1974) */}
                     {specs && (
                       <div style={{
                         fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -1058,7 +1325,7 @@ export default function InvestorStudio() {
                       </div>
                     )}
 
-                    {/* Bottom Row: $/SQFT, STRATEGY, and small EDIT link */}
+                    {/* Bottom Row */}
                     <div style={{
                       marginTop: 'auto',
                       paddingTop: '14px',
@@ -1088,7 +1355,6 @@ export default function InvestorStudio() {
                           {formatStrategy(p.strategy)}
                         </div>
 
-                        {/* Edit Text Link */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1164,7 +1430,6 @@ export default function InvestorStudio() {
                 </h2>
               </div>
 
-              {/* Close Button */}
               <button
                 type="button"
                 onClick={handleClosePanel}
@@ -1194,7 +1459,6 @@ export default function InvestorStudio() {
                 flexDirection: 'column',
                 gap: '26px'
               }}>
-                {/* General Validation Error Alert */}
                 {formErrors.general && (
                   <div style={{
                     backgroundColor: '#FFF7F5',
@@ -1214,18 +1478,73 @@ export default function InvestorStudio() {
                 <div>
                   <span className="investor-section-header">LOCATION</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
+                    {/* Address with Mapbox Combobox Autocomplete */}
+                    <div ref={autocompleteRef} className="investor-autocomplete-container">
                       <label className="investor-form-label" htmlFor="prop-address">
                         Address *
                       </label>
                       <input
                         id="prop-address"
                         type="text"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={isDropdownOpen && suggestions.length > 0}
+                        aria-controls="address-suggestions-listbox"
+                        aria-activedescendant={selectedIndex >= 0 ? `address-suggestion-${selectedIndex}` : undefined}
                         value={formData.address}
-                        onChange={(e) => handleFormFieldChange('address', e.target.value)}
+                        onChange={handleAddressInputChange}
+                        onKeyDown={handleAddressKeyDown}
+                        onFocus={() => {
+                          setIsAddressFocused(true);
+                          if (formData.address.trim().length >= 3 && suggestions.length > 0) {
+                            setIsDropdownOpen(true);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Short delay to allow onMouseDown on suggestion to complete
+                          setTimeout(() => setIsAddressFocused(false), 200);
+                        }}
                         placeholder="e.g. 1240 Las Olas Blvd"
+                        autoComplete="off"
                         className={`investor-form-input ${formErrors.address ? 'has-error' : ''}`}
                       />
+
+                      {/* Autocomplete Dropdown Listbox */}
+                      {isDropdownOpen && suggestions.length > 0 && (
+                        <ul
+                          id="address-suggestions-listbox"
+                          role="listbox"
+                          className="investor-autocomplete-dropdown"
+                        >
+                          {suggestions.map((item, idx) => {
+                            const isSelected = selectedIndex === idx;
+                            return (
+                              <li
+                                key={item.mapbox_id || idx}
+                                id={`address-suggestion-${idx}`}
+                                role="option"
+                                aria-selected={isSelected}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleSelectSuggestion(item);
+                                }}
+                                onMouseEnter={() => setSelectedIndex(idx)}
+                                className={`investor-autocomplete-item ${isSelected ? 'active' : ''}`}
+                              >
+                                <div className="investor-autocomplete-street">
+                                  {item.name}
+                                </div>
+                                {item.place_formatted && (
+                                  <div className="investor-autocomplete-subtitle">
+                                    {item.place_formatted}
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+
                       {formErrors.address && (
                         <span className="investor-field-error">{formErrors.address}</span>
                       )}
@@ -1252,6 +1571,7 @@ export default function InvestorStudio() {
                         <input
                           id="prop-zip"
                           type="text"
+                          inputMode="numeric"
                           value={formData.zip}
                           onChange={(e) => handleFormFieldChange('zip', e.target.value)}
                           placeholder="e.g. 33301"
@@ -1268,9 +1588,9 @@ export default function InvestorStudio() {
                         id="prop-county"
                         value={formData.county}
                         onChange={(e) => handleFormFieldChange('county', e.target.value)}
-                        className="investor-form-select"
+                        className={`investor-form-select ${!formData.county ? 'placeholder-active' : ''}`}
                       >
-                        <option value="">Select County</option>
+                        <option value="">Select county</option>
                         <option value="Broward">Broward</option>
                         <option value="Palm Beach">Palm Beach</option>
                         <option value="Miami-Dade">Miami-Dade</option>
@@ -1293,7 +1613,7 @@ export default function InvestorStudio() {
                           id="prop-type"
                           value={formData.property_type}
                           onChange={(e) => handleFormFieldChange('property_type', e.target.value)}
-                          className={`investor-form-select ${formErrors.property_type ? 'has-error' : ''}`}
+                          className={`investor-form-select ${!formData.property_type ? 'placeholder-active' : ''} ${formErrors.property_type ? 'has-error' : ''}`}
                         >
                           <option value="single_family">Single-family</option>
                           <option value="condo">Condo</option>
@@ -1317,6 +1637,7 @@ export default function InvestorStudio() {
                             type="number"
                             min="1"
                             step="1"
+                            inputMode="numeric"
                             value={formData.units}
                             onChange={(e) => handleFormFieldChange('units', e.target.value)}
                             className={`investor-form-input ${formErrors.units ? 'has-error' : ''}`}
@@ -1339,6 +1660,7 @@ export default function InvestorStudio() {
                           id="prop-beds"
                           type="number"
                           step="any"
+                          inputMode="numeric"
                           value={formData.beds}
                           onChange={(e) => handleFormFieldChange('beds', e.target.value)}
                           placeholder="e.g. 3"
@@ -1353,9 +1675,10 @@ export default function InvestorStudio() {
                           id="prop-baths"
                           type="number"
                           step="any"
+                          inputMode="decimal"
                           value={formData.baths}
                           onChange={(e) => handleFormFieldChange('baths', e.target.value)}
-                          placeholder="e.g. 2"
+                          placeholder="e.g. 2.5"
                           className="investor-form-input"
                         />
                       </div>
@@ -1370,6 +1693,7 @@ export default function InvestorStudio() {
                           id="prop-sqft"
                           type="number"
                           step="1"
+                          inputMode="numeric"
                           value={formData.sqft}
                           onChange={(e) => handleFormFieldChange('sqft', e.target.value)}
                           placeholder="e.g. 1850"
@@ -1384,6 +1708,7 @@ export default function InvestorStudio() {
                           id="prop-lot-sqft"
                           type="number"
                           step="1"
+                          inputMode="numeric"
                           value={formData.lot_sqft}
                           onChange={(e) => handleFormFieldChange('lot_sqft', e.target.value)}
                           placeholder="e.g. 6500"
@@ -1400,6 +1725,7 @@ export default function InvestorStudio() {
                         id="prop-year-built"
                         type="number"
                         step="1"
+                        inputMode="numeric"
                         value={formData.year_built}
                         onChange={(e) => handleFormFieldChange('year_built', e.target.value)}
                         placeholder="e.g. 1988"
@@ -1442,7 +1768,7 @@ export default function InvestorStudio() {
                           id="prop-status"
                           value={formData.status}
                           onChange={(e) => handleFormFieldChange('status', e.target.value)}
-                          className={`investor-form-select ${formErrors.status ? 'has-error' : ''}`}
+                          className={`investor-form-select ${!formData.status ? 'placeholder-active' : ''} ${formErrors.status ? 'has-error' : ''}`}
                         >
                           <option value="watching">Watching</option>
                           <option value="analyzing">Analyzing</option>
@@ -1464,7 +1790,7 @@ export default function InvestorStudio() {
                           id="prop-strategy"
                           value={formData.strategy}
                           onChange={(e) => handleFormFieldChange('strategy', e.target.value)}
-                          className={`investor-form-select ${formErrors.strategy ? 'has-error' : ''}`}
+                          className={`investor-form-select ${!formData.strategy ? 'placeholder-active' : ''} ${formErrors.strategy ? 'has-error' : ''}`}
                         >
                           <option value="">Select strategy</option>
                           <option value="rental">Rental</option>
@@ -1521,6 +1847,7 @@ export default function InvestorStudio() {
                         id="prop-roof-year"
                         type="number"
                         step="1"
+                        inputMode="numeric"
                         value={formData.roof_year}
                         onChange={(e) => handleFormFieldChange('roof_year', e.target.value)}
                         placeholder="e.g. 2018"
@@ -1559,7 +1886,6 @@ export default function InvestorStudio() {
                 backgroundColor: 'var(--lighter-tone, #FAF8F5)'
               }}>
                 {isDeleteConfirming ? (
-                  /* Delete Confirmation In-Place */
                   <div style={{
                     backgroundColor: '#FFF7F5',
                     border: '1px solid rgba(192, 57, 43, 0.25)',
@@ -1622,7 +1948,6 @@ export default function InvestorStudio() {
                     </div>
                   </div>
                 ) : (
-                  /* Regular Action Buttons */
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
