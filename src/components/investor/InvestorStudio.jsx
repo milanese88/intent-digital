@@ -3,6 +3,7 @@ import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import InvestorMap from './InvestorMap.jsx';
+import CountyRecordCard from './CountyRecordCard.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -68,7 +69,9 @@ export default function InvestorStudio() {
     condition: '',
     roof_year: '',
     listing_url: '',
-    notes: ''
+    notes: '',
+    parcel_id: null,
+    parcel_county: null
   });
 
   // Split Map State (List view)
@@ -104,7 +107,9 @@ export default function InvestorStudio() {
     baths: '',
     year_built: '',
     source: 'MLS',
-    included: true
+    included: true,
+    parcel_id: null,
+    parcel_county: null
   });
 
   const showToast = (msg) => {
@@ -268,7 +273,9 @@ export default function InvestorStudio() {
       condition: '',
       roof_year: '',
       listing_url: '',
-      notes: ''
+      notes: '',
+      parcel_id: null,
+      parcel_county: null
     });
     setPropFormErrors({});
     setIsPropDeleteConfirming(false);
@@ -298,7 +305,9 @@ export default function InvestorStudio() {
       condition: p.condition || '',
       roof_year: p.roof_year != null ? p.roof_year : '',
       listing_url: p.listing_url || '',
-      notes: p.notes || ''
+      notes: p.notes || '',
+      parcel_id: p.parcel_id || null,
+      parcel_county: p.parcel_county || null
     });
     setPropFormErrors({});
     setIsPropDeleteConfirming(false);
@@ -344,7 +353,9 @@ export default function InvestorStudio() {
       condition: propFormData.condition.trim() || null,
       roof_year: propFormData.roof_year !== '' && propFormData.roof_year != null ? Number(String(propFormData.roof_year).replace(/[^\d]/g, '')) : null,
       listing_url: propFormData.listing_url.trim() || null,
-      notes: propFormData.notes.trim() || null
+      notes: propFormData.notes.trim() || null,
+      parcel_id: propFormData.parcel_id || null,
+      parcel_county: propFormData.parcel_county || null
     };
 
     if (editingProperty) {
@@ -436,7 +447,9 @@ export default function InvestorStudio() {
       baths: '',
       year_built: '',
       source: 'MLS',
-      included: true
+      included: true,
+      parcel_id: null,
+      parcel_county: null
     });
     setCompFormErrors({});
     setIsCompDeleteConfirming(false);
@@ -458,7 +471,9 @@ export default function InvestorStudio() {
       baths: comp.baths != null ? comp.baths : '',
       year_built: comp.year_built != null ? comp.year_built : '',
       source: comp.source || 'MLS',
-      included: comp.included !== false
+      included: comp.included !== false,
+      parcel_id: comp.parcel_id || null,
+      parcel_county: comp.parcel_county || null
     });
     setCompFormErrors({});
     setIsCompDeleteConfirming(false);
@@ -498,7 +513,9 @@ export default function InvestorStudio() {
       baths: compFormData.baths !== '' && compFormData.baths != null ? Number(String(compFormData.baths).replace(/[^\d.]/g, '')) : null,
       year_built: compFormData.year_built !== '' && compFormData.year_built != null ? Number(String(compFormData.year_built).replace(/[^\d]/g, '')) : null,
       source: compFormData.source || null,
-      included: Boolean(compFormData.included)
+      included: Boolean(compFormData.included),
+      parcel_id: compFormData.parcel_id || null,
+      parcel_county: compFormData.parcel_county || null
     };
 
     if (editingComp) {
@@ -1415,6 +1432,15 @@ export default function InvestorStudio() {
                   </div>
                 </div>
               </div>
+
+              {/* County Record Card */}
+              <CountyRecordCard
+                property={activeProperty}
+                onPropertyUpdate={(updated) => {
+                  setProperties(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+                }}
+                showToast={showToast}
+              />
 
               {/* Main Content Grid: Left Column (Comps + Notes) & Right Column (Underwrite) */}
               <div className="investor-detail-grid">
@@ -2466,7 +2492,16 @@ export default function InvestorStudio() {
                           zip: details.zip || prev.zip,
                           county: details.county || prev.county,
                           lat: details.lat,
-                          lng: details.lng
+                          lng: details.lng,
+                          ...(details.parcel_id ? {
+                            parcel_id: details.parcel_id,
+                            parcel_county: details.parcel_county || details.county || 'Broward',
+                            sqft: details.sqft != null ? details.sqft : prev.sqft,
+                            lot_sqft: details.lot_sqft != null ? details.lot_sqft : prev.lot_sqft,
+                            year_built: details.year_built != null ? details.year_built : prev.year_built,
+                            units: details.units != null ? details.units : prev.units,
+                            property_type: details.property_type || prev.property_type
+                          } : {})
                         }));
                       }}
                       error={propFormErrors.address}
@@ -2970,7 +3005,13 @@ export default function InvestorStudio() {
                       city: details.city || prev.city,
                       zip: details.zip || prev.zip,
                       lat: details.lat,
-                      lng: details.lng
+                      lng: details.lng,
+                      ...(details.parcel_id ? {
+                        parcel_id: details.parcel_id,
+                        parcel_county: details.parcel_county || details.county || 'Broward',
+                        sqft: details.sqft != null ? details.sqft : prev.sqft,
+                        year_built: details.year_built != null ? details.year_built : prev.year_built
+                      } : {})
                     }));
                   }}
                   error={compFormErrors.address}
