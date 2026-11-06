@@ -228,6 +228,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
   if (!property.parcel_id) {
     return (
       <div
+        id="county-record-card"
         className="investor-county-card"
         style={{
           background: '#ffffff',
@@ -536,6 +537,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
 
   return (
     <div
+      id="county-record-card"
       className="investor-county-card"
       style={{
         background: '#ffffff',

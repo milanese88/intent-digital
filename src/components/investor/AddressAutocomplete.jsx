@@ -111,7 +111,7 @@ export function useCodeToPropertyType(useCode) {
 /**
  * Forward geocodes an address string using Mapbox to obtain lat/lng
  */
-async function forwardGeocodeMapbox(addressQuery, token, sessionToken) {
+export async function forwardGeocodeMapbox(addressQuery, token = MAPBOX_TOKEN, sessionToken = '') {
   if (!token || !addressQuery) return { lat: null, lng: null };
 
   // 1. Try Mapbox Geocoding v5

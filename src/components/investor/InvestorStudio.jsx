@@ -4,6 +4,7 @@ import UnderwritePanel from './UnderwritePanel.jsx';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import InvestorMap from './InvestorMap.jsx';
 import CountyRecordCard from './CountyRecordCard.jsx';
+import SuggestedCompsPanel from './SuggestedCompsPanel.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -1475,6 +1476,16 @@ export default function InvestorStudio() {
                       + ADD COMP
                     </button>
                   </div>
+
+                  {/* Suggested Comps from County Records */}
+                  <SuggestedCompsPanel
+                    property={activeProperty}
+                    comps={comps}
+                    onCompAdded={(newComp) => {
+                      setComps(prev => [newComp, ...prev]);
+                    }}
+                    showToast={showToast}
+                  />
 
                   {/* Loading / Error States */}
                   {compsLoading && (
