@@ -43,8 +43,8 @@ if (fs.existsSync(envLocalPath)) {
 // DOR Residential Target Land Use Codes
 const RESIDENTIAL_USE_CODES = new Set(['000', '001', '002', '004', '008']);
 
-// Batch size for PostgreSQL inserts (500 rows per batch = ~8.5k parameters, safely under Postgres 65k limit)
-const BATCH_SIZE = 500;
+// Batch size for PostgreSQL inserts (~1,000 rows per batch inside per-batch transactions)
+const BATCH_SIZE = 1000;
 
 // Maximum acceptable malformed rows threshold (0.5%)
 const MAX_MALFORMED_THRESHOLD_PCT = 0.5;
