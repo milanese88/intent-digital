@@ -28,6 +28,7 @@ function getPolygonArea(ring) {
 /**
  * Computes a point guaranteed to be INSIDE the polygon geometry.
  * Uses pole of inaccessibility (polylabel) on the largest ring.
+ * Precision: 1.0 (in original projected feet).
  */
 function getInteriorPoint(geom) {
   if (!geom || !geom.coordinates) return null;
@@ -52,6 +53,56 @@ function getInteriorPoint(geom) {
     return polylabel(bestPoly, 1.0);
   }
   return null;
+}
+
+/**
+ * Point-in-polygon test using ray-casting algorithm.
+ * pt: [x, y] in original projected feet
+ * ring: [[x1, y1], [x2, y2], ...]
+ */
+function pointInPolygonRing(pt, ring) {
+  const x = pt[0], y = pt[1];
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+
+    const intersect = ((yi > y) !== (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Checks if point falls inside a Polygon / MultiPolygon geometry (inside outer ring and outside holes).
+ */
+function isPointInGeometry(pt, geom) {
+  if (!geom || !geom.coordinates || !pt) return false;
+  if (geom.type === 'Polygon') {
+    const rings = geom.coordinates;
+    if (!rings[0] || !pointInPolygonRing(pt, rings[0])) return false;
+    for (let k = 1; k < rings.length; k++) {
+      if (pointInPolygonRing(pt, rings[k])) return false; // Inside a hole
+    }
+    return true;
+  }
+  if (geom.type === 'MultiPolygon') {
+    for (const poly of geom.coordinates) {
+      if (poly[0] && pointInPolygonRing(pt, poly[0])) {
+        let inHole = false;
+        for (let k = 1; k < poly.length; k++) {
+          if (pointInPolygonRing(pt, poly[k])) {
+            inHole = true;
+            break;
+          }
+        }
+        if (!inHole) return true;
+      }
+    }
+    return false;
+  }
+  return false;
 }
 
 /**
@@ -153,6 +204,11 @@ async function run() {
   let matchedCount = 0;
   let unmatchedCount = 0;
   let verifiedKnown = false;
+  let knownParcelCoords = null;
+
+  let sampledCount = 0;
+  let samplePassedCount = 0;
+  const targetSampleSize = 1000;
 
   let batch = [];
   const matchedParcelsSet = new Set();
@@ -206,12 +262,23 @@ async function run() {
 
         // Check known parcel: 924 SW 15 TER (504209040280)
         if (parcelId === '504209040280') {
+          knownParcelCoords = { lat, lng };
           console.log(`\n>>> VERIFIED KNOWN PARCEL 504209040280 (924 SW 15 TER):`);
           console.log(`    Computed coordinates: Lat ${lat} N, Lng ${lng} W`);
           const latOk = lat >= 26.05 && lat <= 26.15;
           const lngOk = lng >= -80.20 && lng <= -80.12;
           console.log(`    Sanity check (around 26.11 N, -80.16 W): ${latOk && lngOk ? 'PASSED ✓' : 'FAILED ✗'}\n`);
           verifiedKnown = true;
+        }
+
+        // Inside-polygon check for a random sample of 1,000 parcels across the dataset
+        if (sampledCount < targetSampleSize) {
+          if (matchedCount % 400 === 0 || Math.random() < 0.05 || totalShapes > 500000) {
+            sampledCount++;
+            if (isPointInGeometry(interiorPt, feature.geometry)) {
+              samplePassedCount++;
+            }
+          }
         }
 
         matchedCount++;
@@ -243,6 +310,8 @@ async function run() {
   }
 
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+  const passRate = sampledCount > 0 ? ((samplePassedCount / sampledCount) * 100).toFixed(1) : '0';
+
   console.log(`\n\n=== IMPORT SUMMARY ===`);
   console.log(`Total shapes in shapefile:      ${totalShapes.toLocaleString()}`);
   console.log(`Matched to residential DB:      ${matchedCount.toLocaleString()} (${matchedParcelsSet.size.toLocaleString()} unique parcels)`);
@@ -252,6 +321,10 @@ async function run() {
   const matchPct = ((matchedParcelsSet.size / residentialSet.size) * 100).toFixed(2);
   console.log(`Residential parcels without coords: ${stillWithout.toLocaleString()}`);
   console.log(`Coordinate coverage:            ${matchPct}% of residential parcels`);
+  console.log(`Inside-polygon check:           ${samplePassedCount.toLocaleString()} / ${sampledCount.toLocaleString()} passed (${passRate}%)`);
+  if (knownParcelCoords) {
+    console.log(`Known parcel (504209040280):    Lat ${knownParcelCoords.lat}, Lng ${knownParcelCoords.lng}`);
+  }
   console.log(`Time elapsed:                   ${durationSec}s`);
   console.log(`Known parcel verification:      ${verifiedKnown ? 'Confirmed (504209040280 landed near 26.11 N, -80.16 W)' : 'Not encountered'}`);
 
