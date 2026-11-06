@@ -7,9 +7,10 @@ export default function Login({ navigateTo }) {
   const [error, setError] = useState(null);
   
   // UI States
-  const [loginMode, setLoginMode] = useState('magic'); // 'magic' or 'password'
+  const [loginMode, setLoginMode] = useState('magic'); // 'magic', 'password', or 'forgot'
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [resetLinkSent, setResetLinkSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [eyeHover, setEyeHover] = useState(false);
 
@@ -59,7 +60,35 @@ export default function Login({ navigateTo }) {
       } else {
         setMagicLinkSent(true);
       }
-    } catch (err) {
+    } catch {
+      setError('A network failure occurred. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordResetRequest = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/request-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await res.json();
+
+      if (res.status === 429) {
+        setError('Too many requests. Please try again in 15 minutes.');
+      } else if (!res.ok) {
+        setError(data.error || 'Failed to send password reset link.');
+      } else {
+        setResetLinkSent(true);
+      }
+    } catch {
       setError('A network failure occurred. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -78,8 +107,6 @@ export default function Login({ navigateTo }) {
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
-
       if (res.ok) {
         navigateTo('admin');
       } else {
@@ -89,7 +116,7 @@ export default function Login({ navigateTo }) {
           setError('Wrong credentials. Please try again.');
         }
       }
-    } catch (err) {
+    } catch {
       setError('A network failure occurred. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -138,7 +165,9 @@ export default function Login({ navigateTo }) {
       {/* LOGIN FORM SECTION */}
       <section className="contact-form-section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center' }}>
         <div className="contact-form-container" style={{ maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-          <h1 className="unified-hero-title" style={{ fontSize: '32px', marginBottom: '24px' }}>Owner Login</h1>
+          <h1 className="unified-hero-title" style={{ fontSize: '32px', marginBottom: '24px' }}>
+            {loginMode === 'forgot' ? 'Reset Password' : 'Owner Login'}
+          </h1>
           
           <div className="contact-pill-form" style={{ padding: '32px' }}>
             {magicLinkSent ? (
@@ -156,6 +185,65 @@ export default function Login({ navigateTo }) {
                   Need another link?
                 </button>
               </div>
+            ) : resetLinkSent ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <h3 style={{ color: '#34292A', fontFamily: 'Montserrat, sans-serif', fontSize: '18px', marginBottom: '16px' }}>
+                  Check your inbox
+                </h3>
+                <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5' }}>
+                  We sent a password reset link to <strong>{email}</strong>. It expires in 15 minutes.
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => setResetLinkSent(false)} 
+                  style={{ background: 'none', border: 'none', color: '#34292A', textDecoration: 'underline', marginTop: '24px', cursor: 'pointer', fontFamily: 'Montserrat', fontSize: '13px' }}
+                >
+                  Need another link?
+                </button>
+                <div style={{ marginTop: '16px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => { setLoginMode('password'); setError(null); setResetLinkSent(false); }}
+                    style={{ background: 'none', border: 'none', color: 'rgba(52, 41, 42, 0.7)', textDecoration: 'none', cursor: 'pointer', fontFamily: 'Montserrat', fontSize: '13px' }}
+                  >
+                    &larr; Back to Log In
+                  </button>
+                </div>
+              </div>
+            ) : loginMode === 'forgot' ? (
+              // FORGOT PASSWORD FORM
+              <form onSubmit={handlePasswordResetRequest}>
+                <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '20px' }}>
+                  Enter your email address and we'll send you a secure link to reset your password.
+                </p>
+                <div className="form-field-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-pill-label" htmlFor="reset-email">Email Address</label>
+                  <input 
+                    type="email" 
+                    id="reset-email" 
+                    name="email" 
+                    className="form-pill-input" 
+                    required 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{ textAlign: 'center' }}
+                  />
+                </div>
+                
+                {error && <p style={{ color: 'red', fontSize: '14px', marginBottom: '16px' }}>{error}</p>}
+
+                <button type="submit" className="btn btn-pill-primary" style={{ width: '100%', marginTop: '8px' }} disabled={loading}>
+                  {loading ? 'Sending link...' : 'Email me a reset link'}
+                </button>
+                
+                <button 
+                  type="button" 
+                  onClick={() => { setLoginMode('password'); setError(null); }}
+                  style={{ background: 'none', border: 'none', color: 'rgba(52, 41, 42, 0.7)', textDecoration: 'none', marginTop: '24px', cursor: 'pointer', fontFamily: 'Montserrat', fontSize: '13px' }}
+                >
+                  &larr; Back to Log In
+                </button>
+              </form>
             ) : (
               <>
                 {loginMode === 'magic' ? (
@@ -255,9 +343,29 @@ export default function Login({ navigateTo }) {
                       </button>
                     </div>
 
-                    {error && <p style={{ color: 'red', fontSize: '14px', marginBottom: '16px', marginTop: '16px' }}>{error}</p>}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', marginBottom: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setLoginMode('forgot'); setError(null); }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#34292A',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontFamily: 'Montserrat, sans-serif',
+                          fontSize: '12px',
+                          opacity: 0.75,
+                          padding: '2px 0'
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
 
-                    <button type="submit" className="btn btn-pill-primary" style={{ width: '100%', marginTop: '24px' }} disabled={loading}>
+                    {error && <p style={{ color: 'red', fontSize: '14px', marginBottom: '16px', marginTop: '8px' }}>{error}</p>}
+
+                    <button type="submit" className="btn btn-pill-primary" style={{ width: '100%', marginTop: '16px' }} disabled={loading}>
                       {loading ? 'Authenticating...' : 'Log In'}
                     </button>
 
