@@ -28,6 +28,9 @@
     "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
     "oxlint": "^1.71.0",
+    "polylabel": "^2.1.0",
+    "proj4": "^2.22.0",
+    "shapefile": "^0.6.6",
     "vite": "^8.1.1"
   }
 }

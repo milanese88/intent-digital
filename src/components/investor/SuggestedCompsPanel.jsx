@@ -81,9 +81,16 @@ export default function SuggestedCompsPanel({
     const soldDate = `${candidate.sale_year}-${monthStr}-01`;
 
     try {
-      // Forward-geocode address with Mapbox helper to obtain lat/lng
-      const geoQuery = `${niceAddress}, ${titleCity}, FL ${zip}`.trim();
-      const { lat, lng } = await forwardGeocodeMapbox(geoQuery);
+      let lat = candidate.lat != null ? Number(candidate.lat) : null;
+      let lng = candidate.lng != null ? Number(candidate.lng) : null;
+
+      // Fall back to Mapbox only if parcel coordinates are missing
+      if (lat == null || lng == null) {
+        const geoQuery = `${niceAddress}, ${titleCity}, FL ${zip}`.trim();
+        const coords = await forwardGeocodeMapbox(geoQuery);
+        lat = coords.lat;
+        lng = coords.lng;
+      }
 
       const payload = {
         property_id: property.id,
@@ -389,6 +396,27 @@ export default function SuggestedCompsPanel({
                   >
                     {niceAddress}
                   </span>
+
+                  {/* Distance pill (e.g. "0.3 mi") */}
+                  {c.distance_mi != null && (
+                    <span
+                      title={`Approx. ${c.distance_mi} miles from subject property`}
+                      style={{
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: 'var(--secondary-color, #41101B)',
+                        backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                        border: '1px solid rgba(133, 157, 206, 0.45)',
+                        padding: '1px 7px',
+                        borderRadius: '10px',
+                        letterSpacing: '0.02em',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {c.distance_mi} mi
+                    </span>
+                  )}
 
                   <span
                     style={{

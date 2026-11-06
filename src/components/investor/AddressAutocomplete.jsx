@@ -287,9 +287,16 @@ export default function AddressAutocomplete({
     const zip = parcel.zip || '';
     const county = parcel.county || 'Broward';
 
-    // Forward geocode with Mapbox to get lat/lng for map pin
-    const geoQuery = `${niceAddress}, ${niceCity}, FL ${zip}`.trim();
-    const { lat, lng } = await forwardGeocodeMapbox(geoQuery, MAPBOX_TOKEN, sessionToken);
+    let lat = parcel.lat != null ? Number(parcel.lat) : null;
+    let lng = parcel.lng != null ? Number(parcel.lng) : null;
+
+    // Fall back to Mapbox only if the parcel has no coordinates
+    if (lat == null || lng == null) {
+      const geoQuery = `${niceAddress}, ${niceCity}, FL ${zip}`.trim();
+      const coords = await forwardGeocodeMapbox(geoQuery, MAPBOX_TOKEN, sessionToken);
+      lat = coords.lat;
+      lng = coords.lng;
+    }
 
     if (onSelect) {
       onSelect({

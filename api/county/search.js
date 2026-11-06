@@ -107,7 +107,9 @@ export default async function handler(req, res) {
             eff_year_built,
             land_sqft,
             units,
-            just_value
+            just_value,
+            lat,
+            lng
           FROM county_parcels
           WHERE zip = ${targetZip}
           ORDER BY address ASC
@@ -135,7 +137,9 @@ export default async function handler(req, res) {
           eff_year_built,
           land_sqft,
           units,
-          just_value
+          just_value,
+          lat,
+          lng
         FROM county_parcels
         WHERE county = ${county}
           AND lower(address) LIKE ${prefixPattern}
@@ -157,7 +161,9 @@ export default async function handler(req, res) {
           eff_year_built,
           land_sqft,
           units,
-          just_value
+          just_value,
+          lat,
+          lng
         FROM county_parcels
         WHERE county = ${county}
           AND lower(address) LIKE ${prefixPattern}
