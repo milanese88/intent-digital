@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import FormattedNumberInput from './FormattedNumberInput.jsx';
 import {
   calculateMortgagePayment,
   formatCurrency,
@@ -8,6 +9,130 @@ import {
   underwriteFlip,
   underwriteBrrrr
 } from './underwriting.js';
+
+// Section Header for Compact Underwriting Form
+function SectionHeader({ title }) {
+  return (
+    <div style={{
+      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+      fontSize: '9.5px',
+      fontWeight: 700,
+      letterSpacing: '0.12em',
+      textTransform: 'uppercase',
+      color: 'rgba(52, 41, 42, 0.5)',
+      marginTop: '16px',
+      marginBottom: '6px'
+    }}>
+      {title}
+    </div>
+  );
+}
+
+// Stable module-level InputRow so React never remounts inputs on keystroke
+function InputRow({
+  id,
+  label,
+  value,
+  onChange,
+  prefix = '',
+  suffix = '',
+  sublabel = '',
+  placeholder = '',
+  allowDecimal = false,
+  formatOnBlur = true
+}) {
+  const decimalAllowed = allowDecimal || suffix === '%';
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      padding: '7px 0',
+      borderBottom: '1px solid rgba(52, 41, 42, 0.05)'
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <label
+          htmlFor={id}
+          style={{
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+            fontSize: '12.5px',
+            fontWeight: 500,
+            color: 'var(--espresso, #34292A)',
+            display: 'block',
+            cursor: id ? 'pointer' : 'default'
+          }}
+        >
+          {label}
+        </label>
+        {sublabel && (
+          <span style={{
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+            fontSize: '10.5px',
+            color: 'rgba(52, 41, 42, 0.55)',
+            display: 'block',
+            lineHeight: 1.25,
+            marginTop: '1px'
+          }}>
+            {sublabel}
+          </span>
+        )}
+      </div>
+
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        backgroundColor: '#ffffff',
+        border: '1px solid rgba(52, 41, 42, 0.18)',
+        borderRadius: '6px',
+        padding: '5px 8px',
+        width: '128px',
+        transition: 'border-color 0.15s ease'
+      }}>
+        {prefix && (
+          <span style={{
+            fontSize: '12px',
+            color: 'rgba(52, 41, 42, 0.45)',
+            marginRight: '4px',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+          }}>
+            {prefix}
+          </span>
+        )}
+        <FormattedNumberInput
+          id={id}
+          value={value}
+          onChange={onChange}
+          allowDecimal={decimalAllowed}
+          formatOnBlur={prefix === '$' ? true : formatOnBlur}
+          placeholder={placeholder}
+          style={{
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            textAlign: 'right',
+            width: '100%',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            color: 'var(--espresso, #1E1509)'
+          }}
+        />
+        {suffix && (
+          <span style={{
+            fontSize: '12px',
+            color: 'rgba(52, 41, 42, 0.45)',
+            marginLeft: '4px',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+          }}>
+            {suffix}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 export default function UnderwritePanel({ property, compValueRaw, compValueFormatted }) {
   // Strategy toggle: 'rental' | 'flip' | 'brrrr'
@@ -191,9 +316,33 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
     });
   }, [strategy, rentalInputs, flipInputs, brrrrInputs]);
 
+  // Save Analysis validation:
+  // Rental: monthlyRent > 0 and insuranceYr > 0
+  // Flip: arv > 0
+  // BRRRR: arv > 0, monthlyRent > 0, and insuranceYr > 0
+  const isSaveDisabled = useMemo(() => {
+    if (strategy === 'rental') {
+      const rent = Number(rentalInputs.monthlyRent);
+      const ins = Number(rentalInputs.insuranceYr);
+      return !(rent > 0 && ins > 0);
+    }
+    if (strategy === 'flip') {
+      const arv = Number(flipInputs.arv);
+      return !(arv > 0);
+    }
+    if (strategy === 'brrrr') {
+      const arv = Number(brrrrInputs.arv);
+      const rent = Number(brrrrInputs.monthlyRent);
+      const ins = Number(brrrrInputs.insuranceYr);
+      return !(arv > 0 && rent > 0 && ins > 0);
+    }
+    return false;
+  }, [strategy, rentalInputs, flipInputs, brrrrInputs]);
+
   // Save Analysis Handler
   const handleSaveAnalysis = async () => {
-    if (!property?.id || isSaving) return;
+    if (!property?.id || isSaving || isSaveDisabled) return;
+
     setIsSaving(true);
     setSaveSuccessMsg('');
     try {
@@ -295,110 +444,6 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
     return 'Analysis';
   };
 
-  // Helper row component for Compact label-left / field-right
-  const InputRow = ({ label, value, onChange, prefix = '', suffix = '', sublabel = '', placeholder = '', step = 'any' }) => (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '12px',
-      padding: '7px 0',
-      borderBottom: '1px solid rgba(52, 41, 42, 0.05)'
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-          fontSize: '12.5px',
-          fontWeight: 500,
-          color: 'var(--espresso, #34292A)',
-          display: 'block'
-        }}>
-          {label}
-        </span>
-        {sublabel && (
-          <span style={{
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '10.5px',
-            color: 'rgba(52, 41, 42, 0.55)',
-            display: 'block',
-            lineHeight: 1.25,
-            marginTop: '1px'
-          }}>
-            {sublabel}
-          </span>
-        )}
-      </div>
-
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        backgroundColor: '#ffffff',
-        border: '1px solid rgba(52, 41, 42, 0.18)',
-        borderRadius: '6px',
-        padding: '5px 8px',
-        width: '128px',
-        transition: 'border-color 0.15s ease'
-      }}>
-        {prefix && (
-          <span style={{
-            fontSize: '12px',
-            color: 'rgba(52, 41, 42, 0.45)',
-            marginRight: '4px',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
-          }}>
-            {prefix}
-          </span>
-        )}
-        <input
-          type="text"
-          inputMode={prefix === '$' ? 'numeric' : 'decimal'}
-          value={prefix === '$' ? formatNumWithCommas(value) : value}
-          onChange={(e) => {
-            const raw = prefix === '$' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value;
-            onChange(raw);
-          }}
-          placeholder={placeholder}
-          style={{
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            textAlign: 'right',
-            width: '100%',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '12.5px',
-            fontWeight: 600,
-            color: 'var(--espresso, #1E1509)'
-          }}
-        />
-        {suffix && (
-          <span style={{
-            fontSize: '12px',
-            color: 'rgba(52, 41, 42, 0.45)',
-            marginLeft: '4px',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
-          }}>
-            {suffix}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  const SectionHeader = ({ title }) => (
-    <div style={{
-      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-      fontSize: '9.5px',
-      fontWeight: 700,
-      letterSpacing: '0.12em',
-      textTransform: 'uppercase',
-      color: 'rgba(52, 41, 42, 0.5)',
-      marginTop: '16px',
-      marginBottom: '6px'
-    }}>
-      {title}
-    </div>
-  );
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Main Underwrite Panel Card */}
@@ -471,6 +516,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
             <>
               <SectionHeader title="PURCHASE & FINANCING" />
               <InputRow
+                id="rental-purchase-price"
                 label="Purchase Price"
                 prefix="$"
                 value={rentalInputs.purchasePrice}
@@ -478,6 +524,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="rental-down-payment"
                 label="Down Payment"
                 suffix="%"
                 value={rentalInputs.downPaymentPct}
@@ -485,6 +532,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="25"
               />
               <InputRow
+                id="rental-interest-rate"
                 label="Interest Rate"
                 suffix="%"
                 value={rentalInputs.interestRatePct}
@@ -492,6 +540,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="7.0"
               />
               <InputRow
+                id="rental-loan-term"
                 label="Loan Term"
                 suffix="yrs"
                 value={rentalInputs.loanTermYears}
@@ -499,6 +548,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="30"
               />
               <InputRow
+                id="rental-closing-costs"
                 label="Closing Costs"
                 suffix="%"
                 value={rentalInputs.closingCostsPct}
@@ -508,6 +558,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="INCOME" />
               <InputRow
+                id="rental-monthly-rent"
                 label="Monthly Rent *"
                 prefix="$"
                 value={rentalInputs.monthlyRent}
@@ -515,6 +566,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="e.g. 3,400"
               />
               <InputRow
+                id="rental-vacancy"
                 label="Vacancy"
                 suffix="%"
                 value={rentalInputs.vacancyPct}
@@ -524,6 +576,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="EXPENSES" />
               <InputRow
+                id="rental-property-taxes"
                 label="Property Taxes / yr"
                 sublabel="estimate — FL taxes reset after sale"
                 prefix="$"
@@ -532,6 +585,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="rental-insurance"
                 label="Insurance / yr *"
                 prefix="$"
                 value={rentalInputs.insuranceYr}
@@ -539,6 +593,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="e.g. 6,000"
               />
               <InputRow
+                id="rental-hoa"
                 label="HOA / mo"
                 prefix="$"
                 value={rentalInputs.hoaMo}
@@ -546,6 +601,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="rental-maintenance"
                 label="Maintenance"
                 suffix="%"
                 value={rentalInputs.maintenancePct}
@@ -553,6 +609,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
               <InputRow
+                id="rental-capex"
                 label="CapEx Reserve"
                 suffix="%"
                 value={rentalInputs.capexPct}
@@ -560,6 +617,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
               <InputRow
+                id="rental-management"
                 label="Management"
                 suffix="%"
                 value={rentalInputs.managementPct}
@@ -576,6 +634,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
             <>
               <SectionHeader title="PURCHASE & REHAB" />
               <InputRow
+                id="flip-purchase-price"
                 label="Purchase Price"
                 prefix="$"
                 value={flipInputs.purchasePrice}
@@ -583,6 +642,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="flip-rehab-budget"
                 label="Rehab Budget"
                 prefix="$"
                 value={flipInputs.rehabBudget}
@@ -592,6 +652,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <div>
                 <InputRow
+                  id="flip-arv"
                   label="After-Repair Value (ARV) *"
                   prefix="$"
                   value={flipInputs.arv}
@@ -632,6 +693,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="HOLDING & SELLING" />
               <InputRow
+                id="flip-buying-closing-costs"
                 label="Buying Closing Costs"
                 suffix="%"
                 value={flipInputs.buyingClosingCostsPct}
@@ -639,6 +701,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="2"
               />
               <InputRow
+                id="flip-holding-months"
                 label="Holding Period"
                 suffix="mos"
                 value={flipInputs.holdingMonths}
@@ -646,6 +709,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="6"
               />
               <InputRow
+                id="flip-holding-cost-mo"
                 label="Holding Cost / mo"
                 sublabel="taxes, insurance, utilities, debt"
                 prefix="$"
@@ -654,6 +718,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="flip-selling-costs"
                 label="Selling Costs"
                 sublabel="agent commissions, title & transfer"
                 suffix="%"
@@ -671,6 +736,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
             <>
               <SectionHeader title="BUY & REHAB" />
               <InputRow
+                id="brrrr-purchase-price"
                 label="Purchase Price"
                 prefix="$"
                 value={brrrrInputs.purchasePrice}
@@ -678,6 +744,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="brrrr-rehab-budget"
                 label="Rehab Budget"
                 prefix="$"
                 value={brrrrInputs.rehabBudget}
@@ -686,6 +753,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
               />
               <div>
                 <InputRow
+                  id="brrrr-arv"
                   label="After-Repair Value (ARV) *"
                   prefix="$"
                   value={brrrrInputs.arv}
@@ -724,6 +792,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 </div>
               </div>
               <InputRow
+                id="brrrr-buying-closing-costs"
                 label="Buying Closing Costs"
                 suffix="%"
                 value={brrrrInputs.buyingClosingCostsPct}
@@ -733,6 +802,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="REFINANCE" />
               <InputRow
+                id="brrrr-refi-ltv"
                 label="Refinance LTV"
                 suffix="%"
                 value={brrrrInputs.refiLtvPct}
@@ -740,6 +810,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="75"
               />
               <InputRow
+                id="brrrr-refi-rate"
                 label="Refinance Rate"
                 suffix="%"
                 value={brrrrInputs.refiRatePct}
@@ -747,6 +818,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="7.0"
               />
               <InputRow
+                id="brrrr-refi-term"
                 label="Refinance Term"
                 suffix="yrs"
                 value={brrrrInputs.refiTermYears}
@@ -754,6 +826,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="30"
               />
               <InputRow
+                id="brrrr-refi-closing"
                 label="Refi Closing Costs"
                 sublabel="% of new loan"
                 suffix="%"
@@ -764,6 +837,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="RENTAL OPERATIONS" />
               <InputRow
+                id="brrrr-monthly-rent"
                 label="Monthly Rent *"
                 prefix="$"
                 value={brrrrInputs.monthlyRent}
@@ -771,6 +845,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="e.g. 3,400"
               />
               <InputRow
+                id="brrrr-vacancy"
                 label="Vacancy"
                 suffix="%"
                 value={brrrrInputs.vacancyPct}
@@ -778,6 +853,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
               <InputRow
+                id="brrrr-property-taxes"
                 label="Property Taxes / yr"
                 sublabel="estimate — FL taxes reset after sale"
                 prefix="$"
@@ -786,6 +862,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="brrrr-insurance"
                 label="Insurance / yr *"
                 prefix="$"
                 value={brrrrInputs.insuranceYr}
@@ -793,6 +870,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="e.g. 6,000"
               />
               <InputRow
+                id="brrrr-hoa"
                 label="HOA / mo"
                 prefix="$"
                 value={brrrrInputs.hoaMo}
@@ -800,6 +878,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="0"
               />
               <InputRow
+                id="brrrr-maintenance"
                 label="Maintenance"
                 suffix="%"
                 value={brrrrInputs.maintenancePct}
@@ -807,6 +886,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
               <InputRow
+                id="brrrr-capex"
                 label="CapEx Reserve"
                 suffix="%"
                 value={brrrrInputs.capexPct}
@@ -814,6 +894,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
               <InputRow
+                id="brrrr-management"
                 label="Management"
                 suffix="%"
                 value={brrrrInputs.managementPct}
@@ -1148,8 +1229,18 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
         <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
           <button
             type="button"
+            id="underwrite-save-btn"
             onClick={handleSaveAnalysis}
-            disabled={isSaving}
+            disabled={isSaving || isSaveDisabled}
+            title={
+              isSaveDisabled
+                ? (strategy === 'flip'
+                    ? 'Enter ARV to save'
+                    : strategy === 'rental'
+                    ? 'Enter Rent and Insurance to save'
+                    : 'Enter ARV, Rent, and Insurance to save')
+                : 'Save analysis'
+            }
             style={{
               backgroundColor: 'var(--secondary-color, #41101B)',
               color: 'var(--lighter-tone, #FAF8F5)',
@@ -1161,9 +1252,10 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              cursor: isSaving ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 8px rgba(65, 16, 27, 0.25)',
-              transition: 'background-color 0.2s ease, transform 0.1s ease',
+              cursor: (isSaving || isSaveDisabled) ? 'not-allowed' : 'pointer',
+              opacity: isSaveDisabled ? 0.45 : 1,
+              boxShadow: isSaveDisabled ? 'none' : '0 2px 8px rgba(65, 16, 27, 0.25)',
+              transition: 'background-color 0.2s ease, opacity 0.2s ease, transform 0.1s ease',
               flexShrink: 0
             }}
           >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
+import FormattedNumberInput from './FormattedNumberInput.jsx';
 import InvestorMap from './InvestorMap.jsx';
 
 function calculateMedian(numbers) {
@@ -331,17 +332,17 @@ export default function InvestorStudio() {
       lat: propFormData.lat != null ? Number(propFormData.lat) : null,
       lng: propFormData.lng != null ? Number(propFormData.lng) : null,
       property_type: propFormData.property_type || null,
-      units: propFormData.property_type === 'multifamily_2_9' ? (Number(propFormData.units) || 1) : 1,
-      beds: propFormData.beds !== '' ? Number(propFormData.beds) : null,
-      baths: propFormData.baths !== '' ? Number(propFormData.baths) : null,
-      sqft: propFormData.sqft !== '' ? Number(propFormData.sqft) : null,
-      lot_sqft: propFormData.lot_sqft !== '' ? Number(propFormData.lot_sqft) : null,
-      year_built: propFormData.year_built !== '' ? Number(propFormData.year_built) : null,
+      units: propFormData.property_type === 'multifamily_2_9' ? (Number(String(propFormData.units).replace(/[^\d]/g, '')) || 1) : 1,
+      beds: propFormData.beds !== '' && propFormData.beds != null ? Number(String(propFormData.beds).replace(/[^\d.]/g, '')) : null,
+      baths: propFormData.baths !== '' && propFormData.baths != null ? Number(String(propFormData.baths).replace(/[^\d.]/g, '')) : null,
+      sqft: propFormData.sqft !== '' && propFormData.sqft != null ? Number(String(propFormData.sqft).replace(/[^\d]/g, '')) : null,
+      lot_sqft: propFormData.lot_sqft !== '' && propFormData.lot_sqft != null ? Number(String(propFormData.lot_sqft).replace(/[^\d]/g, '')) : null,
+      year_built: propFormData.year_built !== '' && propFormData.year_built != null ? Number(String(propFormData.year_built).replace(/[^\d]/g, '')) : null,
       list_price: propFormData.list_price ? Number(String(propFormData.list_price).replace(/[^\d]/g, '')) : null,
       status: propFormData.status || 'watching',
       strategy: propFormData.strategy || null,
       condition: propFormData.condition.trim() || null,
-      roof_year: propFormData.roof_year !== '' ? Number(propFormData.roof_year) : null,
+      roof_year: propFormData.roof_year !== '' && propFormData.roof_year != null ? Number(String(propFormData.roof_year).replace(/[^\d]/g, '')) : null,
       listing_url: propFormData.listing_url.trim() || null,
       notes: propFormData.notes.trim() || null
     };
@@ -492,10 +493,10 @@ export default function InvestorStudio() {
       lng: compFormData.lng != null ? Number(compFormData.lng) : null,
       sold_date: compFormData.sold_date || null,
       sold_price: compFormData.sold_price ? Number(String(compFormData.sold_price).replace(/[^\d]/g, '')) : null,
-      sqft: compFormData.sqft !== '' ? Number(compFormData.sqft) : null,
-      beds: compFormData.beds !== '' ? Number(compFormData.beds) : null,
-      baths: compFormData.baths !== '' ? Number(compFormData.baths) : null,
-      year_built: compFormData.year_built !== '' ? Number(compFormData.year_built) : null,
+      sqft: compFormData.sqft !== '' && compFormData.sqft != null ? Number(String(compFormData.sqft).replace(/[^\d]/g, '')) : null,
+      beds: compFormData.beds !== '' && compFormData.beds != null ? Number(String(compFormData.beds).replace(/[^\d.]/g, '')) : null,
+      baths: compFormData.baths !== '' && compFormData.baths != null ? Number(String(compFormData.baths).replace(/[^\d.]/g, '')) : null,
+      year_built: compFormData.year_built !== '' && compFormData.year_built != null ? Number(String(compFormData.year_built).replace(/[^\d]/g, '')) : null,
       source: compFormData.source || null,
       included: Boolean(compFormData.included)
     };
@@ -2539,14 +2540,12 @@ export default function InvestorStudio() {
                       {propFormData.property_type === 'multifamily_2_9' ? (
                         <div>
                           <label className="investor-form-label" htmlFor="prop-units">Units</label>
-                          <input
+                          <FormattedNumberInput
                             id="prop-units"
-                            type="number"
-                            min="1"
-                            step="1"
-                            inputMode="numeric"
                             value={propFormData.units}
-                            onChange={(e) => setPropFormData(prev => ({ ...prev, units: e.target.value }))}
+                            onChange={(val) => setPropFormData(prev => ({ ...prev, units: val }))}
+                            formatOnBlur={false}
+                            placeholder="e.g. 2"
                             className="investor-form-input"
                           />
                         </div>
@@ -2556,26 +2555,24 @@ export default function InvestorStudio() {
                     <div className="investor-form-grid-2">
                       <div>
                         <label className="investor-form-label" htmlFor="prop-beds">Beds</label>
-                        <input
+                        <FormattedNumberInput
                           id="prop-beds"
-                          type="number"
-                          step="any"
-                          inputMode="numeric"
                           value={propFormData.beds}
-                          onChange={(e) => setPropFormData(prev => ({ ...prev, beds: e.target.value }))}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, beds: val }))}
+                          allowDecimal={true}
+                          formatOnBlur={false}
                           placeholder="e.g. 3"
                           className="investor-form-input"
                         />
                       </div>
                       <div>
                         <label className="investor-form-label" htmlFor="prop-baths">Baths</label>
-                        <input
+                        <FormattedNumberInput
                           id="prop-baths"
-                          type="number"
-                          step="any"
-                          inputMode="decimal"
                           value={propFormData.baths}
-                          onChange={(e) => setPropFormData(prev => ({ ...prev, baths: e.target.value }))}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, baths: val }))}
+                          allowDecimal={true}
+                          formatOnBlur={false}
                           placeholder="e.g. 2.5"
                           className="investor-form-input"
                         />
@@ -2585,26 +2582,22 @@ export default function InvestorStudio() {
                     <div className="investor-form-grid-2">
                       <div>
                         <label className="investor-form-label" htmlFor="prop-sqft">Living sqft</label>
-                        <input
+                        <FormattedNumberInput
                           id="prop-sqft"
-                          type="number"
-                          step="1"
-                          inputMode="numeric"
                           value={propFormData.sqft}
-                          onChange={(e) => setPropFormData(prev => ({ ...prev, sqft: e.target.value }))}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, sqft: val }))}
+                          formatOnBlur={true}
                           placeholder="e.g. 1850"
                           className="investor-form-input"
                         />
                       </div>
                       <div>
                         <label className="investor-form-label" htmlFor="prop-lot-sqft">Lot sqft</label>
-                        <input
+                        <FormattedNumberInput
                           id="prop-lot-sqft"
-                          type="number"
-                          step="1"
-                          inputMode="numeric"
                           value={propFormData.lot_sqft}
-                          onChange={(e) => setPropFormData(prev => ({ ...prev, lot_sqft: e.target.value }))}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, lot_sqft: val }))}
+                          formatOnBlur={true}
                           placeholder="e.g. 6500"
                           className="investor-form-input"
                         />
@@ -2613,13 +2606,11 @@ export default function InvestorStudio() {
 
                     <div>
                       <label className="investor-form-label" htmlFor="prop-year-built">Year built</label>
-                      <input
+                      <FormattedNumberInput
                         id="prop-year-built"
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
                         value={propFormData.year_built}
-                        onChange={(e) => setPropFormData(prev => ({ ...prev, year_built: e.target.value }))}
+                        onChange={(val) => setPropFormData(prev => ({ ...prev, year_built: val }))}
+                        formatOnBlur={false}
                         placeholder="e.g. 1988"
                         className="investor-form-input"
                       />
@@ -2633,17 +2624,12 @@ export default function InvestorStudio() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
                       <label className="investor-form-label" htmlFor="prop-price">List Price</label>
-                      <input
+                      <FormattedNumberInput
                         id="prop-price"
-                        type="text"
                         value={propFormData.list_price}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/[^\d]/g, '');
-                          setPropFormData(prev => ({
-                            ...prev,
-                            list_price: digits ? `$${Number(digits).toLocaleString('en-US')}` : ''
-                          }));
-                        }}
+                        onChange={(val) => setPropFormData(prev => ({ ...prev, list_price: val }))}
+                        prefix="$"
+                        formatOnBlur={true}
                         placeholder="$0"
                         className="investor-form-input"
                       />
@@ -2714,13 +2700,11 @@ export default function InvestorStudio() {
                     </div>
                     <div>
                       <label className="investor-form-label" htmlFor="prop-roof-year">Roof Year</label>
-                      <input
+                      <FormattedNumberInput
                         id="prop-roof-year"
-                        type="number"
-                        step="1"
-                        inputMode="numeric"
                         value={propFormData.roof_year}
-                        onChange={(e) => setPropFormData(prev => ({ ...prev, roof_year: e.target.value }))}
+                        onChange={(val) => setPropFormData(prev => ({ ...prev, roof_year: val }))}
+                        formatOnBlur={false}
                         placeholder="e.g. 2018"
                         className="investor-form-input"
                       />
@@ -3034,17 +3018,12 @@ export default function InvestorStudio() {
                   </div>
                   <div>
                     <label className="investor-form-label" htmlFor="comp-sold-price">Sold Price</label>
-                    <input
+                    <FormattedNumberInput
                       id="comp-sold-price"
-                      type="text"
                       value={compFormData.sold_price}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/[^\d]/g, '');
-                        setCompFormData(prev => ({
-                          ...prev,
-                          sold_price: digits ? `$${Number(digits).toLocaleString('en-US')}` : ''
-                        }));
-                      }}
+                      onChange={(val) => setCompFormData(prev => ({ ...prev, sold_price: val }))}
+                      prefix="$"
+                      formatOnBlur={true}
                       placeholder="$0"
                       className="investor-form-input"
                     />
@@ -3054,26 +3033,22 @@ export default function InvestorStudio() {
                 <div className="investor-form-grid-2">
                   <div>
                     <label className="investor-form-label" htmlFor="comp-sqft">Living sqft</label>
-                    <input
+                    <FormattedNumberInput
                       id="comp-sqft"
-                      type="number"
-                      step="1"
-                      inputMode="numeric"
                       value={compFormData.sqft}
-                      onChange={(e) => setCompFormData(prev => ({ ...prev, sqft: e.target.value }))}
+                      onChange={(val) => setCompFormData(prev => ({ ...prev, sqft: val }))}
+                      formatOnBlur={true}
                       placeholder="e.g. 1650"
                       className="investor-form-input"
                     />
                   </div>
                   <div>
                     <label className="investor-form-label" htmlFor="comp-year-built">Year Built</label>
-                    <input
+                    <FormattedNumberInput
                       id="comp-year-built"
-                      type="number"
-                      step="1"
-                      inputMode="numeric"
                       value={compFormData.year_built}
-                      onChange={(e) => setCompFormData(prev => ({ ...prev, year_built: e.target.value }))}
+                      onChange={(val) => setCompFormData(prev => ({ ...prev, year_built: val }))}
+                      formatOnBlur={false}
                       placeholder="e.g. 1985"
                       className="investor-form-input"
                     />
@@ -3083,26 +3058,24 @@ export default function InvestorStudio() {
                 <div className="investor-form-grid-2">
                   <div>
                     <label className="investor-form-label" htmlFor="comp-beds">Beds</label>
-                    <input
+                    <FormattedNumberInput
                       id="comp-beds"
-                      type="number"
-                      step="any"
-                      inputMode="numeric"
                       value={compFormData.beds}
-                      onChange={(e) => setCompFormData(prev => ({ ...prev, beds: e.target.value }))}
+                      onChange={(val) => setCompFormData(prev => ({ ...prev, beds: val }))}
+                      allowDecimal={true}
+                      formatOnBlur={false}
                       placeholder="e.g. 3"
                       className="investor-form-input"
                     />
                   </div>
                   <div>
                     <label className="investor-form-label" htmlFor="comp-baths">Baths</label>
-                    <input
+                    <FormattedNumberInput
                       id="comp-baths"
-                      type="number"
-                      step="any"
-                      inputMode="decimal"
                       value={compFormData.baths}
-                      onChange={(e) => setCompFormData(prev => ({ ...prev, baths: e.target.value }))}
+                      onChange={(val) => setCompFormData(prev => ({ ...prev, baths: val }))}
+                      allowDecimal={true}
+                      formatOnBlur={false}
                       placeholder="e.g. 2"
                       className="investor-form-input"
                     />
