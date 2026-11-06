@@ -26,6 +26,36 @@ function getPolygonArea(ring) {
 }
 
 /**
+ * Computes the total planar area of a Polygon / MultiPolygon geometry in square feet.
+ */
+function getGeometryArea(geom) {
+  if (!geom || !geom.coordinates) return 0;
+  if (geom.type === 'Polygon') {
+    const rings = geom.coordinates;
+    if (!rings[0]) return 0;
+    let totalArea = getPolygonArea(rings[0]);
+    for (let k = 1; k < rings.length; k++) {
+      totalArea -= getPolygonArea(rings[k]);
+    }
+    return Math.max(0, totalArea);
+  }
+  if (geom.type === 'MultiPolygon') {
+    let totalArea = 0;
+    for (const poly of geom.coordinates) {
+      if (poly[0]) {
+        let polyArea = getPolygonArea(poly[0]);
+        for (let k = 1; k < poly.length; k++) {
+          polyArea -= getPolygonArea(poly[k]);
+        }
+        totalArea += Math.max(0, polyArea);
+      }
+    }
+    return Math.max(0, totalArea);
+  }
+  return 0;
+}
+
+/**
  * Computes a point guaranteed to be INSIDE the polygon geometry.
  * Uses pole of inaccessibility (polylabel) on the largest ring.
  * Precision: 1.0 (in original projected feet).
@@ -210,14 +240,13 @@ async function run() {
   let samplePassedCount = 0;
   const targetSampleSize = 1000;
 
-  let batch = [];
-  const matchedParcelsSet = new Set();
+  // Stores parcelId -> { lat, lng, area } to keep the point from the LARGEST shape by area
+  const bestParcelsMap = new Map();
+  let duplicatesCount = 0;
+  let duplicatesReplacedCount = 0;
 
-  async function flushBatch() {
-    if (batch.length === 0 || isDryRun) {
-      batch = [];
-      return;
-    }
+  async function flushBatch(batch) {
+    if (batch.length === 0 || isDryRun) return;
 
     // UPDATE county_parcels AS p SET lat = v.lat, lng = v.lng FROM (VALUES ...) AS v(parcel_id, lat, lng)
     const valueClauses = batch.map((_, i) => `($${i * 3 + 1}::text, $${i * 3 + 2}::double precision, $${i * 3 + 3}::double precision)`).join(', ');
@@ -230,7 +259,6 @@ async function run() {
     `;
 
     await sql.query(query, flatParams);
-    batch = [];
   }
 
   const startTime = Date.now();
@@ -282,13 +310,16 @@ async function run() {
         }
 
         matchedCount++;
-        matchedParcelsSet.add(parcelId);
+        const area = getGeometryArea(feature.geometry);
+        const existing = bestParcelsMap.get(parcelId);
 
-        if (!isDryRun) {
-          batch.push([parcelId, lat, lng]);
-          if (batch.length >= batchSize) {
-            await flushBatch();
-            process.stdout.write(`\rImported ${matchedCount.toLocaleString()} coordinates...`);
+        if (!existing) {
+          bestParcelsMap.set(parcelId, { lat, lng, area });
+        } else {
+          duplicatesCount++;
+          if (area > existing.area) {
+            duplicatesReplacedCount++;
+            bestParcelsMap.set(parcelId, { lat, lng, area });
           }
         }
       } else {
@@ -304,9 +335,30 @@ async function run() {
     }
   }
 
-  // Flush any remaining batch
-  if (!isDryRun && batch.length > 0) {
-    await flushBatch();
+  // Database write pass (if live import)
+  if (!isDryRun) {
+    console.log(`\n\nWriting coordinates for ${bestParcelsMap.size.toLocaleString()} unique parcels to database in batches of ${batchSize}...`);
+    const dbStartTime = Date.now();
+    let dbBatch = [];
+    let writtenCount = 0;
+
+    for (const [pId, { lat, lng }] of bestParcelsMap) {
+      dbBatch.push([pId, lat, lng]);
+      if (dbBatch.length >= batchSize) {
+        await flushBatch(dbBatch);
+        writtenCount += dbBatch.length;
+        dbBatch = [];
+        const dbElapsed = ((Date.now() - dbStartTime) / 1000).toFixed(1);
+        process.stdout.write(`\rUpdated ${writtenCount.toLocaleString()} / ${bestParcelsMap.size.toLocaleString()} parcels in DB (${dbElapsed}s)...`);
+      }
+    }
+
+    if (dbBatch.length > 0) {
+      await flushBatch(dbBatch);
+      writtenCount += dbBatch.length;
+    }
+    const totalDbElapsed = ((Date.now() - dbStartTime) / 1000).toFixed(1);
+    console.log(`\nDatabase update complete: ${writtenCount.toLocaleString()} parcels written in ${totalDbElapsed}s.`);
   }
 
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -314,11 +366,12 @@ async function run() {
 
   console.log(`\n\n=== IMPORT SUMMARY ===`);
   console.log(`Total shapes in shapefile:      ${totalShapes.toLocaleString()}`);
-  console.log(`Matched to residential DB:      ${matchedCount.toLocaleString()} (${matchedParcelsSet.size.toLocaleString()} unique parcels)`);
+  console.log(`Matched to residential DB:      ${matchedCount.toLocaleString()} (${bestParcelsMap.size.toLocaleString()} unique parcels)`);
   console.log(`Unmatched shapes:               ${unmatchedCount.toLocaleString()} (non-residential / rights-of-way)`);
+  console.log(`Duplicate shapes resolved:      ${duplicatesCount.toLocaleString()} duplicate shapes encountered (${duplicatesReplacedCount.toLocaleString()} replaced by larger shape; all kept from largest shape by area)`);
 
-  const stillWithout = residentialSet.size - matchedParcelsSet.size;
-  const matchPct = ((matchedParcelsSet.size / residentialSet.size) * 100).toFixed(2);
+  const stillWithout = residentialSet.size - bestParcelsMap.size;
+  const matchPct = ((bestParcelsMap.size / residentialSet.size) * 100).toFixed(2);
   console.log(`Residential parcels without coords: ${stillWithout.toLocaleString()}`);
   console.log(`Coordinate coverage:            ${matchPct}% of residential parcels`);
   console.log(`Inside-polygon check:           ${samplePassedCount.toLocaleString()} / ${sampledCount.toLocaleString()} passed (${passRate}%)`);
