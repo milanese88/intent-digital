@@ -147,8 +147,49 @@ export default async function handler(req, res) {
     const sql = getDb();
     const cleanEmail = (user.email || '').trim().toLowerCase();
 
-    // GET: List all properties for current owner
+    // GET: Single property (?id=...) or list all properties for current owner
     if (req.method === 'GET') {
+      const id = req.query?.id;
+      if (id) {
+        const rows = await sql`
+          SELECT 
+            id,
+            owner_email,
+            address,
+            city,
+            state,
+            zip,
+            county,
+            lat,
+            lng,
+            property_type,
+            units,
+            beds,
+            baths,
+            sqft,
+            lot_sqft,
+            year_built,
+            list_price,
+            status,
+            strategy,
+            condition,
+            roof_year,
+            listing_url,
+            notes,
+            created_at,
+            updated_at
+          FROM investor_properties
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+          LIMIT 1
+        `;
+
+        if (rows.length === 0) {
+          return res.status(404).json({ error: 'Property not found.' });
+        }
+
+        return res.status(200).json(rows[0]);
+      }
+
       const properties = await sql`
         SELECT 
           id,

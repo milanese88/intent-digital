@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
+import AddressAutocomplete from './AddressAutocomplete.jsx';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
-function generateUUID() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
+function calculateMedian(numbers) {
+  if (!numbers || numbers.length === 0) return null;
+  const valid = numbers.filter(n => n != null && !isNaN(n)).sort((a, b) => a - b);
+  if (valid.length === 0) return null;
+  const mid = Math.floor(valid.length / 2);
+  if (valid.length % 2 === 1) {
+    return valid[mid];
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  return (valid[mid - 1] + valid[mid]) / 2;
 }
 
 export default function InvestorStudio() {
@@ -18,39 +17,35 @@ export default function InvestorStudio() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Search & filter state
+  // Active property for Detail View (null = List View, string = Detail View)
+  const [activePropertyId, setActivePropertyId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('property') || null;
+    }
+    return null;
+  });
+
+  // Search & filter state (List view)
   const [locationInput, setLocationInput] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [strategyFilter, setStrategyFilter] = useState('all');
-
-  // Applied filter state (filters saved properties in browser)
   const [appliedFilters, setAppliedFilters] = useState({
     location: '',
     type: 'all',
     strategy: 'all'
   });
 
-  // Slide-in Form Panel state
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [editingProperty, setEditingProperty] = useState(null); // null = Add, obj = Edit
-  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
+  // Slide-in Property Form Panel state
+  const [isPropertyPanelOpen, setIsPropertyPanelOpen] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(null);
+  const [isPropDeleteConfirming, setIsPropDeleteConfirming] = useState(false);
+  const [isPropSaving, setIsPropSaving] = useState(false);
+  const [isPropDeleting, setIsPropDeleting] = useState(false);
+  const [propFormErrors, setPropFormErrors] = useState({});
   const [toast, setToast] = useState(null);
 
-  // Mapbox Autocomplete state
-  const [mapboxSessionToken, setMapboxSessionToken] = useState(() => generateUUID());
-  const [suggestions, setSuggestions] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isAddressFocused, setIsAddressFocused] = useState(false);
-  const autocompleteRef = useRef(null);
-  const justSelectedRef = useRef(false);
-
-  // Form field state
-  const [formData, setFormData] = useState({
+  const [propFormData, setPropFormData] = useState({
     address: '',
     city: '',
     zip: '',
@@ -73,6 +68,35 @@ export default function InvestorStudio() {
     notes: ''
   });
 
+  // Comps State (Detail view)
+  const [comps, setComps] = useState([]);
+  const [compsLoading, setCompsLoading] = useState(false);
+  const [compsError, setCompsError] = useState(null);
+
+  // Slide-in Comp Form Panel state
+  const [isCompPanelOpen, setIsCompPanelOpen] = useState(false);
+  const [editingComp, setEditingComp] = useState(null);
+  const [isCompDeleteConfirming, setIsCompDeleteConfirming] = useState(false);
+  const [isCompSaving, setIsCompSaving] = useState(false);
+  const [isCompDeleting, setIsCompDeleting] = useState(false);
+  const [compFormErrors, setCompFormErrors] = useState({});
+
+  const [compFormData, setCompFormData] = useState({
+    address: '',
+    city: '',
+    zip: '',
+    lat: null,
+    lng: null,
+    sold_date: '',
+    sold_price: '',
+    sqft: '',
+    beds: '',
+    baths: '',
+    year_built: '',
+    source: 'MLS',
+    included: true
+  });
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => {
@@ -86,6 +110,17 @@ export default function InvestorStudio() {
     if (!digits) return '';
     return `$${Number(digits).toLocaleString('en-US')}`;
   };
+
+  // Sync URL search params with activePropertyId & handle popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const prop = params.get('property') || null;
+      setActivePropertyId(prop);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const fetchProperties = async () => {
     setLoading(true);
@@ -113,124 +148,56 @@ export default function InvestorStudio() {
     fetchProperties();
   }, []);
 
-  // Close suggestions on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Mapbox Search Box API: Debounced address suggest (250ms, >= 3 chars, South Florida bias)
-  useEffect(() => {
-    if (!MAPBOX_TOKEN || !formData.address || formData.address.trim().length < 3 || !isAddressFocused) {
+  // Fetch comps whenever activePropertyId changes
+  const fetchComps = async (propertyId) => {
+    if (!propertyId) {
+      setComps([]);
       return;
     }
-    if (justSelectedRef.current) {
-      justSelectedRef.current = false;
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const q = encodeURIComponent(formData.address.trim());
-        const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${q}&access_token=${MAPBOX_TOKEN}&session_token=${mapboxSessionToken}&types=address&country=US&proximity=-80.14,26.12&limit=6&language=en`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          setIsSearching(false);
-          return;
-        }
-        const data = await res.json();
-        const list = data.suggestions || [];
-        setSuggestions(list);
-        setIsDropdownOpen(list.length > 0);
-        setSelectedIndex(-1);
-      } catch (err) {
-        // Silently fall back to normal text input
-        setSuggestions([]);
-        setIsDropdownOpen(false);
-      } finally {
-        setIsSearching(false);
+    setCompsLoading(true);
+    setCompsError(null);
+    try {
+      const res = await fetch(`/api/investor/comps?property_id=${encodeURIComponent(propertyId)}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load comps (HTTP ${res.status}).`);
       }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [formData.address, mapboxSessionToken, isAddressFocused]);
-
-  // Handle selecting an autocomplete suggestion (Retrieve API)
-  const handleSelectSuggestion = async (suggestion) => {
-    justSelectedRef.current = true;
-    setIsDropdownOpen(false);
-    setSuggestions([]);
-    setSelectedIndex(-1);
-
-    let streetAddress = suggestion.name || formData.address;
-    let city = '';
-    let zip = '';
-    let county = '';
-    let lat = null;
-    let lng = null;
-
-    if (MAPBOX_TOKEN && suggestion.mapbox_id) {
-      try {
-        const retrieveUrl = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(suggestion.mapbox_id)}?access_token=${MAPBOX_TOKEN}&session_token=${mapboxSessionToken}`;
-        const res = await fetch(retrieveUrl);
-        if (res.ok) {
-          const data = await res.json();
-          const feat = data.features?.[0];
-          if (feat) {
-            const props = feat.properties || {};
-            const ctx = props.context || {};
-
-            // Street address only
-            if (props.name) {
-              streetAddress = props.name;
-            } else if (props.address && props.street) {
-              streetAddress = `${props.address} ${props.street}`;
-            }
-
-            // City
-            city = ctx.place?.name || ctx.locality?.name || '';
-
-            // ZIP
-            zip = ctx.postcode?.name || '';
-
-            // County mapping (Broward, Palm Beach, Miami-Dade, Other)
-            const rawDistrict = (ctx.district?.name || ctx.county?.name || '').toLowerCase();
-            if (rawDistrict.includes('broward')) county = 'Broward';
-            else if (rawDistrict.includes('palm beach')) county = 'Palm Beach';
-            else if (rawDistrict.includes('miami') || rawDistrict.includes('dade')) county = 'Miami-Dade';
-            else county = 'Other';
-
-            // Coordinates [lng, lat]
-            const coords = feat.geometry?.coordinates || [];
-            lng = coords[0] != null ? coords[0] : (props.coordinates?.longitude ?? null);
-            lat = coords[1] != null ? coords[1] : (props.coordinates?.latitude ?? null);
-          }
-        }
-      } catch (err) {
-        console.warn('Mapbox retrieve failed:', err);
-      }
+      const data = await res.json();
+      setComps(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching comps:', err);
+      setCompsError(err.message || 'Unable to load sold comps.');
+    } finally {
+      setCompsLoading(false);
     }
-
-    setFormData(prev => ({
-      ...prev,
-      address: streetAddress,
-      city: city || prev.city,
-      zip: zip || prev.zip,
-      county: county || prev.county,
-      lat: lat != null ? Number(lat) : null,
-      lng: lng != null ? Number(lng) : null
-    }));
-
-    // Generate fresh session token for future searches
-    setMapboxSessionToken(generateUUID());
   };
 
+  useEffect(() => {
+    if (activePropertyId) {
+      fetchComps(activePropertyId);
+    }
+  }, [activePropertyId]);
+
+  // Navigation handlers
+  const handleOpenDetail = (propId) => {
+    setActivePropertyId(propId);
+    const url = new URL(window.location);
+    url.searchParams.set('property', propId);
+    window.history.pushState({}, '', url);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToList = () => {
+    setActivePropertyId(null);
+    const url = new URL(window.location);
+    url.searchParams.delete('property');
+    window.history.pushState({}, '', url);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Find active property object
+  const activeProperty = properties.find(p => p.id === activePropertyId) || null;
+
+  // Search & Filter in list view
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
     setAppliedFilters({
@@ -247,13 +214,10 @@ export default function InvestorStudio() {
     setAppliedFilters({ location: '', type: 'all', strategy: 'all' });
   };
 
-  // Open panel in Add mode
-  const handleOpenAdd = () => {
+  // Open property panel in Add mode
+  const handleOpenAddProperty = () => {
     setEditingProperty(null);
-    setMapboxSessionToken(generateUUID());
-    setSuggestions([]);
-    setIsDropdownOpen(false);
-    setFormData({
+    setPropFormData({
       address: '',
       city: '',
       zip: '',
@@ -275,18 +239,15 @@ export default function InvestorStudio() {
       listing_url: '',
       notes: ''
     });
-    setFormErrors({});
-    setIsDeleteConfirming(false);
-    setIsPanelOpen(true);
+    setPropFormErrors({});
+    setIsPropDeleteConfirming(false);
+    setIsPropertyPanelOpen(true);
   };
 
-  // Open panel in Edit mode
-  const handleOpenEdit = (p) => {
+  // Open property panel in Edit mode
+  const handleOpenEditProperty = (p) => {
     setEditingProperty(p);
-    setMapboxSessionToken(generateUUID());
-    setSuggestions([]);
-    setIsDropdownOpen(false);
-    setFormData({
+    setPropFormData({
       address: p.address || '',
       city: p.city || '',
       zip: p.zip || '',
@@ -308,116 +269,51 @@ export default function InvestorStudio() {
       listing_url: p.listing_url || '',
       notes: p.notes || ''
     });
-    setFormErrors({});
-    setIsDeleteConfirming(false);
-    setIsPanelOpen(true);
+    setPropFormErrors({});
+    setIsPropDeleteConfirming(false);
+    setIsPropertyPanelOpen(true);
   };
 
-  const handleClosePanel = () => {
-    if (isSaving || isDeleting) return;
-    setIsPanelOpen(false);
-    setIsDeleteConfirming(false);
-    setFormErrors({});
-    setIsDropdownOpen(false);
-    setSuggestions([]);
+  const handleClosePropertyPanel = () => {
+    if (isPropSaving || isPropDeleting) return;
+    setIsPropertyPanelOpen(false);
+    setIsPropDeleteConfirming(false);
+    setPropFormErrors({});
   };
 
-  const handleFormFieldChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (formErrors[field]) {
-      setFormErrors(prev => {
-        const updated = { ...prev };
-        delete updated[field];
-        return updated;
-      });
-    }
-  };
-
-  // Address input change clears lat/lng if user manually edits
-  const handleAddressInputChange = (e) => {
-    const val = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      address: val,
-      lat: null,
-      lng: null
-    }));
-    if (formErrors.address) {
-      setFormErrors(prev => {
-        const updated = { ...prev };
-        delete updated.address;
-        return updated;
-      });
-    }
-    if (val.trim().length >= 3 && MAPBOX_TOKEN) {
-      setIsDropdownOpen(true);
-    } else {
-      setIsDropdownOpen(false);
-      setSuggestions([]);
-    }
-  };
-
-  // Address keyboard navigation (combobox)
-  const handleAddressKeyDown = (e) => {
-    if (!isDropdownOpen || suggestions.length === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => (prev + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter') {
-      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-        e.preventDefault();
-        handleSelectSuggestion(suggestions[selectedIndex]);
-      }
-    } else if (e.key === 'Escape') {
-      setIsDropdownOpen(false);
-    }
-  };
-
-  const handlePriceInputChange = (e) => {
-    const raw = e.target.value;
-    const digits = raw.replace(/[^\d]/g, '');
-    const formatted = digits ? `$${Number(digits).toLocaleString('en-US')}` : '';
-    handleFormFieldChange('list_price', formatted);
-  };
-
-  // Save (Create or Update)
   const handleSaveProperty = async (e) => {
     if (e) e.preventDefault();
-    setFormErrors({});
-    setIsSaving(true);
+    setPropFormErrors({});
+    setIsPropSaving(true);
 
-    if (!formData.address.trim()) {
-      setFormErrors({ address: 'Address is required.' });
-      setIsSaving(false);
+    if (!propFormData.address.trim()) {
+      setPropFormErrors({ address: 'Address is required.' });
+      setIsPropSaving(false);
       return;
     }
 
     const payload = {
-      ...formData,
-      address: formData.address.trim(),
-      city: formData.city.trim() || null,
-      zip: formData.zip.trim() || null,
-      county: formData.county.trim() || null,
-      lat: formData.lat != null ? Number(formData.lat) : null,
-      lng: formData.lng != null ? Number(formData.lng) : null,
-      property_type: formData.property_type || null,
-      units: formData.property_type === 'multifamily_2_9' ? (Number(formData.units) || 1) : 1,
-      beds: formData.beds !== '' ? Number(formData.beds) : null,
-      baths: formData.baths !== '' ? Number(formData.baths) : null,
-      sqft: formData.sqft !== '' ? Number(formData.sqft) : null,
-      lot_sqft: formData.lot_sqft !== '' ? Number(formData.lot_sqft) : null,
-      year_built: formData.year_built !== '' ? Number(formData.year_built) : null,
-      list_price: formData.list_price ? Number(String(formData.list_price).replace(/[^\d]/g, '')) : null,
-      status: formData.status || 'watching',
-      strategy: formData.strategy || null,
-      condition: formData.condition.trim() || null,
-      roof_year: formData.roof_year !== '' ? Number(formData.roof_year) : null,
-      listing_url: formData.listing_url.trim() || null,
-      notes: formData.notes.trim() || null
+      ...propFormData,
+      address: propFormData.address.trim(),
+      city: propFormData.city.trim() || null,
+      zip: propFormData.zip.trim() || null,
+      county: propFormData.county.trim() || null,
+      lat: propFormData.lat != null ? Number(propFormData.lat) : null,
+      lng: propFormData.lng != null ? Number(propFormData.lng) : null,
+      property_type: propFormData.property_type || null,
+      units: propFormData.property_type === 'multifamily_2_9' ? (Number(propFormData.units) || 1) : 1,
+      beds: propFormData.beds !== '' ? Number(propFormData.beds) : null,
+      baths: propFormData.baths !== '' ? Number(propFormData.baths) : null,
+      sqft: propFormData.sqft !== '' ? Number(propFormData.sqft) : null,
+      lot_sqft: propFormData.lot_sqft !== '' ? Number(propFormData.lot_sqft) : null,
+      year_built: propFormData.year_built !== '' ? Number(propFormData.year_built) : null,
+      list_price: propFormData.list_price ? Number(String(propFormData.list_price).replace(/[^\d]/g, '')) : null,
+      status: propFormData.status || 'watching',
+      strategy: propFormData.strategy || null,
+      condition: propFormData.condition.trim() || null,
+      roof_year: propFormData.roof_year !== '' ? Number(propFormData.roof_year) : null,
+      listing_url: propFormData.listing_url.trim() || null,
+      notes: propFormData.notes.trim() || null
     };
 
     if (editingProperty) {
@@ -437,11 +333,11 @@ export default function InvestorStudio() {
       const data = await res.json();
       if (!res.ok) {
         if (data.errors) {
-          setFormErrors({ ...data.errors, general: data.error || 'Please correct the highlighted fields.' });
+          setPropFormErrors({ ...data.errors, general: data.error || 'Please correct the highlighted fields.' });
         } else {
-          setFormErrors({ general: data.error || 'Failed to save property.' });
+          setPropFormErrors({ general: data.error || 'Failed to save property.' });
         }
-        setIsSaving(false);
+        setIsPropSaving(false);
         return;
       }
 
@@ -451,20 +347,19 @@ export default function InvestorStudio() {
         setProperties(prev => [data, ...prev]);
       }
 
-      setIsPanelOpen(false);
+      setIsPropertyPanelOpen(false);
       showToast('Property saved');
     } catch (err) {
       console.error('Save error:', err);
-      setFormErrors({ general: err.message || 'An unexpected error occurred while saving.' });
+      setPropFormErrors({ general: err.message || 'An unexpected error occurred while saving.' });
     } finally {
-      setIsSaving(false);
+      setIsPropSaving(false);
     }
   };
 
-  // Delete
   const handleDeleteProperty = async () => {
     if (!editingProperty) return;
-    setIsDeleting(true);
+    setIsPropDeleting(true);
     try {
       const res = await fetch('/api/investor/properties', {
         method: 'DELETE',
@@ -474,24 +369,265 @@ export default function InvestorStudio() {
 
       const data = await res.json();
       if (!res.ok) {
-        setFormErrors({ general: data.error || 'Failed to delete property.' });
-        setIsDeleting(false);
+        setPropFormErrors({ general: data.error || 'Failed to delete property.' });
+        setIsPropDeleting(false);
         return;
       }
 
       setProperties(prev => prev.filter(p => p.id !== editingProperty.id));
-      setIsPanelOpen(false);
-      setIsDeleteConfirming(false);
+      setIsPropertyPanelOpen(false);
+      setIsPropDeleteConfirming(false);
       showToast('Property deleted');
+      if (activePropertyId === editingProperty.id) {
+        handleBackToList();
+      }
     } catch (err) {
       console.error('Delete error:', err);
-      setFormErrors({ general: err.message || 'An unexpected error occurred while deleting.' });
+      setPropFormErrors({ general: err.message || 'An unexpected error occurred while deleting.' });
     } finally {
-      setIsDeleting(false);
+      setIsPropDeleting(false);
     }
   };
 
-  // Filter properties in memory based on location text, type, and strategy
+  // Comp Form Handlers
+  const handleOpenAddComp = () => {
+    setEditingComp(null);
+    setCompFormData({
+      address: '',
+      city: '',
+      zip: '',
+      lat: null,
+      lng: null,
+      sold_date: '',
+      sold_price: '',
+      sqft: '',
+      beds: '',
+      baths: '',
+      year_built: '',
+      source: 'MLS',
+      included: true
+    });
+    setCompFormErrors({});
+    setIsCompDeleteConfirming(false);
+    setIsCompPanelOpen(true);
+  };
+
+  const handleOpenEditComp = (comp) => {
+    setEditingComp(comp);
+    setCompFormData({
+      address: comp.address || '',
+      city: comp.city || '',
+      zip: comp.zip || '',
+      lat: comp.lat != null ? Number(comp.lat) : null,
+      lng: comp.lng != null ? Number(comp.lng) : null,
+      sold_date: comp.sold_date ? String(comp.sold_date).split('T')[0] : '',
+      sold_price: comp.sold_price != null ? formatCurrencyInput(comp.sold_price) : '',
+      sqft: comp.sqft != null ? comp.sqft : '',
+      beds: comp.beds != null ? comp.beds : '',
+      baths: comp.baths != null ? comp.baths : '',
+      year_built: comp.year_built != null ? comp.year_built : '',
+      source: comp.source || 'MLS',
+      included: comp.included !== false
+    });
+    setCompFormErrors({});
+    setIsCompDeleteConfirming(false);
+    setIsCompPanelOpen(true);
+  };
+
+  const handleCloseCompPanel = () => {
+    if (isCompSaving || isCompDeleting) return;
+    setIsCompPanelOpen(false);
+    setIsCompDeleteConfirming(false);
+    setCompFormErrors({});
+  };
+
+  const handleSaveComp = async (e) => {
+    if (e) e.preventDefault();
+    setCompFormErrors({});
+    setIsCompSaving(true);
+
+    if (!compFormData.address.trim()) {
+      setCompFormErrors({ address: 'Address is required.' });
+      setIsCompSaving(false);
+      return;
+    }
+
+    const payload = {
+      ...compFormData,
+      property_id: activePropertyId,
+      address: compFormData.address.trim(),
+      city: compFormData.city.trim() || null,
+      zip: compFormData.zip.trim() || null,
+      lat: compFormData.lat != null ? Number(compFormData.lat) : null,
+      lng: compFormData.lng != null ? Number(compFormData.lng) : null,
+      sold_date: compFormData.sold_date || null,
+      sold_price: compFormData.sold_price ? Number(String(compFormData.sold_price).replace(/[^\d]/g, '')) : null,
+      sqft: compFormData.sqft !== '' ? Number(compFormData.sqft) : null,
+      beds: compFormData.beds !== '' ? Number(compFormData.beds) : null,
+      baths: compFormData.baths !== '' ? Number(compFormData.baths) : null,
+      year_built: compFormData.year_built !== '' ? Number(compFormData.year_built) : null,
+      source: compFormData.source || null,
+      included: Boolean(compFormData.included)
+    };
+
+    if (editingComp) {
+      payload.id = editingComp.id;
+    }
+
+    try {
+      const isEdit = Boolean(editingComp);
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch('/api/investor/comps', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.errors) {
+          setCompFormErrors({ ...data.errors, general: data.error || 'Please correct the errors below.' });
+        } else {
+          setCompFormErrors({ general: data.error || 'Failed to save comp.' });
+        }
+        setIsCompSaving(false);
+        return;
+      }
+
+      if (isEdit) {
+        setComps(prev => prev.map(c => (c.id === data.id ? data : c)));
+      } else {
+        setComps(prev => [data, ...prev]);
+      }
+
+      setIsCompPanelOpen(false);
+      showToast('Comp saved');
+    } catch (err) {
+      console.error('Save comp error:', err);
+      setCompFormErrors({ general: err.message || 'An error occurred while saving comp.' });
+    } finally {
+      setIsCompSaving(false);
+    }
+  };
+
+  const handleDeleteComp = async () => {
+    if (!editingComp) return;
+    setIsCompDeleting(true);
+    try {
+      const res = await fetch('/api/investor/comps', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingComp.id })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setCompFormErrors({ general: data.error || 'Failed to delete comp.' });
+        setIsCompDeleting(false);
+        return;
+      }
+
+      setComps(prev => prev.filter(c => c.id !== editingComp.id));
+      setIsCompPanelOpen(false);
+      setIsCompDeleteConfirming(false);
+      showToast('Comp deleted');
+    } catch (err) {
+      console.error('Delete comp error:', err);
+      setCompFormErrors({ general: err.message || 'An error occurred while deleting comp.' });
+    } finally {
+      setIsCompDeleting(false);
+    }
+  };
+
+  // Toggle comp included checkbox (instant PUT)
+  const handleToggleInclude = async (comp) => {
+    const updatedIncluded = !comp.included;
+    // Optimistic state update
+    setComps(prev => prev.map(c => (c.id === comp.id ? { ...c, included: updatedIncluded } : c)));
+
+    try {
+      const res = await fetch('/api/investor/comps', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: comp.id, included: updatedIncluded })
+      });
+      if (!res.ok) {
+        throw new Error('Failed to update comp inclusion.');
+      }
+      const data = await res.json();
+      setComps(prev => prev.map(c => (c.id === data.id ? data : c)));
+    } catch (err) {
+      console.error('Toggle include error:', err);
+      // Revert on error
+      setComps(prev => prev.map(c => (c.id === comp.id ? { ...c, included: !updatedIncluded } : c)));
+      showToast('Failed to update comp inclusion');
+    }
+  };
+
+  // Detail View Stats & Median Calculations
+  const includedComps = comps.filter(c => c.included !== false);
+  const includedPrices = includedComps.map(c => Number(c.sold_price)).filter(n => n && !isNaN(n));
+  const includedSqfts = includedComps.map(c => Number(c.sqft)).filter(n => n && !isNaN(n));
+  const includedPpsqft = includedComps.map(c => {
+    if (c.price_per_sqft != null) return Number(c.price_per_sqft);
+    if (c.sold_price && c.sqft) return Number(c.sold_price) / Number(c.sqft);
+    return null;
+  }).filter(n => n && !isNaN(n));
+
+  const medianSoldPrice = calculateMedian(includedPrices);
+  const medianSqft = calculateMedian(includedSqfts);
+  const medianPpsqft = calculateMedian(includedPpsqft);
+
+  // COMP VALUE = median $/sqft of included comps * property sqft, rounded to nearest $100
+  let compValueFormatted = '—';
+  if (medianPpsqft != null && activeProperty?.sqft) {
+    const rawVal = medianPpsqft * Number(activeProperty.sqft);
+    const roundedVal = Math.round(rawVal / 100) * 100;
+    compValueFormatted = `$${roundedVal.toLocaleString('en-US')}`;
+  }
+
+  // Formatting helpers
+  const formatPrice = (val) => {
+    if (val == null || val === '') return '—';
+    const num = Number(val);
+    if (isNaN(num)) return `$${val}`;
+    return `$${num.toLocaleString('en-US')}`;
+  };
+
+  const formatPricePerSqft = (price, sqft) => {
+    if (!price || !sqft) return '—';
+    const numPrice = Number(price);
+    const numSqft = Number(sqft);
+    if (!numPrice || !numSqft) return '—';
+    return `$${Math.round(numPrice / numSqft).toLocaleString('en-US')}/sqft`;
+  };
+
+  const formatSoldDate = (dStr) => {
+    if (!dStr) return '—';
+    const d = new Date(dStr);
+    if (isNaN(d.getTime())) return dStr;
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  };
+
+  const formatStatus = (status) => {
+    if (!status) return 'WATCHING';
+    return String(status).replace(/_/g, ' ').toUpperCase();
+  };
+
+  const formatPropertyType = (type) => {
+    if (!type) return null;
+    const map = {
+      single_family: 'Single-family',
+      condo: 'Condo',
+      townhome: 'Townhome',
+      multifamily_2_9: 'Multifamily 2–9',
+      other: 'Other'
+    };
+    return map[type] || type;
+  };
+
+  // Filter properties in memory based on search filters (list view)
   const filteredProperties = properties.filter((p) => {
     if (appliedFilters.location) {
       const q = appliedFilters.location;
@@ -522,40 +658,6 @@ export default function InvestorStudio() {
 
     return true;
   });
-
-  const formatPrice = (val) => {
-    if (val == null || val === '') return 'Price upon request';
-    const num = Number(val);
-    if (isNaN(num)) return `$${val}`;
-    return `$${num.toLocaleString('en-US')}`;
-  };
-
-  const formatPricePerSqft = (price, sqft) => {
-    if (!price || !sqft) return '—';
-    const numPrice = Number(price);
-    const numSqft = Number(sqft);
-    if (!numPrice || !numSqft) return '—';
-    return `$${Math.round(numPrice / numSqft).toLocaleString('en-US')}/sqft`;
-  };
-
-  const buildSpecsLine = (p) => {
-    const parts = [];
-    if (p.beds != null && p.beds !== '') parts.push(`${p.beds} bd`);
-    if (p.baths != null && p.baths !== '') parts.push(`${p.baths} ba`);
-    if (p.sqft != null && p.sqft !== '') parts.push(`${Number(p.sqft).toLocaleString('en-US')} sqft`);
-    if (p.year_built != null && p.year_built !== '') parts.push(`Built ${p.year_built}`);
-    return parts.join(' · ');
-  };
-
-  const formatStatus = (status) => {
-    if (!status) return 'WATCHING';
-    return String(status).replace(/_/g, ' ').toUpperCase();
-  };
-
-  const formatStrategy = (strategy) => {
-    if (!strategy) return '—';
-    return String(strategy).toUpperCase();
-  };
 
   const isFiltered = appliedFilters.location || appliedFilters.type !== 'all' || appliedFilters.strategy !== 'all';
 
@@ -694,6 +796,7 @@ export default function InvestorStudio() {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
           display: flex;
           flex-direction: column;
+          cursor: pointer;
         }
         .investor-card:hover {
           transform: translateY(-2px);
@@ -785,7 +888,7 @@ export default function InvestorStudio() {
           margin-bottom: 14px;
         }
 
-        /* Form Polish: Custom Select Styling with Subtle Chevron */
+        /* Custom Selects with subtle chevron */
         .investor-form-select {
           appearance: none;
           -webkit-appearance: none;
@@ -808,7 +911,7 @@ export default function InvestorStudio() {
           color: rgba(52, 41, 42, 0.45);
         }
 
-        /* Form Polish: Remove number spinner arrows */
+        /* Remove number spinner arrows */
         .investor-form-input::-webkit-outer-spin-button,
         .investor-form-input::-webkit-inner-spin-button {
           -webkit-appearance: none;
@@ -819,11 +922,7 @@ export default function InvestorStudio() {
           appearance: textfield;
         }
 
-        /* Mapbox Autocomplete Dropdown */
-        .investor-autocomplete-container {
-          position: relative;
-          width: 100%;
-        }
+        /* Autocomplete dropdown styles */
         .investor-autocomplete-dropdown {
           position: absolute;
           top: calc(100% + 4px);
@@ -864,7 +963,119 @@ export default function InvestorStudio() {
           color: rgba(52, 41, 42, 0.55);
         }
 
+        /* Detail View Layout */
+        .investor-detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 32px;
+          align-items: start;
+        }
+
+        /* 5-tile Stats Strip */
+        .investor-stats-strip {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          background: #ffffff;
+          border: 1px solid rgba(52, 41, 42, 0.1);
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 4px 16px rgba(52, 41, 42, 0.03);
+          margin-bottom: 40px;
+        }
+        .investor-stat-tile {
+          padding: 18px 20px;
+          border-right: 1px solid rgba(52, 41, 42, 0.08);
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .investor-stat-tile:last-child {
+          border-right: none;
+        }
+        .investor-stat-label {
+          font-family: var(--font-sans, 'Montserrat', sans-serif);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(52, 41, 42, 0.55);
+        }
+        .investor-stat-value {
+          font-family: var(--font-display, 'Atelier Fleur', Georgia, serif);
+          font-size: 20px;
+          font-weight: 600;
+          color: var(--espresso, #1E1509);
+          line-height: 1.2;
+          letter-spacing: -0.01em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* Sold Comps Table */
+        .investor-table-card {
+          background: #ffffff;
+          border: 1px solid rgba(52, 41, 42, 0.1);
+          border-radius: 12px;
+          box-shadow: 0 4px 16px rgba(52, 41, 42, 0.03);
+          overflow: hidden;
+        }
+        .investor-table-wrapper {
+          overflow-x: auto;
+          width: 100%;
+        }
+        .investor-comps-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--font-sans, 'Montserrat', sans-serif);
+          font-size: 13px;
+        }
+        .investor-comps-table th {
+          background: rgba(52, 41, 42, 0.03);
+          border-bottom: 1px solid rgba(52, 41, 42, 0.1);
+          padding: 12px 14px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(52, 41, 42, 0.6);
+          white-space: nowrap;
+        }
+        .investor-comps-table td {
+          padding: 14px;
+          border-bottom: 1px solid rgba(52, 41, 42, 0.06);
+          color: var(--espresso, #1E1509);
+        }
+        .investor-comp-row {
+          transition: background-color 0.15s ease, opacity 0.2s ease;
+        }
+        .investor-comp-row:hover {
+          background-color: rgba(52, 41, 42, 0.02);
+        }
+        .investor-comp-row.excluded {
+          opacity: 0.42;
+        }
+        .investor-median-row td {
+          background: rgba(52, 41, 42, 0.04);
+          font-weight: 600;
+          border-bottom: none;
+          padding-top: 14px;
+          padding-bottom: 14px;
+        }
+
         /* Responsive Breakpoints */
+        @media (max-width: 960px) {
+          .investor-detail-grid {
+            grid-template-columns: 1fr;
+            gap: 28px;
+          }
+          .investor-stats-strip {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          .investor-stat-tile:nth-child(2) {
+            border-right: none;
+          }
+        }
         @media (max-width: 860px) {
           .investor-search-bar {
             flex-direction: column;
@@ -895,6 +1106,13 @@ export default function InvestorStudio() {
           .investor-form-grid-2 {
             grid-template-columns: 1fr;
             gap: 12px;
+          }
+          .investor-stats-strip {
+            grid-template-columns: 1fr;
+          }
+          .investor-stat-tile {
+            border-right: none;
+            border-bottom: 1px solid rgba(52, 41, 42, 0.08);
           }
         }
         @media (max-width: 600px) {
@@ -934,470 +1152,901 @@ export default function InvestorStudio() {
         </div>
       )}
 
-      {/* HERO SECTION - MATCHING DASHBOARD / OVERVIEW EXACTLY */}
-      <header style={{ marginBottom: '40px', textAlign: 'center' }}>
-        <span style={{
-          display: 'block',
-          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-          fontSize: '12px',
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          color: 'rgba(52, 41, 42, 0.6)',
-          marginBottom: '16px'
-        }}>
-          INVESTOR STUDIO · PRIVATE
-        </span>
-
-        <h1 className="investor-hero-title" style={{
-          fontSize: 'clamp(36px, 4.5vw, 56px)',
-          margin: '0 auto 20px auto',
-          textAlign: 'center',
-          maxWidth: '850px'
-        }}>
-          Find the property.<br />
-          <i>Know the numbers.</i>
-        </h1>
-
-        <p style={{
-          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-          fontSize: '15px',
-          color: 'rgba(52, 41, 42, 0.7)',
-          margin: '0 auto',
-          maxWidth: '620px',
-          lineHeight: '1.6',
-          textAlign: 'center'
-        }}>
-          Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
-        </p>
-      </header>
-
-      {/* PILL SEARCH BAR - CENTERED UNDER TEXT (MAX-WIDTH ~900px) */}
-      <form onSubmit={handleSearchSubmit} className="investor-search-container">
-        <div className="investor-search-bar">
-          
-          {/* 1. LOCATION */}
-          <div className="investor-search-field">
-            <label htmlFor="investor-loc" className="investor-search-label">
-              LOCATION
-            </label>
-            <input
-              id="investor-loc"
-              type="text"
-              value={locationInput}
-              onChange={(e) => setLocationInput(e.target.value)}
-              placeholder="Address, city or ZIP"
-              className="investor-search-input"
-            />
-          </div>
-
-          <div className="investor-search-divider" />
-
-          {/* 2. PROPERTY TYPE */}
-          <div className="investor-search-field">
-            <label htmlFor="investor-type" className="investor-search-label">
-              PROPERTY TYPE
-            </label>
-            <select
-              id="investor-type"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="investor-search-select"
-            >
-              <option value="all">Any</option>
-              <option value="single_family">Single-family</option>
-              <option value="condo_townhome">Condo / townhome</option>
-              <option value="multifamily_2_9">Multifamily 2–9 units</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div className="investor-search-divider" />
-
-          {/* 3. STRATEGY */}
-          <div className="investor-search-field">
-            <label htmlFor="investor-strat" className="investor-search-label">
-              STRATEGY
-            </label>
-            <select
-              id="investor-strat"
-              value={strategyFilter}
-              onChange={(e) => setStrategyFilter(e.target.value)}
-              className="investor-search-select"
-            >
-              <option value="all">Any</option>
-              <option value="rental">Rental</option>
-              <option value="flip">Flip</option>
-              <option value="brrrr">BRRRR</option>
-            </select>
-          </div>
-
-          {/* 4. BURGUNDY BUTTON */}
-          <button type="submit" className="investor-search-btn">
-            SEARCH &rarr;
-          </button>
-        </div>
-      </form>
-
-      {/* SAVED PROPERTIES SECTION */}
-      <section style={{ marginTop: '64px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '28px',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}>
-          <div>
-            <h2 style={{
-              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-              fontSize: 'clamp(32px, 3.8vw, 44px)',
-              fontWeight: 300,
-              letterSpacing: '-0.02em',
-              lineHeight: 1.2,
-              color: 'var(--espresso, #34292A)',
-              margin: '0 0 6px 0',
-              textAlign: 'left'
-            }}>
-              Your saved properties
-            </h2>
-            <p style={{
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '13px',
-              color: 'rgba(52, 41, 42, 0.6)',
-              margin: 0
-            }}>
-              {properties.length > 0 ? (
-                isFiltered
-                  ? `Showing ${filteredProperties.length} of ${properties.length} saved properties`
-                  : `${properties.length} total saved ${properties.length === 1 ? 'property' : 'properties'}`
-              ) : null}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            {isFiltered && (
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '12px',
-                  color: 'var(--secondary-color, #41101B)',
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              >
-                Clear filters
-              </button>
-            )}
-
+      {/* ========================================================================= */}
+      {/* 1. PROPERTY DETAIL VIEW (When activePropertyId is set)                    */}
+      {/* ========================================================================= */}
+      {activePropertyId && (
+        <div>
+          {/* Back link */}
+          <div style={{ marginBottom: '24px' }}>
             <button
               type="button"
-              onClick={handleOpenAdd}
-              className="investor-search-btn"
+              onClick={handleBackToList}
               style={{
-                padding: '11px 22px',
-                fontSize: '11.5px'
-              }}
-            >
-              + ADD PROPERTY
-            </button>
-          </div>
-        </div>
-
-        {/* LOADING STATE */}
-        {loading && (
-          <div style={{
-            padding: '40px 0',
-            textAlign: 'center',
-            color: 'rgba(52, 41, 42, 0.7)',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '14px'
-          }}>
-            Loading saved properties...
-          </div>
-        )}
-
-        {/* ERROR STATE */}
-        {!loading && error && (
-          <div style={{
-            maxWidth: '800px',
-            margin: '0 auto',
-            backgroundColor: '#FFF7F5',
-            border: '1px solid rgba(192, 57, 43, 0.2)',
-            borderRadius: '12px',
-            padding: '24px',
-            color: '#A93226',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '14px',
-            lineHeight: 1.5
-          }}>
-            <strong style={{ display: 'block', marginBottom: '4px' }}>Unable to load properties</strong>
-            {error}
-          </div>
-        )}
-
-        {/* EMPTY STATE */}
-        {!loading && !error && properties.length === 0 && (
-          <div className="investor-empty-card" style={{
-            maxWidth: '800px',
-            margin: '0 auto',
-            textAlign: 'center',
-            backgroundColor: '#fff',
-            border: '1px solid rgba(52, 41, 42, 0.1)',
-            borderRadius: '16px',
-            padding: '48px 32px',
-            boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
-          }}>
-            <h3 style={{
-              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-              fontSize: '24px',
-              color: 'var(--espresso, #34292A)',
-              marginBottom: '16px',
-              fontWeight: 400
-            }}>
-              No saved properties yet
-            </h3>
-            <p style={{
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '15px',
-              color: 'rgba(52, 41, 42, 0.7)',
-              lineHeight: '1.6',
-              margin: '0 0 24px 0'
-            }}>
-              Add your first property to start running comps and numbers.
-            </p>
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="investor-search-btn"
-              style={{
-                display: 'inline-flex',
-                margin: '0 auto',
-                padding: '12px 26px',
-                fontSize: '12px'
-              }}
-            >
-              + ADD PROPERTY
-            </button>
-          </div>
-        )}
-
-        {/* EMPTY FILTER STATE */}
-        {!loading && !error && properties.length > 0 && filteredProperties.length === 0 && (
-          <div className="investor-empty-card" style={{
-            maxWidth: '800px',
-            margin: '0 auto',
-            textAlign: 'center',
-            backgroundColor: '#fff',
-            border: '1px solid rgba(52, 41, 42, 0.1)',
-            borderRadius: '16px',
-            padding: '48px',
-            boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
-          }}>
-            <h3 style={{
-              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-              fontSize: '24px',
-              color: 'var(--espresso, #34292A)',
-              marginBottom: '16px',
-              fontWeight: 400
-            }}>
-              No matching properties
-            </h3>
-            <p style={{
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '15px',
-              color: 'rgba(52, 41, 42, 0.7)',
-              lineHeight: '1.6',
-              margin: '0 0 20px 0'
-            }}>
-              None of your saved properties match the current search filters.
-            </p>
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              style={{
-                backgroundColor: 'var(--lighter-tone, #FAF8F5)',
-                border: '1px solid rgba(52, 41, 42, 0.15)',
-                borderRadius: '50px',
-                padding: '10px 22px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--secondary-color, #41101B)',
                 fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                fontSize: '12px',
+                fontSize: '12.5px',
                 fontWeight: 600,
-                color: 'var(--espresso, #1E1509)',
-                cursor: 'pointer'
+                letterSpacing: '0.06em',
+                cursor: 'pointer',
+                padding: '4px 0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
               }}
             >
-              Reset Search Filters
+              &larr; Back to saved properties
             </button>
           </div>
-        )}
 
-        {/* PROPERTY CARDS GRID */}
-        {!loading && !error && filteredProperties.length > 0 && (
-          <div className="investor-grid">
-            {filteredProperties.map((p) => {
-              const specs = buildSpecsLine(p);
-              const pricePerSqft = formatPricePerSqft(p.list_price, p.sqft);
-              const cityStateZip = [p.city, p.state || 'FL', p.zip].filter(Boolean).join(', ');
-
-              return (
-                <div key={p.id} className="investor-card">
-                  {/* Photo Block: Warm brown tone with cream status pill */}
-                  <div style={{
-                    height: '180px',
-                    background: 'linear-gradient(145deg, #2E2218 0%, #4A382A 100%)',
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'rgba(250, 248, 245, 0.35)'
+          {activeProperty ? (
+            <>
+              {/* Detail Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                gap: '20px',
+                marginBottom: '32px'
+              }}>
+                <div>
+                  {/* Status Eyebrow */}
+                  <span style={{
+                    display: 'block',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    color: 'var(--secondary-color, #41101B)',
+                    marginBottom: '8px'
                   }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: '12px',
-                      left: '12px',
-                      backgroundColor: 'var(--lighter-tone, #FAF8F5)',
-                      color: 'var(--secondary-color, #41101B)',
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      padding: '4px 10px',
-                      borderRadius: '50px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                    }}>
-                      {formatStatus(p.status)}
-                    </div>
+                    {formatStatus(activeProperty.status)}
+                  </span>
 
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                      <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                    </svg>
-                  </div>
+                  {/* Street Address */}
+                  <h1 style={{
+                    fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                    fontSize: 'clamp(32px, 4vw, 48px)',
+                    fontWeight: 400,
+                    lineHeight: 1.15,
+                    color: 'var(--espresso, #34292A)',
+                    margin: '0 0 6px 0',
+                    letterSpacing: '-0.02em'
+                  }}>
+                    {activeProperty.address}
+                  </h1>
 
-                  {/* Card Body */}
-                  <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <div style={{
-                      fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                      fontSize: '24px',
-                      fontWeight: 600,
-                      color: 'var(--espresso, #1E1509)',
-                      marginBottom: '6px',
-                      letterSpacing: '-0.01em'
-                    }}>
-                      {formatPrice(p.list_price)}
-                    </div>
+                  {/* Subtitle: "City, FL ZIP · Property type · Built YEAR" */}
+                  <p style={{
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '14px',
+                    color: 'rgba(52, 41, 42, 0.65)',
+                    margin: 0
+                  }}>
+                    {[
+                      [activeProperty.city, activeProperty.state || 'FL', activeProperty.zip].filter(Boolean).join(', '),
+                      formatPropertyType(activeProperty.property_type),
+                      activeProperty.year_built ? `Built ${activeProperty.year_built}` : null
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
 
-                    <div style={{
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: 'var(--espresso, #34292A)',
-                      marginBottom: '2px',
-                      lineHeight: 1.3
-                    }}>
-                      {p.address}
-                    </div>
-                    {cityStateZip && (
-                      <div style={{
-                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                        fontSize: '12px',
-                        color: 'rgba(52, 41, 42, 0.65)',
-                        marginBottom: '12px'
-                      }}>
-                        {cityStateZip}
-                      </div>
-                    )}
+                {/* Top Right: EDIT PROPERTY (Outline pill) */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditProperty(activeProperty)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1px solid rgba(52, 41, 42, 0.24)',
+                    borderRadius: '50px',
+                    padding: '10px 22px',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--espresso, #1E1509)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--secondary-color, #41101B)';
+                    e.currentTarget.style.color = 'var(--secondary-color, #41101B)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(52, 41, 42, 0.24)';
+                    e.currentTarget.style.color = 'var(--espresso, #1E1509)';
+                  }}
+                >
+                  EDIT PROPERTY
+                </button>
+              </div>
 
-                    {specs && (
-                      <div style={{
-                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                        fontSize: '12px',
-                        color: 'rgba(52, 41, 42, 0.75)',
-                        marginBottom: '16px'
-                      }}>
-                        {specs}
-                      </div>
-                    )}
-
-                    {/* Bottom Row */}
-                    <div style={{
-                      marginTop: 'auto',
-                      paddingTop: '14px',
-                      borderTop: '1px solid rgba(52, 41, 42, 0.08)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '11px',
-                      letterSpacing: '0.04em'
-                    }}>
-                      <div>
-                        <span style={{ color: 'rgba(52, 41, 42, 0.5)', textTransform: 'uppercase', marginRight: '6px' }}>$/SQFT:</span>
-                        <strong style={{ color: 'var(--espresso, #1E1509)' }}>{pricePerSqft}</strong>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          backgroundColor: 'rgba(65, 16, 27, 0.06)',
-                          color: 'var(--secondary-color, #41101B)',
-                          fontWeight: 700,
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          letterSpacing: '0.06em',
-                          fontSize: '10px'
-                        }}>
-                          {formatStrategy(p.strategy)}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEdit(p);
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'rgba(52, 41, 42, 0.65)',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.04em',
-                            cursor: 'pointer',
-                            padding: '2px 4px',
-                            textDecoration: 'underline'
-                          }}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
+              {/* Stats Strip: 5 Tiles */}
+              <div className="investor-stats-strip">
+                {/* 1. LIST PRICE */}
+                <div className="investor-stat-tile">
+                  <span className="investor-stat-label">LIST PRICE</span>
+                  <div className="investor-stat-value">
+                    {formatPrice(activeProperty.list_price)}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
 
-      {/* SLIDE-IN ADD / EDIT PROPERTY PANEL */}
-      {isPanelOpen && (
+                {/* 2. COMP VALUE */}
+                <div className="investor-stat-tile">
+                  <span className="investor-stat-label">COMP VALUE</span>
+                  <div className="investor-stat-value">
+                    {compValueFormatted}
+                  </div>
+                </div>
+
+                {/* 3. $/SQFT · COMPS */}
+                <div className="investor-stat-tile">
+                  <span className="investor-stat-label">$/SQFT · COMPS</span>
+                  <div className="investor-stat-value">
+                    {(() => {
+                      const propPps = activeProperty.list_price && activeProperty.sqft
+                        ? Math.round(Number(activeProperty.list_price) / Number(activeProperty.sqft))
+                        : null;
+                      const compPps = medianPpsqft != null ? Math.round(medianPpsqft) : null;
+                      if (propPps != null && compPps != null) return `$${propPps} · $${compPps}`;
+                      if (propPps != null) return `$${propPps} · —`;
+                      if (compPps != null) return `— · $${compPps}`;
+                      return '—';
+                    })()}
+                  </div>
+                </div>
+
+                {/* 4. SIZE */}
+                <div className="investor-stat-tile">
+                  <span className="investor-stat-label">SIZE</span>
+                  <div className="investor-stat-value">
+                    {(() => {
+                      const beds = activeProperty.beds != null && activeProperty.beds !== '' ? activeProperty.beds : '—';
+                      const baths = activeProperty.baths != null && activeProperty.baths !== '' ? activeProperty.baths : '—';
+                      const sqft = activeProperty.sqft ? `${Number(activeProperty.sqft).toLocaleString()} sf` : '—';
+                      return `${beds} / ${baths} · ${sqft}`;
+                    })()}
+                  </div>
+                </div>
+
+                {/* 5. CONDITION */}
+                <div className="investor-stat-tile">
+                  <span className="investor-stat-label">CONDITION</span>
+                  <div className="investor-stat-value" title={activeProperty.condition || ''}>
+                    {activeProperty.condition || '—'}
+                    {activeProperty.roof_year ? ` · roof ${activeProperty.roof_year}` : ''}
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Grid: Left Column (Comps + Notes) & Right Column (Underwrite) */}
+              <div className="investor-detail-grid">
+                {/* LEFT COLUMN */}
+                <div>
+                  {/* Sold Comps Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '18px'
+                  }}>
+                    <h2 style={{
+                      fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                      fontSize: '28px',
+                      fontWeight: 400,
+                      color: 'var(--espresso, #34292A)',
+                      margin: 0
+                    }}>
+                      Sold comps
+                    </h2>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenAddComp}
+                      className="investor-search-btn"
+                      style={{
+                        padding: '10px 20px',
+                        fontSize: '11px'
+                      }}
+                    >
+                      + ADD COMP
+                    </button>
+                  </div>
+
+                  {/* Loading / Error States */}
+                  {compsLoading && (
+                    <div style={{ padding: '30px 0', textAlign: 'center', color: 'rgba(52, 41, 42, 0.6)', fontSize: '13px' }}>
+                      Loading sold comps...
+                    </div>
+                  )}
+
+                  {compsError && (
+                    <div style={{
+                      backgroundColor: '#FFF7F5',
+                      border: '1px solid rgba(192, 57, 43, 0.2)',
+                      borderRadius: '8px',
+                      padding: '14px 18px',
+                      color: '#A93226',
+                      fontSize: '13px',
+                      marginBottom: '16px'
+                    }}>
+                      {compsError}
+                    </div>
+                  )}
+
+                  {/* Comps Table Card */}
+                  {!compsLoading && !compsError && (
+                    <div className="investor-table-card">
+                      {comps.length === 0 ? (
+                        <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                          <p style={{
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '14px',
+                            color: 'rgba(52, 41, 42, 0.65)',
+                            margin: 0
+                          }}>
+                            No comps yet — add 3 to 5 recent sales nearby to value this property.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="investor-table-wrapper">
+                          <table className="investor-comps-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: '44px', textAlign: 'center' }}>INC</th>
+                                <th style={{ textAlign: 'left' }}>ADDRESS</th>
+                                <th style={{ textAlign: 'left' }}>SOLD</th>
+                                <th style={{ textAlign: 'right' }}>PRICE</th>
+                                <th style={{ textAlign: 'right' }}>SQFT</th>
+                                <th style={{ textAlign: 'right' }}>$/SQFT</th>
+                                <th style={{ textAlign: 'right' }}>DIST</th>
+                                <th style={{ width: '50px', textAlign: 'center' }}></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {comps.map((c) => {
+                                const ppsqft = c.price_per_sqft != null
+                                  ? Math.round(Number(c.price_per_sqft))
+                                  : (c.sold_price && c.sqft ? Math.round(Number(c.sold_price) / Number(c.sqft)) : null);
+
+                                return (
+                                  <tr key={c.id} className={`investor-comp-row ${c.included === false ? 'excluded' : ''}`}>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={c.included !== false}
+                                        onChange={() => handleToggleInclude(c)}
+                                        style={{ cursor: 'pointer', accentColor: 'var(--secondary-color, #41101B)' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <div style={{ fontWeight: 600 }}>{c.address}</div>
+                                      {(c.city || c.source) && (
+                                        <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.55)' }}>
+                                          {[c.city, c.source].filter(Boolean).join(' · ')}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td>{formatSoldDate(c.sold_date)}</td>
+                                    <td style={{ textAlign: 'right' }}>{c.sold_price ? formatPrice(c.sold_price) : '—'}</td>
+                                    <td style={{ textAlign: 'right' }}>{c.sqft ? Number(c.sqft).toLocaleString() : '—'}</td>
+                                    <td style={{ textAlign: 'right' }}>{ppsqft ? `$${ppsqft}` : '—'}</td>
+                                    <td style={{ textAlign: 'right' }}>{c.distance_mi != null ? `${c.distance_mi} mi` : '—'}</td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditComp(c)}
+                                        style={{
+                                          background: 'none',
+                                          border: 'none',
+                                          color: 'rgba(52, 41, 42, 0.65)',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          textDecoration: 'underline',
+                                          cursor: 'pointer',
+                                          padding: '2px 4px'
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+
+                              {/* Shaded Median Row */}
+                              <tr className="investor-median-row">
+                                <td style={{ textAlign: 'center' }}></td>
+                                <td>
+                                  <span style={{
+                                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.08em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--espresso, #1E1509)'
+                                  }}>
+                                    Median ({includedComps.length} included)
+                                  </span>
+                                </td>
+                                <td>—</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {medianSoldPrice != null ? formatPrice(Math.round(medianSoldPrice)) : '—'}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {medianSqft != null ? Number(Math.round(medianSqft)).toLocaleString() : '—'}
+                                </td>
+                                <td style={{
+                                  textAlign: 'right',
+                                  color: 'var(--secondary-color, #41101B)',
+                                  fontWeight: 700
+                                }}>
+                                  {medianPpsqft != null ? `$${Math.round(medianPpsqft)}` : '—'}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>—</td>
+                                <td></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Notes Card: soft beige card, italic serif */}
+                  {activeProperty.notes && (
+                    <div style={{
+                      backgroundColor: 'rgba(140, 121, 106, 0.1)',
+                      border: '1px solid rgba(140, 121, 106, 0.22)',
+                      borderRadius: '12px',
+                      padding: '24px 28px',
+                      marginTop: '28px'
+                    }}>
+                      <span style={{
+                        display: 'block',
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(52, 41, 42, 0.65)',
+                        marginBottom: '8px'
+                      }}>
+                        YOUR NOTES
+                      </span>
+                      <p style={{
+                        fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                        fontStyle: 'italic',
+                        fontSize: '16px',
+                        color: 'var(--espresso, #1E1509)',
+                        lineHeight: 1.6,
+                        margin: 0,
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {activeProperty.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT COLUMN: Underwrite Placeholder */}
+                <div>
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid rgba(52, 41, 42, 0.1)',
+                    borderRadius: '12px',
+                    padding: '28px',
+                    boxShadow: '0 4px 16px rgba(52, 41, 42, 0.03)'
+                  }}>
+                    <h3 style={{
+                      fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                      fontSize: '22px',
+                      fontWeight: 400,
+                      color: 'var(--espresso, #34292A)',
+                      margin: '0 0 10px 0'
+                    }}>
+                      Underwrite
+                    </h3>
+                    <p style={{
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '14px',
+                      color: 'rgba(52, 41, 42, 0.65)',
+                      lineHeight: '1.6',
+                      margin: 0
+                    }}>
+                      Rental, Flip and BRRRR calculator — coming in the next step.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: '48px 0', textAlign: 'center' }}>
+              <p style={{ fontSize: '15px', color: 'rgba(52, 41, 42, 0.7)' }}>Property not found.</p>
+              <button
+                type="button"
+                onClick={handleBackToList}
+                className="investor-search-btn"
+                style={{ padding: '10px 20px', fontSize: '12px', marginTop: '12px' }}
+              >
+                Return to Saved Properties
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. PROPERTY LIST VIEW (When activePropertyId is null)                     */}
+      {/* ========================================================================= */}
+      {!activePropertyId && (
         <>
-          {/* Soft Dark Backdrop Overlay */}
-          <div
-            className="investor-panel-overlay"
-            onClick={handleClosePanel}
-          />
+          {/* HERO SECTION */}
+          <header style={{ marginBottom: '40px', textAlign: 'center' }}>
+            <span style={{
+              display: 'block',
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '12px',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'rgba(52, 41, 42, 0.6)',
+              marginBottom: '16px'
+            }}>
+              INVESTOR STUDIO · PRIVATE
+            </span>
 
-          {/* Slide-In Panel Container */}
+            <h1 className="investor-hero-title" style={{
+              fontSize: 'clamp(36px, 4.5vw, 56px)',
+              margin: '0 auto 20px auto',
+              textAlign: 'center',
+              maxWidth: '850px'
+            }}>
+              Find the property.<br />
+              <i>Know the numbers.</i>
+            </h1>
+
+            <p style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '15px',
+              color: 'rgba(52, 41, 42, 0.7)',
+              margin: '0 auto',
+              maxWidth: '620px',
+              lineHeight: '1.6',
+              textAlign: 'center'
+            }}>
+              Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
+            </p>
+          </header>
+
+          {/* PILL SEARCH BAR */}
+          <form onSubmit={handleSearchSubmit} className="investor-search-container">
+            <div className="investor-search-bar">
+              <div className="investor-search-field">
+                <label htmlFor="investor-loc" className="investor-search-label">
+                  LOCATION
+                </label>
+                <input
+                  id="investor-loc"
+                  type="text"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  placeholder="Address, city or ZIP"
+                  className="investor-search-input"
+                />
+              </div>
+
+              <div className="investor-search-divider" />
+
+              <div className="investor-search-field">
+                <label htmlFor="investor-type" className="investor-search-label">
+                  PROPERTY TYPE
+                </label>
+                <select
+                  id="investor-type"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="investor-search-select"
+                >
+                  <option value="all">Any</option>
+                  <option value="single_family">Single-family</option>
+                  <option value="condo_townhome">Condo / townhome</option>
+                  <option value="multifamily_2_9">Multifamily 2–9 units</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="investor-search-divider" />
+
+              <div className="investor-search-field">
+                <label htmlFor="investor-strat" className="investor-search-label">
+                  STRATEGY
+                </label>
+                <select
+                  id="investor-strat"
+                  value={strategyFilter}
+                  onChange={(e) => setStrategyFilter(e.target.value)}
+                  className="investor-search-select"
+                >
+                  <option value="all">Any</option>
+                  <option value="rental">Rental</option>
+                  <option value="flip">Flip</option>
+                  <option value="brrrr">BRRRR</option>
+                </select>
+              </div>
+
+              <button type="submit" className="investor-search-btn">
+                SEARCH &rarr;
+              </button>
+            </div>
+          </form>
+
+          {/* SAVED PROPERTIES SECTION */}
+          <section style={{ marginTop: '64px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: '28px',
+              flexWrap: 'wrap',
+              gap: '16px'
+            }}>
+              <div>
+                <h2 style={{
+                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                  fontSize: 'clamp(32px, 3.8vw, 44px)',
+                  fontWeight: 300,
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.2,
+                  color: 'var(--espresso, #34292A)',
+                  margin: '0 0 6px 0',
+                  textAlign: 'left'
+                }}>
+                  Your saved properties
+                </h2>
+                <p style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '13px',
+                  color: 'rgba(52, 41, 42, 0.6)',
+                  margin: 0
+                }}>
+                  {properties.length > 0 ? (
+                    isFiltered
+                      ? `Showing ${filteredProperties.length} of ${properties.length} saved properties`
+                      : `${properties.length} total saved ${properties.length === 1 ? 'property' : 'properties'}`
+                  ) : null}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                {isFiltered && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '12px',
+                      color: 'var(--secondary-color, #41101B)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddProperty}
+                  className="investor-search-btn"
+                  style={{
+                    padding: '11px 22px',
+                    fontSize: '11.5px'
+                  }}
+                >
+                  + ADD PROPERTY
+                </button>
+              </div>
+            </div>
+
+            {loading && (
+              <div style={{
+                padding: '40px 0',
+                textAlign: 'center',
+                color: 'rgba(52, 41, 42, 0.7)',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '14px'
+              }}>
+                Loading saved properties...
+              </div>
+            )}
+
+            {!loading && error && (
+              <div style={{
+                maxWidth: '800px',
+                margin: '0 auto',
+                backgroundColor: '#FFF7F5',
+                border: '1px solid rgba(192, 57, 43, 0.2)',
+                borderRadius: '12px',
+                padding: '24px',
+                color: '#A93226',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '14px',
+                lineHeight: 1.5
+              }}>
+                <strong style={{ display: 'block', marginBottom: '4px' }}>Unable to load properties</strong>
+                {error}
+              </div>
+            )}
+
+            {!loading && !error && properties.length === 0 && (
+              <div className="investor-empty-card" style={{
+                maxWidth: '800px',
+                margin: '0 auto',
+                textAlign: 'center',
+                backgroundColor: '#fff',
+                border: '1px solid rgba(52, 41, 42, 0.1)',
+                borderRadius: '16px',
+                padding: '48px 32px',
+                boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
+              }}>
+                <h3 style={{
+                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                  fontSize: '24px',
+                  color: 'var(--espresso, #34292A)',
+                  marginBottom: '16px',
+                  fontWeight: 400
+                }}>
+                  No saved properties yet
+                </h3>
+                <p style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '15px',
+                  color: 'rgba(52, 41, 42, 0.7)',
+                  lineHeight: '1.6',
+                  margin: '0 0 24px 0'
+                }}>
+                  Add your first property to start running comps and numbers.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddProperty}
+                  className="investor-search-btn"
+                  style={{
+                    display: 'inline-flex',
+                    margin: '0 auto',
+                    padding: '12px 26px',
+                    fontSize: '12px'
+                  }}
+                >
+                  + ADD PROPERTY
+                </button>
+              </div>
+            )}
+
+            {!loading && !error && properties.length > 0 && filteredProperties.length === 0 && (
+              <div className="investor-empty-card" style={{
+                maxWidth: '800px',
+                margin: '0 auto',
+                textAlign: 'center',
+                backgroundColor: '#fff',
+                border: '1px solid rgba(52, 41, 42, 0.1)',
+                borderRadius: '16px',
+                padding: '48px',
+                boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
+              }}>
+                <h3 style={{
+                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                  fontSize: '24px',
+                  color: 'var(--espresso, #34292A)',
+                  marginBottom: '16px',
+                  fontWeight: 400
+                }}>
+                  No matching properties
+                </h3>
+                <p style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '15px',
+                  color: 'rgba(52, 41, 42, 0.7)',
+                  lineHeight: '1.6',
+                  margin: '0 0 20px 0'
+                }}>
+                  None of your saved properties match the current search filters.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  style={{
+                    backgroundColor: 'var(--lighter-tone, #FAF8F5)',
+                    border: '1px solid rgba(52, 41, 42, 0.15)',
+                    borderRadius: '50px',
+                    padding: '10px 22px',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--espresso, #1E1509)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset Search Filters
+                </button>
+              </div>
+            )}
+
+            {!loading && !error && filteredProperties.length > 0 && (
+              <div className="investor-grid">
+                {filteredProperties.map((p) => {
+                  const specs = [
+                    p.beds != null && p.beds !== '' ? `${p.beds} bd` : null,
+                    p.baths != null && p.baths !== '' ? `${p.baths} ba` : null,
+                    p.sqft ? `${Number(p.sqft).toLocaleString('en-US')} sqft` : null,
+                    p.year_built ? `Built ${p.year_built}` : null
+                  ].filter(Boolean).join(' · ');
+
+                  const pricePerSqft = formatPricePerSqft(p.list_price, p.sqft);
+                  const cityStateZip = [p.city, p.state || 'FL', p.zip].filter(Boolean).join(', ');
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="investor-card"
+                      onClick={() => handleOpenDetail(p.id)}
+                    >
+                      {/* Photo Block */}
+                      <div style={{
+                        height: '180px',
+                        background: 'linear-gradient(145deg, #2E2218 0%, #4A382A 100%)',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(250, 248, 245, 0.35)'
+                      }}>
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          backgroundColor: 'var(--lighter-tone, #FAF8F5)',
+                          color: 'var(--secondary-color, #41101B)',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          padding: '4px 10px',
+                          borderRadius: '50px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                        }}>
+                          {formatStatus(p.status)}
+                        </div>
+
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                      </div>
+
+                      {/* Card Body */}
+                      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                        <div style={{
+                          fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                          fontSize: '24px',
+                          fontWeight: 600,
+                          color: 'var(--espresso, #1E1509)',
+                          marginBottom: '6px',
+                          letterSpacing: '-0.01em'
+                        }}>
+                          {formatPrice(p.list_price)}
+                        </div>
+
+                        <div style={{
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          color: 'var(--espresso, #34292A)',
+                          marginBottom: '2px',
+                          lineHeight: 1.3
+                        }}>
+                          {p.address}
+                        </div>
+                        {cityStateZip && (
+                          <div style={{
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '12px',
+                            color: 'rgba(52, 41, 42, 0.65)',
+                            marginBottom: '12px'
+                          }}>
+                            {cityStateZip}
+                          </div>
+                        )}
+
+                        {specs && (
+                          <div style={{
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '12px',
+                            color: 'rgba(52, 41, 42, 0.75)',
+                            marginBottom: '16px'
+                          }}>
+                            {specs}
+                          </div>
+                        )}
+
+                        {/* Bottom Row */}
+                        <div style={{
+                          marginTop: 'auto',
+                          paddingTop: '14px',
+                          borderTop: '1px solid rgba(52, 41, 42, 0.08)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '11px',
+                          letterSpacing: '0.04em'
+                        }}>
+                          <div>
+                            <span style={{ color: 'rgba(52, 41, 42, 0.5)', textTransform: 'uppercase', marginRight: '6px' }}>$/SQFT:</span>
+                            <strong style={{ color: 'var(--espresso, #1E1509)' }}>{pricePerSqft}</strong>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{
+                              backgroundColor: 'rgba(65, 16, 27, 0.06)',
+                              color: 'var(--secondary-color, #41101B)',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              letterSpacing: '0.06em',
+                              fontSize: '10px'
+                            }}>
+                              {formatStatus(p.strategy)}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditProperty(p);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'rgba(52, 41, 42, 0.65)',
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                letterSpacing: '0.04em',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. SLIDE-IN ADD / EDIT PROPERTY PANEL                                     */}
+      {/* ========================================================================= */}
+      {isPropertyPanelOpen && (
+        <>
+          <div className="investor-panel-overlay" onClick={handleClosePropertyPanel} />
           <div className="investor-slide-panel" role="dialog" aria-modal="true">
-            {/* Panel Header */}
             <div style={{
               padding: '24px 30px',
               borderBottom: '1px solid rgba(52, 41, 42, 0.1)',
@@ -1432,8 +2081,8 @@ export default function InvestorStudio() {
 
               <button
                 type="button"
-                onClick={handleClosePanel}
-                disabled={isSaving || isDeleting}
+                onClick={handleClosePropertyPanel}
+                disabled={isPropSaving || isPropDeleting}
                 aria-label="Close"
                 style={{
                   background: 'none',
@@ -1441,7 +2090,7 @@ export default function InvestorStudio() {
                   fontSize: '24px',
                   lineHeight: 1,
                   color: 'rgba(52, 41, 42, 0.6)',
-                  cursor: (isSaving || isDeleting) ? 'not-allowed' : 'pointer',
+                  cursor: (isPropSaving || isPropDeleting) ? 'not-allowed' : 'pointer',
                   padding: '6px'
                 }}
               >
@@ -1449,7 +2098,6 @@ export default function InvestorStudio() {
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
             <form onSubmit={handleSaveProperty} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
               <div style={{
                 padding: '28px 30px',
@@ -1459,121 +2107,72 @@ export default function InvestorStudio() {
                 flexDirection: 'column',
                 gap: '26px'
               }}>
-                {formErrors.general && (
+                {propFormErrors.general && (
                   <div style={{
                     backgroundColor: '#FFF7F5',
                     border: '1px solid rgba(192, 57, 43, 0.25)',
                     borderRadius: '8px',
                     padding: '12px 16px',
                     color: '#C0392B',
-                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                     fontSize: '13px',
                     lineHeight: 1.4
                   }}>
-                    {formErrors.general}
+                    {propFormErrors.general}
                   </div>
                 )}
 
-                {/* 1. LOCATION */}
+                {/* LOCATION */}
                 <div>
                   <span className="investor-section-header">LOCATION</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {/* Address with Mapbox Combobox Autocomplete */}
-                    <div ref={autocompleteRef} className="investor-autocomplete-container">
-                      <label className="investor-form-label" htmlFor="prop-address">
-                        Address *
-                      </label>
-                      <input
-                        id="prop-address"
-                        type="text"
-                        role="combobox"
-                        aria-autocomplete="list"
-                        aria-expanded={isDropdownOpen && suggestions.length > 0}
-                        aria-controls="address-suggestions-listbox"
-                        aria-activedescendant={selectedIndex >= 0 ? `address-suggestion-${selectedIndex}` : undefined}
-                        value={formData.address}
-                        onChange={handleAddressInputChange}
-                        onKeyDown={handleAddressKeyDown}
-                        onFocus={() => {
-                          setIsAddressFocused(true);
-                          if (formData.address.trim().length >= 3 && suggestions.length > 0) {
-                            setIsDropdownOpen(true);
-                          }
-                        }}
-                        onBlur={() => {
-                          // Short delay to allow onMouseDown on suggestion to complete
-                          setTimeout(() => setIsAddressFocused(false), 200);
-                        }}
-                        placeholder="e.g. 1240 Las Olas Blvd"
-                        autoComplete="off"
-                        className={`investor-form-input ${formErrors.address ? 'has-error' : ''}`}
-                      />
-
-                      {/* Autocomplete Dropdown Listbox */}
-                      {isDropdownOpen && suggestions.length > 0 && (
-                        <ul
-                          id="address-suggestions-listbox"
-                          role="listbox"
-                          className="investor-autocomplete-dropdown"
-                        >
-                          {suggestions.map((item, idx) => {
-                            const isSelected = selectedIndex === idx;
-                            return (
-                              <li
-                                key={item.mapbox_id || idx}
-                                id={`address-suggestion-${idx}`}
-                                role="option"
-                                aria-selected={isSelected}
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  handleSelectSuggestion(item);
-                                }}
-                                onMouseEnter={() => setSelectedIndex(idx)}
-                                className={`investor-autocomplete-item ${isSelected ? 'active' : ''}`}
-                              >
-                                <div className="investor-autocomplete-street">
-                                  {item.name}
-                                </div>
-                                {item.place_formatted && (
-                                  <div className="investor-autocomplete-subtitle">
-                                    {item.place_formatted}
-                                  </div>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                      {formErrors.address && (
-                        <span className="investor-field-error">{formErrors.address}</span>
-                      )}
-                    </div>
+                    <AddressAutocomplete
+                      id="prop-address"
+                      label="Address *"
+                      value={propFormData.address}
+                      onChange={(val) => {
+                        setPropFormData(prev => ({ ...prev, address: val, lat: null, lng: null }));
+                        if (propFormErrors.address) {
+                          setPropFormErrors(prev => {
+                            const c = { ...prev };
+                            delete c.address;
+                            return c;
+                          });
+                        }
+                      }}
+                      onSelect={(details) => {
+                        setPropFormData(prev => ({
+                          ...prev,
+                          address: details.address,
+                          city: details.city || prev.city,
+                          zip: details.zip || prev.zip,
+                          county: details.county || prev.county,
+                          lat: details.lat,
+                          lng: details.lng
+                        }));
+                      }}
+                      error={propFormErrors.address}
+                    />
 
                     <div className="investor-form-grid-2">
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-city">
-                          City
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-city">City</label>
                         <input
                           id="prop-city"
                           type="text"
-                          value={formData.city}
-                          onChange={(e) => handleFormFieldChange('city', e.target.value)}
+                          value={propFormData.city}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, city: e.target.value }))}
                           placeholder="e.g. Fort Lauderdale"
                           className="investor-form-input"
                         />
                       </div>
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-zip">
-                          ZIP
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-zip">ZIP</label>
                         <input
                           id="prop-zip"
                           type="text"
                           inputMode="numeric"
-                          value={formData.zip}
-                          onChange={(e) => handleFormFieldChange('zip', e.target.value)}
+                          value={propFormData.zip}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, zip: e.target.value }))}
                           placeholder="e.g. 33301"
                           className="investor-form-input"
                         />
@@ -1581,14 +2180,12 @@ export default function InvestorStudio() {
                     </div>
 
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-county">
-                        County
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-county">County</label>
                       <select
                         id="prop-county"
-                        value={formData.county}
-                        onChange={(e) => handleFormFieldChange('county', e.target.value)}
-                        className={`investor-form-select ${!formData.county ? 'placeholder-active' : ''}`}
+                        value={propFormData.county}
+                        onChange={(e) => setPropFormData(prev => ({ ...prev, county: e.target.value }))}
+                        className={`investor-form-select ${!propFormData.county ? 'placeholder-active' : ''}`}
                       >
                         <option value="">Select county</option>
                         <option value="Broward">Broward</option>
@@ -1600,20 +2197,18 @@ export default function InvestorStudio() {
                   </div>
                 </div>
 
-                {/* 2. THE PROPERTY */}
+                {/* THE PROPERTY */}
                 <div>
                   <span className="investor-section-header">THE PROPERTY</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div className="investor-form-grid-2">
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-type">
-                          Property Type
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-type">Property Type</label>
                         <select
                           id="prop-type"
-                          value={formData.property_type}
-                          onChange={(e) => handleFormFieldChange('property_type', e.target.value)}
-                          className={`investor-form-select ${!formData.property_type ? 'placeholder-active' : ''} ${formErrors.property_type ? 'has-error' : ''}`}
+                          value={propFormData.property_type}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, property_type: e.target.value }))}
+                          className={`investor-form-select ${!propFormData.property_type ? 'placeholder-active' : ''}`}
                         >
                           <option value="single_family">Single-family</option>
                           <option value="condo">Condo</option>
@@ -1621,63 +2216,48 @@ export default function InvestorStudio() {
                           <option value="multifamily_2_9">Multifamily 2–9 units</option>
                           <option value="other">Other</option>
                         </select>
-                        {formErrors.property_type && (
-                          <span className="investor-field-error">{formErrors.property_type}</span>
-                        )}
                       </div>
 
-                      {/* Units: only shown when Multifamily is selected */}
-                      {formData.property_type === 'multifamily_2_9' ? (
+                      {propFormData.property_type === 'multifamily_2_9' ? (
                         <div>
-                          <label className="investor-form-label" htmlFor="prop-units">
-                            Units
-                          </label>
+                          <label className="investor-form-label" htmlFor="prop-units">Units</label>
                           <input
                             id="prop-units"
                             type="number"
                             min="1"
                             step="1"
                             inputMode="numeric"
-                            value={formData.units}
-                            onChange={(e) => handleFormFieldChange('units', e.target.value)}
-                            className={`investor-form-input ${formErrors.units ? 'has-error' : ''}`}
+                            value={propFormData.units}
+                            onChange={(e) => setPropFormData(prev => ({ ...prev, units: e.target.value }))}
+                            className="investor-form-input"
                           />
-                          {formErrors.units && (
-                            <span className="investor-field-error">{formErrors.units}</span>
-                          )}
                         </div>
-                      ) : (
-                        <div />
-                      )}
+                      ) : <div />}
                     </div>
 
                     <div className="investor-form-grid-2">
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-beds">
-                          Beds
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-beds">Beds</label>
                         <input
                           id="prop-beds"
                           type="number"
                           step="any"
                           inputMode="numeric"
-                          value={formData.beds}
-                          onChange={(e) => handleFormFieldChange('beds', e.target.value)}
+                          value={propFormData.beds}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, beds: e.target.value }))}
                           placeholder="e.g. 3"
                           className="investor-form-input"
                         />
                       </div>
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-baths">
-                          Baths
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-baths">Baths</label>
                         <input
                           id="prop-baths"
                           type="number"
                           step="any"
                           inputMode="decimal"
-                          value={formData.baths}
-                          onChange={(e) => handleFormFieldChange('baths', e.target.value)}
+                          value={propFormData.baths}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, baths: e.target.value }))}
                           placeholder="e.g. 2.5"
                           className="investor-form-input"
                         />
@@ -1686,31 +2266,27 @@ export default function InvestorStudio() {
 
                     <div className="investor-form-grid-2">
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-sqft">
-                          Living sqft
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-sqft">Living sqft</label>
                         <input
                           id="prop-sqft"
                           type="number"
                           step="1"
                           inputMode="numeric"
-                          value={formData.sqft}
-                          onChange={(e) => handleFormFieldChange('sqft', e.target.value)}
+                          value={propFormData.sqft}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, sqft: e.target.value }))}
                           placeholder="e.g. 1850"
                           className="investor-form-input"
                         />
                       </div>
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-lot-sqft">
-                          Lot sqft
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-lot-sqft">Lot sqft</label>
                         <input
                           id="prop-lot-sqft"
                           type="number"
                           step="1"
                           inputMode="numeric"
-                          value={formData.lot_sqft}
-                          onChange={(e) => handleFormFieldChange('lot_sqft', e.target.value)}
+                          value={propFormData.lot_sqft}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, lot_sqft: e.target.value }))}
                           placeholder="e.g. 6500"
                           className="investor-form-input"
                         />
@@ -1718,57 +2294,51 @@ export default function InvestorStudio() {
                     </div>
 
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-year-built">
-                        Year built
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-year-built">Year built</label>
                       <input
                         id="prop-year-built"
                         type="number"
                         step="1"
                         inputMode="numeric"
-                        value={formData.year_built}
-                        onChange={(e) => handleFormFieldChange('year_built', e.target.value)}
+                        value={propFormData.year_built}
+                        onChange={(e) => setPropFormData(prev => ({ ...prev, year_built: e.target.value }))}
                         placeholder="e.g. 1988"
-                        className={`investor-form-input ${formErrors.year_built ? 'has-error' : ''}`}
+                        className="investor-form-input"
                       />
-                      {formErrors.year_built && (
-                        <span className="investor-field-error">{formErrors.year_built}</span>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* 3. THE DEAL */}
+                {/* THE DEAL */}
                 <div>
                   <span className="investor-section-header">THE DEAL</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-price">
-                        List Price
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-price">List Price</label>
                       <input
                         id="prop-price"
                         type="text"
-                        value={formData.list_price}
-                        onChange={handlePriceInputChange}
+                        value={propFormData.list_price}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/[^\d]/g, '');
+                          setPropFormData(prev => ({
+                            ...prev,
+                            list_price: digits ? `$${Number(digits).toLocaleString('en-US')}` : ''
+                          }));
+                        }}
                         placeholder="$0"
-                        className={`investor-form-input ${formErrors.list_price ? 'has-error' : ''}`}
+                        className="investor-form-input"
                       />
-                      {formErrors.list_price && (
-                        <span className="investor-field-error">{formErrors.list_price}</span>
-                      )}
                     </div>
 
                     <div className="investor-form-grid-2">
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-status">
-                          Status
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-status">Status</label>
                         <select
                           id="prop-status"
-                          value={formData.status}
-                          onChange={(e) => handleFormFieldChange('status', e.target.value)}
-                          className={`investor-form-select ${!formData.status ? 'placeholder-active' : ''} ${formErrors.status ? 'has-error' : ''}`}
+                          value={propFormData.status}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, status: e.target.value }))}
+                          className="investor-form-select"
                         >
                           <option value="watching">Watching</option>
                           <option value="analyzing">Analyzing</option>
@@ -1777,101 +2347,79 @@ export default function InvestorStudio() {
                           <option value="passed">Passed</option>
                           <option value="owned">Owned</option>
                         </select>
-                        {formErrors.status && (
-                          <span className="investor-field-error">{formErrors.status}</span>
-                        )}
                       </div>
 
                       <div>
-                        <label className="investor-form-label" htmlFor="prop-strategy">
-                          Strategy
-                        </label>
+                        <label className="investor-form-label" htmlFor="prop-strategy">Strategy</label>
                         <select
                           id="prop-strategy"
-                          value={formData.strategy}
-                          onChange={(e) => handleFormFieldChange('strategy', e.target.value)}
-                          className={`investor-form-select ${!formData.strategy ? 'placeholder-active' : ''} ${formErrors.strategy ? 'has-error' : ''}`}
+                          value={propFormData.strategy}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, strategy: e.target.value }))}
+                          className={`investor-form-select ${!propFormData.strategy ? 'placeholder-active' : ''}`}
                         >
                           <option value="">Select strategy</option>
                           <option value="rental">Rental</option>
                           <option value="flip">Flip</option>
                           <option value="brrrr">BRRRR</option>
                         </select>
-                        {formErrors.strategy && (
-                          <span className="investor-field-error">{formErrors.strategy}</span>
-                        )}
                       </div>
                     </div>
 
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-listing-url">
-                        Listing Link
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-listing-url">Listing Link</label>
                       <input
                         id="prop-listing-url"
                         type="url"
-                        value={formData.listing_url}
-                        onChange={(e) => handleFormFieldChange('listing_url', e.target.value)}
+                        value={propFormData.listing_url}
+                        onChange={(e) => setPropFormData(prev => ({ ...prev, listing_url: e.target.value }))}
                         placeholder="https://..."
-                        className={`investor-form-input ${formErrors.listing_url ? 'has-error' : ''}`}
+                        className="investor-form-input"
                       />
-                      {formErrors.listing_url && (
-                        <span className="investor-field-error">{formErrors.listing_url}</span>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* 4. CONDITION */}
+                {/* CONDITION */}
                 <div>
                   <span className="investor-section-header">CONDITION</span>
                   <div className="investor-form-grid-2">
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-condition">
-                        Condition
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-condition">Condition</label>
                       <input
                         id="prop-condition"
                         type="text"
-                        value={formData.condition}
-                        onChange={(e) => handleFormFieldChange('condition', e.target.value)}
+                        value={propFormData.condition}
+                        onChange={(e) => setPropFormData(prev => ({ ...prev, condition: e.target.value }))}
                         placeholder="e.g. Dated, original kitchen"
                         className="investor-form-input"
                       />
                     </div>
                     <div>
-                      <label className="investor-form-label" htmlFor="prop-roof-year">
-                        Roof Year
-                      </label>
+                      <label className="investor-form-label" htmlFor="prop-roof-year">Roof Year</label>
                       <input
                         id="prop-roof-year"
                         type="number"
                         step="1"
                         inputMode="numeric"
-                        value={formData.roof_year}
-                        onChange={(e) => handleFormFieldChange('roof_year', e.target.value)}
+                        value={propFormData.roof_year}
+                        onChange={(e) => setPropFormData(prev => ({ ...prev, roof_year: e.target.value }))}
                         placeholder="e.g. 2018"
-                        className={`investor-form-input ${formErrors.roof_year ? 'has-error' : ''}`}
+                        className="investor-form-input"
                       />
-                      {formErrors.roof_year && (
-                        <span className="investor-field-error">{formErrors.roof_year}</span>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* 5. NOTES */}
+                {/* NOTES */}
                 <div>
                   <span className="investor-section-header">NOTES</span>
                   <div>
-                    <label className="investor-form-label" htmlFor="prop-notes">
-                      Notes
-                    </label>
+                    <label className="investor-form-label" htmlFor="prop-notes">Notes</label>
                     <textarea
                       id="prop-notes"
                       rows={3}
-                      value={formData.notes}
-                      onChange={(e) => handleFormFieldChange('notes', e.target.value)}
+                      value={propFormData.notes}
+                      onChange={(e) => setPropFormData(prev => ({ ...prev, notes: e.target.value }))}
                       placeholder="Seller notes, renovation estimates, tenant terms..."
                       className="investor-form-textarea"
                     />
@@ -1885,7 +2433,7 @@ export default function InvestorStudio() {
                 borderTop: '1px solid rgba(52, 41, 42, 0.1)',
                 backgroundColor: 'var(--lighter-tone, #FAF8F5)'
               }}>
-                {isDeleteConfirming ? (
+                {isPropDeleteConfirming ? (
                   <div style={{
                     backgroundColor: '#FFF7F5',
                     border: '1px solid rgba(192, 57, 43, 0.25)',
@@ -1908,8 +2456,8 @@ export default function InvestorStudio() {
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button
                         type="button"
-                        onClick={() => setIsDeleteConfirming(false)}
-                        disabled={isDeleting}
+                        onClick={() => setIsPropDeleteConfirming(false)}
+                        disabled={isPropDeleting}
                         style={{
                           backgroundColor: 'transparent',
                           border: '1px solid rgba(52, 41, 42, 0.2)',
@@ -1927,7 +2475,7 @@ export default function InvestorStudio() {
                       <button
                         type="button"
                         onClick={handleDeleteProperty}
-                        disabled={isDeleting}
+                        disabled={isPropDeleting}
                         style={{
                           backgroundColor: '#C0392B',
                           color: '#ffffff',
@@ -1939,25 +2487,19 @@ export default function InvestorStudio() {
                           fontWeight: 700,
                           letterSpacing: '0.06em',
                           textTransform: 'uppercase',
-                          cursor: isDeleting ? 'not-allowed' : 'pointer',
-                          opacity: isDeleting ? 0.7 : 1
+                          cursor: isPropDeleting ? 'not-allowed' : 'pointer'
                         }}
                       >
-                        {isDeleting ? 'Deleting...' : 'Delete'}
+                        {isPropDeleting ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                     {editingProperty ? (
                       <button
                         type="button"
-                        onClick={() => setIsDeleteConfirming(true)}
+                        onClick={() => setIsPropDeleteConfirming(true)}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -1972,15 +2514,13 @@ export default function InvestorStudio() {
                       >
                         Delete property
                       </button>
-                    ) : (
-                      <div />
-                    )}
+                    ) : <div />}
 
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         type="button"
-                        onClick={handleClosePanel}
-                        disabled={isSaving}
+                        onClick={handleClosePropertyPanel}
+                        disabled={isPropSaving}
                         style={{
                           backgroundColor: 'transparent',
                           border: '1px solid rgba(52, 41, 42, 0.22)',
@@ -1992,14 +2532,14 @@ export default function InvestorStudio() {
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
                           color: 'var(--espresso, #1E1509)',
-                          cursor: isSaving ? 'not-allowed' : 'pointer'
+                          cursor: isPropSaving ? 'not-allowed' : 'pointer'
                         }}
                       >
                         CANCEL
                       </button>
                       <button
                         type="submit"
-                        disabled={isSaving}
+                        disabled={isPropSaving}
                         style={{
                           backgroundColor: 'var(--secondary-color, #41101B)',
                           color: 'var(--lighter-tone, #FAF8F5)',
@@ -2011,11 +2551,392 @@ export default function InvestorStudio() {
                           fontWeight: 600,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
-                          cursor: isSaving ? 'not-allowed' : 'pointer',
-                          opacity: isSaving ? 0.7 : 1
+                          cursor: isPropSaving ? 'not-allowed' : 'pointer'
                         }}
                       >
-                        {isSaving ? 'Saving…' : 'SAVE PROPERTY'}
+                        {isPropSaving ? 'Saving…' : 'SAVE PROPERTY'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. SLIDE-IN ADD / EDIT COMP PANEL                                         */}
+      {/* ========================================================================= */}
+      {isCompPanelOpen && (
+        <>
+          <div className="investor-panel-overlay" onClick={handleCloseCompPanel} />
+          <div className="investor-slide-panel" role="dialog" aria-modal="true">
+            <div style={{
+              padding: '24px 30px',
+              borderBottom: '1px solid rgba(52, 41, 42, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--lighter-tone, #FAF8F5)'
+            }}>
+              <div>
+                <span style={{
+                  display: 'block',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(52, 41, 42, 0.55)',
+                  marginBottom: '4px'
+                }}>
+                  SOLD COMPARABLE
+                </span>
+                <h2 style={{
+                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                  fontSize: '26px',
+                  fontWeight: 400,
+                  color: 'var(--espresso, #34292A)',
+                  margin: 0
+                }}>
+                  {editingComp ? 'Edit comp' : 'Add a comp'}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseCompPanel}
+                disabled={isCompSaving || isCompDeleting}
+                aria-label="Close"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  lineHeight: 1,
+                  color: 'rgba(52, 41, 42, 0.6)',
+                  cursor: (isCompSaving || isCompDeleting) ? 'not-allowed' : 'pointer',
+                  padding: '6px'
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveComp} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{
+                padding: '28px 30px',
+                overflowY: 'auto',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px'
+              }}>
+                {compFormErrors.general && (
+                  <div style={{
+                    backgroundColor: '#FFF7F5',
+                    border: '1px solid rgba(192, 57, 43, 0.25)',
+                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    color: '#C0392B',
+                    fontSize: '13px',
+                    lineHeight: 1.4
+                  }}>
+                    {compFormErrors.general}
+                  </div>
+                )}
+
+                {/* Address (Reusing Mapbox AddressAutocomplete) */}
+                <AddressAutocomplete
+                  id="comp-address"
+                  label="Address *"
+                  value={compFormData.address}
+                  onChange={(val) => {
+                    setCompFormData(prev => ({ ...prev, address: val, lat: null, lng: null }));
+                    if (compFormErrors.address) {
+                      setCompFormErrors(prev => {
+                        const c = { ...prev };
+                        delete c.address;
+                        return c;
+                      });
+                    }
+                  }}
+                  onSelect={(details) => {
+                    setCompFormData(prev => ({
+                      ...prev,
+                      address: details.address,
+                      city: details.city || prev.city,
+                      zip: details.zip || prev.zip,
+                      lat: details.lat,
+                      lng: details.lng
+                    }));
+                  }}
+                  error={compFormErrors.address}
+                />
+
+                <div className="investor-form-grid-2">
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-city">City</label>
+                    <input
+                      id="comp-city"
+                      type="text"
+                      value={compFormData.city}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, city: e.target.value }))}
+                      placeholder="e.g. Fort Lauderdale"
+                      className="investor-form-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-zip">ZIP</label>
+                    <input
+                      id="comp-zip"
+                      type="text"
+                      inputMode="numeric"
+                      value={compFormData.zip}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, zip: e.target.value }))}
+                      placeholder="e.g. 33301"
+                      className="investor-form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="investor-form-grid-2">
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-sold-date">Sold Date</label>
+                    <input
+                      id="comp-sold-date"
+                      type="date"
+                      value={compFormData.sold_date}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, sold_date: e.target.value }))}
+                      className={`investor-form-input ${compFormErrors.sold_date ? 'has-error' : ''}`}
+                    />
+                    {compFormErrors.sold_date && (
+                      <span className="investor-field-error">{compFormErrors.sold_date}</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-sold-price">Sold Price</label>
+                    <input
+                      id="comp-sold-price"
+                      type="text"
+                      value={compFormData.sold_price}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/[^\d]/g, '');
+                        setCompFormData(prev => ({
+                          ...prev,
+                          sold_price: digits ? `$${Number(digits).toLocaleString('en-US')}` : ''
+                        }));
+                      }}
+                      placeholder="$0"
+                      className="investor-form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="investor-form-grid-2">
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-sqft">Living sqft</label>
+                    <input
+                      id="comp-sqft"
+                      type="number"
+                      step="1"
+                      inputMode="numeric"
+                      value={compFormData.sqft}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, sqft: e.target.value }))}
+                      placeholder="e.g. 1650"
+                      className="investor-form-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-year-built">Year Built</label>
+                    <input
+                      id="comp-year-built"
+                      type="number"
+                      step="1"
+                      inputMode="numeric"
+                      value={compFormData.year_built}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, year_built: e.target.value }))}
+                      placeholder="e.g. 1985"
+                      className="investor-form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="investor-form-grid-2">
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-beds">Beds</label>
+                    <input
+                      id="comp-beds"
+                      type="number"
+                      step="any"
+                      inputMode="numeric"
+                      value={compFormData.beds}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, beds: e.target.value }))}
+                      placeholder="e.g. 3"
+                      className="investor-form-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="investor-form-label" htmlFor="comp-baths">Baths</label>
+                    <input
+                      id="comp-baths"
+                      type="number"
+                      step="any"
+                      inputMode="decimal"
+                      value={compFormData.baths}
+                      onChange={(e) => setCompFormData(prev => ({ ...prev, baths: e.target.value }))}
+                      placeholder="e.g. 2"
+                      className="investor-form-input"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="investor-form-label" htmlFor="comp-source">Source</label>
+                  <select
+                    id="comp-source"
+                    value={compFormData.source}
+                    onChange={(e) => setCompFormData(prev => ({ ...prev, source: e.target.value }))}
+                    className="investor-form-select"
+                  >
+                    <option value="MLS">MLS</option>
+                    <option value="Property appraiser">Property appraiser</option>
+                    <option value="Zillow">Zillow</option>
+                    <option value="Redfin">Redfin</option>
+                    <option value="Realtor">Realtor</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Comp Panel Footer */}
+              <div style={{
+                padding: '20px 30px',
+                borderTop: '1px solid rgba(52, 41, 42, 0.1)',
+                backgroundColor: 'var(--lighter-tone, #FAF8F5)'
+              }}>
+                {isCompDeleteConfirming ? (
+                  <div style={{
+                    backgroundColor: '#FFF7F5',
+                    border: '1px solid rgba(192, 57, 43, 0.25)',
+                    borderRadius: '10px',
+                    padding: '14px 18px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}>
+                    <p style={{
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '13px',
+                      color: '#A93226',
+                      fontWeight: 600,
+                      margin: 0,
+                      lineHeight: 1.4
+                    }}>
+                      Delete this comp?
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsCompDeleteConfirming(false)}
+                        disabled={isCompDeleting}
+                        style={{
+                          backgroundColor: 'transparent',
+                          border: '1px solid rgba(52, 41, 42, 0.2)',
+                          borderRadius: '50px',
+                          padding: '7px 16px',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: 'var(--espresso, #1E1509)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteComp}
+                        disabled={isCompDeleting}
+                        style={{
+                          backgroundColor: '#C0392B',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '50px',
+                          padding: '7px 18px',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          cursor: isCompDeleting ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {isCompDeleting ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                    {editingComp ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsCompDeleteConfirming(true)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#C0392B',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          padding: '4px 0'
+                        }}
+                      >
+                        Delete comp
+                      </button>
+                    ) : <div />}
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={handleCloseCompPanel}
+                        disabled={isCompSaving}
+                        style={{
+                          backgroundColor: 'transparent',
+                          border: '1px solid rgba(52, 41, 42, 0.22)',
+                          borderRadius: '50px',
+                          padding: '11px 22px',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'var(--espresso, #1E1509)',
+                          cursor: isCompSaving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        CANCEL
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isCompSaving}
+                        style={{
+                          backgroundColor: 'var(--secondary-color, #41101B)',
+                          color: 'var(--lighter-tone, #FAF8F5)',
+                          border: 'none',
+                          borderRadius: '50px',
+                          padding: '11px 24px',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          cursor: isCompSaving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {isCompSaving ? 'Saving…' : 'SAVE COMP'}
                       </button>
                     </div>
                   </div>
