@@ -6,25 +6,24 @@
  * Local inspector for Florida Department of Revenue (FDOR) Property Tax Oversight (PTO)
  * property tax roll files (NAL - Name, Address, Legal; and SDF - Sales Data File).
  * 
- * Key Features:
- * - Streams multi-gigabyte or multi-hundred-megabyte files with constant memory footprint (< 50MB RAM).
- * - Auto-detects delimiters (comma, pipe, tab) and supports .csv, .txt, .tsv, .zip, and .gz.
+ * Features:
+ * - RFC-4180 streaming CSV parser (csv-parse) for constant-memory inspection (< 50MB RAM).
+ * - Maps all fields strictly by header name, never by hardcoded array index.
+ * - Auto-validates rows: mismatched column counts, missing PARCEL_ID, non-5-digit PHY_ZIPCD.
  * - Categorizes parcels by DOR Land-Use Code (DOR_UC) into standard residential groupings.
- * - Analyzes sales history by year and categorizes Qualified arm's-length sales vs Disqualified transfers.
+ * - Analyzes sales history and categorizes arm's-length market sales ('01' and '02') vs disqualified transfers.
  * - Privacy-safe: Whitelists strictly non-PII property fields for sample preview. NEVER prints owner names or mailing addresses.
  * - Estimates Postgres / Neon database storage size and index overhead for residential parcels and sales.
  * 
  * Usage:
- *   node scripts/county/inspect-roll.mjs [path_to_data_folder_or_file]
- * 
- * Default directory: ./data/county/
+ *   node scripts/county/inspect-roll.mjs [--county=Broward] [path_to_data_folder_or_file]
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'csv-parse';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,46 +46,44 @@ const DOR_USE_CODE_MAP = {
   '009': { name: 'Residential common elements / areas', group: 'Other', isTargetResidential: false }
 };
 
-const DOR_TARGET_RESIDENTIAL_CODES = new Set(['000', '001', '002', '004', '008']);
-
 // ============================================================================
-// DOR SALES QUALIFICATION CODES (FDOR PTO Form DR-590 / Section 193.011, F.S.)
+// DOR SALES QUALIFICATION CODES (FDOR PTO Form DR-590 / Rule 12D-1, F.A.C.)
 // ============================================================================
 const DOR_QUAL_CODE_DESCRIPTIONS = {
-  '01': "Qualified — Arm's-length market transaction meeting all criteria for assessment-sales ratio studies",
-  '1':  "Qualified — Arm's-length market transaction (unpadded)",
-  'Q':  "Qualified — Arm's-length market transaction",
-  '02': "Disqualified — Involves government agency or public utility",
-  '03': "Disqualified — Involves financial institution (foreclosure, REO, deed-in-lieu)",
-  '04': "Disqualified — Involves related parties, family members, or affiliated corporations",
-  '05': "Disqualified — Court-ordered, judicial deed, bankruptcy, tax deed, or sheriff's sale",
-  '06': "Disqualified — Energy or unmined mineral rights conveyed",
-  '07': "Disqualified — Cemetery lot",
-  '08': "Disqualified — Property trade or exchange transaction",
-  '09': "Disqualified — Deed conveying unpartitioned interest",
-  '10': "Disqualified — Personal property included exceeds 5% of purchase price",
-  '11': "Disqualified — Corrective deed, quitclaim deed, tenancy creation, or nominal/convenience transfer",
-  '12': "Disqualified — Non-conventional financing, unusual seller financing, or interest terms",
-  '13': "Disqualified — Physical change or substantial alteration occurred between sale and roll date",
-  '14': "Disqualified — Multi-parcel contract or package transaction",
-  '15': "Disqualified — Sale between co-tenants or dissolution of tenancy",
-  '16': "Disqualified — Non-conveyance of full fee simple title",
-  '17': "Disqualified — Common elements / recreational facilities transfer",
-  '18': "Disqualified — Time-share interest conveyance",
-  '19': "Disqualified — Mobile home transferred without title to land",
-  '20': "Disqualified — Land contract / contract for deed",
-  '21': "Disqualified — Conveyance to non-profit or charitable institution",
-  '30': "Disqualified — Multi-parcel or split parcel package sale",
-  '36': "Disqualified — Real estate investment trust or master limited partnership transfer",
-  '37': "Disqualified — Nominal consideration / intra-family transfer / transfer without documentary stamps",
-  '38': "Disqualified — Deed in satisfaction of existing debt",
-  '39': "Disqualified — Option to purchase exercised",
-  '40': "Disqualified — Trust, estate, or fiduciary administration transfer",
-  '41': "Disqualified — Sale involving religious organization",
-  '43': "Disqualified — Short sale or distressed lender-approved liquidation",
-  '99': "Disqualified — Other non-arm's length transaction or unverified transfer",
-  '00': "Disqualified / Unverified — No qualification determination or unverified transfer",
-  'U':  "Disqualified / Unverified — Non-arm's length or unverified"
+  '01': "Qualified — Arm's-length market transaction (examination of deed or instrument)",
+  '02': "Qualified — Arm's-length market transaction (documented evidence)",
+  '03': "Disqualified — Physical property characteristics changed prior to assessment date",
+  '04': "Disqualified — Legal characteristics changed prior to assessment date",
+  '05': "Disqualified — Multi-parcel arm's-length transaction with multiple PINs",
+  '06': "Disqualified — Parcel crosses county lines",
+  '11': "Disqualified — Corrective/Quitclaim/Tax Deed or nominal consideration",
+  '12': "Disqualified / Distressed — Financial institution transfer / In Lieu of Foreclosure",
+  '13': "Disqualified — Cemetery lot conveyance",
+  '14': "Disqualified — Reservation of occupancy over 90 days (life estate)",
+  '15': "Disqualified — Reserved / not currently accepted",
+  '16': "Disqualified — Less than 100% undivided interest conveyance",
+  '17': "Disqualified — Religious, charitable, or benevolent entity transfer",
+  '18': "Disqualified / Distressed — Government agency conveyance (HUD, Fannie, Freddie, courts)",
+  '19': "Disqualified / Distressed — Bankruptcy trustee, executor, guardian, or receiver",
+  '20': "Disqualified — Utility company transfer",
+  '21': "Disqualified — Contract for Deed / Agreement for Deed",
+  '30': "Disqualified — Related parties / corporate affiliates (landlord-tenant)",
+  '31': "Disqualified — Trade or exchange of land",
+  '32': "Disqualified — Abnormal period between contract and sale date",
+  '33': "Disqualified — Incomplete or unbuilt common property",
+  '34': "Disqualified — Satisfying prior property contract",
+  '35': "Disqualified — Atypical amount of personal property",
+  '36': "Disqualified — Atypical costs of sale",
+  '37': "Disqualified — Atypical market exposure or unknowledgeable participants",
+  '38': "Disqualified / Distressed — Forced sale / under duress / prevented foreclosure",
+  '39': "Disqualified — Consideration differs from documentary stamps",
+  '40': "Disqualified — Influenced by non-market financing or lease assumption",
+  '41': "Disqualified — Other, including duplicate recordings and rehabbed sales",
+  '42': "Disqualified — Involves mortgage fraud per law enforcement notice",
+  '43': "Disqualified — Allocated price in bulk or package transaction",
+  '98': "Disqualified — Transfer instrument errors",
+  '99': "Disqualified / Pending — Recorded within last 90 days, decision pending",
+  '00': "Disqualified / Unverified — No determination or unverified"
 };
 
 // ============================================================================
@@ -113,11 +110,12 @@ const FIELD_ALIASES = {
 
 /**
  * Checks if a sale qualification code represents a qualified, arm's-length transaction.
+ * Both '01' and '02' are arm's-length market sales per FDOR guidelines.
  */
 function isQualifiedSale(code) {
   if (code == null) return false;
   const clean = String(code).trim().toUpperCase();
-  return clean === '01' || clean === '1' || clean === 'Q';
+  return clean === '01' || clean === '1' || clean === '02' || clean === '2' || clean === 'Q';
 }
 
 /**
@@ -140,68 +138,26 @@ function buildHeaderMapping(headers) {
 }
 
 /**
- * Fast streaming CSV/delimited tokenizer that supports quoted fields.
+ * Creates an RFC-4180 streaming CSV parser.
  */
-function parseDelimitedLine(line, delimiter) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  const len = line.length;
-
-  for (let i = 0; i < len; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (inQuotes && i + 1 < len && line[i + 1] === '"') {
-        current += '"';
-        i++; // skip escaped quote
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-  return result;
-}
-
-/**
- * Detects delimiter by inspecting the first line of a chunk.
- */
-function detectDelimiter(firstLine) {
-  const candidates = [',', '|', '\t', ';'];
-  let bestDelim = ',';
-  let maxCols = 0;
-
-  for (const delim of candidates) {
-    const cols = parseDelimitedLine(firstLine, delim).length;
-    if (cols > maxCols) {
-      maxCols = cols;
-      bestDelim = delim;
-    }
-  }
-  return bestDelim;
-}
-
-/**
- * Creates a readable byte stream from a regular file or .zip archive without disk decompression.
- */
-function createInputStream(filePath) {
+function createCsvStream(filePath) {
   const ext = path.extname(filePath).toLowerCase();
+  const parser = parse({
+    relax_column_count: true,
+    relax_quotes: true,
+    skip_empty_lines: true
+  });
 
   if (ext === '.zip') {
-    // Stream first entry in zip to stdout using native unzip utility
     const child = spawn('unzip', ['-p', filePath]);
-    child.stderr.on('data', () => {}); // silence warnings
-    return { stream: child.stdout, cleanup: () => child.kill() };
+    child.stderr.on('data', () => {});
+    child.stdout.pipe(parser);
+    return { parser, cleanup: () => child.kill() };
   }
 
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  return { stream, cleanup: () => stream.destroy() };
+  stream.pipe(parser);
+  return { parser, cleanup: () => stream.destroy() };
 }
 
 /**
@@ -216,18 +172,19 @@ async function inspectRollFile(filePath) {
   console.log(`FILE: ${fileName} (${fileSizeMb} MB on disk${isZip ? ' — ZIP compressed' : ''})`);
   console.log(`===============================================================================`);
 
-  const { stream, cleanup } = createInputStream(filePath);
-  const rl = readline.createInterface({
-    input: stream,
-    crlfDelay: Infinity,
-    terminal: false
-  });
+  const { parser, cleanup } = createCsvStream(filePath);
 
-  let delimiter = ',';
   let headers = [];
   let headerMap = {};
+  let rawHeaderMap = {};
   let totalRows = 0;
   let fileType = 'UNKNOWN'; // 'NAL' | 'SDF' | 'UNKNOWN'
+
+  // Validation Metrics
+  let mismatchedCols = 0;
+  let missingParcelId = 0;
+  let invalidZip = 0;
+  const malformedExamples = [];
 
   // NAL Metrics
   const landUseCounts = {
@@ -250,16 +207,14 @@ async function inspectRollFile(filePath) {
   const sampleRows = [];
 
   try {
-    for await (const line of rl) {
-      if (!line || line.trim() === '') continue;
-
+    for await (const row of parser) {
       // Header row
       if (totalRows === 0 && headers.length === 0) {
-        delimiter = detectDelimiter(line);
-        headers = parseDelimitedLine(line, delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+        headers = row.map(h => h.trim().replace(/^["']|["']$/g, ''));
         headerMap = buildHeaderMapping(headers);
+        headers.forEach((h, idx) => { rawHeaderMap[h.toUpperCase()] = idx; });
 
-        // Determine file type from headers or file name
+        // Determine file type strictly from file name or unique header signature
         const upperHeaders = headers.map(h => h.toUpperCase());
         const upperName = fileName.toUpperCase();
 
@@ -269,8 +224,8 @@ async function inspectRollFile(filePath) {
           fileType = 'NAL';
         }
 
-        console.log(`- Format: Delimiter [${delimiter === '\t' ? '\\t' : delimiter}], Detected Type: [${fileType}]`);
-        console.log(`- Total Columns Found: ${headers.length}`);
+        console.log(`- Detected File Type: [${fileType}]`);
+        console.log(`- Total Columns in Header: ${headers.length}`);
         continue;
       }
 
@@ -281,13 +236,43 @@ async function inspectRollFile(filePath) {
         process.stdout.write(`  ...streamed ${(totalRows / 1000).toLocaleString('en-US')}k rows\r`);
       }
 
-      const values = parseDelimitedLine(line, delimiter);
+      // Validation Checks
+      let isMalformed = false;
+      if (row.length !== headers.length) {
+        mismatchedCols++;
+        isMalformed = true;
+      }
+
+      const pidIdx = rawHeaderMap['PARCEL_ID'];
+      const pidVal = pidIdx !== undefined ? row[pidIdx]?.trim() : '';
+      if (!pidVal) {
+        missingParcelId++;
+        isMalformed = true;
+      }
+
+      if (fileType === 'NAL') {
+        const zipIdx = rawHeaderMap['PHY_ZIPCD'];
+        const zipVal = zipIdx !== undefined ? row[zipIdx]?.trim() : '';
+        if (!/^\d{5}$/.test(zipVal)) {
+          invalidZip++;
+          isMalformed = true;
+        }
+      }
+
+      if (isMalformed && malformedExamples.length < 3) {
+        const addrIdx = rawHeaderMap['PHY_ADDR1'];
+        const addrVal = addrIdx !== undefined ? row[addrIdx]?.trim() : 'N/A';
+        malformedExamples.push({
+          parcel_id: pidVal || 'MISSING',
+          address: addrVal || 'N/A'
+        });
+      }
 
       // Collect sample rows (up to 3)
       if (sampleRows.length < 3) {
         const sample = {};
         for (const [key, info] of Object.entries(headerMap)) {
-          const rawVal = values[info.index] != null ? values[info.index].trim().replace(/^["']|["']$/g, '') : '';
+          const rawVal = row[info.index] != null ? row[info.index].trim().replace(/^["']|["']$/g, '') : '';
           if (rawVal !== '') {
             sample[key] = rawVal;
           }
@@ -295,7 +280,7 @@ async function inspectRollFile(filePath) {
         // In NAL, prefer residential parcels with living square footage; in SDF, prefer records with non-zero sales price
         const isIdeal = fileType === 'NAL'
           ? (sample.living_sqft && sample.living_sqft !== '0' && sample.address)
-          : (fileType === 'SDF' ? (sample.sale_price && Number(sample.sale_price) > 1000) : true);
+          : (fileType === 'SDF' ? (sample.sale_price && Number(sample.sale_price) > 50000) : true);
 
         if (isIdeal) {
           sampleRows.push(sample);
@@ -304,7 +289,7 @@ async function inspectRollFile(filePath) {
 
       // Process NAL
       if (fileType === 'NAL' && headerMap.use_code) {
-        const rawCode = values[headerMap.use_code.index]?.trim().replace(/^["']|["']$/g, '') || '';
+        const rawCode = row[headerMap.use_code.index]?.trim().replace(/^["']|["']$/g, '') || '';
         const normalizedCode = rawCode ? rawCode.padStart(3, '0') : 'UNKNOWN';
         const codeInfo = DOR_USE_CODE_MAP[normalizedCode];
 
@@ -322,11 +307,11 @@ async function inspectRollFile(filePath) {
       if (fileType === 'SDF') {
         let yr = 'Unknown';
         if (headerMap.sale_year) {
-          yr = values[headerMap.sale_year.index]?.trim() || 'Unknown';
+          yr = row[headerMap.sale_year.index]?.trim() || 'Unknown';
         }
         let qual = 'Blank/None';
         if (headerMap.qual_code) {
-          qual = values[headerMap.qual_code.index]?.trim() || 'Blank/None';
+          qual = row[headerMap.qual_code.index]?.trim() || 'Blank/None';
         }
 
         // Tally sales by year
@@ -347,6 +332,22 @@ async function inspectRollFile(filePath) {
   }
 
   console.log(`\nFinished streaming: ${totalRows.toLocaleString('en-US')} total records processed.`);
+
+  // --------------------------------------------------------------------------
+  // REPORT: Validation Results
+  // --------------------------------------------------------------------------
+  console.log(`\n--- DATA INTEGRITY & VALIDATION ---`);
+  console.log(`- Mismatched Column Counts:    ${mismatchedCols.toLocaleString()}`);
+  console.log(`- Missing PARCEL_ID:           ${missingParcelId.toLocaleString()}`);
+  if (fileType === 'NAL') {
+    console.log(`- Non-5-Digit PHY_ZIPCD:       ${invalidZip.toLocaleString()}`);
+  }
+  if (malformedExamples.length > 0) {
+    console.log(`- Examples of Malformed Rows:`);
+    malformedExamples.forEach((ex, i) => {
+      console.log(`  ${i + 1}. Parcel: [${ex.parcel_id}] | Address: [${ex.address}]`);
+    });
+  }
 
   // --------------------------------------------------------------------------
   // REPORT: Column Names
@@ -381,8 +382,9 @@ async function inspectRollFile(filePath) {
   // --------------------------------------------------------------------------
   if (fileType === 'SDF') {
     console.log(`\n--- SDF SALES BY YEAR & QUALIFIED ARM'S-LENGTH BREAKDOWN ---`);
+    console.log(`(Arm's-length market sales include Codes '01' and '02')`);
     console.log(`-------------------------------------------------------------------------`);
-    console.log(` Sale Year | Total Sales    | Qualified (01/Q) | % Qualified `);
+    console.log(` Sale Year | Total Sales    | Qualified (01+02)| % Qualified `);
     console.log(`-------------------------------------------------------------------------`);
     const sortedYears = Array.from(salesByYear.keys()).sort((a, b) => {
       const na = Number(a) || 0;
@@ -400,13 +402,6 @@ async function inspectRollFile(filePath) {
     console.log(` TOTAL     | ${totalRows.toLocaleString('en-US').padStart(14)} | ${totalQualifiedSales.toLocaleString('en-US').padStart(16)} | ${overallPct.padStart(10)}% `);
 
     console.log(`\n--- QUALIFICATION CODE BREAKDOWN (FDOR PTO STANDARDS) ---`);
-    console.log(`Why code '01' / 'Q' is treated as Qualified:`);
-    console.log(`According to Florida Administrative Code Rule 12D-1 and Section 193.011 F.S.,`);
-    console.log(`Code 01 is designated for genuine arm's-length market transactions where both`);
-    console.log(`buyer and seller are knowledgeable, motivated, and under no undue duress.`);
-    console.log(`All other codes (02-39, 99) represent institutional foreclosures, family sales,`);
-    console.log(`bankruptcy auctions, multi-parcel bundles, or trades excluded from fair market analysis.\n`);
-
     console.log(`-------------------------------------------------------------------------`);
     console.log(` Code | Count        | Classification & Meaning `);
     console.log(`-------------------------------------------------------------------------`);
@@ -445,8 +440,8 @@ async function inspectRollFile(filePath) {
  * Calculates estimated PostgreSQL / Neon database storage size for residential parcels and sales.
  */
 function printDatabaseSizeEstimate(nalStats, sdfStats) {
-  const parcelCount = nalStats?.targetResidentialCount || (nalStats?.totalRows ? Math.round(nalStats.totalRows * 0.85) : 750000);
-  const salesCount = sdfStats?.totalSales || 1500000;
+  const parcelCount = nalStats?.targetResidentialCount || (nalStats?.totalRows ? Math.round(nalStats.totalRows * 0.85) : 672710);
+  const salesCount = sdfStats?.totalSales || 118950;
 
   console.log(`\n===============================================================================`);
   console.log(`DATABASE STORAGE ESTIMATION (Neon PostgreSQL)`);
@@ -454,44 +449,25 @@ function printDatabaseSizeEstimate(nalStats, sdfStats) {
   console.log(`Target Residential Scope: Codes 000 (Vacant), 001 (SF), 002 (Mobile), 004 (Condo), 008 (Multi < 10)`);
   console.log(`Parcels Count: ~${parcelCount.toLocaleString('en-US')}  |  Sales Records: ~${salesCount.toLocaleString('en-US')}\n`);
 
-  // 1. Residential Parcels Table Estimation
-  // Columns: parcel_id (VARCHAR 30), county (VARCHAR 20), address (VARCHAR 100), city (VARCHAR 50),
-  //          zip (VARCHAR 10), use_code (VARCHAR 5), living_sqft (INT), year_built (SMALLINT),
-  //          eff_year_built (SMALLINT), land_sqft (INT), units (SMALLINT), just_value (BIGINT)
-  // Postgres Tuple overhead: 23B header + 4B null bitmap + 4B line pointer = 31 bytes
-  // Column payloads: avg ~85 bytes. Page padding/fillfactor overhead (~15%): ~145 bytes per row.
   const parcelRowBytes = 145;
   const parcelTableBytes = parcelCount * parcelRowBytes;
-
-  // Indexes on residential_parcels:
-  // - PK (county, parcel_id): ~40 bytes/row
-  // - Index (city, zip): ~35 bytes/row
-  // - Index (use_code): ~20 bytes/row
-  // - Index (address): ~45 bytes/row
   const parcelIndexBytes = parcelCount * 140;
   const parcelTotalMb = (parcelTableBytes + parcelIndexBytes) / (1024 * 1024);
 
-  // 2. Parcel Sales Table Estimation
-  // Columns: parcel_id (VARCHAR 30), sale_price (BIGINT), sale_year (SMALLINT), sale_month (SMALLINT), qual_code (VARCHAR 5)
-  // Tuple overhead: 31 bytes. Payload: ~35 bytes. Page overhead: ~75 bytes per row.
   const salesRowBytes = 75;
   const salesTableBytes = salesCount * salesRowBytes;
-
-  // Indexes on parcel_sales:
-  // - Index (parcel_id): ~35 bytes/row
-  // - Index (sale_year, qual_code): ~25 bytes/row
   const salesIndexBytes = salesCount * 60;
   const salesTotalMb = (salesTableBytes + salesIndexBytes) / (1024 * 1024);
 
   const grandTotalMb = parcelTotalMb + salesTotalMb;
   const grandTotalGb = (grandTotalMb / 1024).toFixed(2);
 
-  console.log(`1. Table: residential_parcels (${parcelCount.toLocaleString('en-US')} rows)`);
+  console.log(`1. Table: county_parcels (${parcelCount.toLocaleString('en-US')} rows)`);
   console.log(`   - Raw table data:       ~${(parcelTableBytes / (1024 * 1024)).toFixed(1)} MB (${parcelRowBytes} bytes/row)`);
-  console.log(`   - Indexes (PK, geo, use): ~${(parcelIndexBytes / (1024 * 1024)).toFixed(1)} MB (4 B-tree indexes)`);
+  console.log(`   - Indexes (PK, geo, use): ~${(parcelIndexBytes / (1024 * 1024)).toFixed(1)} MB (3 B-tree indexes)`);
   console.log(`   - Subtotal:              ~${parcelTotalMb.toFixed(1)} MB`);
 
-  console.log(`\n2. Table: parcel_sales (${salesCount.toLocaleString('en-US')} records)`);
+  console.log(`\n2. Table: county_sales (${salesCount.toLocaleString('en-US')} records)`);
   console.log(`   - Raw table data:       ~${(salesTableBytes / (1024 * 1024)).toFixed(1)} MB (${salesRowBytes} bytes/row)`);
   console.log(`   - Indexes (parcel, year):~${(salesIndexBytes / (1024 * 1024)).toFixed(1)} MB (2 B-tree indexes)`);
   console.log(`   - Subtotal:              ~${salesTotalMb.toFixed(1)} MB`);
@@ -506,9 +482,9 @@ function printDatabaseSizeEstimate(nalStats, sdfStats) {
   console.log(`===============================================================================\n`);
 }
 
-// ============================================================================
-// MAIN EXECUTION
-// ============================================================================
+/**
+ * Main execution function.
+ */
 async function main() {
   const rawArgs = process.argv.slice(2);
   const countyFilter = rawArgs.find(a => a.startsWith('--county='))?.split('=')[1]
@@ -518,6 +494,7 @@ async function main() {
   console.log(`===============================================================================`);
   console.log(`INTENT DIGITAL — FLORIDA DOR ROLL INSPECTOR`);
   if (countyFilter) console.log(`County Filter: ${countyFilter}`);
+  console.log(`CSV Engine: RFC-4180 streaming parser (csv-parse) with header-based mapping`);
   console.log(`===============================================================================`);
 
   let filesToInspect = [];

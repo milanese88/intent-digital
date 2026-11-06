@@ -1,79 +1,96 @@
-# County Property Tax Roll Inspector (Phase 2, Step 1)
+# County Property Tax Roll Tools (Phase 2)
 
-This directory contains `inspect-roll.mjs`, an autonomous Node.js inspection utility for Florida Department of Revenue (FDOR) Property Tax Oversight (PTO) property tax rolls.
-
----
-
-## 1. What This Script Does
-
-- **Constant-Memory Streaming**: Streams multi-hundred-megabyte and multi-gigabyte property roll files (`.csv`, `.tsv`, `.txt`, `.zip`, `.gz`) with constant memory (< 50MB RAM). It reads `.zip` archives directly via standard streaming without decompressing huge files to disk.
-- **Auto-Detection**: Automatically detects delimiters (comma, pipe, tab), encodings, and headers.
-- **Land-Use Code Breakdown (NAL)**: Groups parcels by Department of Revenue Use Code (`DOR_UC`):
-  - `Single-family (001)`
-  - `Condominium (004)`
-  - `Multifamily under 10 units (008)` (duplex, triplex, quad)
-  - `Mobile home (002)`
-  - `Multifamily 10+ (003)`
-  - `Vacant residential (000)`
-  - `Other` (commercial, industrial, institutional, agricultural, etc.)
-  - Subtotal of Target Residential parcels (codes `000`, `001`, `002`, `004`, `008`).
-- **Sales History & Qualification (SDF)**:
-  - Summarizes sales transactions by year.
-  - Distinguishes **Qualified arm's-length market transactions** (DOR Code `01` / `Q`) from disqualified transfers (foreclosures, family deeds, court orders, trades, multi-parcel packages).
-- **Strict Privacy Whitelist**: Prints 3 sample rows with non-PII property fields only (`parcel_id`, `address`, `city`, `zip`, `use_code`, `living_sqft`, `year_built`, `land_sqft`, `units`, `just_value`, `sale_price`, `sale_year`, `sale_month`, `qual_code`). **Owner names and mailing addresses are strictly excluded and never printed.**
-- **Neon PostgreSQL Sizing Estimate**: Computes projected table size, row byte density, and B-Tree index overhead for importing residential parcels and sales history.
+This directory contains standalone, non-deployed Node.js scripts for inspecting and importing Florida Department of Revenue (FDOR) Property Tax Oversight (PTO) property tax rolls into Neon PostgreSQL.
 
 ---
 
-## 2. Where to Download Broward County Roll Files
+## 1. Scripts Overview
 
-1. Navigate to the **Florida Department of Revenue PTO Data Portal**:
-   [https://floridarevenue.com/property/Pages/DataPortal.aspx](https://floridarevenue.com/property/Pages/DataPortal.aspx)
-2. Open the **Tax Roll Data Files** section.
-3. Select:
-   - **County**: **Broward** (County Code **16**)
-   - **Year**: Latest tax year (e.g., `2024`)
-   - **Roll Status**: `Final` (or `Preliminary` if final is not yet certified)
-4. Download the two primary datasets:
-   - **Real Property Roll (NAL)**: e.g., `NAL16F2024.zip` or `NAL162024.csv` (Name, Address, Legal)
-   - **Sales Data File (SDF)**: e.g., `SDF16F2024.zip` or `SDF162024.csv` (Property Transfer & Sales Records)
+1. **`inspect-roll.mjs`** (Step 2.1 — Inspection & Sizing):
+   - Streams multi-hundred-megabyte and multi-gigabyte property roll files (`.zip`, `.csv`, `.tsv`, `.txt`) with constant memory (< 50MB RAM).
+   - Reports total row counts, land-use breakdowns (`DOR_UC`), arm's-length qualification rates (`QUAL_CD`), privacy-safe sample rows, and projected database sizes.
+   - Zero database interaction (inspection only).
+
+2. **`import-roll.mjs`** (Step 2.2 — Production ETL Import):
+   - Imports residential property parcels (use codes `000`, `001`, `002`, `004`, `008`) into `county_parcels`.
+   - Imports all residential sales (> $100) from SDF plus historical sales from NAL into `county_sales` with deduplication on `(county, parcel_id, sale_year, sale_month, sale_price, or_book, or_page)`.
+   - Batch size: 500 rows per transaction with `ON CONFLICT DO UPDATE` (parcels) and `ON CONFLICT DO NOTHING` (sales).
+   - Supports `--dry-run` to parse and verify import counts without connecting to the database.
+   - Reports post-import relation sizes (`pg_total_relation_size`) and whole database size.
 
 ---
 
-## 3. Where to Place the Files
+## 2. Database Setup (Neon PostgreSQL)
 
-Place the downloaded files (either `.zip` or uncompressed `.csv`) into the `data/county/` folder inside the project root:
+Before running the live import, run the migration in your **Neon SQL Editor**:
+
+```bash
+# File: migrations/county_data_tables.sql
+```
+
+The migration creates:
+- `county_parcels`: Primary key `(county, parcel_id)`, indexes on `(county, zip)`, `(county, use_code)`, and `lower(address) text_pattern_ops`.
+- `county_sales`: Unique constraint on `(county, parcel_id, sale_year, sale_month, sale_price, or_book, or_page)`, indexes on `(county, parcel_id)` and `(county, sale_year, sale_month, qual_code)`.
+- `county_sale_codes`: Pre-populated with all 33 FDOR PTO qualification codes from the 2026 User's Guide (marking only Code `01` as `is_market = true`).
+
+> **Privacy Guarantee**: No owner names (`OWN_NAME`), mailing addresses (`OWN_ADDR1`, `OWN_ADDR2`, etc.), fiduciary fields, or exemption amounts are ever stored or retained in memory.
+
+---
+
+## 3. Environment Configuration
+
+The import script reads `DATABASE_URL` from `.env.local`. To populate it:
+
+```bash
+# Option A: Pull environment from linked Vercel project
+vercel env pull .env.local
+
+# Option B: Add directly to .env.local (never commit .env.local)
+echo "DATABASE_URL=postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require" >> .env.local
+```
+
+---
+
+## 4. Usage Commands
+
+### Inspect County Roll Files
+```bash
+# Inspect all files or filter by county
+node scripts/county/inspect-roll.mjs --county=Broward
+node scripts/county/inspect-roll.mjs --county="Palm Beach"
+```
+
+### Dry-Run Simulation (Test without Database)
+```bash
+# Parse files, test streaming, and report counts without inserting into Neon
+node scripts/county/import-roll.mjs --county=Broward --dry-run
+```
+
+### Live Production Import
+```bash
+# Run the live import into Neon
+node scripts/county/import-roll.mjs --county=Broward
+```
+
+---
+
+## 5. County Roll Data Folder
+
+All large county files reside in `data/county/` which is ignored by Git in `.gitignore`:
 
 ```text
 intent-digital/
 ├── data/
 │   └── county/
-│       ├── NAL16F2024.zip   <-- Broward Real Property Roll
-│       └── SDF16F2024.zip   <-- Broward Sales Data File
+│       ├── Broward 16 Final NAL 2026.zip
+│       ├── Broward 16 Final SDF 2026.zip
+│       ├── Palm Beach 60 Final NAL 2026.zip
+│       └── Palm Beach 60 Final SDF 2026.zip
+├── migrations/
+│   └── county_data_tables.sql
 └── scripts/
     └── county/
         ├── inspect-roll.mjs
+        ├── import-roll.mjs
         └── README.md
-```
-
-> **Note**: The `/data/` folder is explicitly listed in `.gitignore` so large data files are never committed to Git.
-
----
-
-## 4. How to Run the Inspector
-
-From the project root:
-
-```bash
-node scripts/county/inspect-roll.mjs
-```
-
-Or target a specific directory or individual file:
-
-```bash
-# Inspect a specific folder
-node scripts/county/inspect-roll.mjs ./data/county
-
-# Inspect a single archive or CSV file
-node scripts/county/inspect-roll.mjs ./data/county/NAL16F2024.zip
 ```
