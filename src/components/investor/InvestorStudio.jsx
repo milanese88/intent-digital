@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
+import UnderwritePanel from './UnderwritePanel.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -581,10 +582,11 @@ export default function InvestorStudio() {
 
   // COMP VALUE = median $/sqft of included comps * property sqft, rounded to nearest $100
   let compValueFormatted = '—';
+  let rawCompValue = null;
   if (medianPpsqft != null && activeProperty?.sqft) {
     const rawVal = medianPpsqft * Number(activeProperty.sqft);
-    const roundedVal = Math.round(rawVal / 100) * 100;
-    compValueFormatted = `$${roundedVal.toLocaleString('en-US')}`;
+    rawCompValue = Math.round(rawVal / 100) * 100;
+    compValueFormatted = `$${rawCompValue.toLocaleString('en-US')}`;
   }
 
   // Formatting helpers
@@ -966,7 +968,7 @@ export default function InvestorStudio() {
         /* Detail View Layout */
         .investor-detail-grid {
           display: grid;
-          grid-template-columns: 1fr 340px;
+          grid-template-columns: 1fr 380px;
           gap: 32px;
           align-items: start;
         }
@@ -1534,34 +1536,13 @@ export default function InvestorStudio() {
                   )}
                 </div>
 
-                {/* RIGHT COLUMN: Underwrite Placeholder */}
+                {/* RIGHT COLUMN: Underwrite Panel */}
                 <div>
-                  <div style={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid rgba(52, 41, 42, 0.1)',
-                    borderRadius: '12px',
-                    padding: '28px',
-                    boxShadow: '0 4px 16px rgba(52, 41, 42, 0.03)'
-                  }}>
-                    <h3 style={{
-                      fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                      fontSize: '22px',
-                      fontWeight: 400,
-                      color: 'var(--espresso, #34292A)',
-                      margin: '0 0 10px 0'
-                    }}>
-                      Underwrite
-                    </h3>
-                    <p style={{
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '14px',
-                      color: 'rgba(52, 41, 42, 0.65)',
-                      lineHeight: '1.6',
-                      margin: 0
-                    }}>
-                      Rental, Flip and BRRRR calculator — coming in the next step.
-                    </p>
-                  </div>
+                  <UnderwritePanel
+                    property={activeProperty}
+                    compValueRaw={rawCompValue}
+                    compValueFormatted={compValueFormatted}
+                  />
                 </div>
               </div>
             </>
