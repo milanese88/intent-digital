@@ -133,24 +133,52 @@ export default async function handler(req, res) {
     const sql = getDb();
     const cleanEmail = (user.email || '').trim().toLowerCase();
 
-    // GET: List comps for a property
+    // GET: List comps for a property, or all comps for user if no property_id
     if (req.method === 'GET') {
       const propertyId = req.query?.property_id;
-      if (!propertyId) {
-        return res.status(400).json({ error: 'property_id is required.' });
+
+      if (propertyId) {
+        // FIRST confirm property_id belongs to the logged-in user
+        const prop = await sql`
+          SELECT id, lat, lng FROM investor_properties
+          WHERE id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+          LIMIT 1
+        `;
+        if (prop.length === 0) {
+          return res.status(404).json({ error: 'Property not found.' });
+        }
+
+        const comps = await sql`
+          SELECT
+            id,
+            owner_email,
+            property_id,
+            address,
+            city,
+            zip,
+            lat,
+            lng,
+            sold_date,
+            sold_price,
+            sqft,
+            beds,
+            baths,
+            year_built,
+            price_per_sqft,
+            distance_mi,
+            included,
+            source,
+            created_at
+          FROM investor_comps
+          WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+          ORDER BY sold_date DESC NULLS LAST, created_at DESC
+        `;
+
+        return res.status(200).json(comps);
       }
 
-      // FIRST confirm property_id belongs to the logged-in user
-      const prop = await sql`
-        SELECT id, lat, lng FROM investor_properties
-        WHERE id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
-        LIMIT 1
-      `;
-      if (prop.length === 0) {
-        return res.status(404).json({ error: 'Property not found.' });
-      }
-
-      const comps = await sql`
+      // No property_id: return all comps for the logged-in user
+      const allComps = await sql`
         SELECT
           id,
           owner_email,
@@ -172,11 +200,11 @@ export default async function handler(req, res) {
           source,
           created_at
         FROM investor_comps
-        WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+        WHERE lower(owner_email) = ${cleanEmail}
         ORDER BY sold_date DESC NULLS LAST, created_at DESC
       `;
 
-      return res.status(200).json(comps);
+      return res.status(200).json(allComps);
     }
 
     // POST: Create a new comp

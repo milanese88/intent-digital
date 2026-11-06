@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
+import InvestorMap from './InvestorMap.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -68,6 +69,13 @@ export default function InvestorStudio() {
     listing_url: '',
     notes: ''
   });
+
+  // Split Map State (List view)
+  const [showSavedPins, setShowSavedPins] = useState(true);
+  const [showCompsPins, setShowCompsPins] = useState(false);
+  const [allComps, setAllComps] = useState([]);
+  const [allCompsLoading, setAllCompsLoading] = useState(false);
+  const [hoveredMapPinId, setHoveredMapPinId] = useState(null);
 
   // Comps State (Detail view)
   const [comps, setComps] = useState([]);
@@ -148,6 +156,27 @@ export default function InvestorStudio() {
   useEffect(() => {
     fetchProperties();
   }, []);
+
+  // Fetch all comps for map when showCompsPins is enabled
+  useEffect(() => {
+    if (showCompsPins && allComps.length === 0 && !allCompsLoading) {
+      setAllCompsLoading(true);
+      fetch('/api/investor/comps')
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to load comps');
+          return res.json();
+        })
+        .then(data => {
+          setAllComps(Array.isArray(data) ? data : []);
+        })
+        .catch(err => {
+          console.error('Error fetching all comps for map:', err);
+        })
+        .finally(() => {
+          setAllCompsLoading(false);
+        });
+    }
+  }, [showCompsPins, allComps.length, allCompsLoading]);
 
   // Fetch comps whenever activePropertyId changes
   const fetchComps = async (propertyId) => {
@@ -781,6 +810,66 @@ export default function InvestorStudio() {
         }
         .investor-search-btn:hover {
           background-color: #5E1627;
+        }
+
+        /* Split View (Cards List + Live Map) */
+        .investor-split-view {
+          display: grid;
+          grid-template-columns: 360px 1fr;
+          gap: 24px;
+          margin-top: 36px;
+          align-items: start;
+        }
+        .investor-split-list {
+          height: 620px;
+          overflow-y: auto;
+          padding-right: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .investor-compact-card {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 12px 14px;
+          background: #ffffff;
+          border: 1px solid rgba(52, 41, 42, 0.08);
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(52, 41, 42, 0.02);
+          cursor: pointer;
+          transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+          user-select: none;
+        }
+        .investor-compact-card:hover,
+        .investor-compact-card.is-hovered {
+          border-color: var(--secondary-color, #41101B);
+          box-shadow: 0 6px 18px rgba(65, 16, 27, 0.09);
+          transform: translateY(-2px);
+          background-color: #FFFDFB;
+        }
+        .investor-split-map-container {
+          display: flex;
+          flex-direction: column;
+          height: 620px;
+        }
+        .investor-split-map-header {
+          display: flex;
+          justifyContent: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        @media (max-width: 960px) {
+          .investor-split-view {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+          .investor-split-map-container {
+            height: 420px;
+          }
+          .investor-split-list {
+            height: 360px;
+          }
         }
 
         /* Property Cards Grid */
@@ -1665,6 +1754,254 @@ export default function InvestorStudio() {
               </button>
             </div>
           </form>
+
+          {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
+          <div className="investor-split-view">
+            {/* LEFT: Scrollable list of compact cards */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px',
+                padding: '0 2px'
+              }}>
+                <span style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(52, 41, 42, 0.55)'
+                }}>
+                  PROPERTIES IN VIEW ({filteredProperties.length})
+                </span>
+              </div>
+
+              <div className="investor-split-list">
+                {filteredProperties.length === 0 ? (
+                  <div style={{
+                    padding: '36px 16px',
+                    textAlign: 'center',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(52, 41, 42, 0.08)'
+                  }}>
+                    <p style={{
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '13px',
+                      color: 'rgba(52, 41, 42, 0.6)',
+                      margin: 0
+                    }}>
+                      No saved properties match your filters.
+                    </p>
+                  </div>
+                ) : (
+                  filteredProperties.map(p => {
+                    const isHovered = hoveredMapPinId === p.id;
+                    const pricePerSqft = formatPricePerSqft(p.list_price, p.sqft);
+                    const specs = [
+                      p.beds != null && p.beds !== '' ? `${p.beds} bd` : null,
+                      p.baths != null && p.baths !== '' ? `${p.baths} ba` : null,
+                      p.sqft ? `${Number(p.sqft).toLocaleString()} sf` : null
+                    ].filter(Boolean).join(' · ');
+
+                    return (
+                      <div
+                        key={p.id}
+                        className={`investor-compact-card ${isHovered ? 'is-hovered' : ''}`}
+                        onClick={() => handleOpenDetail(p.id)}
+                        onMouseEnter={() => setHoveredMapPinId(p.id)}
+                        onMouseLeave={() => setHoveredMapPinId(null)}
+                      >
+                        {/* Thumbnail Tone Block */}
+                        <div style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(145deg, #2E2218 0%, #4A382A 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'rgba(250, 248, 245, 0.4)',
+                          flexShrink: 0
+                        }}>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                          </svg>
+                        </div>
+
+                        {/* Card Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            color: 'var(--espresso, #1E1509)',
+                            lineHeight: 1.15,
+                            marginBottom: '2px'
+                          }}>
+                            {formatPrice(p.list_price)}
+                          </div>
+
+                          <div style={{
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            color: 'var(--espresso, #34292A)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            marginBottom: '3px'
+                          }}>
+                            {p.address}
+                          </div>
+
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '11px',
+                            color: 'rgba(52, 41, 42, 0.65)',
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                          }}>
+                            <span>{specs || '—'}</span>
+                            <span style={{ fontWeight: 600, color: 'var(--espresso, #1E1509)' }}>{pricePerSqft}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT: Map ~620px tall with above-map pill toggles */}
+            <div className="investor-split-map-container">
+              <div className="investor-split-map-header">
+                <span style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(52, 41, 42, 0.55)'
+                }}>
+                  MAP VIEW
+                </span>
+
+                {/* Pill Toggles: My saved & Sold comps */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowSavedPins(prev => !prev)}
+                    style={{
+                      backgroundColor: showSavedPins ? 'var(--secondary-color, #41101B)' : 'transparent',
+                      color: showSavedPins ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.75)',
+                      border: showSavedPins ? 'none' : '1px solid rgba(52, 41, 42, 0.2)',
+                      borderRadius: '50px',
+                      padding: '5px 14px',
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      letterSpacing: '0.04em',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    My saved
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCompsPins(prev => !prev)}
+                    style={{
+                      backgroundColor: showCompsPins ? 'var(--secondary-color, #41101B)' : 'transparent',
+                      color: showCompsPins ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.75)',
+                      border: showCompsPins ? 'none' : '1px solid rgba(52, 41, 42, 0.2)',
+                      borderRadius: '50px',
+                      padding: '5px 14px',
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      letterSpacing: '0.04em',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {allCompsLoading ? 'Loading comps...' : 'Sold comps'}
+                  </button>
+                </div>
+              </div>
+
+              {/* InvestorMap Component */}
+              <div style={{ flex: 1, minHeight: 0 }}>
+                {(() => {
+                  const propertyPins = filteredProperties
+                    .filter(p => p.lat != null && p.lng != null && !isNaN(p.lat) && !isNaN(p.lng))
+                    .map(p => ({
+                      id: p.id,
+                      type: 'property',
+                      lat: Number(p.lat),
+                      lng: Number(p.lng),
+                      price: p.list_price,
+                      address: p.address,
+                      city: p.city,
+                      specs: [
+                        p.beds != null && p.beds !== '' ? `${p.beds} bd` : null,
+                        p.baths != null && p.baths !== '' ? `${p.baths} ba` : null,
+                        p.sqft ? `${Number(p.sqft).toLocaleString()} sf` : null
+                      ].filter(Boolean).join(' · '),
+                      status: p.status
+                    }));
+
+                  const compPins = allComps
+                    .filter(c => {
+                      if (c.lat == null || c.lng == null || isNaN(c.lat) || isNaN(c.lng)) return false;
+                      if (appliedFilters.location) {
+                        const q = appliedFilters.location.toLowerCase();
+                        const addrMatch = c.address && c.address.toLowerCase().includes(q);
+                        const cityMatch = c.city && c.city.toLowerCase().includes(q);
+                        const zipMatch = c.zip && c.zip.toLowerCase().includes(q);
+                        if (!addrMatch && !cityMatch && !zipMatch) return false;
+                      }
+                      return true;
+                    })
+                    .map(c => ({
+                      id: `comp-${c.id}`,
+                      type: 'comp',
+                      lat: Number(c.lat),
+                      lng: Number(c.lng),
+                      price: c.sold_price,
+                      address: c.address,
+                      city: c.city,
+                      specs: [
+                        c.beds != null && c.beds !== '' ? `${c.beds} bd` : null,
+                        c.baths != null && c.baths !== '' ? `${c.baths} ba` : null,
+                        c.sqft ? `${Number(c.sqft).toLocaleString()} sf` : null
+                      ].filter(Boolean).join(' · ')
+                    }));
+
+                  const mapPins = [
+                    ...(showSavedPins ? propertyPins : []),
+                    ...(showCompsPins ? compPins : [])
+                  ];
+
+                  return (
+                    <InvestorMap
+                      pins={mapPins}
+                      hoveredId={hoveredMapPinId}
+                      onSelectPin={(id) => setHoveredMapPinId(id)}
+                      onOpenProperty={(id) => handleOpenDetail(id)}
+                      showLegend={true}
+                      style={{ height: '100%', minHeight: '560px' }}
+                    />
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
 
           {/* SAVED PROPERTIES SECTION */}
           <section style={{ marginTop: '64px' }}>
