@@ -22,6 +22,7 @@ export default function UserProfile() {
   });
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [resetEmailSending, setResetEmailSending] = useState(false);
 
   // UI states
   const [showCurrent, setShowCurrent] = useState(false);
@@ -110,6 +111,31 @@ export default function UserProfile() {
       setProfileError('A network error occurred.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const requestPasswordResetEmail = async () => {
+    if (!profile.email) return;
+    setResetEmailSending(true);
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    try {
+      const res = await fetch('/api/request-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profile.email })
+      });
+      if (res.ok) {
+        setPasswordSuccess(`A password reset link has been sent to ${profile.email}. Check your inbox!`);
+      } else {
+        const data = await res.json();
+        setPasswordError(data.error || 'Failed to send reset link.');
+      }
+    } catch {
+      setPasswordError('A network error occurred.');
+    } finally {
+      setResetEmailSending(false);
     }
   };
 
@@ -303,7 +329,27 @@ export default function UserProfile() {
 
         <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
-            <label className="form-pill-label" htmlFor="currentPassword">Current Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-pill-label" htmlFor="currentPassword">Current Password</label>
+              <button
+                type="button"
+                onClick={requestPasswordResetEmail}
+                disabled={resetEmailSending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#34292A',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: '11px',
+                  opacity: 0.75,
+                  padding: 0
+                }}
+              >
+                {resetEmailSending ? 'Sending link...' : 'Forgot current password?'}
+              </button>
+            </div>
             <input
               className="form-pill-input"
               type={showCurrent ? "text" : "password"}

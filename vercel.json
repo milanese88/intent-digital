@@ -4,5 +4,11 @@
       "path": "/api/publish-scheduled",
       "schedule": "*/5 * * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/auth/verify",
+      "destination": "/api/verify-magic-link"
+    }
   ]
 }
