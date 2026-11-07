@@ -2306,32 +2306,55 @@ export default function InvestorStudio() {
                           {formatStatus(p.status)}
                         </div>
 
-                        {/* Flood Zone Pill on Photo */}
-                        {p.flood_zone && (
-                          <div style={{
-                            position: 'absolute',
-                            top: '12px',
-                            right: '12px',
-                            backgroundColor: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
-                              ? 'rgba(217, 83, 79, 0.95)'
-                              : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
-                                ? 'rgba(217, 140, 30, 0.95)'
-                                : 'rgba(52, 41, 42, 0.85)',
-                            color: '#FAF8F5',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '9.5px',
-                            fontWeight: 700,
-                            letterSpacing: '0.04em',
-                            padding: '3px 8px',
-                            borderRadius: '50px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                            backdropFilter: 'blur(4px)'
-                          }}>
-                            {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
-                              ? 'Zone X shaded'
-                              : `Zone ${p.flood_zone}`}
-                          </div>
-                        )}
+                        {/* Badges on Photo */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          {p.zoning_code && (
+                            <div style={{
+                              backgroundColor: 'rgba(52, 41, 42, 0.85)',
+                              color: '#FAF8F5',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              padding: '3px 8px',
+                              borderRadius: '50px',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {p.zoning_code}
+                            </div>
+                          )}
+
+                          {p.flood_zone && (
+                            <div style={{
+                              backgroundColor: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
+                                ? 'rgba(217, 83, 79, 0.95)'
+                                : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
+                                  ? 'rgba(217, 140, 30, 0.95)'
+                                  : 'rgba(52, 41, 42, 0.85)',
+                              color: '#FAF8F5',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              padding: '3px 8px',
+                              borderRadius: '50px',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
+                                ? 'Zone X shaded'
+                                : `Zone ${p.flood_zone}`}
+                            </div>
+                          )}
+                        </div>
 
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -2402,6 +2425,24 @@ export default function InvestorStudio() {
                           </div>
                           
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {p.zoning_code && (
+                              <div
+                                title={p.zoning_desc ? `Zoning: ${p.zoning_code} (${p.zoning_desc})` : `Zoning: ${p.zoning_code}`}
+                                style={{
+                                  backgroundColor: 'rgba(52, 41, 42, 0.08)',
+                                  color: 'var(--espresso, #34292A)',
+                                  border: '1px solid rgba(52, 41, 42, 0.16)',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  letterSpacing: '0.04em',
+                                  fontSize: '10px'
+                                }}
+                              >
+                                {p.zoning_code}
+                              </div>
+                            )}
+
                             {p.flood_zone && (
                               <div
                                 title={p.flood_sfha ? 'Special Flood Hazard Area (High Risk)' : 'FEMA Flood Zone'}

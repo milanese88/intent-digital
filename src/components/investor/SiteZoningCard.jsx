@@ -44,17 +44,30 @@ export function getFloodPillStyle(riskLevel, isSfha) {
   };
 }
 
-export default function SiteZoningCard({ property, showToast }) {
+export default function SiteZoningCard({ property, onPropertyUpdate, showToast }) {
+  // Flood state
   const [floodData, setFloodData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [floodLoading, setFloodLoading] = useState(false);
+  const [floodRefreshing, setFloodRefreshing] = useState(false);
+  const [floodError, setFloodError] = useState(null);
+
+  // Zoning & Historic state
+  const [zoningData, setZoningData] = useState(null);
+  const [zoningLoading, setZoningLoading] = useState(false);
+  const [zoningRefreshing, setZoningRefreshing] = useState(false);
+  const [zoningError, setZoningError] = useState(null);
+
+  // Manual zoning entry input
+  const [manualCode, setManualCode] = useState('');
+  const [savingManual, setSavingManual] = useState(false);
+  const [showManualInput, setShowManualInput] = useState(false);
 
   const county = property?.parcel_county || property?.county || 'Broward';
   const parcelId = property?.parcel_id || null;
   const lat = property?.lat || null;
   const lng = property?.lng || null;
 
+  // 1. Fetch Flood Hazard Info
   const fetchFloodInfo = async (forceRefresh = false) => {
     if (!parcelId && (lat == null || lng == null)) {
       setFloodData(null);
@@ -62,11 +75,11 @@ export default function SiteZoningCard({ property, showToast }) {
     }
 
     if (forceRefresh) {
-      setRefreshing(true);
+      setFloodRefreshing(true);
     } else {
-      setLoading(true);
+      setFloodLoading(true);
     }
-    setError(null);
+    setFloodError(null);
 
     try {
       const params = new URLSearchParams();
@@ -82,7 +95,7 @@ export default function SiteZoningCard({ property, showToast }) {
       }
       const data = await res.json();
       if (data.unavailable) {
-        setError(data.error || 'FEMA flood hazard service is currently unavailable.');
+        setFloodError(data.error || 'FEMA flood hazard service is currently unavailable.');
       } else {
         setFloodData(data);
         if (forceRefresh && showToast) {
@@ -91,25 +104,119 @@ export default function SiteZoningCard({ property, showToast }) {
       }
     } catch (err) {
       console.error('Error fetching flood data:', err);
-      setError(err.message || 'Unable to retrieve flood zone.');
+      setFloodError(err.message || 'Unable to retrieve flood zone.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setFloodLoading(false);
+      setFloodRefreshing(false);
+    }
+  };
+
+  // 2. Fetch Zoning & Historic Info
+  const fetchZoningInfo = async (forceRefresh = false) => {
+    if (!parcelId) {
+      setZoningData(null);
+      return;
+    }
+
+    if (forceRefresh) {
+      setZoningRefreshing(true);
+    } else {
+      setZoningLoading(true);
+    }
+    setZoningError(null);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('county', county);
+      params.set('parcel_id', parcelId);
+      if (forceRefresh) params.set('refresh', '1');
+
+      const res = await fetch(`/api/site/zoning?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load zoning information (HTTP ${res.status}).`);
+      }
+      const data = await res.json();
+      setZoningData(data);
+      if (data.zoning_code) {
+        setManualCode(data.zoning_code);
+      }
+      if (forceRefresh && showToast) {
+        showToast('Zoning & historic records refreshed');
+      }
+    } catch (err) {
+      console.error('Error fetching zoning data:', err);
+      setZoningError(err.message || 'Unable to retrieve zoning records.');
+    } finally {
+      setZoningLoading(false);
+      setZoningRefreshing(false);
+    }
+  };
+
+  // Save manual zoning code
+  const handleSaveManualZoning = async (e) => {
+    e.preventDefault();
+    if (!manualCode.trim()) return;
+
+    setSavingManual(true);
+    try {
+      const res = await fetch('/api/site/zoning', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          county,
+          parcel_id: parcelId,
+          zoning_code: manualCode.trim().toUpperCase()
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to save zoning code (HTTP ${res.status}).`);
+      }
+
+      const updated = await res.json();
+      setZoningData(prev => ({
+        ...prev,
+        zoning_code: updated.zoning_code,
+        zoning_source: 'manual',
+        zoning_checked_at: updated.zoning_checked_at
+      }));
+      setShowManualInput(false);
+      if (showToast) {
+        showToast(`Saved zoning code: ${updated.zoning_code}`);
+      }
+      if (onPropertyUpdate && property) {
+        onPropertyUpdate({ ...property, zoning_code: updated.zoning_code });
+      }
+    } catch (err) {
+      console.error('Error saving manual zoning:', err);
+      if (showToast) {
+        showToast(err.message || 'Error saving zoning code');
+      }
+    } finally {
+      setSavingManual(false);
     }
   };
 
   useEffect(() => {
     if (parcelId || (lat != null && lng != null)) {
       fetchFloodInfo(false);
+      fetchZoningInfo(false);
     } else {
       setFloodData(null);
-      setError(null);
+      setZoningData(null);
+      setFloodError(null);
+      setZoningError(null);
     }
   }, [parcelId, county, lat, lng]);
 
-  const pillStyle = floodData
+  const floodPillStyle = floodData
     ? getFloodPillStyle(floodData.riskLevel, floodData.isSfha)
     : { background: 'rgba(52, 41, 42, 0.06)', color: '#34292A', border: '1px solid rgba(52, 41, 42, 0.12)' };
+
+  const municipality = zoningData?.municipality || property?.city || 'Unknown';
+  const hasZoningCode = !!zoningData?.zoning_code;
+  const isCityGis = zoningData?.zoning_source === 'city_gis';
+  const isManual = zoningData?.zoning_source === 'manual';
 
   return (
     <div
@@ -148,19 +255,21 @@ export default function SiteZoningCard({ property, showToast }) {
             >
               Site &amp; zoning
             </h2>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                backgroundColor: 'rgba(52, 41, 42, 0.06)',
-                color: 'var(--espresso, #34292A)',
-                padding: '2px 8px',
-                borderRadius: '50px',
-                letterSpacing: '0.04em'
-              }}
-            >
-              FEMA NFHL
-            </span>
+            {municipality && municipality !== 'Unknown' && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: 'rgba(52, 41, 42, 0.07)',
+                  color: 'var(--espresso, #34292A)',
+                  padding: '3px 10px',
+                  borderRadius: '50px',
+                  letterSpacing: '0.04em'
+                }}
+              >
+                {municipality}
+              </span>
+            )}
           </div>
           <p
             style={{
@@ -169,16 +278,19 @@ export default function SiteZoningCard({ property, showToast }) {
               margin: '4px 0 0 0'
             }}
           >
-            Authoritative FEMA flood hazard determination, municipal zoning, and historic district overlays.
+            Authoritative FEMA flood hazard determination, municipal zoning, and historic preservation status.
           </p>
         </div>
 
-        {/* Refresh Action */}
+        {/* Global Refresh Action */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             type="button"
-            onClick={() => fetchFloodInfo(true)}
-            disabled={loading || refreshing}
+            onClick={() => {
+              fetchFloodInfo(true);
+              fetchZoningInfo(true);
+            }}
+            disabled={floodLoading || floodRefreshing || zoningLoading || zoningRefreshing}
             style={{
               background: 'none',
               border: '1px solid rgba(52, 41, 42, 0.18)',
@@ -187,7 +299,7 @@ export default function SiteZoningCard({ property, showToast }) {
               fontSize: '11px',
               fontWeight: 600,
               color: 'var(--espresso, #34292A)',
-              cursor: loading || refreshing ? 'wait' : 'pointer',
+              cursor: floodLoading || floodRefreshing || zoningLoading || zoningRefreshing ? 'wait' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '5px',
@@ -204,19 +316,19 @@ export default function SiteZoningCard({ property, showToast }) {
               strokeLinecap="round"
               strokeLinejoin="round"
               style={{
-                animation: refreshing ? 'spin 1s linear infinite' : 'none'
+                animation: floodRefreshing || zoningRefreshing ? 'spin 1s linear infinite' : 'none'
               }}
             >
               <polyline points="23 4 23 10 17 10" />
               <polyline points="1 20 1 14 7 14" />
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
-            {refreshing ? 'Checking...' : 'Refresh'}
+            {floodRefreshing || zoningRefreshing ? 'Checking...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      {/* FLOOD SECTION */}
+      {/* 1. FLOOD SECTION */}
       <div style={{ marginBottom: '24px' }}>
         <div
           style={{
@@ -231,7 +343,7 @@ export default function SiteZoningCard({ property, showToast }) {
           FLOOD HAZARD (FEMA NFHL)
         </div>
 
-        {loading ? (
+        {floodLoading ? (
           <div
             style={{
               padding: '16px',
@@ -257,10 +369,10 @@ export default function SiteZoningCard({ property, showToast }) {
             />
             Checking official FEMA National Flood Hazard Layer...
           </div>
-        ) : error ? (
+        ) : floodError ? (
           <div
             style={{
-              padding: '14px 16px',
+              padding: '12px 16px',
               backgroundColor: 'rgba(217, 83, 79, 0.08)',
               border: '1px solid rgba(217, 83, 79, 0.2)',
               borderRadius: '8px',
@@ -271,7 +383,7 @@ export default function SiteZoningCard({ property, showToast }) {
               alignItems: 'center'
             }}
           >
-            <span>{error}</span>
+            <span>{floodError}</span>
             <button
               type="button"
               onClick={() => fetchFloodInfo(true)}
@@ -321,7 +433,7 @@ export default function SiteZoningCard({ property, showToast }) {
             >
               <div
                 style={{
-                  ...pillStyle,
+                  ...floodPillStyle,
                   display: 'inline-flex',
                   alignItems: 'center',
                   padding: '6px 14px',
@@ -361,7 +473,7 @@ export default function SiteZoningCard({ property, showToast }) {
               </div>
             </div>
 
-            {/* Metadata Grid: Panel, Effective Date, Checked At, Links */}
+            {/* Metadata Grid */}
             <div
               style={{
                 display: 'grid',
@@ -427,10 +539,9 @@ export default function SiteZoningCard({ property, showToast }) {
               </div>
             </div>
 
-            {/* Advisory note */}
             <div
               style={{
-                marginTop: '14px',
+                marginTop: '12px',
                 fontSize: '11px',
                 color: 'rgba(52, 41, 42, 0.55)',
                 fontStyle: 'italic',
@@ -443,93 +554,399 @@ export default function SiteZoningCard({ property, showToast }) {
         ) : null}
       </div>
 
-      {/* PLACEHOLDER SECTIONS */}
+      {/* 2. ZONING SECTION */}
+      <div style={{ marginBottom: '24px' }}>
+        <div
+          style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'rgba(52, 41, 42, 0.55)',
+            marginBottom: '10px'
+          }}
+        >
+          MUNICIPAL ZONING
+        </div>
+
+        {zoningLoading ? (
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'rgba(52, 41, 42, 0.03)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: 'rgba(52, 41, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <span
+              style={{
+                width: '12px',
+                height: '12px',
+                border: '2px solid rgba(52, 41, 42, 0.2)',
+                borderTopColor: 'var(--espresso, #34292A)',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite'
+              }}
+            />
+            Querying {municipality} zoning district...
+          </div>
+        ) : hasZoningCode ? (
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid rgba(52, 41, 42, 0.09)',
+              borderRadius: '10px',
+              padding: '18px 20px'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                marginBottom: '14px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    backgroundColor: 'rgba(52, 41, 42, 0.08)',
+                    color: 'var(--espresso, #34292A)',
+                    border: '1px solid rgba(52, 41, 42, 0.2)',
+                    padding: '5px 14px',
+                    borderRadius: '6px',
+                    fontWeight: 800,
+                    fontSize: '15px',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  {zoningData.zoning_code}
+                </span>
+
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: isCityGis ? 'rgba(133, 157, 206, 0.18)' : 'rgba(240, 173, 78, 0.18)',
+                    color: isCityGis ? '#2A4374' : '#8A5D1A',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  {isCityGis ? 'City GIS' : 'Entered by you'}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setShowManualInput(!showManualInput)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(52, 41, 42, 0.55)',
+                    fontSize: '11px',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    padding: '2px 4px'
+                  }}
+                >
+                  {showManualInput ? 'Cancel' : 'Edit code'}
+                </button>
+              </div>
+
+              {/* Links */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px' }}>
+                {zoningData.zoning_map_url && (
+                  <a
+                    href={zoningData.zoning_map_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#859DCE', fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    Open city zoning map ↗
+                  </a>
+                )}
+                {zoningData.code_url && (
+                  <a
+                    href={zoningData.code_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#859DCE', fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    Online zoning code ↗
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
+            {zoningData.zoning_desc && (
+              <p
+                style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '13px',
+                  color: 'var(--espresso, #34292A)',
+                  fontWeight: 500,
+                  lineHeight: 1.4
+                }}
+              >
+                {zoningData.zoning_desc}
+              </p>
+            )}
+
+            {/* Manual edit form if toggled */}
+            {showManualInput && (
+              <form
+                onSubmit={handleSaveManualZoning}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '10px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(52, 41, 42, 0.08)'
+                }}
+              >
+                <input
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                  placeholder="Enter zoning code (e.g. RS-5)"
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(52, 41, 42, 0.25)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    width: '180px'
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={savingManual}
+                  style={{
+                    backgroundColor: 'var(--secondary-color, #41101B)',
+                    color: '#FAF8F5',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: savingManual ? 'wait' : 'pointer'
+                  }}
+                >
+                  {savingManual ? 'Saving...' : 'Save'}
+                </button>
+              </form>
+            )}
+
+            <div
+              style={{
+                fontSize: '11px',
+                color: 'rgba(52, 41, 42, 0.55)',
+                paddingTop: '10px',
+                borderTop: '1px solid rgba(52, 41, 42, 0.06)'
+              }}
+            >
+              Checked {formatDate(zoningData.zoning_checked_at)}
+            </div>
+          </div>
+        ) : (
+          /* When city has no online zoning layer */
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px dashed rgba(52, 41, 42, 0.18)',
+              borderRadius: '10px',
+              padding: '16px 20px',
+              fontSize: '12px'
+            }}
+          >
+            <p style={{ margin: '0 0 10px 0', color: 'rgba(52, 41, 42, 0.8)', lineHeight: 1.5 }}>
+              Zoning isn't published online for <strong>{municipality}</strong>.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              {zoningData?.zoning_map_url && (
+                <a
+                  href={zoningData.zoning_map_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#859DCE', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  Open city zoning map ↗
+                </a>
+              )}
+              {zoningData?.code_url && (
+                <a
+                  href={zoningData.code_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#859DCE', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  Online zoning code ↗
+                </a>
+              )}
+            </div>
+
+            {/* Manual entry inline form */}
+            <form onSubmit={handleSaveManualZoning} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                placeholder={`Enter ${municipality} zoning code`}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(52, 41, 42, 0.25)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  width: '210px'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={savingManual || !manualCode.trim()}
+                style={{
+                  backgroundColor: 'var(--secondary-color, #41101B)',
+                  color: '#FAF8F5',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: savingManual || !manualCode.trim() ? 'default' : 'pointer',
+                  opacity: !manualCode.trim() ? 0.6 : 1
+                }}
+              >
+                {savingManual ? 'Saving...' : 'Save code'}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* 3. HISTORIC STATUS */}
+      <div style={{ marginBottom: '20px' }}>
+        <div
+          style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'rgba(52, 41, 42, 0.55)',
+            marginBottom: '10px'
+          }}
+        >
+          HISTORIC STATUS
+        </div>
+
+        {zoningLoading ? (
+          <div style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.65)' }}>Checking historic status...</div>
+        ) : zoningData?.historic_district || zoningData?.historic_site ? (
+          /* Inside historic district or designated site */
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(240, 173, 78, 0.14)',
+              border: '1px solid rgba(240, 173, 78, 0.35)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#8A5D1A',
+              lineHeight: 1.5,
+              fontWeight: 500
+            }}
+          >
+            <strong>
+              In the {zoningData.historic_district || 'designated'} historic district.
+            </strong>{' '}
+            Demolition and exterior changes need city historic approval — check before planning a demo.
+          </div>
+        ) : zoningData?.has_historic_layer ? (
+          /* City has a historic layer, but parcel is not in it */
+          <div
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid rgba(52, 41, 42, 0.08)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: 'var(--espresso, #34292A)'
+            }}
+          >
+            Not in a mapped historic district.
+          </div>
+        ) : (
+          /* City has no online historic layer */
+          <div
+            style={{
+              padding: '12px 16px',
+              backgroundColor: 'rgba(52, 41, 42, 0.03)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: 'rgba(52, 41, 42, 0.7)'
+            }}
+          >
+            Historic status isn't published online for {municipality} — check with the city.
+          </div>
+        )}
+      </div>
+
+      {/* 4. OVERLAYS (if any) */}
+      {zoningData?.overlays && zoningData.overlays.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'rgba(52, 41, 42, 0.55)',
+              marginBottom: '10px'
+            }}
+          >
+            SPECIAL OVERLAYS
+          </div>
+
+          <div
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid rgba(52, 41, 42, 0.1)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: 'var(--espresso, #34292A)'
+            }}
+          >
+            {zoningData.overlays.map((ov, idx) => (
+              <div key={idx} style={{ marginBottom: idx < zoningData.overlays.length - 1 ? '6px' : 0 }}>
+                <strong>{ov}:</strong> Additional design rules may apply.
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Disclaimer Footer */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '12px',
           borderTop: '1px solid rgba(52, 41, 42, 0.08)',
-          paddingTop: '18px'
+          paddingTop: '14px',
+          fontSize: '11px',
+          color: 'rgba(52, 41, 42, 0.5)',
+          fontStyle: 'italic',
+          lineHeight: 1.4
         }}
       >
-        {/* ZONING */}
-        <div
-          style={{
-            padding: '12px 14px',
-            backgroundColor: 'rgba(52, 41, 42, 0.02)',
-            border: '1px dashed rgba(52, 41, 42, 0.15)',
-            borderRadius: '8px'
-          }}
-        >
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'rgba(52, 41, 42, 0.5)',
-              marginBottom: '4px'
-            }}
-          >
-            ZONING
-          </div>
-          <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.45)', fontStyle: 'italic' }}>
-            Coming soon
-          </span>
-        </div>
-
-        {/* HISTORIC DISTRICT */}
-        <div
-          style={{
-            padding: '12px 14px',
-            backgroundColor: 'rgba(52, 41, 42, 0.02)',
-            border: '1px dashed rgba(52, 41, 42, 0.15)',
-            borderRadius: '8px'
-          }}
-        >
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'rgba(52, 41, 42, 0.5)',
-              marginBottom: '4px'
-            }}
-          >
-            HISTORIC DISTRICT
-          </div>
-          <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.45)', fontStyle: 'italic' }}>
-            Coming soon
-          </span>
-        </div>
-
-        {/* SETBACKS */}
-        <div
-          style={{
-            padding: '12px 14px',
-            backgroundColor: 'rgba(52, 41, 42, 0.02)',
-            border: '1px dashed rgba(52, 41, 42, 0.15)',
-            borderRadius: '8px'
-          }}
-        >
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'rgba(52, 41, 42, 0.5)',
-              marginBottom: '4px'
-            }}
-          >
-            SETBACKS
-          </div>
-          <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.45)', fontStyle: 'italic' }}>
-            Coming soon
-          </span>
-        </div>
+        Zoning and historic data come from city GIS and may not reflect recent changes, variances or pending applications. Confirm with the city before buying.
       </div>
     </div>
   );

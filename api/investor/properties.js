@@ -273,6 +273,8 @@ export default async function handler(req, res) {
               psi.flood_subtype,
               psi.flood_sfha,
               psi.flood_bfe,
+              psi.zoning_code,
+              psi.zoning_desc,
               p.created_at,
               p.updated_at
             FROM investor_properties p
