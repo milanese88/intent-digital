@@ -131,7 +131,7 @@ function preparePolygons(geojson) {
  */
 function findMunicipality(lng, lat, preparedPolygons) {
   if (lng == null || lat == null || isNaN(lng) || isNaN(lat)) {
-    return { name: 'Unincorporated Broward', matched: false };
+    return { name: 'Unknown', matched: false };
   }
 
   const pt = [lng, lat];
@@ -149,7 +149,7 @@ function findMunicipality(lng, lat, preparedPolygons) {
     }
   }
 
-  return { name: 'Unincorporated Broward', matched: false };
+  return { name: 'Unknown', matched: false };
 }
 
 async function main() {
@@ -197,7 +197,7 @@ async function main() {
     const p = parcels[i];
     if (p.lat == null || p.lng == null) {
       missingCoordsCount++;
-      const muni = 'Unincorporated Broward';
+      const muni = 'Unknown';
       muniCounts[muni] = (muniCounts[muni] || 0) + 1;
       taggedRows.push({ county: 'Broward', parcel_id: p.parcel_id, municipality: muni });
       continue;
@@ -228,7 +228,7 @@ async function main() {
   console.log('------------------------------------------------------');
   console.log(`Total Parcels               : ${parcels.length.toLocaleString()}`);
   console.log(`Parcels missing coordinates : ${missingCoordsCount.toLocaleString()}`);
-  console.log(`Parcels outside any polygon : ${unmatchedCount.toLocaleString()} (classified as Unincorporated Broward)`);
+  console.log(`Parcels outside any polygon : ${unmatchedCount.toLocaleString()} (classified as Unknown)`);
   console.log('======================================================\n');
 
   if (isDryRun) {
