@@ -2,8 +2,8 @@ import React, { useState, useId } from 'react';
 
 /**
  * MarketChart
- * Renders an inline SVG chart for monthly median $/sf with optional quarterly trend line
- * and subject property reference line.
+ * Renders an inline SVG chart for monthly median $/sf with optional quarterly trend line,
+ * subject property reference line, and dashed segment for incomplete months still being recorded.
  * 
  * Supports both full interactive chart mode and compact sparkline mode.
  */
@@ -60,8 +60,8 @@ export default function MarketChart({
   const vbHeight = isSparkline ? 54 : height;
 
   const padLeft = isSparkline ? 6 : 56;
-  const padRight = isSparkline ? 6 : 32;
-  const padTop = isSparkline ? 6 : 24;
+  const padRight = isSparkline ? 6 : 40;
+  const padTop = isSparkline ? 6 : 26;
   const padBottom = isSparkline ? 6 : 34;
 
   const chartW = vbWidth - padLeft - padRight;
@@ -74,21 +74,34 @@ export default function MarketChart({
     return { ...m, x, y };
   });
 
-  // SVG Path generator (smooth Catmull-Rom or standard polyline)
-  const linePath = points.reduce((acc, pt, i, arr) => {
-    if (i === 0) return `M ${pt.x},${pt.y}`;
-    // Simple smooth control points
-    const prev = arr[i - 1];
-    const cx1 = prev.x + (pt.x - prev.x) / 2;
-    const cy1 = prev.y;
-    const cx2 = prev.x + (pt.x - prev.x) / 2;
-    const cy2 = pt.y;
-    return `${acc} C ${cx1},${cy1} ${cx2},${cy2} ${pt.x},${pt.y}`;
-  }, '');
+  // Helper to generate path
+  const buildSmoothPath = (pts) => {
+    if (!pts || pts.length === 0) return '';
+    return pts.reduce((acc, pt, i, arr) => {
+      if (i === 0) return `M ${pt.x},${pt.y}`;
+      const prev = arr[i - 1];
+      const cx1 = prev.x + (pt.x - prev.x) / 2;
+      const cy1 = prev.y;
+      const cx2 = prev.x + (pt.x - prev.x) / 2;
+      const cy2 = pt.y;
+      return `${acc} C ${cx1},${cy1} ${cx2},${cy2} ${pt.x},${pt.y}`;
+    }, '');
+  };
 
-  // Closed area path for gradient
+  // Find partition between complete and incomplete months
+  const lastCompleteIdx = points.reduce((lastIdx, pt, idx) => (pt.is_complete !== false ? idx : lastIdx), -1);
+  const hasIncompleteMonths = lastCompleteIdx >= 0 && lastCompleteIdx < points.length - 1;
+
+  const completePts = hasIncompleteMonths ? points.slice(0, lastCompleteIdx + 1) : points;
+  const incompletePts = hasIncompleteMonths ? points.slice(lastCompleteIdx) : [];
+
+  const completeLinePath = buildSmoothPath(completePts);
+  const incompleteLinePath = hasIncompleteMonths ? buildSmoothPath(incompletePts) : null;
+
+  // Full line path for gradient area
+  const fullLinePath = buildSmoothPath(points);
   const areaPath = points.length > 0
-    ? `${linePath} L ${points[points.length - 1].x},${padTop + chartH} L ${points[0].x},${padTop + chartH} Z`
+    ? `${fullLinePath} L ${points[points.length - 1].x},${padTop + chartH} L ${points[0].x},${padTop + chartH} Z`
     : '';
 
   // Subject Property horizontal line Y
@@ -99,7 +112,6 @@ export default function MarketChart({
   // Quarterly trend line points (if available and not sparkline)
   const validQuarterly = (quarterly || []).filter(q => q && q.median_price_per_sqft != null && q.median_price_per_sqft > 0);
   const qPoints = validQuarterly.map((q, qIdx) => {
-    // Approximate x position based on the matching quarter in monthly timeline
     const matchIdx = validMonthly.findIndex(m => {
       const qNum = Math.ceil(m.month / 3);
       return m.year === q.year && qNum === q.quarter;
@@ -137,26 +149,45 @@ export default function MarketChart({
             </linearGradient>
           </defs>
           <path d={areaPath} fill={`url(#spark-${gradientId})`} />
+          
+          {/* Complete Months (Solid) */}
           <path
-            d={linePath}
+            d={completeLinePath}
             fill="none"
             stroke={primaryColor}
             strokeWidth="1.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+
+          {/* Incomplete Months (Dashed Lighter) */}
+          {incompleteLinePath && (
+            <path
+              d={incompleteLinePath}
+              fill="none"
+              stroke={primaryColor}
+              strokeWidth="1.6"
+              strokeDasharray="3 2"
+              strokeOpacity="0.45"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
           {points.length > 0 && (
             <circle
               cx={points[points.length - 1].x}
               cy={points[points.length - 1].y}
               r="2.5"
-              fill={primaryColor}
+              fill={hasIncompleteMonths ? 'rgba(52, 41, 42, 0.45)' : primaryColor}
             />
           )}
         </svg>
       </div>
     );
   }
+
+  const latestIncompletePt = hasIncompleteMonths ? points[points.length - 1] : null;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
@@ -173,17 +204,26 @@ export default function MarketChart({
           gap: '12px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ width: '12px', height: '2.5px', backgroundColor: primaryColor, display: 'inline-block', borderRadius: '2px' }} />
             <span style={{ fontWeight: 500 }}>Monthly median $/sf</span>
           </div>
+
+          {hasIncompleteMonths && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '12px', height: '0', borderTop: '2px dashed rgba(52, 41, 42, 0.45)', display: 'inline-block' }} />
+              <span style={{ fontWeight: 500, color: 'rgba(52, 41, 42, 0.6)' }}>Still being recorded</span>
+            </div>
+          )}
+
           {qPath && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '12px', height: '2px', backgroundColor: accentColor, display: 'inline-block', borderRadius: '2px' }} />
               <span style={{ fontWeight: 500 }}>Quarterly trend</span>
             </div>
           )}
+
           {subjectY != null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '12px', height: '0', borderTop: '2px dashed rgba(52, 41, 42, 0.7)', display: 'inline-block' }} />
@@ -203,6 +243,7 @@ export default function MarketChart({
             }}
           >
             {hoveredPoint.label}: ${hoveredPoint.median_price_per_sqft}/sf ({hoveredPoint.sales_count} sales)
+            {hoveredPoint.is_complete === false ? ' · Still being recorded' : ''}
           </div>
         )}
       </div>
@@ -262,15 +303,57 @@ export default function MarketChart({
             />
           )}
 
-          {/* Monthly Curve Line */}
+          {/* Complete Months: Solid Curve Line */}
           <path
-            d={linePath}
+            d={completeLinePath}
             fill="none"
             stroke={primaryColor}
             strokeWidth="2.2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+
+          {/* Incomplete Months: Lighter Dashed Segment */}
+          {incompleteLinePath && (
+            <path
+              d={incompleteLinePath}
+              fill="none"
+              stroke={primaryColor}
+              strokeWidth="2.0"
+              strokeDasharray="4 3"
+              strokeOpacity="0.45"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* "Still being recorded" label over incomplete segment */}
+          {latestIncompletePt && (
+            <g>
+              <rect
+                x={latestIncompletePt.x - 52}
+                y={latestIncompletePt.y - 20}
+                width="104"
+                height="15"
+                rx="3"
+                fill="rgba(250, 248, 245, 0.92)"
+                stroke="rgba(52, 41, 42, 0.15)"
+                strokeWidth="0.8"
+              />
+              <text
+                x={latestIncompletePt.x}
+                y={latestIncompletePt.y - 9}
+                textAnchor="middle"
+                fontSize="8.5"
+                fontFamily="var(--font-sans, 'Montserrat', sans-serif)"
+                fontWeight="600"
+                letterSpacing="0.02em"
+                fill="rgba(52, 41, 42, 0.65)"
+              >
+                Still being recorded
+              </text>
+            </g>
+          )}
 
           {/* Subject property reference line */}
           {subjectY != null && (
@@ -299,29 +382,33 @@ export default function MarketChart({
           )}
 
           {/* Data point circles and hover targets */}
-          {points.map((pt, i) => (
-            <g key={`pt-${pt.key || i}`}>
-              <circle
-                cx={pt.x}
-                cy={pt.y}
-                r={hoveredPoint?.key === pt.key ? 5 : 3}
-                fill="#ffffff"
-                stroke={primaryColor}
-                strokeWidth="2"
-                style={{ transition: 'r 0.15s ease' }}
-              />
-              {/* Invisible larger hit target */}
-              <circle
-                cx={pt.x}
-                cy={pt.y}
-                r="14"
-                fill="transparent"
-                style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHoveredPoint(pt)}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            </g>
-          ))}
+          {points.map((pt, i) => {
+            const isInc = pt.is_complete === false;
+            return (
+              <g key={`pt-${pt.key || i}`}>
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={hoveredPoint?.key === pt.key ? 5 : (isInc ? 3 : 3)}
+                  fill={isInc ? '#FAF8F5' : '#ffffff'}
+                  stroke={isInc ? 'rgba(52, 41, 42, 0.45)' : primaryColor}
+                  strokeWidth="2"
+                  strokeDasharray={isInc ? '2 2' : 'none'}
+                  style={{ transition: 'r 0.15s ease' }}
+                />
+                {/* Invisible larger hit target */}
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="14"
+                  fill="transparent"
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={() => setHoveredPoint(pt)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                />
+              </g>
+            );
+          })}
 
           {/* X Axis Month Labels (sample evenly) */}
           {points

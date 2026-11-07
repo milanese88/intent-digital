@@ -1,20 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
-
-const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
-
-export function formatMonthYear(year, month) {
-  if (!year || !month) return null;
-  const m = Number(month);
-  const y = Number(year);
-  if (m >= 1 && m <= 12) {
-    return `${MONTH_NAMES[m - 1]} ${y}`;
-  }
-  return `${y}`;
-}
+import { getCountyFreshness, formatMonthYear } from './freshness.js';
 
 export function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -49,7 +35,8 @@ export function mapTypeToUseCode(typeStr) {
 }
 
 /**
- * Computes ZIP market series, quarterly rollups, and trailing summary metrics.
+ * Computes ZIP market series, quarterly rollups, and trailing summary metrics
+ * anchored strictly to the county's last complete month (70% trailing average rule).
  */
 export async function getMarketTrends({ county = 'Broward', zip, type = 'single_family' }) {
   const cleanCounty = /palm/i.test(county) ? 'Palm Beach' : 'Broward';
@@ -60,6 +47,13 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
 
   const { code: useCode, label: typeLabel } = mapTypeToUseCode(type);
   const sql = getDb();
+
+  // Retrieve county freshness and last complete month
+  const freshnessMap = await getCountyFreshness();
+  const countyFreshness = freshnessMap[cleanCounty] || {};
+  const completeYear = countyFreshness.complete_year || 2026;
+  const completeMonth = countyFreshness.complete_month_num || 8;
+  const completeThroughStr = countyFreshness.complete_through || formatMonthYear(completeYear, completeMonth);
 
   // Query sales joined with parcels and sale codes for this county, zip and property type
   const rows = await sql`
@@ -130,6 +124,9 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     const marketSales = bucketSales.filter(s => s.is_market);
     const marketCount = marketSales.length;
 
+    // Check if this month is complete per county threshold
+    const isMonthComplete = (curY < completeYear) || (curY === completeYear && curM <= completeMonth);
+
     // Hide medians if fewer than 3 market sales
     let medianPrice = null;
     let medianPpsf = null;
@@ -149,6 +146,7 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
       year: curY,
       month: curM,
       label: formatMonthYear(curY, curM),
+      is_complete: isMonthComplete,
       sales_count: marketCount,
       median_price: medianPrice,
       median_price_per_sqft: medianPpsf
@@ -210,17 +208,7 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     });
   }
 
-  // SUMMARY METRICS (trailing periods based on roll's latest complete month: Sep 2026)
-  let anchorYear = 2026;
-  let anchorMonth = 9;
-
-  for (const r of rows) {
-    if (r.is_market && (r.sale_year > anchorYear || (r.sale_year === anchorYear && r.sale_month > anchorMonth))) {
-      anchorYear = r.sale_year;
-      anchorMonth = r.sale_month;
-    }
-  }
-
+  // SUMMARY COMPARISONS (ending at last COMPLETE month: completeYear, completeMonth)
   function isInRange(y, m, startYear, startMonth, endYear, endMonth) {
     const val = y * 12 + m;
     const start = startYear * 12 + startMonth;
@@ -228,32 +216,32 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     return val >= start && val <= end;
   }
 
-  // Last 6 months: Apr 2026 to Sep 2026
-  const last6StartYear = anchorMonth >= 6 ? anchorYear : anchorYear - 1;
-  const last6StartMonth = anchorMonth >= 6 ? anchorMonth - 5 : anchorMonth + 7;
+  // Last 6 months: e.g. Mar 2026 to Aug 2026
+  const last6StartYear = completeMonth >= 6 ? completeYear : completeYear - 1;
+  const last6StartMonth = completeMonth >= 6 ? completeMonth - 5 : completeMonth + 7;
 
-  // Same 6 months a year earlier: Apr 2025 to Sep 2025
+  // Same 6 months a year earlier: Mar 2025 to Aug 2025
   const prev6StartYear = last6StartYear - 1;
   const prev6StartMonth = last6StartMonth;
-  const prev6EndYear = anchorYear - 1;
-  const prev6EndMonth = anchorMonth;
+  const prev6EndYear = completeYear - 1;
+  const prev6EndMonth = completeMonth;
 
-  // Last 12 months: Oct 2025 to Sep 2026
-  const last12StartYear = anchorMonth >= 12 ? anchorYear : anchorYear - 1;
-  const last12StartMonth = anchorMonth >= 12 ? anchorMonth - 11 : anchorMonth + 1;
+  // Last 12 months: Sep 2025 to Aug 2026
+  const last12StartYear = completeMonth >= 12 ? completeYear : completeYear - 1;
+  const last12StartMonth = completeMonth >= 12 ? completeMonth - 11 : completeMonth + 1;
 
   const last6Sales = rows.filter(r => 
-    r.is_market && isInRange(r.sale_year, r.sale_month, last6StartYear, last6StartMonth, anchorYear, anchorMonth)
+    r.is_market && isInRange(r.sale_year, r.sale_month, last6StartYear, last6StartMonth, completeYear, completeMonth)
   );
   const prev6Sales = rows.filter(r => 
     r.is_market && isInRange(r.sale_year, r.sale_month, prev6StartYear, prev6StartMonth, prev6EndYear, prev6EndMonth)
   );
 
   const last12MarketSales = rows.filter(r => 
-    r.is_market && isInRange(r.sale_year, r.sale_month, last12StartYear, last12StartMonth, anchorYear, anchorMonth)
+    r.is_market && isInRange(r.sale_year, r.sale_month, last12StartYear, last12StartMonth, completeYear, completeMonth)
   );
   const last12DistressedSales = rows.filter(r => 
-    r.is_distressed && isInRange(r.sale_year, r.sale_month, last12StartYear, last12StartMonth, anchorYear, anchorMonth)
+    r.is_distressed && isInRange(r.sale_year, r.sale_month, last12StartYear, last12StartMonth, completeYear, completeMonth)
   );
 
   const medianPriceLast6 = calculateMedian(last6Sales.map(r => Number(r.sale_price)));
@@ -287,7 +275,8 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     property_type: type,
     type_label: typeLabel,
     use_code: useCode,
-    latest_month: formatMonthYear(anchorYear, anchorMonth),
+    complete_through: completeThroughStr,
+    latest_month: countyFreshness.latest_sale_month || 'Sep 2026',
     sales_last_12m: last12MarketSales.length,
     median_price_last_6m: medianPriceLast6,
     median_price_prev_6m: medianPricePrev6,
@@ -330,6 +319,6 @@ export default async function handler(req, res) {
     return res.status(200).json(result);
   } catch (err) {
     console.error('Error in /api/county/market:', err);
-    return res.status(err.message.includes('valid 5-digit zip') ? 400 : 500).json({ error: err.message || 'Failed to compute market trends for ZIP' });
+    return res.status(err.message?.includes('valid 5-digit zip') ? 400 : 500).json({ error: err.message || 'Failed to compute market trends for ZIP' });
   }
 }

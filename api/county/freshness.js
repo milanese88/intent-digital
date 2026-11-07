@@ -20,6 +20,9 @@ export function formatMonthYear(year, month) {
   return `${y}`;
 }
 
+/**
+ * Computes county freshness and last complete month based on the 70% trailing 12-month rule.
+ */
 export async function getCountyFreshness() {
   const now = Date.now();
   if (cachedFreshness && now < cacheExpiry) {
@@ -28,24 +31,22 @@ export async function getCountyFreshness() {
 
   const sql = getDb();
 
-  // Query latest month with meaningful sales (>= 10) per county
-  const latestSales = await sql`
+  // Query monthly market sale counts for all counties to determine completeness
+  const monthlyCounts = await sql`
     SELECT 
-      county,
-      sale_year,
-      sale_month
-    FROM (
-      SELECT 
-        county,
-        sale_year,
-        sale_month,
-        ROW_NUMBER() OVER (PARTITION BY county ORDER BY sale_year DESC, sale_month DESC) as rn
-      FROM county_sales
-      WHERE sale_year IS NOT NULL AND sale_month IS NOT NULL
-      GROUP BY county, sale_year, sale_month
-      HAVING count(*) >= 10
-    ) sub
-    WHERE rn = 1;
+      s.county,
+      s.sale_year,
+      s.sale_month,
+      count(*)::int as count
+    FROM county_sales s
+    JOIN county_sale_codes c ON s.qual_code = c.qual_code
+    WHERE c.is_market = true
+      AND s.sale_year IS NOT NULL
+      AND s.sale_month IS NOT NULL
+      AND s.sale_month BETWEEN 1 AND 12
+      AND s.sale_price > 100
+    GROUP BY s.county, s.sale_year, s.sale_month
+    ORDER BY s.county, s.sale_year ASC, s.sale_month ASC;
   `;
 
   // Query roll_year per county (defaults to 2026)
@@ -60,33 +61,81 @@ export async function getCountyFreshness() {
     rollMap[r.county] = Number(r.roll_year) || 2026;
   }
 
+  // Group by county
+  const countyMonths = new Map();
+  for (const r of monthlyCounts) {
+    if (!countyMonths.has(r.county)) {
+      countyMonths.set(r.county, []);
+    }
+    countyMonths.get(r.county).push({
+      year: Number(r.sale_year),
+      month: Number(r.sale_month),
+      count: Number(r.count)
+    });
+  }
+
   const freshnessData = {
     'Broward': {
       county: 'Broward',
       roll_year: rollMap['Broward'] || 2026,
       latest_sale_month: 'Sep 2026',
-      label: 'County data through Sep 2026 · 2026 final roll'
+      complete_through: 'Aug 2026',
+      label: 'County data through Sep 2026 (complete through Aug 2026) · 2026 final roll'
     },
     'Palm Beach': {
       county: 'Palm Beach',
       roll_year: rollMap['Palm Beach'] || 2026,
       latest_sale_month: 'Sep 2026',
-      label: 'County data through Sep 2026 · 2026 final roll'
+      complete_through: 'Aug 2026',
+      label: 'County data through Sep 2026 (complete through Aug 2026) · 2026 final roll'
     }
   };
 
-  for (const row of latestSales) {
-    const county = row.county;
-    const yr = Number(row.sale_year);
-    const mo = Number(row.sale_month);
-    const monthStr = formatMonthYear(yr, mo) || 'Sep 2026';
+  for (const [county, list] of countyMonths.entries()) {
+    if (list.length === 0) continue;
+
+    let latestY = null;
+    let latestM = null;
+    let completeY = null;
+    let completeM = null;
+
+    // Filter out negligible months (e.g. 2 stray sales in Oct)
+    const validList = list.filter(item => item.count >= 10);
+
+    for (let i = 0; i < validList.length; i++) {
+      const cur = validList[i];
+      latestY = cur.year;
+      latestM = cur.month;
+
+      // 12-month previous average
+      const prev12 = validList.slice(Math.max(0, i - 12), i);
+      if (prev12.length >= 6) {
+        const avg = prev12.reduce((acc, p) => acc + p.count, 0) / prev12.length;
+        // Month is complete if >= 70% of trailing 12-mo average
+        if (cur.count >= 0.70 * avg) {
+          completeY = cur.year;
+          completeM = cur.month;
+        }
+      } else {
+        completeY = cur.year;
+        completeM = cur.month;
+      }
+    }
+
     const rollYr = rollMap[county] || 2026;
+    const latestStr = formatMonthYear(latestY, latestM) || 'Sep 2026';
+    const completeStr = formatMonthYear(completeY, completeM) || 'Aug 2026';
 
     freshnessData[county] = {
       county,
       roll_year: rollYr,
-      latest_sale_month: monthStr,
-      label: `County data through ${monthStr} · ${rollYr} final roll`
+      latest_sale_year: latestY,
+      latest_sale_month_num: latestM,
+      latest_sale_month: latestStr,
+      complete_year: completeY,
+      complete_month_num: completeM,
+      complete_through: completeStr,
+      label: `County data through ${latestStr} (complete through ${completeStr}) · ${rollYr} final roll`
     };
   }
 
