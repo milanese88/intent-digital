@@ -241,39 +241,87 @@ export default async function handler(req, res) {
 
       let properties;
       try {
-        properties = await sql`
-          SELECT 
-            id,
-            owner_email,
-            address,
-            city,
-            state,
-            zip,
-            county,
-            lat,
-            lng,
-            property_type,
-            units,
-            beds,
-            baths,
-            sqft,
-            lot_sqft,
-            year_built,
-            list_price,
-            status,
-            strategy,
-            condition,
-            roof_year,
-            listing_url,
-            notes,
-            parcel_id,
-            parcel_county,
-            created_at,
-            updated_at
-          FROM investor_properties
-          WHERE lower(owner_email) = ${cleanEmail}
-          ORDER BY created_at DESC
-        `;
+        try {
+          properties = await sql`
+            SELECT 
+              p.id,
+              p.owner_email,
+              p.address,
+              p.city,
+              p.state,
+              p.zip,
+              p.county,
+              p.lat,
+              p.lng,
+              p.property_type,
+              p.units,
+              p.beds,
+              p.baths,
+              p.sqft,
+              p.lot_sqft,
+              p.year_built,
+              p.list_price,
+              p.status,
+              p.strategy,
+              p.condition,
+              p.roof_year,
+              p.listing_url,
+              p.notes,
+              p.parcel_id,
+              p.parcel_county,
+              psi.flood_zone,
+              psi.flood_subtype,
+              psi.flood_sfha,
+              psi.flood_bfe,
+              p.created_at,
+              p.updated_at
+            FROM investor_properties p
+            LEFT JOIN parcel_site_info psi 
+              ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
+             AND psi.parcel_id = p.parcel_id
+            WHERE lower(p.owner_email) = ${cleanEmail}
+            ORDER BY p.created_at DESC
+          `;
+        } catch (joinErr) {
+          // If parcel_site_info doesn't exist yet (42P01) or parcel_id column missing (42703)
+          properties = await sql`
+            SELECT 
+              id,
+              owner_email,
+              address,
+              city,
+              state,
+              zip,
+              county,
+              lat,
+              lng,
+              property_type,
+              units,
+              beds,
+              baths,
+              sqft,
+              lot_sqft,
+              year_built,
+              list_price,
+              status,
+              strategy,
+              condition,
+              roof_year,
+              listing_url,
+              notes,
+              parcel_id,
+              parcel_county,
+              NULL::text AS flood_zone,
+              NULL::text AS flood_subtype,
+              NULL::boolean AS flood_sfha,
+              NULL::numeric AS flood_bfe,
+              created_at,
+              updated_at
+            FROM investor_properties
+            WHERE lower(owner_email) = ${cleanEmail}
+            ORDER BY created_at DESC
+          `;
+        }
       } catch (colErr) {
         if (colErr.code === '42703') {
           properties = await sql`
@@ -303,6 +351,10 @@ export default async function handler(req, res) {
               notes,
               NULL::text AS parcel_id,
               NULL::text AS parcel_county,
+              NULL::text AS flood_zone,
+              NULL::text AS flood_subtype,
+              NULL::boolean AS flood_sfha,
+              NULL::numeric AS flood_bfe,
               created_at,
               updated_at
             FROM investor_properties
