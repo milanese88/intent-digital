@@ -26,6 +26,22 @@ export default function SuggestedCompsPanel({
   const [error, setError] = useState(null);
   const [includeDistressed, setIncludeDistressed] = useState(false);
   const [addingParcelId, setAddingParcelId] = useState(null);
+  const [freshness, setFreshness] = useState(null);
+
+  useEffect(() => {
+    async function loadFreshness() {
+      try {
+        const res = await fetch('/api/county/freshness');
+        if (res.ok) {
+          const fData = await res.json();
+          setFreshness(fData);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadFreshness();
+  }, []);
 
   // Fetch suggested comps from /api/county/comps
   const fetchSuggestedComps = useCallback(async () => {
@@ -280,6 +296,16 @@ export default function SuggestedCompsPanel({
             }}
           >
             {subtitleLine}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '11px',
+              color: 'rgba(52, 41, 42, 0.45)',
+              marginTop: '2px'
+            }}
+          >
+            {freshness?.[property?.parcel_county || property?.county || 'Broward']?.label || 'County data through Sep 2026 · 2026 final roll'}
           </div>
         </div>
 

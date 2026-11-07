@@ -23,6 +23,22 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
   const [countyData, setCountyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [freshness, setFreshness] = useState(null);
+
+  useEffect(() => {
+    async function loadFreshness() {
+      try {
+        const res = await fetch('/api/county/freshness');
+        if (res.ok) {
+          const fData = await res.json();
+          setFreshness(fData);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadFreshness();
+  }, []);
 
   // "Find county record" modal state
   const [isFindModalOpen, setIsFindModalOpen] = useState(false);
@@ -260,10 +276,22 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                 fontSize: '11.5px',
                 color: 'rgba(52, 41, 42, 0.55)',
-                letterSpacing: '0.02em'
+                letterSpacing: '0.02em',
+                display: 'block'
               }}
             >
               {property?.parcel_county || property?.county || 'Broward'} County Property Appraiser · 2026 roll
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '11px',
+                color: 'rgba(52, 41, 42, 0.45)',
+                marginTop: '2px',
+                display: 'block'
+              }}
+            >
+              {freshness?.[property?.parcel_county || property?.county || 'Broward']?.label || 'County data through Sep 2026 · 2026 final roll'}
             </span>
           </div>
 
@@ -587,10 +615,22 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
               fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
               fontSize: '11.5px',
               color: 'rgba(52, 41, 42, 0.55)',
-              letterSpacing: '0.02em'
+              letterSpacing: '0.02em',
+              display: 'block'
             }}
           >
             {countyData?.county || property.parcel_county || 'Broward'} County Property Appraiser · {countyData?.roll_year || 2026} roll
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '11px',
+              color: 'rgba(52, 41, 42, 0.45)',
+              marginTop: '2px',
+              display: 'block'
+            }}
+          >
+            {freshness?.[countyData?.county || property.parcel_county || 'Broward']?.label || 'County data through Sep 2026 · 2026 final roll'}
           </span>
         </div>
 
