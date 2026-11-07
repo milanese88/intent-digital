@@ -5,6 +5,8 @@ import FormattedNumberInput from './FormattedNumberInput.jsx';
 import InvestorMap from './InvestorMap.jsx';
 import CountyRecordCard from './CountyRecordCard.jsx';
 import SuggestedCompsPanel from './SuggestedCompsPanel.jsx';
+import MarketCard from './MarketCard.jsx';
+import WatchedLocations from './WatchedLocations.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -1443,6 +1445,12 @@ export default function InvestorStudio() {
                 showToast={showToast}
               />
 
+              {/* Market Trends Card */}
+              <MarketCard
+                property={activeProperty}
+                showToast={showToast}
+              />
+
               {/* Main Content Grid: Left Column (Comps + Notes) & Right Column (Underwrite) */}
               <div className="investor-detail-grid">
                 {/* LEFT COLUMN */}
@@ -2040,6 +2048,15 @@ export default function InvestorStudio() {
               </div>
             </div>
           </div>
+
+          {/* WATCHED LOCATIONS SECTION */}
+          <WatchedLocations
+            showToast={showToast}
+            onSelectZip={(zip) => {
+              setAppliedFilters(prev => ({ ...prev, location: zip }));
+              setSearchInput(zip);
+            }}
+          />
 
           {/* SAVED PROPERTIES SECTION */}
           <section style={{ marginTop: '64px' }}>
