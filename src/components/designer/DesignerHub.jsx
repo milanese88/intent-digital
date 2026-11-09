@@ -80,6 +80,63 @@ const DESIGNER_TABS = [
   { id: 'portfolio', label: 'Portfolio' }
 ];
 
+const normalizeDesignerTab = (tab) => {
+  if (tab === 'budget-costs' || tab === 'budget_costs' || tab === 'budget') return 'budget';
+  return tab || 'projects';
+};
+
+class TabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('Tab render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '24px',
+          borderRadius: 'var(--radius-sm, 8px)',
+          backgroundColor: 'var(--negative-bg, #F5E6E3)',
+          border: '1px solid var(--negative, #8A2A1E)',
+          color: 'var(--negative, #8A2A1E)',
+          fontFamily: 'var(--font-sans)',
+          margin: '24px 0'
+        }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600 }}>
+            Unable to load tab
+          </h4>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px' }}>
+            {this.state.error?.message || 'An error occurred while loading this tab.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 600,
+              backgroundColor: 'var(--burgundy)',
+              color: 'var(--cream)',
+              border: 'none',
+              borderRadius: 'var(--radius-pill)',
+              cursor: 'pointer'
+            }}
+          >
+            Retry &rarr;
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function DesignerHub({ setActiveDashboardTab }) {
   const [projects, setProjects] = useState([]);
   const [investorProperties, setInvestorProperties] = useState([]);
@@ -90,7 +147,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return params.get('designer_tab') || 'projects';
+      return normalizeDesignerTab(params.get('designer_tab'));
     }
     return 'projects';
   });
@@ -146,8 +203,9 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   };
 
   const handleTabChange = (newTab) => {
-    setActiveTab(newTab);
-    updateUrl(newTab, selectedProjectId);
+    const normalized = normalizeDesignerTab(newTab);
+    setActiveTab(normalized);
+    updateUrl(normalized, selectedProjectId);
   };
 
   const handleSelectProject = (projId, andGoToStudio = false) => {
@@ -231,7 +289,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get('designer_tab');
-        if (tabParam) setActiveTab(tabParam);
+        if (tabParam) setActiveTab(normalizeDesignerTab(tabParam));
         const projParam = params.get('project_id');
         if (projParam) setSelectedProjectId(projParam);
         const propParam = params.get('investor_property_id');
@@ -695,7 +753,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           </div>
         )}
 
-        {!loading && activeTab === 'projects' && (
+        <TabErrorBoundary key={activeTab}>
+          {!loading && activeTab === 'projects' && (
           <div>
             {/* Stat tiles using shared StatTile */}
             <div style={{
@@ -1227,6 +1286,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
             }
           />
         )}
+        </TabErrorBoundary>
       </main>
 
       {/* ========================================================================= */}
