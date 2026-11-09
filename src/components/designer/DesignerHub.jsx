@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AddressAutocomplete from '../investor/AddressAutocomplete.jsx';
+import { getMapboxAerialUrl } from '../investor/mapboxAerial.js';
 import {
   Button,
   Pill,
@@ -12,7 +13,9 @@ import {
   SidePanel,
   Field,
   EmptyState,
-  DarkBand
+  DarkBand,
+  ScriptAccent,
+  Numeral
 } from '../ui';
 
 const PROJECT_TYPES = [
@@ -432,7 +435,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 fontFamily: 'var(--font-display)',
                 fontStyle: 'italic',
                 fontWeight: 400,
-                color: 'var(--terracotta-soft)'
+                color: 'var(--on-dark)'
               }}>
                 Own the budget.
               </em>
@@ -449,10 +452,10 @@ export default function DesignerHub({ setActiveDashboardTab }) {
             </Button>
 
             <Button
-              variant="accent"
+              variant="cream-on-dark"
               onClick={() => handleOpenNewProject()}
             >
-              + NEW PROJECT
+              + NEW PROJECT &rarr;
             </Button>
           </div>
         </div>
@@ -525,8 +528,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
-                          backgroundColor: p.id === currentProject.id ? 'rgba(192, 90, 42, 0.2)' : 'transparent',
-                          color: p.id === currentProject.id ? 'var(--terracotta-soft)' : 'var(--on-dark)',
+                          backgroundColor: p.id === currentProject.id ? 'rgba(250, 248, 245, 0.12)' : 'transparent',
+                          color: p.id === currentProject.id ? 'var(--on-dark)' : 'var(--on-dark-muted)',
                           transition: 'background 0.15s ease'
                         }}
                         onMouseEnter={(e) => {
@@ -542,7 +545,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                         </span>
                       </div>
                     ))}
-                    <div style={{ borderTop: '1px solid rgba(233, 223, 210, 0.1)', marginTop: '6px', paddingTop: '6px' }}>
+                    <div style={{ borderTop: '1px solid rgba(230, 223, 215, 0.12)', marginTop: '6px', paddingTop: '6px' }}>
                       <div
                         onClick={() => { setSwitcherOpen(false); handleOpenNewProject(); }}
                         style={{
@@ -550,11 +553,12 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           cursor: 'pointer',
                           fontFamily: 'var(--font-sans)',
                           fontSize: '11px',
-                          color: 'var(--terracotta-soft)',
-                          fontWeight: 600
+                          color: 'var(--on-dark)',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em'
                         }}
                       >
-                        + Create new project
+                        + Create new project &rarr;
                       </div>
                     </div>
                   </div>
@@ -595,28 +599,28 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: 'rgba(192, 90, 42, 0.15)',
-                  border: '1px solid rgba(192, 90, 42, 0.35)',
+                  background: 'rgba(250, 248, 245, 0.08)',
+                  border: '1px solid rgba(250, 248, 245, 0.22)',
                   borderRadius: 'var(--radius-pill)',
-                  padding: '4px 12px',
+                  padding: '4px 14px',
                   fontFamily: 'var(--font-sans)',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: 'var(--terracotta-soft)',
+                  color: 'var(--on-dark)',
                   cursor: 'pointer',
                   minHeight: '32px',
                   transition: 'all 0.2s ease',
                   outline: 'none'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(192, 90, 42, 0.28)';
-                  e.currentTarget.style.borderColor = 'var(--terracotta)';
-                  e.currentTarget.style.color = 'var(--cream)';
+                  e.currentTarget.style.backgroundColor = 'rgba(250, 248, 245, 0.16)';
+                  e.currentTarget.style.borderColor = 'rgba(250, 248, 245, 0.45)';
+                  e.currentTarget.style.color = 'var(--white)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(192, 90, 42, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(192, 90, 42, 0.35)';
-                  e.currentTarget.style.color = 'var(--terracotta-soft)';
+                  e.currentTarget.style.backgroundColor = 'rgba(250, 248, 245, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(250, 248, 245, 0.22)';
+                  e.currentTarget.style.color = 'var(--on-dark)';
                 }}
               >
                 <span>Linked to Investor Studio · {currentProject.investor_property_address || 'Property'} &rarr;</span>
@@ -680,8 +684,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 title="No projects yet"
                 description="Start with a concept or link a property from Investor Studio to begin tracking design and budgets."
                 action={
-                  <Button variant="accent" onClick={() => handleOpenNewProject()}>
-                    + Create your first project
+                  <Button variant="primary" onClick={() => handleOpenNewProject()}>
+                    + Create your first project &rarr;
                   </Button>
                 }
               />
@@ -892,157 +896,181 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                     gap: 'var(--space-24)'
                   }}>
                     {filteredProjects.map(proj => {
-                  const statusConfig = STATUS_PILL_MAP[proj.status] || STATUS_PILL_MAP.concept;
-                  const budgetVal = Number(proj.target_budget) || 0;
-                  const contPct = Number(proj.contingency_pct) || 10;
-                  const initials = (proj.name || 'P').substring(0, 2).toUpperCase();
+                      const statusConfig = STATUS_PILL_MAP[proj.status] || STATUS_PILL_MAP.concept;
+                      const budgetVal = Number(proj.target_budget) || 0;
+                      const contPct = Number(proj.contingency_pct) || 10;
+                      const isCurrent = currentProject && proj.id === currentProject.id;
 
-                  return (
-                    <Card
-                      key={proj.id}
-                      hoverable
-                      onClick={() => handleSelectProject(proj.id, true)}
-                      style={{ display: 'flex', flexDirection: 'column' }}
-                    >
-                      {/* Cover */}
-                      <div style={{
-                        height: '190px',
-                        width: '100%',
-                        position: 'relative',
-                        backgroundColor: 'var(--espresso)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden'
-                      }}>
-                        {proj.cover_url ? (
-                          <img
-                            src={proj.cover_url}
-                            alt={proj.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <span style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '42px',
-                            fontStyle: 'italic',
-                            color: 'rgba(255, 255, 255, 0.65)'
-                          }}>
-                            {initials}
-                          </span>
-                        )}
-                      </div>
+                      // Resolve cover: project cover_url, or linked investor property cover/aerial, or plain tone block
+                      const linkedProp = proj.investor_property_id
+                        ? investorProperties.find(p => p.id === proj.investor_property_id)
+                        : null;
+                      const coverSrc = proj.cover_url || linkedProp?.cover_photo_url || (linkedProp?.lng && linkedProp?.lat ? getMapboxAerialUrl(linkedProp.lng, linkedProp.lat, 680, 380) : null);
 
-                      {/* Card Body */}
-                      <div style={{ padding: 'var(--space-24)', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: 'var(--space-12)'
-                        }}>
-                          <Pill variant={statusConfig.variant} size="sm">
-                            {statusConfig.label}
-                          </Pill>
-
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenEditProject(proj, e)}
-                              title="Edit project"
-                              aria-label="Edit project"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--muted)',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                padding: '6px',
-                                minWidth: '32px',
-                                minHeight: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 'var(--radius-pill)',
-                                outline: 'none'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--terracotta)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M12 20h9"/>
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                              </svg>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteProject(proj, e)}
-                              title="Delete project"
-                              aria-label="Delete project"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--muted)',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                padding: '6px',
-                                minWidth: '32px',
-                                minHeight: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 'var(--radius-pill)',
-                                outline: 'none'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--negative)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <line x1="18" y1="6" x2="6" y2="18"/>
-                                <line x1="6" y1="6" x2="18" y2="18"/>
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        <SectionHeading level="h3" style={{ marginBottom: '6px' }}>
-                          {proj.name}
-                        </SectionHeading>
-
-                        <div style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '12px',
-                          color: 'var(--muted)',
-                          marginBottom: 'var(--space-4)'
-                        }}>
-                          {proj.location ? `${proj.location} · ` : ''}
-                          <span style={{ textTransform: 'capitalize' }}>{proj.project_type}</span>
-                          {proj.style ? ` · ${proj.style}` : ''}
-                        </div>
-
-                        {proj.investor_property_address && (
+                      return (
+                        <Card
+                          key={proj.id}
+                          featured={isCurrent}
+                          hoverable
+                          onClick={() => handleSelectProject(proj.id, true)}
+                          style={{ display: 'flex', flexDirection: 'column' }}
+                        >
+                          {/* Cover Image or Tone Block (No 11/letter initials) */}
                           <div style={{
-                            display: 'inline-flex',
+                            height: '190px',
+                            width: '100%',
+                            position: 'relative',
+                            backgroundColor: isCurrent ? 'var(--espresso)' : 'var(--beige)',
+                            display: 'flex',
                             alignItems: 'center',
-                            gap: '4px',
-                            marginBottom: 'var(--space-12)',
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: 'var(--terracotta)'
+                            justifyContent: 'center',
+                            overflow: 'hidden'
                           }}>
-                            <span>Linked to {proj.investor_property_address}</span>
-                          </div>
-                        )}
+                            {coverSrc ? (
+                              <img
+                                src={coverSrc}
+                                alt={proj.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div style={{
+                                width: '100%',
+                                height: '100%',
+                                backgroundColor: isCurrent ? 'var(--espresso)' : 'var(--beige)'
+                              }} />
+                            )}
 
-                        <div style={{
-                          marginTop: 'auto',
-                          paddingTop: 'var(--space-4)',
-                          borderTop: '1px solid rgba(52, 41, 42, 0.08)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
+                            {/* Featured / Current Project Script Accent Stamp */}
+                            {isCurrent && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '12px',
+                                left: '14px',
+                                backgroundColor: 'var(--burgundy)',
+                                color: 'var(--cream)',
+                                padding: '3px 12px',
+                                borderRadius: 'var(--radius-pill)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}>
+                                <ScriptAccent size="sm" color="var(--cream)" tilt={false}>
+                                  Current project
+                                </ScriptAccent>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Body */}
+                          <div style={{ padding: 'var(--space-24)', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 'var(--space-12)'
+                            }}>
+                              <Pill variant={statusConfig.variant} size="sm">
+                                {statusConfig.label}
+                              </Pill>
+
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenEditProject(proj, e)}
+                                  title="Edit project"
+                                  aria-label="Edit project"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--muted)',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    padding: '6px',
+                                    minWidth: '32px',
+                                    minHeight: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 'var(--radius-pill)',
+                                    outline: 'none'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--burgundy)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M12 20h9"/>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                                  </svg>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteProject(proj, e)}
+                                  title="Delete project"
+                                  aria-label="Delete project"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--muted)',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    padding: '6px',
+                                    minWidth: '32px',
+                                    minHeight: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 'var(--radius-pill)',
+                                    outline: 'none'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--negative)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <SectionHeading level="h3" style={{ marginBottom: '6px' }}>
+                              {proj.name}
+                            </SectionHeading>
+
+                            <div style={{
+                              fontFamily: 'var(--font-sans)',
+                              fontSize: '12px',
+                              color: 'var(--muted)',
+                              marginBottom: 'var(--space-4)'
+                            }}>
+                              {proj.location ? `${proj.location} · ` : ''}
+                              <span style={{ textTransform: 'capitalize' }}>{proj.project_type}</span>
+                              {proj.style ? ` · ${proj.style}` : ''}
+                            </div>
+
+                            {proj.investor_property_address && (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginBottom: 'var(--space-12)',
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: 'var(--burgundy)'
+                              }}>
+                                <span>Linked to {proj.investor_property_address} &rarr;</span>
+                              </div>
+                            )}
+
+                            <div style={{
+                              marginTop: 'auto',
+                              paddingTop: 'var(--space-8)',
+                              borderTop: '1px solid var(--border)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
                           fontFamily: 'var(--font-sans)',
                           fontSize: '12px',
                           color: 'var(--espresso)'
@@ -1124,12 +1152,12 @@ export default function DesignerHub({ setActiveDashboardTab }) {
             </Button>
 
             <Button
-              variant="accent"
+              variant="primary"
               type="submit"
               disabled={formSaving}
               onClick={handleSaveProject}
             >
-              {formSaving ? 'Saving...' : (editingProject ? 'Update Project' : 'Create Project')}
+              {formSaving ? 'Saving...' : (editingProject ? 'Update Project →' : 'Create Project →')}
             </Button>
           </>
         }
@@ -1313,7 +1341,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           setFormRooms(prev => prev.filter(r => r !== room));
                         }
                       }}
-                      style={{ accentColor: 'var(--terracotta)', width: '16px', height: '16px' }}
+                      style={{ accentColor: 'var(--burgundy)', width: '16px', height: '16px' }}
                     />
                     {room}
                   </label>

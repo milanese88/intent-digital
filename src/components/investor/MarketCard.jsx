@@ -860,8 +860,8 @@ export default function MarketCard({
                     style={{
                       width: `${Math.max(tier.pct, 2)}%`,
                       height: '100%',
-                      backgroundColor: idx === 2 ? 'var(--secondary-color, #41101B)' : idx % 2 === 0 ? '#34292A' : '#859DCE',
-                      borderRadius: '6px',
+                      backgroundColor: idx === 2 ? 'var(--burgundy)' : 'var(--espresso)',
+                      borderRadius: 'var(--radius-pill)',
                       transition: 'width 0.4s ease'
                     }}
                   />

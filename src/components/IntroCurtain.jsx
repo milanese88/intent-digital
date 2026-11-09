@@ -113,7 +113,7 @@ export default function IntroCurtain({ onComplete }) {
                 className="envelope-flap"
               ></motion.div>
 
-              {/* Terracotta Wax Seal */}
+              {/* Burgundy Wax Seal */}
               <motion.div
                 initial={{ opacity: 1, scale: 1 }}
                 animate={{ opacity: 0, scale: 0.8 }}

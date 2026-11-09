@@ -2,30 +2,31 @@
 
 > **Golden Rule**: Before any UI work, read this document and use `src/components/ui`.
 
-This document locks in the visual aesthetic across every screen of the Intent Digital Owner Portal and public studio. Every interface must strictly follow these design tokens and principles.
+This document locks in the visual aesthetic across every screen of the Intent Digital Owner Portal and public studio. Every interface must strictly follow the brand's authentic palette, typography, and patterns — referencing the public homepage and "Curated offerings" section.
 
 ---
 
-## 1. Design Tokens (`src/styles/tokens.css`)
+## 1. Brand Palette & Design Tokens (`src/styles/tokens.css`)
 
-### Color Palette
+> **Brand Note**: The brand has **NO orange or terracotta**. Only use the real site palette and patterns.
+
+### Color Tokens
 
 | Token | Hex Value | Role & Usage |
 | :--- | :--- | :--- |
-| `--espresso` | `#1B130D` | Primary text, deep dark bands, headers, footers |
-| `--burgundy` | `#3A1418` | Primary action buttons, active tab underlines, selected states |
-| `--terracotta` | `#C05A2A` | Designer Hub accent pill & highlights only |
-| `--terracotta-soft` | `#E9B08F` | Accent italic text on dark espresso hero bands |
-| `--cream` | `#FAF8F4` | Anchoring page canvas & active tab background |
-| `--beige` | `#F2EEE8` | Soft panels, segmented controls, table headers |
+| `--espresso` | `#1E1509` | Terrane Dark Brown — Primary text, deep dark bands, headers, footers |
+| `--burgundy` | `#41101B` | Cherry / Burgundy — Primary buttons, selected states, featured-card border |
+| `--cream` | `#FAF8F5` | Toasted Cream — Page background & active tab background |
+| `--beige` | `#F2EFEA` | Warm Oat / Soft Beige — Alternating section background (under wave), segmented controls |
 | `--sand` | `#F7F3EE` | Stat tiles, secondary analytical containers |
-| `--border` | `#E4DDD3` | Card borders, dividers, subtle boundaries |
-| `--border-strong` | `#CFC5B8` | Outline pill borders, active form field borders |
+| `--white` | `#FFFFFF` | Card surfaces, form fields |
+| `--border` | `rgba(30, 21, 9, 0.12)` | Card borders, dividers, subtle boundaries |
+| `--border-strong` | `rgba(30, 21, 9, 0.24)` | Outline pill borders, active form field borders |
 | `--text-2` | `#4A413A` | Secondary body text |
-| `--muted` | `#5E544C` | Eyebrow labels, timestamps, metadata |
-| `--on-dark` | `#FAF8F4` | Primary high-contrast text on espresso bands |
-| `--on-dark-muted` | `#CFC5B8` | Secondary descriptions on espresso bands |
-| `--eyebrow-on-dark` | `#E9DFD2` | Eyebrow tags and pills on espresso bands |
+| `--muted` | `#52453C` | Eyebrow labels, timestamps, metadata |
+| `--on-dark` | `#FAF8F5` | Cream high-contrast text on dark espresso bands |
+| `--on-dark-muted` | `#E6DFD7` | Secondary descriptions on espresso bands |
+| `--eyebrow-on-dark` | `#E6DFD7` | Eyebrow tags and pills on espresso bands |
 | `--positive` / `--positive-bg` | `#3F5A3A` / `#EEF2EA` | Owned properties, completed projects, Zone X flood |
 | `--warning` / `--warning-bg` | `#7A5212` / `#F7EEDC` | In Progress, Analyzing, Shaded flood zone |
 | `--negative` / `--negative-bg` | `#8A2A1E` / `#F5E6E3` | Passed, high-risk SFHA flood, deletion states |
@@ -33,12 +34,15 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 
 ### Typography
 
-- **Headings & Big Numbers**: Serif (`--font-display` / Atelier Fleur / Cormorant Garamond / Playfair Display).
+- **Headings & Editorial Titles**: Serif (`--font-display` / Atelier Fleur / Cormorant Garamond / Playfair Display).
   - Display Hero: `clamp(60px, 6vw, 76px)`
   - H1: `clamp(36px, 4.5vw, 56px)`
   - H2: `32px`
   - H3: `24px`–`26px`
   - Stat Values: `32px` serif
+- **Two-Line Headlines**: Second line uses *italic serif* in the **SAME cream color** as the first line (e.g. *"Design the space. Own the budget."*). Never use a contrasting accent color on headlines.
+- **Numbered Steps & Lists**: Italic serif numerals (01, 02, 03) in `'Dreams on Paper'` / Atelier Fleur (`Numeral` component).
+- **Handwritten Script Accent**: `'Dreams on Paper', cursive` (`--font-script`). Used **sparingly** for subtle stamps and annotations (e.g., small *"Current project"*, *"Featured"*, *"In progress"* stamp). **NEVER for body text**.
 - **Everything Else**: Clean Sans-Serif (`--font-body` / Montserrat).
   - Body Paragraphs: `14px`–`16px` (regular, line-height 1.6)
   - Eyebrows & Labels: `11px`–`12px` uppercase with tracking `0.12em`–`0.22em`
@@ -50,10 +54,11 @@ This document locks in the visual aesthetic across every screen of the Intent Di
   - `20px` (`--radius-card`): All content cards and containers.
   - `14px` (`--radius-tile`, `--radius-input`): Stat tiles and form inputs.
   - `10px` (`--radius-sm`): Small badges and dropdown menus.
+- **Featured Card Pattern**: White card with a **1.5px burgundy border** (`border: 1.5px solid var(--burgundy)`), identical to the "02" offering card on the public services page. Used for the currently selected/active project.
 - **Shadows**:
-  - Card: `0 10px 30px rgba(27, 19, 13, 0.07)`
-  - Floating / Elevated: `0 18px 48px rgba(27, 19, 13, 0.28)`
-  - Hover Lift: `translateY(-2px)` with `0 12px 32px rgba(27, 19, 13, 0.09)`
+  - Card: `0 10px 30px rgba(30, 21, 9, 0.05)`
+  - Floating / Elevated: `0 18px 48px rgba(30, 21, 9, 0.25)`
+  - Hover Lift: `translateY(-2px)` with `0 12px 32px rgba(30, 21, 9, 0.09)`
 
 ### Spacing Scale
 
@@ -63,26 +68,25 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 
 ## 2. Core Styling Rules
 
-1. **Serif for headings and big numbers, sans for everything else**:
-   Always use `--font-display` for section titles, modal headers, card titles, and key stat tile numbers. All body text, navigation, tables, labels, form controls, and buttons must use `--font-sans`.
-2. **Uppercase letter-spaced labels**:
-   Field labels, eyebrows, table headers, and category tags must be uppercase with `letter-spacing: 0.12em` to `0.22em`.
-3. **Pill-shaped buttons**:
-   All buttons must be pill-shaped (`border-radius: 999px`). Never use sharp or slightly rounded rectangles for actions.
-4. **Color roles**:
-   - **Burgundy (`--burgundy`)** is reserved for primary actions, selected tabs, and key interactive focal points.
-   - **Terracotta (`--terracotta`)** is used strictly in Designer Hub as its distinctive studio accent.
-   - Do not use generic blues, greens, or reds. Use the designated tokens.
-5. **Espresso dark bands for heroes**:
-   Section heroes use full-width dark espresso bands (`--espresso`) with high-contrast text (`--on-dark`, `--eyebrow-on-dark`) and optional photo overlays.
-6. **Generous whitespace**:
-   Allow layouts room to breathe. Use at least `24px` between cards, `40px`–`64px` section margins, and minimum `96px` top hero padding.
-7. **No emoji**:
+1. **No Orange / Terracotta**:
+   The brand palette strictly excludes orange, cognac, or terracotta. All primary accents are burgundy (`#41101B`) and espresso (`#1E1509`).
+2. **Buttons are pill-shaped with trailing arrow ("→")**:
+   - On light surfaces: Burgundy pill (`var(--burgundy)`) with white uppercase letter-spaced text and "→" (e.g. `INQUIRE →`, `+ CREATE YOUR FIRST PROJECT →`, `CREATE PROJECT →`).
+   - On dark espresso bands: Cream pill (`var(--cream)`) with espresso text and "→" (e.g. `+ NEW PROJECT →`), or translucent outline pills (`outline-on-dark`).
+3. **Headline styling**:
+   The second line of display titles uses italic serif in the **SAME cream color** as the first line (e.g. *Own the budget.*).
+4. **Dark bands for heroes**:
+   Section heroes use full-width dark espresso bands (`--espresso`) with cream high-contrast text (`--on-dark`), subtle outline pills (`rgba(250, 248, 245, 0.08)`), and bottom fade to `--cream`.
+5. **Featured card pattern**:
+   Selected or highlighted cards use `featured={true}` which applies the signature 1.5px burgundy border.
+6. **Project card covers**:
+   Covers show the project image, the linked property's aerial view, or a plain espresso/beige tone block. No numeric initials (e.g. no "11" text placeholder).
+7. **Budget progress bars and accents**:
+   Burgundy on light backgrounds (`var(--burgundy)`), cream on dark backgrounds (`var(--cream)`).
+8. **Soft wave divider**:
+   Use `WaveDivider` to create organic transitions between cream (`--cream`) and beige (`--beige`) sections.
+9. **No emoji**:
    Never use raw emojis in the interface. Use refined SVG glyphs, typographic initials, or architectural labels.
-8. **No arbitrary gradients**:
-   Gradients are strictly prohibited except for photographic hero overlays and bottom fade blends to `--cream`.
-9. **No default browser-styled controls**:
-   Inputs, selects, checkboxes, and buttons must use the custom styling with 44px touch targets and visible focus rings (`--focus-ring`).
 10. **Always use shared components**:
     Import and reuse components from `src/components/ui`.
 
@@ -92,9 +96,9 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 
 | Component | Purpose & Variants |
 | :--- | :--- |
-| `Button` | Accessible pill button: `primary` (burgundy), `secondary` (outline), `accent` (terracotta), `outline-on-dark`, `text`. |
+| `Button` | Accessible pill button: `primary` (burgundy with "→"), `secondary` (outline), `cream-on-dark` (cream pill with espresso text), `outline-on-dark`, `text`. |
 | `Pill` | Status tags and chips: `neutral`, `positive`, `warning`, `negative`, `info`. |
-| `Card` | White surface with thin border, 20px radius, optional hover lift. |
+| `Card` | White surface with thin border, 20px radius, optional `featured` (burgundy border) and `hoverable` lift. |
 | `StatTile` | Analytics tile with serif big number, sans uppercase label, sand/white surface. |
 | `Eyebrow` | Uppercase tracking label with `onLight` and `onDark` variants. |
 | `SectionHeading`| Editorial serif heading (`display`, `h1`, `h2`, `h3`) with optional `onDark`. |
@@ -104,3 +108,6 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 | `Field` | Form control with uppercase label, custom input/select/textarea, and validation error. |
 | `EmptyState` | Elegant dashed container with title, description, and action button. No emoji. |
 | `DarkBand` | Full-width espresso hero band with photo overlay and bottom cream fade. |
+| `Numeral` | Editorial italic serif numeral (01, 02, 03) for steps and list indicators. |
+| `ScriptAccent` | Handwritten script stamp (`Dreams on Paper`) for subtle editorial badges (e.g. "Current project"). |
+| `WaveDivider` | Soft wave SVG divider between cream and beige page sections. |

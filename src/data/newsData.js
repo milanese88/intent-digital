@@ -169,7 +169,7 @@ export const newsArticles = [
       <h3>Key Visual Identity Pillars for Palm Beach Developers</h3>
       <ul>
         <li><strong>Bespoke Serif Typography:</strong> Custom or curated editorial typefaces that evoke heritage and timelessness.</li>
-        <li><strong>Subtle Architectural Color Palettes:</strong> Replacing harsh tones with warm toasted creams, sun-bleached terracotta, and muted ocean blue.</li>
+        <li><strong>Subtle Architectural Color Palettes:</strong> Replacing harsh tones with warm toasted creams, rich cherry burgundy, and deep terrane espresso.</li>
         <li><strong>Tactile Print & Digital Synergy:</strong> Linen-bound hard-backed property books paired with ultra-responsive, cinematic web experiences.</li>
       </ul>
       

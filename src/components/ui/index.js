@@ -10,3 +10,6 @@ export { default as SidePanel } from './SidePanel.jsx';
 export { default as Field } from './Field.jsx';
 export { default as EmptyState } from './EmptyState.jsx';
 export { default as DarkBand } from './DarkBand.jsx';
+export { default as Numeral } from './Numeral.jsx';
+export { default as ScriptAccent } from './ScriptAccent.jsx';
+export { default as WaveDivider } from './WaveDivider.jsx';
