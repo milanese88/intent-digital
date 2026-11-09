@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Button,
   Card,
-  Pill,
   Eyebrow,
   SidePanel,
   Field,
@@ -161,6 +160,7 @@ export default function BudgetTab({
   const [drawerDueDate, setDrawerDueDate] = useState('');
   const [drawerNotes, setDrawerNotes] = useState('');
   const [drawerLinkUrl, setDrawerLinkUrl] = useState('');
+  const [drawerInvoiceUrl, setDrawerInvoiceUrl] = useState('');
   const [drawerTradeId, setDrawerTradeId] = useState('');
   const [trades, setTrades] = useState([]);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
@@ -858,6 +858,22 @@ export default function BudgetTab({
         </div>
       </div>
 
+      {/* Error Banner if API error occurs */}
+      {error && (
+        <div style={{
+          padding: '16px 20px',
+          backgroundColor: 'var(--negative-bg, #F5E6E3)',
+          border: '1px solid var(--negative, #8A2A1E)',
+          borderRadius: 'var(--radius-sm, 8px)',
+          color: 'var(--negative, #8A2A1E)',
+          fontFamily: 'var(--font-sans)',
+          fontSize: '13px',
+          marginBottom: '24px'
+        }}>
+          {error}
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. SUMMARY STRIP (White card, 4 big serif numbers + progress bar)         */}
       {/* ========================================================================= */}
@@ -1203,7 +1219,12 @@ export default function BudgetTab({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {roomTotals.map(r => {
+              {roomTotals.length === 0 ? (
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontStyle: 'italic', padding: '6px 0' }}>
+                  No rooms created yet.
+                </div>
+              ) : (
+                roomTotals.map(r => {
                 const isSelected = roomFilter === r.id;
                 const barWidth = Math.max(4, Math.round((r.total / maxRoomTotal) * 100));
                 return (
@@ -1245,7 +1266,7 @@ export default function BudgetTab({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </Card>
 
