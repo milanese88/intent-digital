@@ -1,12 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import {
-  calculateMortgagePayment,
-  calculateFloridaLoanTaxes,
-  calculateFloridaOwnerTitlePolicy,
-  calculateMonthlyPayment,
-  calculateCashToClose,
-  calculateLiquidCashNeeded,
   formatCurrency,
   formatPercent,
   formatRatio,
@@ -16,6 +10,113 @@ import {
   LOAN_TYPES,
   ESTIMATED_CLOSING_DEFAULTS
 } from './underwriting.js';
+
+// Keyboard-accessible Tooltip for Underwriting Metric Labels
+function MetricTooltip({ text, alignRight = false }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <span
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        verticalAlign: 'middle'
+      }}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label="What does this mean?"
+        aria-expanded={isOpen}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(prev => !prev);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={(e) => {
+          if (!containerRef.current?.contains(e.relatedTarget)) {
+            setIsOpen(false);
+          }
+        }}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: '2px',
+          margin: 0,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: isOpen ? 'var(--secondary-color, #41101B)' : 'rgba(52, 41, 42, 0.45)',
+          borderRadius: '50%',
+          outline: 'none',
+          transition: 'color 0.15s ease'
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary-color, #41101B)'; }}
+        onMouseLeave={(e) => { if (!isOpen) e.currentTarget.style.color = 'rgba(52, 41, 42, 0.45)'; }}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ display: 'block' }}>
+          <circle cx="8" cy="8" r="6.75" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M8 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="8" cy="4.75" r="0.75" fill="currentColor" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <span
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: alignRight ? 'auto' : '50%',
+            right: alignRight ? '0' : 'auto',
+            transform: alignRight ? 'none' : 'translateX(-50%)',
+            backgroundColor: '#1E1509',
+            color: '#FAF8F5',
+            padding: '7px 10px',
+            borderRadius: '8px',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+            fontSize: '11px',
+            fontWeight: 400,
+            lineHeight: 1.45,
+            width: 'max-content',
+            maxWidth: '220px',
+            whiteSpace: 'normal',
+            zIndex: 1000,
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.22)',
+            border: '1px solid rgba(250, 248, 245, 0.15)',
+            textAlign: 'left',
+            pointerEvents: 'none'
+          }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 // Section Header for Compact Underwriting Form
 function SectionHeader({ title, action = null }) {
@@ -330,6 +431,9 @@ export default function UnderwritePanel({
 
   // Toggle for detailed cash to close breakdown
   const [showDetailedClosing, setShowDetailedClosing] = useState(false);
+
+  // Toggle for collapsible plain-English verdict explanations
+  const [verdictExpanded, setVerdictExpanded] = useState(false);
 
   // Reset inputs when property ID changes
   useEffect(() => {
@@ -681,7 +785,10 @@ export default function UnderwritePanel({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setStrategy(tab.id)}
+                onClick={() => {
+                  setStrategy(tab.id);
+                  setVerdictExpanded(false);
+                }}
                 style={{
                   backgroundColor: isSelected ? 'var(--secondary-color, #41101B)' : 'transparent',
                   color: isSelected ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.65)',
@@ -1767,9 +1874,15 @@ export default function UnderwritePanel({
               {strategy === 'rental' && (
                 <>
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      MONTHLY CASH FLOW
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        MONTHLY CASH FLOW
+                      </span>
+                      <MetricTooltip
+                        text="Net money left each month after collecting rent and paying all operating expenses and mortgage debt service."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1783,9 +1896,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      CAP RATE
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        CAP RATE
+                      </span>
+                      <MetricTooltip
+                        text="Capitalization rate (NOI ÷ purchase price): unleveraged annual rate of return, measuring the asset's intrinsic performance."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1799,9 +1918,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      CASH-ON-CASH
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        CASH-ON-CASH
+                      </span>
+                      <MetricTooltip
+                        text="Annual pre-tax cash flow divided by total out-of-pocket cash invested, measuring your return on capital."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1815,9 +1940,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      CASH NEEDED
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        CASH NEEDED
+                      </span>
+                      <MetricTooltip
+                        text="Total out-of-pocket cash required to close the purchase, including down payment, closing costs, and upfront escrows."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1831,9 +1962,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      DSCR
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        DSCR
+                      </span>
+                      <MetricTooltip
+                        text="Debt Service Coverage Ratio (NOI ÷ annual loan payments): measures how easily rent covers mortgage debt; lenders typically seek 1.2+."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1847,9 +1984,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      1% RULE
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        1% RULE
+                      </span>
+                      <MetricTooltip
+                        text="Monthly rent divided by purchase price: a screening rule of thumb where 1%+ indicates healthy positive cash flow."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1868,9 +2011,15 @@ export default function UnderwritePanel({
               {strategy === 'flip' && (
                 <>
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      PROJECTED PROFIT
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        PROJECTED PROFIT
+                      </span>
+                      <MetricTooltip
+                        text="Estimated net flip profit after deducting acquisition, rehab, buying/selling closing, and holding costs from ARV."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1884,9 +2033,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      ROI
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        ROI
+                      </span>
+                      <MetricTooltip
+                        text="Return on investment: projected flip profit divided by total all-in project capital (purchase, rehab, closing, and holding costs)."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1900,9 +2055,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      MAX OFFER (70%)
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        MAX OFFER (70%)
+                      </span>
+                      <MetricTooltip
+                        text="70% of ARV minus repairs: the maximum purchase price under the 70% rule to ensure sufficient profit and margin."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1916,9 +2077,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      TOTAL COST
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        TOTAL COST
+                      </span>
+                      <MetricTooltip
+                        text="All-in project expenditure: purchase price plus rehab budget, buying closing costs, and holding expenses during renovation."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1937,9 +2104,15 @@ export default function UnderwritePanel({
               {strategy === 'brrrr' && (
                 <>
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      REFI LOAN
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        REFI LOAN
+                      </span>
+                      <MetricTooltip
+                        text="The new permanent loan amount based on the appraised after-repair value (ARV) and your target refinance LTV."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1953,9 +2126,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      ALL-IN COST
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        ALL-IN COST
+                      </span>
+                      <MetricTooltip
+                        text="Total initial capital required: purchase price plus renovation costs, acquisition closing costs, and holding expenses."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1969,9 +2148,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      CASH LEFT IN DEAL
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        CASH LEFT IN DEAL
+                      </span>
+                      <MetricTooltip
+                        text="All-in project cost minus refinance loan proceeds: negative values mean 100% cash recovery plus extra proceeds."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -1985,9 +2170,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      POST-REFI CASH FLOW
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        POST-REFI CASH FLOW
+                      </span>
+                      <MetricTooltip
+                        text="Net monthly cash flow generated by rent after ongoing operating expenses and the new permanent mortgage payment."
+                        alignRight={true}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -2001,9 +2192,15 @@ export default function UnderwritePanel({
                   </div>
 
                   <div style={{ gridColumn: 'span 2' }}>
-                    <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
-                      CASH-ON-CASH
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)' }}>
+                        CASH-ON-CASH
+                      </span>
+                      <MetricTooltip
+                        text="Annual pre-tax cash flow divided by cash left in deal; if all cash was recovered on refinance, return is infinite (∞)."
+                        alignRight={false}
+                      />
+                    </div>
                     <div style={{
                       fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
                       fontSize: '24px',
@@ -2065,6 +2262,308 @@ export default function UnderwritePanel({
           }}>
             {results.verdict}
           </p>
+
+          {/* ============================================================= */}
+          {/* PLAIN-ENGLISH MATH & COLLAPSIBLE DEFINITIONS                   */}
+          {/* ============================================================= */}
+          {strategy === 'flip' && (() => {
+            const flipArv = flipInputs.arv !== '' ? Number(flipInputs.arv) : null;
+            const flipRehab = Number(flipInputs.rehabBudget) || 0;
+            const flipPrice = Number(currentInputs.purchasePrice) || 0;
+            const flipMaxOffer = results.maxOffer != null ? results.maxOffer : (flipArv != null ? Math.round(flipArv * 0.70 - flipRehab) : null);
+            const hasArv = flipArv != null && flipArv > 0;
+            const flipDiff = hasArv && flipMaxOffer != null ? flipPrice - flipMaxOffer : null;
+            const flipDiffText = flipDiff == null
+              ? ''
+              : flipDiff < 0
+              ? `${formatCurrency(Math.abs(flipDiff))} under the max`
+              : flipDiff > 0
+              ? `${formatCurrency(flipDiff)} over the max`
+              : 'right at the max';
+
+            return (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '13px',
+                  color: 'rgba(250, 248, 245, 0.72)',
+                  lineHeight: 1.55
+                }}>
+                  {hasArv ? (
+                    <>
+                      70% rule: ARV {formatCurrency(flipArv)} × 70% − rehab {formatCurrency(flipRehab)} = max offer {formatCurrency(flipMaxOffer)}. Your price: {formatCurrency(flipPrice)} — {flipDiffText}.
+                    </>
+                  ) : (
+                    <>
+                      70% rule: Enter an ARV and rehab budget above to calculate the maximum allowable offer.
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setVerdictExpanded(prev => !prev)}
+                  aria-expanded={verdictExpanded}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    marginTop: '10px',
+                    color: 'rgba(250, 248, 245, 0.75)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FAF8F5'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(250, 248, 245, 0.75)'; }}
+                >
+                  <span>What's the 70% rule?</span>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    style={{
+                      transform: verdictExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }}
+                  >
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {verdictExpanded && (
+                  <div style={{
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid rgba(250, 248, 245, 0.12)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '12px',
+                    lineHeight: 1.55,
+                    color: 'rgba(250, 248, 245, 0.85)'
+                  }}>
+                    A flipper's rule of thumb: pay no more than 70% of the after-repair value, minus repairs. The other 30% covers closing and selling costs, holding costs (interest, taxes, insurance, utilities) and your profit. In higher-priced markets some investors use 75–80% — it's a guideline, not a guarantee.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {strategy === 'rental' && (() => {
+            const rentalPrice = Number(currentInputs.purchasePrice) || 0;
+            const rentalRent = rentalInputs.monthlyRent !== '' ? Number(rentalInputs.monthlyRent) : null;
+            const rentalCashNeeded = results.cashNeeded != null ? results.cashNeeded : 0;
+            const rentalNoi = results.noi;
+            const rentalCashFlowYr = results.cashFlowYr;
+            const rentalCashFlowMo = results.monthlyCashFlow;
+            const rentalDebtYr = results.debtYr != null ? results.debtYr : 0;
+            const rentalCapRate = results.capRate;
+            const rentalCashOnCash = results.cashOnCash;
+            const rentalDscr = results.dscr;
+            const rentalOnePct = results.onePercentRule;
+            const hasRent = rentalRent != null && rentalRent > 0;
+
+            return (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '13px',
+                  color: 'rgba(250, 248, 245, 0.72)',
+                  lineHeight: 1.55
+                }}>
+                  {hasRent && results.isComplete ? (
+                    <>
+                      Cash flow: <strong style={{ color: '#FAF8F5' }}>{formatCurrency(rentalCashFlowMo)}/mo</strong> ({formatCurrency(rentalCashFlowYr)}/yr)
+                      {' · '}Cap rate: <strong style={{ color: '#FAF8F5' }}>{formatPercent(rentalCapRate)}</strong> (NOI {formatCurrency(rentalNoi)} ÷ price {formatCurrency(rentalPrice)})
+                      {' · '}Cash-on-cash: <strong style={{ color: '#FAF8F5' }}>{formatPercent(rentalCashOnCash)}</strong> ({formatCurrency(rentalCashFlowYr)} ÷ {formatCurrency(rentalCashNeeded)})
+                      {' · '}DSCR: <strong style={{ color: '#FAF8F5' }}>{rentalDscr != null ? `${formatRatio(rentalDscr)}x` : '—'}</strong> ({rentalDebtYr > 0 ? `NOI ${formatCurrency(rentalNoi)} ÷ debt ${formatCurrency(rentalDebtYr)}` : 'all cash'})
+                      {' · '}1% rule: <strong style={{ color: '#FAF8F5' }}>{formatPercent(rentalOnePct)}</strong> (rent {formatCurrency(rentalRent)} ÷ price {formatCurrency(rentalPrice)})
+                    </>
+                  ) : (
+                    <>
+                      Enter monthly rent and insurance above to see live cash flow, cap rate, cash-on-cash, DSCR, and the 1% rule.
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setVerdictExpanded(prev => !prev)}
+                  aria-expanded={verdictExpanded}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    marginTop: '10px',
+                    color: 'rgba(250, 248, 245, 0.75)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FAF8F5'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(250, 248, 245, 0.75)'; }}
+                >
+                  <span>What do these rental metrics mean?</span>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    style={{
+                      transform: verdictExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }}
+                  >
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {verdictExpanded && (
+                  <div style={{
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid rgba(250, 248, 245, 0.12)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '12px',
+                    lineHeight: 1.6,
+                    color: 'rgba(250, 248, 245, 0.85)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>Cash flow:</strong> Net cash remaining in your pocket each month ({formatCurrency(rentalCashFlowMo)}/mo or {formatCurrency(rentalCashFlowYr)}/yr) after collecting rent and paying operating expenses (property taxes, insurance, maintenance, vacancy, capex) and debt service.
+                    </div>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>Cap rate (NOI ÷ price):</strong> Unleveraged annual return independent of financing. Calculated as Net Operating Income ({formatCurrency(rentalNoi)}) divided by purchase price ({formatCurrency(rentalPrice)}) = {formatPercent(rentalCapRate)}.
+                    </div>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>Cash-on-cash (annual cash flow ÷ cash invested):</strong> Annual pre-tax return on the actual out-of-pocket cash invested. Calculated as annual cash flow ({formatCurrency(rentalCashFlowYr)}) divided by total cash needed to close ({formatCurrency(rentalCashNeeded)}) = {formatPercent(rentalCashOnCash)}.
+                    </div>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>DSCR (NOI ÷ annual loan payments):</strong> Debt Service Coverage Ratio measuring how comfortably property income covers mortgage payments ({rentalDscr != null ? `${formatRatio(rentalDscr)}x` : '—'}). Lenders often look for 1.20+ to qualify an investor loan.
+                    </div>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>1% rule (monthly rent ÷ price):</strong> Quick rule of thumb where monthly rent should equal 1% or more of the purchase price to produce healthy cash flow. Currently: {formatPercent(rentalOnePct)} ({formatCurrency(rentalRent)} ÷ {formatCurrency(rentalPrice)}).
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {strategy === 'brrrr' && (() => {
+            const brrrrArv = brrrrInputs.arv !== '' ? Number(brrrrInputs.arv) : null;
+            const brrrrAllIn = results.allInCost;
+            const brrrrRefiLoan = results.refiLoan;
+            const brrrrCashLeft = results.cashLeftInDeal;
+            const brrrrPostRefiCashFlow = results.postRefiMonthlyCashFlow;
+            const brrrrCashOnCash = results.cashOnCash;
+            const brrrrIsInfinite = results.isInfiniteCoC;
+            const hasArv = brrrrArv != null && brrrrArv > 0;
+
+            return (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '13px',
+                  color: 'rgba(250, 248, 245, 0.72)',
+                  lineHeight: 1.55
+                }}>
+                  {hasArv && brrrrAllIn != null && brrrrRefiLoan != null ? (
+                    <>
+                      Cash left in deal: all-in cost <strong style={{ color: '#FAF8F5' }}>{formatCurrency(brrrrAllIn)}</strong> − refinance loan <strong style={{ color: '#FAF8F5' }}>{formatCurrency(brrrrRefiLoan)}</strong> = <strong style={{ color: '#FAF8F5' }}>{brrrrCashLeft <= 0 ? `$0 left in deal (${formatCurrency(Math.abs(brrrrCashLeft))} cash back out)` : `${formatCurrency(brrrrCashLeft)} left in the deal`}</strong>.
+                      {results.isComplete && brrrrPostRefiCashFlow != null && (
+                        <>
+                          {' · '}Post-refi cash flow: <strong style={{ color: '#FAF8F5' }}>{formatCurrency(brrrrPostRefiCashFlow)}/mo</strong>
+                          {' · '}Cash-on-cash: <strong style={{ color: '#FAF8F5' }}>{brrrrIsInfinite ? '∞ (infinite)' : formatPercent(brrrrCashOnCash)}</strong>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      Enter ARV and rehab budget above to calculate refinance loan and cash left in the deal.
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setVerdictExpanded(prev => !prev)}
+                  aria-expanded={verdictExpanded}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    marginTop: '10px',
+                    color: 'rgba(250, 248, 245, 0.75)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FAF8F5'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(250, 248, 245, 0.75)'; }}
+                >
+                  <span>Why does cash left in the deal matter?</span>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    style={{
+                      transform: verdictExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }}
+                  >
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+
+                {verdictExpanded && (
+                  <div style={{
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid rgba(250, 248, 245, 0.12)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '12px',
+                    lineHeight: 1.6,
+                    color: 'rgba(250, 248, 245, 0.85)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>Cash left in the deal (all-in cost − refinance loan):</strong> The net out-of-pocket capital remaining tied up after completing the renovation and refinancing into permanent debt. Here, all-in cost {formatCurrency(brrrrAllIn)} minus new loan {formatCurrency(brrrrRefiLoan)} leaves {brrrrCashLeft <= 0 ? '$0 of your original money in the property' : `${formatCurrency(brrrrCashLeft)} in the deal`}.
+                    </div>
+                    <div>
+                      <strong style={{ color: '#FAF8F5' }}>Why "most of your cash comes back out" matters:</strong> The BRRRR (Buy, Rehab, Rent, Refinance, Repeat) strategy relies on velocity of capital. When refinance proceeds return all or most of your initial purchase, rehab, and closing funds, you can recycle the exact same dollars into your next property without waiting years to save new down payments. If all cash is recovered ($0 left), your cash-on-cash return is effectively infinite (∞).
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ============================================================= */}
