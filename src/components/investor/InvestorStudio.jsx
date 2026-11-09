@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import InvestorMap from './InvestorMap.jsx';
 import CountyRecordCard from './CountyRecordCard.jsx';
+import SiteZoningCard from './SiteZoningCard.jsx';
 import SuggestedCompsPanel from './SuggestedCompsPanel.jsx';
 import MarketCard from './MarketCard.jsx';
 import WatchedLocations from './WatchedLocations.jsx';
+import AerialPhoto from './AerialPhoto.jsx';
+import PropertyPhotosSection from './PropertyPhotosSection.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -32,6 +35,8 @@ export default function InvestorStudio() {
     }
     return null;
   });
+  const [detailPhotoView, setDetailPhotoView] = useState('photos'); // 'photos' | 'aerial'
+  const [activePropertyCover, setActivePropertyCover] = useState(null);
 
   // Search & filter state (List view)
   const [locationInput, setLocationInput] = useState('');
@@ -219,6 +224,8 @@ export default function InvestorStudio() {
   // Navigation handlers
   const handleOpenDetail = (propId) => {
     setActivePropertyId(propId);
+    setDetailPhotoView('photos');
+    setActivePropertyCover(null);
     const url = new URL(window.location);
     url.searchParams.set('property', propId);
     window.history.pushState({}, '', url);
@@ -1295,6 +1302,88 @@ export default function InvestorStudio() {
 
           {activeProperty ? (
             <>
+              {/* Wide Header Image with Aerial / Photos Toggle */}
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                height: '280px',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                marginBottom: '28px',
+                boxShadow: '0 4px 20px rgba(52, 41, 42, 0.08)',
+                border: '1px solid rgba(52, 41, 42, 0.1)'
+              }}>
+                <AerialPhoto
+                  lat={activeProperty.lat}
+                  lng={activeProperty.lng}
+                  coverPhotoUrl={detailPhotoView === 'photos' ? (activePropertyCover || activeProperty.cover_photo_url) : null}
+                  alt={activeProperty.address}
+                  width={1280}
+                  height={560}
+                  aspectRatio="auto"
+                  style={{ width: '100%', height: '100%' }}
+                />
+
+                {/* Top-Right Toggle: Aerial / Photos */}
+                <div style={{
+                  position: 'absolute',
+                  top: '14px',
+                  right: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(52, 41, 42, 0.85)',
+                  backdropFilter: 'blur(8px)',
+                  borderRadius: '50px',
+                  padding: '3px',
+                  gap: '3px',
+                  zIndex: 3,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDetailPhotoView('photos');
+                    }}
+                    style={{
+                      background: detailPhotoView === 'photos' ? 'var(--secondary-color, #41101B)' : 'transparent',
+                      color: '#FAF8F5',
+                      border: 'none',
+                      borderRadius: '50px',
+                      padding: '5px 12px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s ease'
+                    }}
+                  >
+                    Photos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDetailPhotoView('aerial');
+                    }}
+                    style={{
+                      background: detailPhotoView === 'aerial' ? 'var(--secondary-color, #41101B)' : 'transparent',
+                      color: '#FAF8F5',
+                      border: 'none',
+                      borderRadius: '50px',
+                      padding: '5px 12px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s ease'
+                    }}
+                  >
+                    Aerial
+                  </button>
+                </div>
+              </div>
+
               {/* Detail Header */}
               <div style={{
                 display: 'flex',
@@ -1445,9 +1534,25 @@ export default function InvestorStudio() {
                 showToast={showToast}
               />
 
+              {/* Site & Zoning Card (FEMA Flood Zone & Constraints) */}
+              <SiteZoningCard
+                property={activeProperty}
+                showToast={showToast}
+              />
+
               {/* Market Trends Card */}
               <MarketCard
                 property={activeProperty}
+                showToast={showToast}
+              />
+
+              {/* Photos Section (My Photos) */}
+              <PropertyPhotosSection
+                property={activeProperty}
+                onCoverChange={(newCoverUrl) => {
+                  setActivePropertyCover(newCoverUrl);
+                  setProperties(prev => prev.map(p => (p.id === activeProperty.id ? { ...p, cover_photo_url: newCoverUrl } : p)));
+                }}
                 showToast={showToast}
               />
 
@@ -1535,7 +1640,8 @@ export default function InvestorStudio() {
                           <table className="investor-comps-table">
                             <thead>
                               <tr>
-                                <th style={{ width: '44px', textAlign: 'center' }}>INC</th>
+                                <th style={{ width: '42px', textAlign: 'center' }}></th>
+                                <th style={{ width: '40px', textAlign: 'center' }}>INC</th>
                                 <th style={{ textAlign: 'left' }}>ADDRESS</th>
                                 <th style={{ textAlign: 'left' }}>SOLD</th>
                                 <th style={{ textAlign: 'right' }}>PRICE</th>
@@ -1553,6 +1659,18 @@ export default function InvestorStudio() {
 
                                 return (
                                   <tr key={c.id} className={`investor-comp-row ${c.included === false ? 'excluded' : ''}`}>
+                                    <td style={{ width: '42px', padding: '6px 4px', textAlign: 'center' }}>
+                                      <AerialPhoto
+                                        lat={c.lat}
+                                        lng={c.lng}
+                                        alt={c.address}
+                                        width={80}
+                                        height={80}
+                                        aspectRatio="1/1"
+                                        style={{ width: '36px', height: '36px', borderRadius: '6px', margin: '0 auto' }}
+                                        showAttribution={false}
+                                      />
+                                    </td>
                                     <td style={{ textAlign: 'center' }}>
                                       <input
                                         type="checkbox"
@@ -1860,23 +1978,18 @@ export default function InvestorStudio() {
                         onMouseEnter={() => setHoveredMapPinId(p.id)}
                         onMouseLeave={() => setHoveredMapPinId(null)}
                       >
-                        {/* Thumbnail Tone Block */}
-                        <div style={{
-                          width: '52px',
-                          height: '52px',
-                          borderRadius: '8px',
-                          background: 'linear-gradient(145deg, #2E2218 0%, #4A382A 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'rgba(250, 248, 245, 0.4)',
-                          flexShrink: 0
-                        }}>
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                          </svg>
-                        </div>
+                        {/* Thumbnail Aerial/Cover Block */}
+                        <AerialPhoto
+                          lat={p.lat}
+                          lng={p.lng}
+                          coverPhotoUrl={p.cover_photo_url}
+                          alt={p.address}
+                          width={104}
+                          height={104}
+                          aspectRatio="1/1"
+                          style={{ width: '52px', height: '52px', borderRadius: '8px', flexShrink: 0 }}
+                          showAttribution={false}
+                        />
 
                         {/* Card Info */}
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -2273,15 +2386,16 @@ export default function InvestorStudio() {
                       onClick={() => handleOpenDetail(p.id)}
                     >
                       {/* Photo Block */}
-                      <div style={{
-                        height: '180px',
-                        background: 'linear-gradient(145deg, #2E2218 0%, #4A382A 100%)',
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'rgba(250, 248, 245, 0.35)'
-                      }}>
+                      <AerialPhoto
+                        lat={p.lat}
+                        lng={p.lng}
+                        coverPhotoUrl={p.cover_photo_url}
+                        alt={p.address}
+                        width={600}
+                        height={360}
+                        aspectRatio="auto"
+                        style={{ height: '180px', width: '100%' }}
+                      >
                         <div style={{
                           position: 'absolute',
                           top: '12px',
@@ -2294,16 +2408,63 @@ export default function InvestorStudio() {
                           letterSpacing: '0.08em',
                           padding: '4px 10px',
                           borderRadius: '50px',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 2
                         }}>
                           {formatStatus(p.status)}
                         </div>
 
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                        </svg>
-                      </div>
+                        {/* Badges on Photo */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          zIndex: 2
+                        }}>
+                          {p.zoning_code && (
+                            <div style={{
+                              backgroundColor: 'rgba(52, 41, 42, 0.85)',
+                              color: '#FAF8F5',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              padding: '3px 8px',
+                              borderRadius: '50px',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {p.zoning_code}
+                            </div>
+                          )}
+
+                          {p.flood_zone && (
+                            <div style={{
+                              backgroundColor: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
+                                ? 'rgba(217, 83, 79, 0.95)'
+                                : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
+                                  ? 'rgba(217, 140, 30, 0.95)'
+                                  : 'rgba(52, 41, 42, 0.85)',
+                              color: '#FAF8F5',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              padding: '3px 8px',
+                              borderRadius: '50px',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
+                                ? 'Zone X shaded'
+                                : `Zone ${p.flood_zone}`}
+                            </div>
+                          )}
+                        </div>
+                      </AerialPhoto>
 
                       {/* Card Body */}
                       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -2367,7 +2528,52 @@ export default function InvestorStudio() {
                             <strong style={{ color: 'var(--espresso, #1E1509)' }}>{pricePerSqft}</strong>
                           </div>
                           
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {p.zoning_code && (
+                              <div
+                                title={p.zoning_desc ? `Zoning: ${p.zoning_code} (${p.zoning_desc})` : `Zoning: ${p.zoning_code}`}
+                                style={{
+                                  backgroundColor: 'rgba(52, 41, 42, 0.08)',
+                                  color: 'var(--espresso, #34292A)',
+                                  border: '1px solid rgba(52, 41, 42, 0.16)',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  letterSpacing: '0.04em',
+                                  fontSize: '10px'
+                                }}
+                              >
+                                {p.zoning_code}
+                              </div>
+                            )}
+
+                            {p.flood_zone && (
+                              <div
+                                title={p.flood_sfha ? 'Special Flood Hazard Area (High Risk)' : 'FEMA Flood Zone'}
+                                style={{
+                                  backgroundColor: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
+                                    ? 'rgba(217, 83, 79, 0.12)'
+                                    : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
+                                      ? 'rgba(240, 173, 78, 0.18)'
+                                      : 'rgba(189, 211, 226, 0.35)',
+                                  color: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
+                                    ? '#9E2A2B'
+                                    : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
+                                      ? '#8A5D1A'
+                                      : '#34292A',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  letterSpacing: '0.04em',
+                                  fontSize: '10px'
+                                }}
+                              >
+                                {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
+                                  ? 'Zone X shaded'
+                                  : (p.flood_bfe ? `Zone ${p.flood_zone} · BFE ${Math.round(p.flood_bfe)}ft` : `Zone ${p.flood_zone}`)}
+                              </div>
+                            )}
+
                             <div style={{
                               backgroundColor: 'rgba(65, 16, 27, 0.06)',
                               color: 'var(--secondary-color, #41101B)',
