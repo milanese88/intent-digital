@@ -2876,9 +2876,13 @@ export default function InvestorStudio() {
                       </div>
                     )}
 
-                    {/* Market Trends Card */}
+                    {/* Market & Location Cards */}
                     <MarketCard
                       property={activeProperty}
+                      comps={comps}
+                      onCompAdded={(newComp) => {
+                        setComps(prev => [newComp, ...prev]);
+                      }}
                       showToast={showToast}
                     />
                   </div>
