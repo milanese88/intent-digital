@@ -48,7 +48,9 @@ export default async function handler(req, res) {
           SELECT 
             p.*,
             ip.address as investor_property_address,
-            ip.city as investor_property_city
+            ip.city as investor_property_city,
+            ip.lat as investor_property_lat,
+            ip.lng as investor_property_lng
           FROM design_projects p
           LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
           WHERE p.id = ${id} AND lower(p.owner_email) = ${cleanEmail}
@@ -100,6 +102,8 @@ export default async function handler(req, res) {
           p.updated_at,
           ip.address as investor_property_address,
           ip.city as investor_property_city,
+          ip.lat as investor_property_lat,
+          ip.lng as investor_property_lng,
           COUNT(DISTINCT r.id) AS room_count,
           COUNT(DISTINCT i.id) AS item_count,
           COALESCE(SUM(i.total), 0) AS total_item_cost
@@ -108,7 +112,7 @@ export default async function handler(req, res) {
         LEFT JOIN design_rooms r ON r.project_id = p.id
         LEFT JOIN design_items i ON i.project_id = p.id
         WHERE lower(p.owner_email) = ${cleanEmail}
-        GROUP BY p.id, ip.address, ip.city
+        GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng
         ORDER BY p.updated_at DESC, p.created_at DESC
       `;
 

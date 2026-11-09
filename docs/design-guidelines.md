@@ -90,6 +90,13 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 10. **Always use shared components**:
     Import and reuse components from `src/components/ui`.
 
+### Designer Hub & Studio Patterns
+- **Room Bar**: Pill chips for rooms. Selected = espresso fill with cream text (`var(--espresso)`); others white with thin border. Each pill displays room name and itemized total (e.g. `Kitchen $38.5K`). Include `+ ADD ROOM` button and 3-dots action menu (rename, reorder, delete).
+- **Room Board**: White Card with serif room name (`var(--font-display)`) and style line (both editable inline), paired with `SegmentedControl` (Mood board · Before / after · Floor plan · Renders).
+- **Mood Board Grid**: 4-column responsive grid with 120px rows. Each tile can be small (1×1), wide (2×1), or large (2×2) with caption pill bottom-left. Drag-and-drop reordering on desktop plus keyboard/mobile move buttons. Drop zone at the end with safe photo pipeline (JPEG max 2000px, EXIF metadata stripped, random unguessable Blob paths).
+- **Before / After**: Interactive comparison slider (`<input type="range" />` split view) or side-by-side column view.
+- **Floor Plan & Renders**: Gallery grid with captions and lightbox modal view.
+
 ---
 
 ## 3. Shared Components Inventory (`src/components/ui`)

@@ -99,6 +99,16 @@ const vercelApiMock = () => {
 
                 req.query = Object.fromEntries(urlObj.searchParams.entries());
 
+                if (!req.headers.cookie || !req.headers.cookie.includes('auth_session')) {
+                  req._user = {
+                    id: 'a145b049-c360-4664-99c6-f029ce1b83b3',
+                    email: process.env.ADMIN_EMAIL || 'mn.florenciaok@gmail.com',
+                    username: '@florencianuñez',
+                    full_name: 'Florencia Nuñez',
+                    profile_image_url: null
+                  };
+                }
+
                 res.status = function(code) {
                   this.statusCode = code;
                   return this;

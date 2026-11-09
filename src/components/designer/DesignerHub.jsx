@@ -14,9 +14,9 @@ import {
   Field,
   EmptyState,
   DarkBand,
-  ScriptAccent,
-  Numeral
+  ScriptAccent
 } from '../ui';
+import DesignStudio from './DesignStudio.jsx';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
@@ -368,13 +368,11 @@ export default function DesignerHub({ setActiveDashboardTab }) {
     }
   };
 
-  // Calculate stats for Projects Tab (Budgets tracked = sum for active/complete projects)
+  // Calculate stats for Projects Tab (Budgets tracked = sum for all projects with a target budget)
   const activeCount = projects.filter(p => p.status === 'in_design' || p.status === 'in_progress').length;
   const conceptCount = projects.filter(p => p.status === 'concept').length;
   const portfolioCount = projects.filter(p => p.status === 'complete').length;
-  const totalBudgets = projects
-    .filter(p => ['in_design', 'in_progress', 'complete'].includes(p.status))
-    .reduce((acc, p) => acc + (Number(p.target_budget) || 0), 0);
+  const totalBudgets = projects.reduce((acc, p) => acc + (Number(p.target_budget) || 0), 0);
 
   // Filtered projects list based on typeFilter, statusFilter, searchQuery
   const filteredProjects = projects.filter(p => {
@@ -445,10 +443,9 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-12)', flexWrap: 'wrap' }}>
             <Button
               variant="outline-on-dark"
-              disabled
-              title="Coming in Stage 2"
+              onClick={() => handleTabChange('studio')}
             >
-              + NEW MOOD BOARD
+              + DESIGN STUDIO &rarr;
             </Button>
 
             <Button
@@ -481,18 +478,23 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                   onClick={() => setSwitcherOpen(prev => !prev)}
                   title="Switch project"
                   style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '22px',
-                    fontWeight: 400,
-                    color: 'var(--on-dark)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}
                 >
-                  <span>{currentProject.name}</span>
-                  <span style={{ fontSize: '13px', opacity: 0.6 }}>▾</span>
+                  <span style={{
+                    fontFamily: "var(--font-display), 'Atelier Fleur', 'Playfair Display', 'Cormorant Garamond', Georgia, serif",
+                    fontSize: '22px',
+                    fontWeight: 400,
+                    color: 'var(--on-dark)',
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1.2
+                  }}>
+                    {currentProject.name}
+                  </span>
+                  <span style={{ fontSize: '13px', opacity: 0.6, color: 'var(--on-dark)' }}>▾</span>
                 </div>
 
                 {switcherOpen && (
@@ -901,11 +903,21 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                       const contPct = Number(proj.contingency_pct) || 10;
                       const isCurrent = currentProject && proj.id === currentProject.id;
 
-                      // Resolve cover: project cover_url, or linked investor property cover/aerial, or plain tone block
+                      // Resolve cover: project cover_url, or linked investor property aerial image (via Mapbox satellite helper), or plain tone block (no text placeholder)
                       const linkedProp = proj.investor_property_id
                         ? investorProperties.find(p => p.id === proj.investor_property_id)
                         : null;
-                      const coverSrc = proj.cover_url || linkedProp?.cover_photo_url || (linkedProp?.lng && linkedProp?.lat ? getMapboxAerialUrl(linkedProp.lng, linkedProp.lat, 680, 380) : null);
+                      const propLng = proj.investor_property_lng || linkedProp?.lng;
+                      const propLat = proj.investor_property_lat || linkedProp?.lat;
+
+                      let coverSrc = null;
+                      if (proj.cover_url) {
+                        coverSrc = proj.cover_url;
+                      } else if (propLng && propLat) {
+                        coverSrc = getMapboxAerialUrl(propLng, propLat, 680, 380);
+                      } else if (proj.investor_property_cover_photo_url || linkedProp?.cover_photo_url) {
+                        coverSrc = proj.investor_property_cover_photo_url || linkedProp?.cover_photo_url;
+                      }
 
                       return (
                         <Card
@@ -1103,13 +1115,33 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           </div>
         )}
 
-        {/* Placeholder for tabs other than Projects (No Emojis) */}
-        {!loading && activeTab !== 'projects' && (
+        {/* Design Studio Tab */}
+        {!loading && activeTab === 'studio' && (
+          currentProject ? (
+            <DesignStudio
+              project={currentProject}
+              onProjectUpdated={fetchProjects}
+            />
+          ) : (
+            <EmptyState
+              title="No project selected"
+              description="Choose a project or create a new one to access the Design studio."
+              action={
+                <Button variant="primary" onClick={() => handleOpenNewProject()}>
+                  + CREATE PROJECT &rarr;
+                </Button>
+              }
+            />
+          )
+        )}
+
+        {/* Placeholder for tabs other than Projects and Studio (No Emojis) */}
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."
             icon={
-              <Pill variant="warning" size="md">STAGE 2 FEATURE</Pill>
+              <Pill variant="warning" size="md">COMING NEXT</Pill>
             }
             action={
               currentProject ? (
