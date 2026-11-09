@@ -88,7 +88,9 @@ export default async function handler(req, res) {
         link_url,
         paid = 0,
         due_date = null,
-        invoice_url = null
+        invoice_url = null,
+        product_id = null,
+        trade_id = null
       } = body;
 
       if (!project_id) {
@@ -128,6 +130,9 @@ export default async function handler(req, res) {
       const cleanDueDate = due_date ? String(due_date).substring(0, 10) : null;
       const cleanInvoiceUrl = invoice_url ? String(invoice_url).trim() : null;
 
+      const cleanProductId = product_id || null;
+      const cleanTradeId = trade_id || null;
+
       let insertedRow;
       try {
         const inserted = await sql`
@@ -147,7 +152,9 @@ export default async function handler(req, res) {
             link_url,
             paid,
             due_date,
-            invoice_url
+            invoice_url,
+            product_id,
+            trade_id
           ) VALUES (
             ${project_id},
             ${room_id || null},
@@ -164,52 +171,100 @@ export default async function handler(req, res) {
             ${link_url ? String(link_url).trim() : null},
             ${numPaid},
             ${cleanDueDate},
-            ${cleanInvoiceUrl}
+            ${cleanInvoiceUrl},
+            ${cleanProductId},
+            ${cleanTradeId}
           )
           RETURNING *;
         `;
         insertedRow = inserted[0];
       } catch (insertErr) {
-        // Fallback if columns paid / due_date / invoice_url do not exist yet
-        console.warn('Insert with Stage 3 columns failed, falling back to base columns:', insertErr.message);
-        const inserted = await sql`
-          INSERT INTO design_items (
-            project_id,
-            room_id,
-            owner_email,
-            name,
-            category,
-            spec,
-            vendor,
-            qty,
-            unit_cost,
-            total,
-            status,
-            notes,
-            link_url
-          ) VALUES (
-            ${project_id},
-            ${room_id || null},
-            ${cleanEmail},
-            ${cleanName},
-            ${category ? String(category).trim() : null},
-            ${spec ? String(spec).trim() : null},
-            ${vendor ? String(vendor).trim() : null},
-            ${numQty},
-            ${numUnitCost},
-            ${numTotal},
-            ${status ? String(status).trim() : 'planned'},
-            ${notes ? String(notes).trim() : null},
-            ${link_url ? String(link_url).trim() : null}
-          )
-          RETURNING *;
-        `;
-        insertedRow = {
-          ...inserted[0],
-          paid: numPaid,
-          due_date: cleanDueDate,
-          invoice_url: cleanInvoiceUrl
-        };
+        // Fallback without trade_id if migration pending
+        console.warn('Insert with trade_id failed, falling back:', insertErr.message);
+        try {
+          const inserted = await sql`
+            INSERT INTO design_items (
+              project_id,
+              room_id,
+              owner_email,
+              name,
+              category,
+              spec,
+              vendor,
+              qty,
+              unit_cost,
+              total,
+              status,
+              notes,
+              link_url,
+              paid,
+              due_date,
+              invoice_url,
+              product_id
+            ) VALUES (
+              ${project_id},
+              ${room_id || null},
+              ${cleanEmail},
+              ${cleanName},
+              ${category ? String(category).trim() : null},
+              ${spec ? String(spec).trim() : null},
+              ${vendor ? String(vendor).trim() : null},
+              ${numQty},
+              ${numUnitCost},
+              ${numTotal},
+              ${status ? String(status).trim() : 'planned'},
+              ${notes ? String(notes).trim() : null},
+              ${link_url ? String(link_url).trim() : null},
+              ${numPaid},
+              ${cleanDueDate},
+              ${cleanInvoiceUrl},
+              ${cleanProductId}
+            )
+            RETURNING *;
+          `;
+          insertedRow = { ...inserted[0], trade_id: cleanTradeId };
+        } catch (innerErr) {
+          const inserted = await sql`
+            INSERT INTO design_items (
+              project_id,
+              room_id,
+              owner_email,
+              name,
+              category,
+              spec,
+              vendor,
+              qty,
+              unit_cost,
+              total,
+              status,
+              notes,
+              link_url
+            ) VALUES (
+              ${project_id},
+              ${room_id || null},
+              ${cleanEmail},
+              ${cleanName},
+              ${category ? String(category).trim() : null},
+              ${spec ? String(spec).trim() : null},
+              ${vendor ? String(vendor).trim() : null},
+              ${numQty},
+              ${numUnitCost},
+              ${numTotal},
+              ${status ? String(status).trim() : 'planned'},
+              ${notes ? String(notes).trim() : null},
+              ${link_url ? String(link_url).trim() : null}
+            )
+            RETURNING *;
+          `;
+          insertedRow = {
+            ...inserted[0],
+            paid: numPaid,
+            due_date: cleanDueDate,
+            invoice_url: cleanInvoiceUrl,
+            product_id: cleanProductId,
+            trade_id: cleanTradeId
+          };
+        }
       }
 
       return res.status(201).json({
@@ -258,7 +313,9 @@ export default async function handler(req, res) {
         link_url,
         paid,
         due_date,
-        invoice_url
+        invoice_url,
+        product_id,
+        trade_id
       } = body;
 
       const cleanName = name !== undefined ? String(name).trim() : existing.name;
@@ -268,6 +325,9 @@ export default async function handler(req, res) {
       const cleanPaid = paid !== undefined ? (Number(paid) || 0) : Number(existing.paid != null ? existing.paid : 0);
       const cleanDueDate = due_date !== undefined ? (due_date ? String(due_date).substring(0, 10) : null) : (existing.due_date ? String(existing.due_date).substring(0, 10) : null);
       const cleanInvoiceUrl = invoice_url !== undefined ? (invoice_url ? String(invoice_url).trim() : null) : (existing.invoice_url || null);
+
+      const cleanProductId = product_id !== undefined ? (product_id || null) : existing.product_id;
+      const cleanTradeId = trade_id !== undefined ? (trade_id || null) : existing.trade_id;
 
       // If invoice_url is being replaced or removed, delete previous blob from storage
       if (existing.invoice_url && cleanInvoiceUrl !== existing.invoice_url && String(existing.invoice_url).includes('public.blob.vercel-storage.com')) {
@@ -296,37 +356,65 @@ export default async function handler(req, res) {
             paid = ${cleanPaid},
             due_date = ${cleanDueDate},
             invoice_url = ${cleanInvoiceUrl},
+            product_id = ${cleanProductId},
+            trade_id = ${cleanTradeId},
             updated_at = now()
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *;
         `;
         updatedRow = updated[0];
       } catch (updateErr) {
-        // Fallback without paid / due_date / invoice_url if columns not yet migrated
-        console.warn('Update with Stage 3 columns failed, falling back to base columns:', updateErr.message);
-        const updated = await sql`
-          UPDATE design_items SET
-            room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
-            name = ${cleanName},
-            category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
-            spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
-            vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
-            qty = ${cleanQty},
-            unit_cost = ${cleanUnitCost},
-            total = ${newTotal},
-            status = ${status !== undefined ? String(status).trim() : existing.status},
-            notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
-            link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
-            updated_at = now()
-          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-          RETURNING *;
-        `;
-        updatedRow = {
-          ...updated[0],
-          paid: cleanPaid,
-          due_date: cleanDueDate,
-          invoice_url: cleanInvoiceUrl
-        };
+        console.warn('Update with trade_id failed, falling back:', updateErr.message);
+        try {
+          const updated = await sql`
+            UPDATE design_items SET
+              room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
+              name = ${cleanName},
+              category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
+              spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
+              vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
+              qty = ${cleanQty},
+              unit_cost = ${cleanUnitCost},
+              total = ${newTotal},
+              status = ${status !== undefined ? String(status).trim() : existing.status},
+              notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
+              link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
+              paid = ${cleanPaid},
+              due_date = ${cleanDueDate},
+              invoice_url = ${cleanInvoiceUrl},
+              product_id = ${cleanProductId},
+              updated_at = now()
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *;
+          `;
+          updatedRow = { ...updated[0], trade_id: cleanTradeId };
+        } catch (innerErr) {
+          const updated = await sql`
+            UPDATE design_items SET
+              room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
+              name = ${cleanName},
+              category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
+              spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
+              vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
+              qty = ${cleanQty},
+              unit_cost = ${cleanUnitCost},
+              total = ${newTotal},
+              status = ${status !== undefined ? String(status).trim() : existing.status},
+              notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
+              link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
+              updated_at = now()
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *;
+          `;
+          updatedRow = {
+            ...updated[0],
+            paid: cleanPaid,
+            due_date: cleanDueDate,
+            invoice_url: cleanInvoiceUrl,
+            product_id: cleanProductId,
+            trade_id: cleanTradeId
+          };
+        }
       }
 
       return res.status(200).json({

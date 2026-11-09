@@ -18,6 +18,7 @@ import {
 } from '../ui';
 import DesignStudio from './DesignStudio.jsx';
 import BudgetTab from './BudgetTab.jsx';
+import SourcingTab from './SourcingTab.jsx';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
@@ -1187,8 +1188,19 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           )
         )}
 
-        {/* Placeholder for tabs other than Projects, Studio, and Budget (No Emojis) */}
-        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'budget' && (
+        {/* ======================================================================= */}
+        {/* 6. TAB 4: SOURCING LIBRARY TAB                                         */}
+        {/* ======================================================================= */}
+        {!loading && activeTab === 'sourcing' && (
+          <SourcingTab
+            currentProject={currentProject}
+            projects={projects}
+            onProjectUpdated={fetchProjects}
+          />
+        )}
+
+        {/* Placeholder for Portfolio (No Emojis) */}
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'budget' && activeTab !== 'sourcing' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."

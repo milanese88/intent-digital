@@ -161,7 +161,8 @@ export default function BudgetTab({
   const [drawerDueDate, setDrawerDueDate] = useState('');
   const [drawerNotes, setDrawerNotes] = useState('');
   const [drawerLinkUrl, setDrawerLinkUrl] = useState('');
-  const [drawerInvoiceUrl, setDrawerInvoiceUrl] = useState('');
+  const [drawerTradeId, setDrawerTradeId] = useState('');
+  const [trades, setTrades] = useState([]);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [drawerError, setDrawerError] = useState(null);
@@ -179,9 +180,10 @@ export default function BudgetTab({
     setLoading(true);
     setError(null);
     try {
-      const [itemsRes, roomsRes] = await Promise.all([
+      const [itemsRes, roomsRes, tradesRes] = await Promise.all([
         fetch(`/api/designer/items?project_id=${project.id}`),
-        fetch(`/api/designer/rooms?project_id=${project.id}`)
+        fetch(`/api/designer/rooms?project_id=${project.id}`),
+        fetch('/api/designer/trades')
       ]);
 
       if (!itemsRes.ok) {
@@ -193,6 +195,11 @@ export default function BudgetTab({
       if (roomsRes.ok) {
         const roomsData = await roomsRes.json();
         setRooms(roomsData.rooms || []);
+      }
+
+      if (tradesRes.ok) {
+        const tradesData = await tradesRes.json();
+        setTrades(tradesData.trades || []);
       }
     } catch (err) {
       console.error('Error fetching budget data:', err);
@@ -514,12 +521,14 @@ export default function BudgetTab({
       setDrawerNotes(item.notes || '');
       setDrawerLinkUrl(item.link_url || '');
       setDrawerInvoiceUrl(item.invoice_url || '');
+      setDrawerTradeId(item.trade_id || '');
     } else {
       setDrawerRoomId(roomFilter !== 'all' && roomFilter !== 'unassigned' ? roomFilter : (rooms[0]?.id || ''));
       setDrawerName('');
       setDrawerCategory('materials');
       setDrawerSpec('');
       setDrawerVendor('');
+      setDrawerTradeId('');
       setDrawerQty('1');
       setDrawerUnitCost('0');
       setDrawerStatus('planned');
@@ -618,7 +627,8 @@ export default function BudgetTab({
       due_date: drawerDueDate || null,
       notes: drawerNotes.trim() || null,
       link_url: drawerLinkUrl.trim() || null,
-      invoice_url: drawerInvoiceUrl || null
+      invoice_url: drawerInvoiceUrl || null,
+      trade_id: drawerTradeId || null
     };
 
     try {
@@ -1981,13 +1991,62 @@ export default function BudgetTab({
             placeholder="e.g. 7-inch wide planks, Brushed Brass, 60W LED"
           />
 
-          {/* Vendor */}
-          <Field
-            label="Vendor / Supplier"
-            value={drawerVendor}
-            onChange={(e) => setDrawerVendor(e.target.value)}
-            placeholder="e.g. Ferguson, Floor & Decor, CB2"
-          />
+          {/* Trade / Vendor (select from Trades or free text) */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--espresso)' }}>
+                Trade / Vendor
+              </label>
+              {trades.length > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                  from Sourcing Library
+                </span>
+              )}
+            </div>
+
+            {trades.length > 0 && (
+              <select
+                value={drawerTradeId}
+                onChange={(e) => {
+                  const selId = e.target.value;
+                  setDrawerTradeId(selId);
+                  const matched = trades.find(t => t.id === selId);
+                  if (matched) {
+                    setDrawerVendor(matched.company);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  borderRadius: 'var(--radius-input)',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--sand)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  marginBottom: '8px',
+                  color: 'var(--espresso)',
+                  outline: 'none'
+                }}
+              >
+                <option value="">Select a trade / vendor...</option>
+                {trades.map(t => (
+                  <option key={t.id} value={t.id}>{t.company} ({t.role || 'Vendor'})</option>
+                ))}
+              </select>
+            )}
+
+            <Field
+              label="Vendor / Supplier Name"
+              value={drawerVendor}
+              onChange={(e) => {
+                setDrawerVendor(e.target.value);
+                if (drawerTradeId && !trades.some(t => t.id === drawerTradeId && t.company === e.target.value)) {
+                  setDrawerTradeId('');
+                }
+              }}
+              placeholder="e.g. Ferguson, Floor & Decor, CB2"
+            />
+          </div>
 
           {/* Qty & Unit Cost row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>

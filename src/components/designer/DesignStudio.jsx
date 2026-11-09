@@ -4,7 +4,9 @@ import {
   Card,
   Eyebrow,
   SegmentedControl,
-  EmptyState
+  EmptyState,
+  SidePanel,
+  Field
 } from '../ui';
 
 const ROOM_TYPES = [
@@ -146,6 +148,21 @@ export default function DesignStudio({ project, onProjectUpdated }) {
   // Lightbox / Modal viewer for full images
   const [lightboxImage, setLightboxImage] = useState(null);
 
+  // Trades & Room Item Drawer State (Stage 4)
+  const [trades, setTrades] = useState([]);
+  const [isItemDrawerOpen, setIsItemDrawerOpen] = useState(false);
+  const [itemName, setItemName] = useState('');
+  const [itemCategory, setItemCategory] = useState('materials');
+  const [itemTradeId, setItemTradeId] = useState('');
+  const [itemVendor, setItemVendor] = useState('');
+  const [itemSpec, setItemSpec] = useState('');
+  const [itemQty, setItemQty] = useState('1');
+  const [itemUnitCost, setItemUnitCost] = useState('0');
+  const [itemStatus, setItemStatus] = useState('selected');
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [itemDrawerError, setItemDrawerError] = useState(null);
+  const [itemSuccessToast, setItemSuccessToast] = useState(null);
+
   // File input refs
   const moodFileInputRef = useRef(null);
   const beforeFileInputRef = useRef(null);
@@ -197,6 +214,85 @@ export default function DesignStudio({ project, onProjectUpdated }) {
   useEffect(() => {
     fetchRooms();
   }, [projectId]);
+
+  // Load trades for item trade/vendor selector
+  useEffect(() => {
+    fetch('/api/designer/trades')
+      .then(r => r.ok && r.json())
+      .then(d => {
+        if (d?.trades) setTrades(d.trades);
+      })
+      .catch(e => console.warn('Could not load trades in DesignStudio:', e));
+  }, []);
+
+  // Toast timer
+  useEffect(() => {
+    if (!itemSuccessToast) return;
+    const t = setTimeout(() => setItemSuccessToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [itemSuccessToast]);
+
+  const handleOpenNewItem = () => {
+    setItemName('');
+    setItemCategory('materials');
+    setItemTradeId('');
+    setItemVendor('');
+    setItemSpec('');
+    setItemQty('1');
+    setItemUnitCost('0');
+    setItemStatus('selected');
+    setItemDrawerError(null);
+    setIsItemDrawerOpen(true);
+  };
+
+  const handleSaveRoomItem = async (e) => {
+    e.preventDefault();
+    if (!itemName.trim()) {
+      setItemDrawerError('Item name is required');
+      return;
+    }
+
+    setIsSavingItem(true);
+    setItemDrawerError(null);
+
+    const payload = {
+      project_id: projectId,
+      room_id: currentRoom?.id || null,
+      name: itemName.trim(),
+      category: itemCategory,
+      vendor: itemVendor.trim() || null,
+      trade_id: itemTradeId || null,
+      spec: itemSpec.trim() || null,
+      qty: Number(itemQty) || 1,
+      unit_cost: Number(String(itemUnitCost).replace(/[$,]/g, '')) || 0,
+      status: itemStatus
+    };
+
+    try {
+      const res = await fetch('/api/designer/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Failed to save item');
+      }
+
+      if (typeof onProjectUpdated === 'function') {
+        onProjectUpdated();
+      }
+
+      setItemSuccessToast(`Added "${itemName.trim()}" to ${currentRoom?.name || 'Room'} ✓`);
+      setIsItemDrawerOpen(false);
+    } catch (err) {
+      console.error('Error saving room item:', err);
+      setItemDrawerError(err.message || 'Error saving room item');
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
 
   // Selected room object
   const currentRoom = rooms.find(r => r.id === selectedRoomId) || rooms[0] || null;
@@ -981,14 +1077,23 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                 </div>
               </div>
 
-              {/* SegmentedControl: Mood board · Before / after · Floor plan · Renders */}
-              <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-                <SegmentedControl
-                  options={STUDIO_VIEW_OPTIONS}
-                  value={studioView}
-                  onChange={setStudioView}
-                  size="md"
-                />
+              {/* SegmentedControl & + Add Item button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                  <SegmentedControl
+                    options={STUDIO_VIEW_OPTIONS}
+                    value={studioView}
+                    onChange={setStudioView}
+                    size="md"
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleOpenNewItem}
+                >
+                  + Add Item &rarr;
+                </Button>
               </div>
             </div>
 
@@ -2487,6 +2592,211 @@ export default function DesignStudio({ project, onProjectUpdated }) {
           </div>
         </div>
       )}
+
+      {/* Item Success Toast */}
+      {itemSuccessToast && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          backgroundColor: 'var(--espresso)',
+          color: 'var(--cream)',
+          padding: '12px 20px',
+          borderRadius: 'var(--radius-pill)',
+          boxShadow: 'var(--shadow-floating)',
+          zIndex: 10000,
+          fontFamily: 'var(--font-sans)',
+          fontSize: '13px',
+          fontWeight: 600
+        }}>
+          {itemSuccessToast}
+        </div>
+      )}
+
+      {/* Room Item SidePanel Form with Trade / Vendor select */}
+      <SidePanel
+        isOpen={isItemDrawerOpen}
+        onClose={() => !isSavingItem && setIsItemDrawerOpen(false)}
+        eyebrow="DESIGN STUDIO"
+        title={`Add item to ${currentRoom?.name || 'Room'}`}
+        footer={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', width: '100%' }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsItemDrawerOpen(false)}
+              disabled={isSavingItem}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveRoomItem}
+              disabled={isSavingItem}
+            >
+              {isSavingItem ? 'Saving...' : 'Add Item →'}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveRoomItem} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {itemDrawerError && (
+            <div style={{
+              padding: '10px 14px',
+              backgroundColor: 'var(--negative-bg)',
+              color: 'var(--negative)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '12px',
+              fontFamily: 'var(--font-sans)'
+            }}>
+              {itemDrawerError}
+            </div>
+          )}
+
+          <Field
+            label="Item Name"
+            required
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            placeholder="e.g. Cle Tile Zellige 4x4, Brass Wall Sconce"
+          />
+
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--espresso)', marginBottom: '6px' }}>
+              Category
+            </label>
+            <select
+              value={itemCategory}
+              onChange={(e) => setItemCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 'var(--radius-input)',
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--white)',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px'
+              }}
+            >
+              <option value="materials">Materials</option>
+              <option value="fixtures">Fixtures</option>
+              <option value="furniture">Furniture</option>
+              <option value="lighting">Lighting</option>
+              <option value="plumbing">Plumbing</option>
+              <option value="hardware">Hardware</option>
+              <option value="appliances">Appliances</option>
+              <option value="labor">Labor</option>
+              <option value="decor">Decor</option>
+              <option value="paint">Paint</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          {/* Trade / Vendor Select */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--espresso)' }}>
+                Trade / Vendor
+              </label>
+              {trades.length > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                  from Sourcing Library
+                </span>
+              )}
+            </div>
+
+            {trades.length > 0 && (
+              <select
+                value={itemTradeId}
+                onChange={(e) => {
+                  const selId = e.target.value;
+                  setItemTradeId(selId);
+                  const matched = trades.find(t => t.id === selId);
+                  if (matched) {
+                    setItemVendor(matched.company);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  borderRadius: 'var(--radius-input)',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--sand)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  marginBottom: '8px',
+                  color: 'var(--espresso)',
+                  outline: 'none'
+                }}
+              >
+                <option value="">Select a trade / vendor...</option>
+                {trades.map(t => (
+                  <option key={t.id} value={t.id}>{t.company} ({t.role || 'Vendor'})</option>
+                ))}
+              </select>
+            )}
+
+            <Field
+              label="Vendor / Supplier Name"
+              value={itemVendor}
+              onChange={(e) => {
+                setItemVendor(e.target.value);
+                if (itemTradeId && !trades.some(t => t.id === itemTradeId && t.company === e.target.value)) {
+                  setItemTradeId('');
+                }
+              }}
+              placeholder="e.g. Ferguson, Floor & Decor, CB2"
+            />
+          </div>
+
+          <Field
+            label="Specification / Model"
+            value={itemSpec}
+            onChange={(e) => setItemSpec(e.target.value)}
+            placeholder="e.g. Brushed Brass, 60W LED"
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field
+              label="Quantity"
+              type="number"
+              min="1"
+              value={itemQty}
+              onChange={(e) => setItemQty(e.target.value)}
+            />
+            <Field
+              label="Unit Cost ($)"
+              value={itemUnitCost}
+              onChange={(e) => setItemUnitCost(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--espresso)', marginBottom: '6px' }}>
+              Status
+            </label>
+            <select
+              value={itemStatus}
+              onChange={(e) => setItemStatus(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 'var(--radius-input)',
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--white)',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px'
+              }}
+            >
+              <option value="selected">Selected</option>
+              <option value="idea">Idea / Planned</option>
+              <option value="ordered">Ordered</option>
+              <option value="delivered">Delivered</option>
+              <option value="installed">Installed</option>
+            </select>
+          </div>
+        </form>
+      </SidePanel>
     </div>
   );
 }
