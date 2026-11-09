@@ -24,10 +24,11 @@ function calculateMedian(numbers) {
   return (valid[mid - 1] + valid[mid]) / 2;
 }
 
-export default function InvestorStudio() {
+export default function InvestorStudio({ setActiveDashboardTab }) {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [designLoading, setDesignLoading] = useState(false);
 
   // Active property for Detail View (null = List View, string = Detail View)
   const [activePropertyId, setActivePropertyId] = useState(() => {
@@ -287,6 +288,92 @@ export default function InvestorStudio() {
     url.searchParams.delete('tab');
     window.history.pushState({}, '', url);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDesignThisProperty = async (prop) => {
+    if (!prop) return;
+    setDesignLoading(true);
+    try {
+      // 1. Check if a project already exists for this property
+      const res = await fetch(`/api/designer/projects?investor_property_id=${prop.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.project?.id) {
+          if (typeof setActiveDashboardTab === 'function') {
+            setActiveDashboardTab('designer');
+          }
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'designer');
+            url.searchParams.set('project_id', data.project.id);
+            url.searchParams.set('designer_tab', 'projects');
+            window.history.pushState({}, '', url.toString());
+            if (typeof setActiveDashboardTab !== 'function') {
+              window.location.reload();
+            }
+          }
+          return;
+        }
+      }
+
+      // 2. If no project exists, create one linked to this property
+      const createRes = await fetch('/api/designer/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${prop.address} Design`,
+          location: `${prop.address}${prop.city ? ', ' + prop.city : ''}`,
+          project_type: 'investor',
+          status: 'concept',
+          target_budget: prop.list_price ? Math.round(Number(prop.list_price) * 0.1) : null,
+          contingency_pct: 10,
+          investor_property_id: prop.id,
+          cover_url: prop.cover_photo_url || null,
+          notes: `Linked to Investor Studio property at ${prop.address}.`,
+          initial_rooms: ['Kitchen', 'Primary bath', 'Living room', 'Bedrooms']
+        })
+      });
+
+      if (createRes.ok) {
+        const createData = await createRes.json();
+        const newProjId = createData.project?.id;
+        if (typeof setActiveDashboardTab === 'function') {
+          setActiveDashboardTab('designer');
+        }
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', 'designer');
+          if (newProjId) {
+            url.searchParams.set('project_id', newProjId);
+          }
+          url.searchParams.set('designer_tab', 'projects');
+          window.history.pushState({}, '', url.toString());
+          if (typeof setActiveDashboardTab !== 'function') {
+            window.location.reload();
+          }
+        }
+      } else {
+        if (typeof setActiveDashboardTab === 'function') {
+          setActiveDashboardTab('designer');
+        }
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', 'designer');
+          url.searchParams.set('new_project_property_id', prop.id);
+          window.history.pushState({}, '', url.toString());
+          if (typeof setActiveDashboardTab !== 'function') {
+            window.location.reload();
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error opening/creating designer project:', err);
+      if (typeof setActiveDashboardTab === 'function') {
+        setActiveDashboardTab('designer');
+      }
+    } finally {
+      setDesignLoading(false);
+    }
   };
 
   const handleSelectTab = (tabKey) => {
@@ -1833,6 +1920,40 @@ export default function InvestorStudio() {
                       </button>
 
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        {/* Design this property Link */}
+                        <button
+                          type="button"
+                          onClick={() => handleDesignThisProperty(activeProperty)}
+                          disabled={designLoading}
+                          title="Design this property in Designer Hub"
+                          style={{
+                            backgroundColor: '#FAF3EE',
+                            border: '1px solid #E9B08F',
+                            borderRadius: '50px',
+                            padding: '8px 18px',
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            color: '#C05A2A',
+                            cursor: designLoading ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#C05A2A';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FAF3EE';
+                            e.currentTarget.style.color = '#C05A2A';
+                          }}
+                        >
+                          {designLoading ? 'Opening...' : 'Design this property \u2192'}
+                        </button>
+
                         {/* EDIT Outline Pill */}
                         <button
                           type="button"

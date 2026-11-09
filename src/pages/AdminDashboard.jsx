@@ -6,10 +6,26 @@ import UserProfile from './dashboard/UserProfile.jsx';
 import EmailTemplates from './dashboard/EmailTemplates.jsx';
 import Blogs from './dashboard/Blogs.jsx';
 import InvestorStudio from '../components/investor/InvestorStudio.jsx';
+import DesignerHub from '../components/designer/DesignerHub.jsx';
 
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tab') || 'overview';
+    }
+    return 'overview';
+  });
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', newTab);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
 
   useEffect(() => {
     const verifySession = async () => {
@@ -41,13 +57,14 @@ export default function AdminDashboard({ navigateTo }) {
       case 'settings': return <Settings />;
       case 'email-templates': return <EmailTemplates />;
       case 'blogs': return <Blogs />;
-      case 'investor': return <InvestorStudio />;
+      case 'investor': return <InvestorStudio setActiveDashboardTab={handleTabChange} />;
+      case 'designer': return <DesignerHub setActiveDashboardTab={handleTabChange} />;
       default: return null;
     }
   };
 
   return (
-    <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={setActiveTab}>
+    <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={handleTabChange}>
       {renderActiveTab()}
     </DashboardLayout>
   );

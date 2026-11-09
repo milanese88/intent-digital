@@ -7,7 +7,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
     { id: 'overview', label: 'DASHBOARD' },
     { id: 'email-templates', label: 'EMAIL TEMPLATES' },
     { id: 'blogs', label: 'BLOGS' },
-    { id: 'investor', label: 'INVESTOR STUDIO' }
+    { id: 'investor', label: 'INVESTOR STUDIO' },
+    { id: 'designer', label: 'DESIGNER HUB' }
   ];
 
   const bottomTabs = [
@@ -153,7 +154,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           </button>
         </header>
 
-        <div style={{ padding: '40px 5%' }}>
+        <div style={{ padding: (activeTab === 'investor' || activeTab === 'designer') ? 0 : '40px 5%' }}>
           {children}
         </div>
       </main>
