@@ -275,29 +275,103 @@ export default async function handler(req, res) {
               psi.flood_bfe,
               psi.zoning_code,
               psi.zoning_desc,
+              ipp.blob_url AS cover_photo_url,
               p.created_at,
               p.updated_at
             FROM investor_properties p
             LEFT JOIN parcel_site_info psi 
               ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
              AND psi.parcel_id = p.parcel_id
+            LEFT JOIN LATERAL (
+              SELECT blob_url FROM investor_property_photos
+              WHERE property_id = p.id
+              ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+              LIMIT 1
+            ) ipp ON true
             WHERE lower(p.owner_email) = ${cleanEmail}
             ORDER BY p.created_at DESC
           `;
         } catch (joinErr) {
-          // If parcel_site_info doesn't exist yet (42P01) or parcel_id column missing (42703)
-          properties = await sql`
-            SELECT 
-              id,
-              owner_email,
-              address,
-              city,
-              state,
-              zip,
-              county,
-              lat,
-              lng,
-              property_type,
+          // If parcel_site_info or investor_property_photos doesn't exist yet
+          try {
+            properties = await sql`
+              SELECT 
+                p.id,
+                p.owner_email,
+                p.address,
+                p.city,
+                p.state,
+                p.zip,
+                p.county,
+                p.lat,
+                p.lng,
+                p.property_type,
+                p.units,
+                p.beds,
+                p.baths,
+                p.sqft,
+                p.lot_sqft,
+                p.year_built,
+                p.list_price,
+                p.status,
+                p.strategy,
+                p.condition,
+                p.roof_year,
+                p.listing_url,
+                p.notes,
+                p.parcel_id,
+                p.parcel_county,
+                psi.flood_zone,
+                psi.flood_subtype,
+                psi.flood_sfha,
+                psi.flood_bfe,
+                psi.zoning_code,
+                psi.zoning_desc,
+                p.created_at,
+                p.updated_at
+              FROM investor_properties p
+              LEFT JOIN parcel_site_info psi 
+                ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
+               AND psi.parcel_id = p.parcel_id
+              WHERE lower(p.owner_email) = ${cleanEmail}
+              ORDER BY p.created_at DESC
+            `;
+          } catch (psiErr) {
+            properties = await sql`
+              SELECT 
+                id,
+                owner_email,
+                address,
+                city,
+                state,
+                zip,
+                county,
+                lat,
+                lng,
+                property_type,
+                units,
+                beds,
+                baths,
+                sqft,
+                lot_sqft,
+                year_built,
+                list_price,
+                status,
+                strategy,
+                condition,
+                roof_year,
+                listing_url,
+                notes,
+                parcel_id,
+                parcel_county,
+                created_at,
+                updated_at
+              FROM investor_properties
+              WHERE lower(owner_email) = ${cleanEmail}
+              ORDER BY created_at DESC
+            `;
+          }
+        }
               units,
               beds,
               baths,
