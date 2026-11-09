@@ -96,6 +96,8 @@ This document locks in the visual aesthetic across every screen of the Intent Di
 - **Mood Board Grid**: 4-column responsive grid with 120px rows. Each tile can be small (1×1), wide (2×1), or large (2×2) with caption pill bottom-left. Drag-and-drop reordering on desktop plus keyboard/mobile move buttons. Drop zone at the end with safe photo pipeline (JPEG max 2000px, EXIF metadata stripped, random unguessable Blob paths).
 - **Before / After**: Interactive comparison slider (`<input type="range" />` split view) or side-by-side column view.
 - **Floor Plan & Renders**: Gallery grid with captions and lightbox modal view.
+- **Budget & Costs Strip**: White Card with 4 big serif numbers (`TARGET BUDGET` [inline editable], `TOTAL WITH CONTINGENCY` [inline editable contingency %], `COMMITTED`, `PAID`). Stacked progress bar against target (paid = espresso, committed = burgundy, estimated = beige) with typographic legend and red over-target warning if budget exceeded. Linked property "Send to Underwrite →" integration with confirmation modal and Underwrite backlink badge.
+- **Budget Two-Column Layout**: Left narrow card with By-Room breakdown + relative bar indicators (click to filter), By-Category breakdown (12 architectural categories + contingency line), and Labor vs Materials split. Right wide table with search, filters, inline cell edits (save on blur with subtle "Saved" indicator), SidePanel item drawer with safe invoice upload (PDF / image), CSV export, and clean `@media print` print stylesheet.
 
 ---
 

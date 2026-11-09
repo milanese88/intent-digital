@@ -113,6 +113,11 @@ function validateProperty(body) {
   const parcel_id = body.parcel_id != null && String(body.parcel_id).trim() !== '' ? String(body.parcel_id).trim() : null;
   const parcel_county = body.parcel_county != null && String(body.parcel_county).trim() !== '' ? String(body.parcel_county).trim() : null;
 
+  // Rehab Budget fields (from Designer Hub)
+  const rehab_budget = parseNumField(body.rehab_budget, 'rehab_budget', 'Rehab budget');
+  const rehab_budget_source = body.rehab_budget_source != null && String(body.rehab_budget_source).trim() !== '' ? String(body.rehab_budget_source).trim() : null;
+  const rehab_budget_updated_at = body.rehab_budget_updated_at != null && String(body.rehab_budget_updated_at).trim() !== '' ? new Date(body.rehab_budget_updated_at).toISOString() : null;
+
   return {
     errors,
     data: {
@@ -138,7 +143,10 @@ function validateProperty(body) {
       listing_url,
       notes,
       parcel_id,
-      parcel_county
+      parcel_county,
+      rehab_budget,
+      rehab_budget_source,
+      rehab_budget_updated_at
     }
   };
 }
@@ -192,6 +200,9 @@ export default async function handler(req, res) {
               psi.flood_bfe,
               psi.zoning_code,
               psi.zoning_desc,
+              p.rehab_budget,
+              p.rehab_budget_source,
+              p.rehab_budget_updated_at,
               ipp.blob_url AS cover_photo_url,
               p.created_at,
               p.updated_at
@@ -244,6 +255,9 @@ export default async function handler(req, res) {
                 NULL::numeric AS flood_bfe,
                 NULL::text AS zoning_code,
                 NULL::text AS zoning_desc,
+                NULL::numeric AS rehab_budget,
+                NULL::text AS rehab_budget_source,
+                NULL::timestamptz AS rehab_budget_updated_at,
                 NULL::text AS cover_photo_url,
                 created_at,
                 updated_at
@@ -286,6 +300,9 @@ export default async function handler(req, res) {
                 NULL::numeric AS flood_bfe,
                 NULL::text AS zoning_code,
                 NULL::text AS zoning_desc,
+                NULL::numeric AS rehab_budget,
+                NULL::text AS rehab_budget_source,
+                NULL::timestamptz AS rehab_budget_updated_at,
                 NULL::text AS cover_photo_url,
                 created_at,
                 updated_at
@@ -339,6 +356,9 @@ export default async function handler(req, res) {
             psi.flood_bfe,
             psi.zoning_code,
             psi.zoning_desc,
+            p.rehab_budget,
+            p.rehab_budget_source,
+            p.rehab_budget_updated_at,
             ipp.blob_url AS cover_photo_url,
             p.created_at,
             p.updated_at
@@ -392,6 +412,9 @@ export default async function handler(req, res) {
               NULL::numeric AS flood_bfe,
               NULL::text AS zoning_code,
               NULL::text AS zoning_desc,
+              NULL::numeric AS rehab_budget,
+              NULL::text AS rehab_budget_source,
+              NULL::timestamptz AS rehab_budget_updated_at,
               NULL::text AS cover_photo_url,
               created_at,
               updated_at
@@ -435,6 +458,9 @@ export default async function handler(req, res) {
               NULL::numeric AS flood_bfe,
               NULL::text AS zoning_code,
               NULL::text AS zoning_desc,
+              NULL::numeric AS rehab_budget,
+              NULL::text AS rehab_budget_source,
+              NULL::timestamptz AS rehab_budget_updated_at,
               NULL::text AS cover_photo_url,
               created_at,
               updated_at
@@ -611,7 +637,10 @@ export default async function handler(req, res) {
             listing_url = ${data.listing_url},
             notes = ${data.notes},
             parcel_id = ${data.parcel_id},
-            parcel_county = ${data.parcel_county}
+            parcel_county = ${data.parcel_county},
+            rehab_budget = ${data.rehab_budget},
+            rehab_budget_source = ${data.rehab_budget_source},
+            rehab_budget_updated_at = ${data.rehab_budget_updated_at}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -647,6 +676,9 @@ export default async function handler(req, res) {
         if (rows[0]) {
           rows[0].parcel_id = data.parcel_id || null;
           rows[0].parcel_county = data.parcel_county || null;
+          rows[0].rehab_budget = data.rehab_budget || null;
+          rows[0].rehab_budget_source = data.rehab_budget_source || null;
+          rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
         }
       }
 
@@ -707,7 +739,10 @@ export default async function handler(req, res) {
             listing_url = ${data.listing_url},
             notes = ${data.notes},
             parcel_id = ${data.parcel_id},
-            parcel_county = ${data.parcel_county}
+            parcel_county = ${data.parcel_county},
+            rehab_budget = ${data.rehab_budget},
+            rehab_budget_source = ${data.rehab_budget_source},
+            rehab_budget_updated_at = ${data.rehab_budget_updated_at}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -743,6 +778,9 @@ export default async function handler(req, res) {
         if (rows[0]) {
           rows[0].parcel_id = data.parcel_id || null;
           rows[0].parcel_county = data.parcel_county || null;
+          rows[0].rehab_budget = data.rehab_budget || null;
+          rows[0].rehab_budget_source = data.rehab_budget_source || null;
+          rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
         }
       }
 

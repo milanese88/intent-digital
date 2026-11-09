@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
+import { del } from '@vercel/blob';
 
 export default async function handler(req, res) {
   try {
@@ -60,7 +61,10 @@ export default async function handler(req, res) {
           ...i,
           qty: Number(i.qty || 1),
           unit_cost: Number(i.unit_cost || 0),
-          total: Number(i.total || ((Number(i.qty || 1)) * (Number(i.unit_cost || 0))))
+          total: Number(i.total != null ? i.total : ((Number(i.qty || 1)) * (Number(i.unit_cost || 0)))),
+          paid: Number(i.paid != null ? i.paid : 0),
+          due_date: i.due_date ? String(i.due_date).substring(0, 10) : null,
+          invoice_url: i.invoice_url || null
         }))
       });
     }
@@ -81,7 +85,12 @@ export default async function handler(req, res) {
         unit_cost = 0,
         status = 'planned',
         notes,
-        link_url
+        link_url,
+        paid = 0,
+        due_date = null,
+        invoice_url = null,
+        product_id = null,
+        trade_id = null
       } = body;
 
       if (!project_id) {
@@ -117,46 +126,156 @@ export default async function handler(req, res) {
       const numQty = Number(qty) || 1;
       const numUnitCost = Number(unit_cost) || 0;
       const numTotal = numQty * numUnitCost;
+      const numPaid = Number(paid) || 0;
+      const cleanDueDate = due_date ? String(due_date).substring(0, 10) : null;
+      const cleanInvoiceUrl = invoice_url ? String(invoice_url).trim() : null;
 
-      const inserted = await sql`
-        INSERT INTO design_items (
-          project_id,
-          room_id,
-          owner_email,
-          name,
-          category,
-          spec,
-          vendor,
-          qty,
-          unit_cost,
-          total,
-          status,
-          notes,
-          link_url
-        ) VALUES (
-          ${project_id},
-          ${room_id || null},
-          ${cleanEmail},
-          ${cleanName},
-          ${category ? String(category).trim() : null},
-          ${spec ? String(spec).trim() : null},
-          ${vendor ? String(vendor).trim() : null},
-          ${numQty},
-          ${numUnitCost},
-          ${numTotal},
-          ${status ? String(status).trim() : 'planned'},
-          ${notes ? String(notes).trim() : null},
-          ${link_url ? String(link_url).trim() : null}
-        )
-        RETURNING *;
-      `;
+      const cleanProductId = product_id || null;
+      const cleanTradeId = trade_id || null;
+
+      let insertedRow;
+      try {
+        const inserted = await sql`
+          INSERT INTO design_items (
+            project_id,
+            room_id,
+            owner_email,
+            name,
+            category,
+            spec,
+            vendor,
+            qty,
+            unit_cost,
+            total,
+            status,
+            notes,
+            link_url,
+            paid,
+            due_date,
+            invoice_url,
+            product_id,
+            trade_id
+          ) VALUES (
+            ${project_id},
+            ${room_id || null},
+            ${cleanEmail},
+            ${cleanName},
+            ${category ? String(category).trim() : null},
+            ${spec ? String(spec).trim() : null},
+            ${vendor ? String(vendor).trim() : null},
+            ${numQty},
+            ${numUnitCost},
+            ${numTotal},
+            ${status ? String(status).trim() : 'planned'},
+            ${notes ? String(notes).trim() : null},
+            ${link_url ? String(link_url).trim() : null},
+            ${numPaid},
+            ${cleanDueDate},
+            ${cleanInvoiceUrl},
+            ${cleanProductId},
+            ${cleanTradeId}
+          )
+          RETURNING *;
+        `;
+        insertedRow = inserted[0];
+      } catch (insertErr) {
+        // Fallback without trade_id if migration pending
+        console.warn('Insert with trade_id failed, falling back:', insertErr.message);
+        try {
+          const inserted = await sql`
+            INSERT INTO design_items (
+              project_id,
+              room_id,
+              owner_email,
+              name,
+              category,
+              spec,
+              vendor,
+              qty,
+              unit_cost,
+              total,
+              status,
+              notes,
+              link_url,
+              paid,
+              due_date,
+              invoice_url,
+              product_id
+            ) VALUES (
+              ${project_id},
+              ${room_id || null},
+              ${cleanEmail},
+              ${cleanName},
+              ${category ? String(category).trim() : null},
+              ${spec ? String(spec).trim() : null},
+              ${vendor ? String(vendor).trim() : null},
+              ${numQty},
+              ${numUnitCost},
+              ${numTotal},
+              ${status ? String(status).trim() : 'planned'},
+              ${notes ? String(notes).trim() : null},
+              ${link_url ? String(link_url).trim() : null},
+              ${numPaid},
+              ${cleanDueDate},
+              ${cleanInvoiceUrl},
+              ${cleanProductId}
+            )
+            RETURNING *;
+          `;
+          insertedRow = { ...inserted[0], trade_id: cleanTradeId };
+        } catch (innerErr) {
+          const inserted = await sql`
+            INSERT INTO design_items (
+              project_id,
+              room_id,
+              owner_email,
+              name,
+              category,
+              spec,
+              vendor,
+              qty,
+              unit_cost,
+              total,
+              status,
+              notes,
+              link_url
+            ) VALUES (
+              ${project_id},
+              ${room_id || null},
+              ${cleanEmail},
+              ${cleanName},
+              ${category ? String(category).trim() : null},
+              ${spec ? String(spec).trim() : null},
+              ${vendor ? String(vendor).trim() : null},
+              ${numQty},
+              ${numUnitCost},
+              ${numTotal},
+              ${status ? String(status).trim() : 'planned'},
+              ${notes ? String(notes).trim() : null},
+              ${link_url ? String(link_url).trim() : null}
+            )
+            RETURNING *;
+          `;
+          insertedRow = {
+            ...inserted[0],
+            paid: numPaid,
+            due_date: cleanDueDate,
+            invoice_url: cleanInvoiceUrl,
+            product_id: cleanProductId,
+            trade_id: cleanTradeId
+          };
+        }
+      }
 
       return res.status(201).json({
         item: {
-          ...inserted[0],
-          qty: Number(inserted[0].qty || 1),
-          unit_cost: Number(inserted[0].unit_cost || 0),
-          total: Number(inserted[0].total || numTotal)
+          ...insertedRow,
+          qty: Number(insertedRow.qty || 1),
+          unit_cost: Number(insertedRow.unit_cost || 0),
+          total: Number(insertedRow.total || numTotal),
+          paid: Number(insertedRow.paid != null ? insertedRow.paid : numPaid),
+          due_date: insertedRow.due_date ? String(insertedRow.due_date).substring(0, 10) : cleanDueDate,
+          invoice_url: insertedRow.invoice_url || cleanInvoiceUrl
         }
       });
     }
@@ -191,38 +310,122 @@ export default async function handler(req, res) {
         unit_cost,
         status,
         notes,
-        link_url
+        link_url,
+        paid,
+        due_date,
+        invoice_url,
+        product_id,
+        trade_id
       } = body;
 
       const cleanName = name !== undefined ? String(name).trim() : existing.name;
       const cleanQty = qty !== undefined ? (Number(qty) || 1) : Number(existing.qty || 1);
       const cleanUnitCost = unit_cost !== undefined ? (Number(unit_cost) || 0) : Number(existing.unit_cost || 0);
       const newTotal = cleanQty * cleanUnitCost;
+      const cleanPaid = paid !== undefined ? (Number(paid) || 0) : Number(existing.paid != null ? existing.paid : 0);
+      const cleanDueDate = due_date !== undefined ? (due_date ? String(due_date).substring(0, 10) : null) : (existing.due_date ? String(existing.due_date).substring(0, 10) : null);
+      const cleanInvoiceUrl = invoice_url !== undefined ? (invoice_url ? String(invoice_url).trim() : null) : (existing.invoice_url || null);
 
-      const updated = await sql`
-        UPDATE design_items SET
-          room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
-          name = ${cleanName},
-          category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
-          spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
-          vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
-          qty = ${cleanQty},
-          unit_cost = ${cleanUnitCost},
-          total = ${newTotal},
-          status = ${status !== undefined ? String(status).trim() : existing.status},
-          notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
-          link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
-          updated_at = now()
-        WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-        RETURNING *;
-      `;
+      const cleanProductId = product_id !== undefined ? (product_id || null) : existing.product_id;
+      const cleanTradeId = trade_id !== undefined ? (trade_id || null) : existing.trade_id;
+
+      // If invoice_url is being replaced or removed, delete previous blob from storage
+      if (existing.invoice_url && cleanInvoiceUrl !== existing.invoice_url && String(existing.invoice_url).includes('public.blob.vercel-storage.com')) {
+        try {
+          await del(existing.invoice_url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+        } catch (delErr) {
+          console.warn('Failed to delete previous invoice blob on item update:', delErr.message);
+        }
+      }
+
+      let updatedRow;
+      try {
+        const updated = await sql`
+          UPDATE design_items SET
+            room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
+            name = ${cleanName},
+            category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
+            spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
+            vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
+            qty = ${cleanQty},
+            unit_cost = ${cleanUnitCost},
+            total = ${newTotal},
+            status = ${status !== undefined ? String(status).trim() : existing.status},
+            notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
+            link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
+            paid = ${cleanPaid},
+            due_date = ${cleanDueDate},
+            invoice_url = ${cleanInvoiceUrl},
+            product_id = ${cleanProductId},
+            trade_id = ${cleanTradeId},
+            updated_at = now()
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+          RETURNING *;
+        `;
+        updatedRow = updated[0];
+      } catch (updateErr) {
+        console.warn('Update with trade_id failed, falling back:', updateErr.message);
+        try {
+          const updated = await sql`
+            UPDATE design_items SET
+              room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
+              name = ${cleanName},
+              category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
+              spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
+              vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
+              qty = ${cleanQty},
+              unit_cost = ${cleanUnitCost},
+              total = ${newTotal},
+              status = ${status !== undefined ? String(status).trim() : existing.status},
+              notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
+              link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
+              paid = ${cleanPaid},
+              due_date = ${cleanDueDate},
+              invoice_url = ${cleanInvoiceUrl},
+              product_id = ${cleanProductId},
+              updated_at = now()
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *;
+          `;
+          updatedRow = { ...updated[0], trade_id: cleanTradeId };
+        } catch (innerErr) {
+          const updated = await sql`
+            UPDATE design_items SET
+              room_id = ${room_id !== undefined ? (room_id || null) : existing.room_id},
+              name = ${cleanName},
+              category = ${category !== undefined ? (category ? String(category).trim() : null) : existing.category},
+              spec = ${spec !== undefined ? (spec ? String(spec).trim() : null) : existing.spec},
+              vendor = ${vendor !== undefined ? (vendor ? String(vendor).trim() : null) : existing.vendor},
+              qty = ${cleanQty},
+              unit_cost = ${cleanUnitCost},
+              total = ${newTotal},
+              status = ${status !== undefined ? String(status).trim() : existing.status},
+              notes = ${notes !== undefined ? (notes ? String(notes).trim() : null) : existing.notes},
+              link_url = ${link_url !== undefined ? (link_url ? String(link_url).trim() : null) : existing.link_url},
+              updated_at = now()
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *;
+          `;
+          updatedRow = {
+            ...updated[0],
+            paid: cleanPaid,
+            due_date: cleanDueDate,
+            invoice_url: cleanInvoiceUrl,
+            product_id: cleanProductId,
+            trade_id: cleanTradeId
+          };
+        }
+      }
 
       return res.status(200).json({
         item: {
-          ...updated[0],
-          qty: Number(updated[0].qty || 1),
-          unit_cost: Number(updated[0].unit_cost || 0),
-          total: Number(updated[0].total || newTotal)
+          ...updatedRow,
+          qty: Number(updatedRow.qty || 1),
+          unit_cost: Number(updatedRow.unit_cost || 0),
+          total: Number(updatedRow.total || newTotal),
+          paid: Number(updatedRow.paid != null ? updatedRow.paid : cleanPaid),
+          due_date: updatedRow.due_date ? String(updatedRow.due_date).substring(0, 10) : cleanDueDate,
+          invoice_url: updatedRow.invoice_url || cleanInvoiceUrl
         }
       });
     }
@@ -237,12 +440,21 @@ export default async function handler(req, res) {
       }
 
       const itemCheck = await sql`
-        SELECT id FROM design_items
+        SELECT id, invoice_url FROM design_items
         WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
         LIMIT 1;
       `;
       if (itemCheck.length === 0) {
         return res.status(404).json({ error: 'Item not found' });
+      }
+
+      // If item had an invoice stored in Vercel Blob, delete it
+      if (itemCheck[0].invoice_url && String(itemCheck[0].invoice_url).includes('public.blob.vercel-storage.com')) {
+        try {
+          await del(itemCheck[0].invoice_url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+        } catch (delErr) {
+          console.warn('Failed to delete item invoice blob:', delErr.message);
+        }
       }
 
       await sql`

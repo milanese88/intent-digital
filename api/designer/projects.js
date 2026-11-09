@@ -44,18 +44,40 @@ export default async function handler(req, res) {
 
       // GET one by id
       if (id) {
-        const projects = await sql`
-          SELECT 
-            p.*,
-            ip.address as investor_property_address,
-            ip.city as investor_property_city,
-            ip.lat as investor_property_lat,
-            ip.lng as investor_property_lng
-          FROM design_projects p
-          LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
-          WHERE p.id = ${id} AND lower(p.owner_email) = ${cleanEmail}
-          LIMIT 1
-        `;
+        let projects = [];
+        try {
+          projects = await sql`
+            SELECT 
+              p.*,
+              ip.address as investor_property_address,
+              ip.city as investor_property_city,
+              ip.lat as investor_property_lat,
+              ip.lng as investor_property_lng,
+              ip.rehab_budget as investor_property_rehab_budget,
+              ip.rehab_budget_source as investor_property_rehab_budget_source,
+              ip.rehab_budget_updated_at as investor_property_rehab_budget_updated_at
+            FROM design_projects p
+            LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
+            WHERE p.id = ${id} AND lower(p.owner_email) = ${cleanEmail}
+            LIMIT 1
+          `;
+        } catch (colErr) {
+          projects = await sql`
+            SELECT 
+              p.*,
+              ip.address as investor_property_address,
+              ip.city as investor_property_city,
+              ip.lat as investor_property_lat,
+              ip.lng as investor_property_lng,
+              NULL::numeric as investor_property_rehab_budget,
+              NULL::text as investor_property_rehab_budget_source,
+              NULL::timestamptz as investor_property_rehab_budget_updated_at
+            FROM design_projects p
+            LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
+            WHERE p.id = ${id} AND lower(p.owner_email) = ${cleanEmail}
+            LIMIT 1
+          `;
+        }
 
         if (projects.length === 0) {
           return res.status(404).json({ error: 'Project not found' });
@@ -84,37 +106,78 @@ export default async function handler(req, res) {
       }
 
       // GET list of all projects with room count and item totals
-      const projects = await sql`
-        SELECT 
-          p.id,
-          p.owner_email,
-          p.name,
-          p.location,
-          p.project_type,
-          p.status,
-          p.style,
-          p.target_budget,
-          p.contingency_pct,
-          p.investor_property_id,
-          p.cover_url,
-          p.notes,
-          p.created_at,
-          p.updated_at,
-          ip.address as investor_property_address,
-          ip.city as investor_property_city,
-          ip.lat as investor_property_lat,
-          ip.lng as investor_property_lng,
-          COUNT(DISTINCT r.id) AS room_count,
-          COUNT(DISTINCT i.id) AS item_count,
-          COALESCE(SUM(i.total), 0) AS total_item_cost
-        FROM design_projects p
-        LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
-        LEFT JOIN design_rooms r ON r.project_id = p.id
-        LEFT JOIN design_items i ON i.project_id = p.id
-        WHERE lower(p.owner_email) = ${cleanEmail}
-        GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng
-        ORDER BY p.updated_at DESC, p.created_at DESC
-      `;
+      let projects = [];
+      try {
+        projects = await sql`
+          SELECT 
+            p.id,
+            p.owner_email,
+            p.name,
+            p.location,
+            p.project_type,
+            p.status,
+            p.style,
+            p.target_budget,
+            p.contingency_pct,
+            p.investor_property_id,
+            p.cover_url,
+            p.notes,
+            p.created_at,
+            p.updated_at,
+            ip.address as investor_property_address,
+            ip.city as investor_property_city,
+            ip.lat as investor_property_lat,
+            ip.lng as investor_property_lng,
+            ip.rehab_budget as investor_property_rehab_budget,
+            ip.rehab_budget_source as investor_property_rehab_budget_source,
+            ip.rehab_budget_updated_at as investor_property_rehab_budget_updated_at,
+            COUNT(DISTINCT r.id) AS room_count,
+            COUNT(DISTINCT i.id) AS item_count,
+            COALESCE(SUM(i.total), 0) AS total_item_cost
+          FROM design_projects p
+          LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
+          LEFT JOIN design_rooms r ON r.project_id = p.id
+          LEFT JOIN design_items i ON i.project_id = p.id
+          WHERE lower(p.owner_email) = ${cleanEmail}
+          GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng, ip.rehab_budget, ip.rehab_budget_source, ip.rehab_budget_updated_at
+          ORDER BY p.updated_at DESC, p.created_at DESC
+        `;
+      } catch (colErr) {
+        projects = await sql`
+          SELECT 
+            p.id,
+            p.owner_email,
+            p.name,
+            p.location,
+            p.project_type,
+            p.status,
+            p.style,
+            p.target_budget,
+            p.contingency_pct,
+            p.investor_property_id,
+            p.cover_url,
+            p.notes,
+            p.created_at,
+            p.updated_at,
+            ip.address as investor_property_address,
+            ip.city as investor_property_city,
+            ip.lat as investor_property_lat,
+            ip.lng as investor_property_lng,
+            NULL::numeric as investor_property_rehab_budget,
+            NULL::text as investor_property_rehab_budget_source,
+            NULL::timestamptz as investor_property_rehab_budget_updated_at,
+            COUNT(DISTINCT r.id) AS room_count,
+            COUNT(DISTINCT i.id) AS item_count,
+            COALESCE(SUM(i.total), 0) AS total_item_cost
+          FROM design_projects p
+          LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
+          LEFT JOIN design_rooms r ON r.project_id = p.id
+          LEFT JOIN design_items i ON i.project_id = p.id
+          WHERE lower(p.owner_email) = ${cleanEmail}
+          GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng
+          ORDER BY p.updated_at DESC, p.created_at DESC
+        `;
+      }
 
       return res.status(200).json({ projects });
     }
