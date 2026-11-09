@@ -47,6 +47,77 @@ function formatDate(dateStr) {
   }
 }
 
+/**
+ * Safe Invoice Processing Pipeline:
+ * - 10 MB limit enforcement.
+ * - PDFs accepted only as application/pdf (read directly as base64).
+ * - Images resized to max 2000px, converted to JPEG (0.88 quality),
+ *   and stripped of all EXIF/GPS/device metadata via HTML5 Canvas.
+ */
+function processAndStripInvoiceFile(file) {
+  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB limit
+  if (file.size > MAX_BYTES) {
+    return Promise.reject(new Error('Invoice file size exceeds 10 MB limit.'));
+  }
+
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (isPdf) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Failed to read PDF file.'));
+      reader.onload = () => {
+        resolve({
+          data: reader.result,
+          filename: file.name,
+          contentType: 'application/pdf'
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
+  if (!isImage) {
+    return Promise.reject(new Error('Unsupported file type. Invoices must be PDF or image files (JPG, PNG, WebP).'));
+  }
+
+  // Process image: resize to max 2000px, convert to JPEG, strip metadata via canvas
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Failed to decode image file.'));
+      img.onload = () => {
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+
+        const maxDim = 2000;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        resolve({
+          data: dataUrl,
+          filename: file.name.replace(/\.[^/.]+$/, '') + '.jpg',
+          contentType: 'image/jpeg'
+        });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function BudgetTab({
   project,
   onProjectUpdated,
@@ -461,35 +532,24 @@ export default function BudgetTab({
     setIsItemDrawerOpen(true);
   };
 
-  // Safe Invoice Upload Handler (PDF or Image)
+  // Safe Invoice Upload Handler (PDF or Image, 10MB limit, metadata stripped)
   const handleInvoiceFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 15 * 1024 * 1024) {
-      setDrawerError('Invoice file size exceeds 15 MB limit.');
-      return;
-    }
 
     setIsUploadingInvoice(true);
     setDrawerError(null);
 
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const base64Data = await base64Promise;
+      const processed = await processAndStripInvoiceFile(file);
 
       const res = await fetch('/api/designer/upload-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          data: base64Data,
-          filename: file.name,
-          contentType: file.type || 'application/pdf',
+          data: processed.data,
+          filename: processed.filename,
+          contentType: processed.contentType,
           item_id: editingItem?.id || null,
           previous_url: drawerInvoiceUrl || null
         })
@@ -508,6 +568,28 @@ export default function BudgetTab({
     } finally {
       setIsUploadingInvoice(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Safe Invoice Remove Handler (deletes Blob from storage)
+  const handleRemoveInvoice = async () => {
+    if (!drawerInvoiceUrl) return;
+    const oldUrl = drawerInvoiceUrl;
+    setDrawerInvoiceUrl('');
+
+    if (oldUrl.includes('public.blob.vercel-storage.com')) {
+      try {
+        await fetch('/api/designer/upload-invoice', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: oldUrl,
+            item_id: editingItem?.id || null
+          })
+        });
+      } catch (delErr) {
+        console.warn('Failed to delete invoice blob:', delErr);
+      }
     }
   };
 
@@ -2042,7 +2124,7 @@ export default function BudgetTab({
                 </a>
                 <button
                   type="button"
-                  onClick={() => setDrawerInvoiceUrl('')}
+                  onClick={handleRemoveInvoice}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -2074,7 +2156,7 @@ export default function BudgetTab({
                   {isUploadingInvoice ? 'Uploading invoice...' : '+ Upload Invoice (PDF / Image) →'}
                 </Button>
                 <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                  Max 15 MB. Files are stored securely with randomized paths.
+                  Max 10 MB. PDFs or images (metadata stripped). Stored securely with randomized paths.
                 </div>
               </div>
             )}

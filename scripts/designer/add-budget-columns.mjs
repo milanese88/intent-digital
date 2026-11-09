@@ -15,7 +15,16 @@ export async function runMigration() {
   const migrationSql = fs.readFileSync(migrationPath, 'utf8');
 
   console.log('Applying additive migration: add Stage 3 budget columns to design_items and investor_properties...');
-  await sql.query(migrationSql);
+  const statements = migrationSql
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  for (let i = 0; i < statements.length; i++) {
+    const stmt = statements[i];
+    console.log(`[${i + 1}/${statements.length}] Executing:\n${stmt}\n`);
+    await sql.query(stmt);
+  }
   console.log('Stage 3 budget migration completed successfully!');
 }
 

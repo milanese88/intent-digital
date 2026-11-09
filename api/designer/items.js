@@ -269,6 +269,15 @@ export default async function handler(req, res) {
       const cleanDueDate = due_date !== undefined ? (due_date ? String(due_date).substring(0, 10) : null) : (existing.due_date ? String(existing.due_date).substring(0, 10) : null);
       const cleanInvoiceUrl = invoice_url !== undefined ? (invoice_url ? String(invoice_url).trim() : null) : (existing.invoice_url || null);
 
+      // If invoice_url is being replaced or removed, delete previous blob from storage
+      if (existing.invoice_url && cleanInvoiceUrl !== existing.invoice_url && String(existing.invoice_url).includes('public.blob.vercel-storage.com')) {
+        try {
+          await del(existing.invoice_url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+        } catch (delErr) {
+          console.warn('Failed to delete previous invoice blob on item update:', delErr.message);
+        }
+      }
+
       let updatedRow;
       try {
         const updated = await sql`
