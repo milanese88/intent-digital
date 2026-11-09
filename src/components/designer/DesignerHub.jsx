@@ -17,6 +17,7 @@ import {
   ScriptAccent
 } from '../ui';
 import DesignStudio from './DesignStudio.jsx';
+import BudgetTab from './BudgetTab.jsx';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
@@ -185,8 +186,16 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       const list = data.projects || [];
       setProjects(list);
 
-      // Auto-select first project if none selected and projects exist
+      // Auto-select project: check investor_property_id param first, then project_id, then prev, then list[0]
       setSelectedProjectId(prev => {
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const propIdParam = urlParams.get('investor_property_id');
+          if (propIdParam) {
+            const matched = list.find(p => p.investor_property_id === propIdParam);
+            if (matched) return matched.id;
+          }
+        }
         if (prev && list.some(p => p.id === prev)) return prev;
         return list.length > 0 ? list[0].id : null;
       });
@@ -214,6 +223,26 @@ export default function DesignerHub({ setActiveDashboardTab }) {
     fetchProjects();
     fetchInvestorProperties();
   }, []);
+
+  // Listen to popstate for URL updates (e.g. navigation from Investor Studio)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('designer_tab');
+        if (tabParam) setActiveTab(tabParam);
+        const projParam = params.get('project_id');
+        if (projParam) setSelectedProjectId(projParam);
+        const propParam = params.get('investor_property_id');
+        if (propParam && projects.length > 0) {
+          const matched = projects.find(p => p.investor_property_id === propParam);
+          if (matched) setSelectedProjectId(matched.id);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [projects]);
 
   // Handle URL pre-fill from Investor Studio ("Design this property →")
   useEffect(() => {
@@ -1135,8 +1164,31 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           )
         )}
 
-        {/* Placeholder for tabs other than Projects and Studio (No Emojis) */}
-        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && (
+        {/* ======================================================================= */}
+        {/* 5. TAB 3: BUDGET & COSTS TAB                                            */}
+        {/* ======================================================================= */}
+        {!loading && activeTab === 'budget' && (
+          currentProject ? (
+            <BudgetTab
+              project={currentProject}
+              onProjectUpdated={fetchProjects}
+              setActiveDashboardTab={setActiveDashboardTab}
+            />
+          ) : (
+            <EmptyState
+              title="No project selected"
+              description="Choose a project or create a new one to access Budget & costs."
+              action={
+                <Button variant="primary" onClick={() => handleOpenNewProject()}>
+                  + CREATE PROJECT &rarr;
+                </Button>
+              }
+            />
+          )
+        )}
+
+        {/* Placeholder for tabs other than Projects, Studio, and Budget (No Emojis) */}
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'budget' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."

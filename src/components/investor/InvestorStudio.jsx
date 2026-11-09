@@ -3020,6 +3020,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                       compValueRaw={rawCompValue}
                       compValueFormatted={compValueFormatted}
                       profile={buyingProfile}
+                      setActiveDashboardTab={setActiveDashboardTab}
                       onOpenProfileModal={() => setIsProfileModalOpen(true)}
                       onUnderwriteChange={(summary) => {
                         setUnderwriteSummary(summary);

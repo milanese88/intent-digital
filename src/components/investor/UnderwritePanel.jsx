@@ -158,7 +158,8 @@ export default function UnderwritePanel({
   compValueFormatted,
   profile: initialProfile,
   onOpenProfileModal,
-  onUnderwriteChange
+  onUnderwriteChange,
+  setActiveDashboardTab
 }) {
   // Strategy toggle: 'rental' | 'flip' | 'brrrr'
   const initialStrategy = useMemo(() => {
@@ -247,6 +248,9 @@ export default function UnderwritePanel({
     const initialLoanType = strat === 'flip' ? 'hard_money' : 'conventional_investment';
     const loanCfg = LOAN_TYPES[initialLoanType] || LOAN_TYPES.conventional_investment;
     const defaultRate = getProfileRate(initialLoanType, userProfile);
+    const defaultRehab = (prop?.rehab_budget != null && prop.rehab_budget !== '')
+      ? Math.round(Number(prop.rehab_budget))
+      : '';
 
     const base = {
       purchasePrice: listPrice,
@@ -282,6 +286,7 @@ export default function UnderwritePanel({
     if (strat === 'rental') {
       return {
         ...base,
+        rehabBudget: defaultRehab,
         monthlyRent: '',
         vacancyPct: 5,
         maintenancePct: 5,
@@ -293,7 +298,7 @@ export default function UnderwritePanel({
     if (strat === 'flip') {
       return {
         ...base,
-        rehabBudget: '',
+        rehabBudget: defaultRehab,
         arv: '',
         holdingMonths: 6,
         holdingCostMo: '',
@@ -304,7 +309,7 @@ export default function UnderwritePanel({
     // BRRRR
     return {
       ...base,
-      rehabBudget: '',
+      rehabBudget: defaultRehab,
       arv: '',
       holdingMonths: 6,
       refiLtvPct: 75,
@@ -715,15 +720,64 @@ export default function UnderwritePanel({
           />
 
           {/* Strategy specific purchase items */}
-          {(strategy === 'flip' || strategy === 'brrrr') && (
-            <InputRow
-              id="underwrite-rehab-budget"
-              label="Rehab Budget"
-              prefix="$"
-              value={currentInputs.rehabBudget}
-              onChange={(val) => handleInputChange('rehabBudget', val)}
-              placeholder="0"
-            />
+          {(strategy === 'flip' || strategy === 'brrrr' || strategy === 'rental') && (
+            <div>
+              <InputRow
+                id="underwrite-rehab-budget"
+                label="Rehab Budget"
+                prefix="$"
+                value={currentInputs.rehabBudget}
+                onChange={(val) => handleInputChange('rehabBudget', val)}
+                placeholder="0"
+              />
+              {property?.rehab_budget != null && property?.rehab_budget !== '' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginTop: '4px',
+                  marginBottom: '10px',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  color: 'var(--muted, #52453C)'
+                }}>
+                  <span>
+                    From Designer Hub · {property.rehab_budget_updated_at ? new Date(property.rehab_budget_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'} ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('tab', 'designer');
+                        url.searchParams.set('designer_tab', 'budget');
+                        if (property?.id) {
+                          url.searchParams.set('investor_property_id', property.id);
+                        }
+                        window.history.pushState({}, '', url.toString());
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }
+                      if (setActiveDashboardTab) {
+                        setActiveDashboardTab('designer');
+                      }
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      color: 'var(--burgundy, #41101B)',
+                      fontWeight: 600,
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    View budget &rarr;
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Loan Type Select */}
