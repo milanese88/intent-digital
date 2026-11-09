@@ -7,6 +7,7 @@ import {
   StatTile,
   Eyebrow,
   SectionHeading,
+  SegmentedControl,
   Tabs,
   SidePanel,
   Field,
@@ -19,6 +20,23 @@ const PROJECT_TYPES = [
   { value: 'investor', label: 'Investor' },
   { value: 'concept', label: 'Concept' },
   { value: 'coursework', label: 'Coursework' }
+];
+
+const TYPE_FILTER_OPTIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'client', label: 'Client' },
+  { id: 'investor', label: 'Investor' },
+  { id: 'concept', label: 'Concept' },
+  { id: 'coursework', label: 'Coursework' }
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'concept', label: 'Concept' },
+  { value: 'in_design', label: 'In Design' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'on_hold', label: 'On Hold' }
 ];
 
 const STATUS_PILL_MAP = {
@@ -100,6 +118,11 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   // Project switcher dropdown state
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef(null);
+
+  // Filter state for Projects tab
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Sync state with URL params
   const updateUrl = (tab, projId) => {
@@ -342,11 +365,35 @@ export default function DesignerHub({ setActiveDashboardTab }) {
     }
   };
 
-  // Calculate stats for Projects Tab
+  // Calculate stats for Projects Tab (Budgets tracked = sum for active/complete projects)
   const activeCount = projects.filter(p => p.status === 'in_design' || p.status === 'in_progress').length;
   const conceptCount = projects.filter(p => p.status === 'concept').length;
   const portfolioCount = projects.filter(p => p.status === 'complete').length;
-  const totalBudgets = projects.reduce((acc, p) => acc + (Number(p.target_budget) || 0), 0);
+  const totalBudgets = projects
+    .filter(p => ['in_design', 'in_progress', 'complete'].includes(p.status))
+    .reduce((acc, p) => acc + (Number(p.target_budget) || 0), 0);
+
+  // Filtered projects list based on typeFilter, statusFilter, searchQuery
+  const filteredProjects = projects.filter(p => {
+    if (typeFilter !== 'all' && p.project_type !== typeFilter) return false;
+    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = (p.name || '').toLowerCase().includes(q);
+      const matchLoc = (p.location || '').toLowerCase().includes(q);
+      const matchStyle = (p.style || '').toLowerCase().includes(q);
+      if (!matchName && !matchLoc && !matchStyle) return false;
+    }
+    return true;
+  });
+
+  const isFiltered = typeFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim().length > 0;
+
+  const handleClearFilters = () => {
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setSearchQuery('');
+  };
 
   const formatCurrency = (val) => {
     if (val == null || isNaN(val)) return '$0';
@@ -639,13 +686,212 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 }
               />
             ) : (
-              /* Projects Grid using shared Card */
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                gap: 'var(--space-24)'
-              }}>
-                {projects.map(proj => {
+              <div>
+                {/* Filter Bar: SegmentedControl + Search + Status */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 'var(--space-16)',
+                  marginBottom: isFiltered ? 'var(--space-16)' : 'var(--space-24)',
+                  paddingBottom: 'var(--space-16)',
+                  borderBottom: '1px solid var(--border)'
+                }}>
+                  {/* Left: Project Type Segmented Control */}
+                  <div style={{ overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+                    <SegmentedControl
+                      options={TYPE_FILTER_OPTIONS}
+                      value={typeFilter}
+                      onChange={setTypeFilter}
+                      size="md"
+                    />
+                  </div>
+
+                  {/* Right: Search Box + Status Filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-12)', flexWrap: 'wrap' }}>
+                    {/* Search Box */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--muted)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ position: 'absolute', left: '14px', pointerEvents: 'none' }}
+                        aria-hidden="true"
+                      >
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search projects, style..."
+                        aria-label="Search projects by name, location, or style"
+                        style={{
+                          height: '38px',
+                          padding: '0 32px 0 36px',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '13px',
+                          color: 'var(--espresso)',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-pill)',
+                          outline: 'none',
+                          minWidth: '220px',
+                          transition: 'all 0.2s ease',
+                          boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = 'var(--espresso)';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(27, 19, 13, 0.08)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = 'var(--border)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Clear search text"
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Status Filter Dropdown */}
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        aria-label="Filter projects by status"
+                        style={{
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          height: '38px',
+                          padding: '0 32px 0 16px',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'var(--text-label)',
+                          fontWeight: 600,
+                          letterSpacing: 'var(--letter-spacing-label)',
+                          textTransform: 'uppercase',
+                          color: statusFilter === 'all' ? 'var(--text-2)' : 'var(--espresso)',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-pill)',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = 'var(--espresso)';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(27, 19, 13, 0.08)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = 'var(--border)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      >
+                        {STATUS_FILTER_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <span style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        fontSize: '11px',
+                        color: 'var(--muted)'
+                      }}>
+                        ▾
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active filter count banner */}
+                {isFiltered && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--beige)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-pill)',
+                    marginBottom: 'var(--space-20)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--text-2)'
+                  }}>
+                    <span>
+                      Showing <strong>{filteredProjects.length}</strong> of <strong>{projects.length}</strong> projects
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearFilters}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        letterSpacing: 'var(--letter-spacing-label)',
+                        textTransform: 'uppercase',
+                        color: 'var(--burgundy)',
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                )}
+
+                {/* If filter produces 0 results */}
+                {filteredProjects.length === 0 ? (
+                  <EmptyState
+                    title="No matching projects"
+                    description="None of your projects match the current search filters."
+                    action={
+                      <Button variant="secondary" onClick={handleClearFilters}>
+                        Reset filters
+                      </Button>
+                    }
+                  />
+                ) : (
+                  /* Projects Grid using shared Card */
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+                    gap: 'var(--space-24)'
+                  }}>
+                    {filteredProjects.map(proj => {
                   const statusConfig = STATUS_PILL_MAP[proj.status] || STATUS_PILL_MAP.concept;
                   const budgetVal = Number(proj.target_budget) || 0;
                   const contPct = Number(proj.contingency_pct) || 10;
@@ -822,6 +1068,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                     </Card>
                   );
                 })}
+                  </div>
+                )}
               </div>
             )}
           </div>
