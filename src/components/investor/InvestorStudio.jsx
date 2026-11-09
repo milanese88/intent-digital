@@ -12,6 +12,14 @@ import AerialPhoto from './AerialPhoto.jsx';
 import PropertyPhotosSection from './PropertyPhotosSection.jsx';
 import BuyingProfileModal from './BuyingProfileModal.jsx';
 import { formatCurrency } from './underwriting.js';
+import {
+  Button,
+  Pill,
+  Eyebrow,
+  SectionHeading,
+  EmptyState,
+  DarkBand
+} from '../ui';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -54,7 +62,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
   const [underwriteSummary, setUnderwriteSummary] = useState(null);
   const [siteData, setSiteData] = useState(null);
   const [countyData, setCountyData] = useState(null);
-  const underwriteRef = useRef(null);
+  const _underwriteRef = useRef(null);
 
   // Buying profile state
   const [buyingProfile, setBuyingProfile] = useState(null);
@@ -864,7 +872,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
   const isFiltered = appliedFilters.location || appliedFilters.type !== 'all' || appliedFilters.strategy !== 'all';
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
+    <div style={{ width: '100%', position: 'relative' }}>
       <style>{`
         /* Hero & Display Typography */
         .investor-hero-title {
@@ -1436,6 +1444,24 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
         }
 
         @media (max-width: 768px) {
+          .investor-search-bar {
+            flex-direction: column;
+            border-radius: var(--radius-card);
+            padding: 16px;
+            gap: 12px;
+            align-items: stretch;
+          }
+          .investor-search-divider {
+            display: none;
+          }
+          .investor-search-field {
+            padding: 0;
+            width: 100%;
+          }
+          .investor-search-btn {
+            width: 100%;
+            justify-content: center;
+          }
           .investor-header-row {
             flex-direction: column !important;
           }
@@ -1487,7 +1513,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       {/* 1. PROPERTY DETAIL VIEW (When activePropertyId is set)                    */}
       {/* ========================================================================= */}
       {activePropertyId && (
-        <div>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '36px 24px 60px 24px' }}>
           {activeProperty ? (
             (() => {
               // Flood info
@@ -1898,118 +1924,45 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                       flexWrap: 'wrap',
                       gap: '12px'
                     }}>
-                      <button
-                        type="button"
+                      <Button
+                        variant="text"
                         onClick={handleBackToList}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--secondary-color, #41101B)',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          letterSpacing: '0.04em',
-                          cursor: 'pointer',
-                          padding: '6px 0',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
+                        style={{ color: 'var(--burgundy)' }}
                       >
                         &larr; Saved properties
-                      </button>
+                      </Button>
 
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         {/* Design this property Link */}
-                        <button
-                          type="button"
+                        <Button
+                          variant="accent"
                           onClick={() => handleDesignThisProperty(activeProperty)}
                           disabled={designLoading}
                           title="Design this property in Designer Hub"
-                          style={{
-                            backgroundColor: '#FAF3EE',
-                            border: '1px solid #E9B08F',
-                            borderRadius: '50px',
-                            padding: '8px 18px',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.04em',
-                            color: '#C05A2A',
-                            cursor: designLoading ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.15s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#C05A2A';
-                            e.currentTarget.style.color = '#ffffff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FAF3EE';
-                            e.currentTarget.style.color = '#C05A2A';
-                          }}
                         >
                           {designLoading ? 'Opening...' : 'Design this property \u2192'}
-                        </button>
+                        </Button>
 
                         {/* EDIT Outline Pill */}
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
                           onClick={() => handleOpenEditProperty(activeProperty)}
-                          style={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid rgba(52, 41, 42, 0.25)',
-                            borderRadius: '50px',
-                            padding: '8px 18px',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'var(--espresso, #1B130D)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--secondary-color, #41101B)';
-                            e.currentTarget.style.color = 'var(--secondary-color, #41101B)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'rgba(52, 41, 42, 0.25)';
-                            e.currentTarget.style.color = 'var(--espresso, #1B130D)';
-                          }}
                         >
                           EDIT
-                        </button>
+                        </Button>
 
                         {/* EXPORT PDF Outline Pill (Disabled placeholder) */}
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
                           disabled
                           title="Export PDF (coming soon)"
-                          style={{
-                            backgroundColor: 'transparent',
-                            border: '1px solid rgba(52, 41, 42, 0.18)',
-                            borderRadius: '50px',
-                            padding: '8px 18px',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: 'rgba(52, 41, 42, 0.4)',
-                            cursor: 'not-allowed',
-                            opacity: 0.6
-                          }}
                         >
                           EXPORT PDF
-                        </button>
+                        </Button>
 
                         {/* SAVE ANALYSIS Burgundy Pill */}
-                        <button
-                          type="button"
+                        <Button
+                          variant="primary"
                           onClick={() => {
                             if (underwriteSummary?.handleSaveAnalysis) {
                               underwriteSummary.handleSaveAnalysis();
@@ -2017,24 +1970,9 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                           }}
                           disabled={underwriteSummary?.isSaving || underwriteSummary?.isSaveDisabled}
                           title={underwriteSummary?.isSaveDisabled ? 'Enter required deal inputs to save' : 'Save analysis'}
-                          style={{
-                            backgroundColor: underwriteSummary?.isSaveDisabled ? 'rgba(65, 16, 27, 0.45)' : 'var(--secondary-color, #41101B)',
-                            color: '#FAF8F4',
-                            border: 'none',
-                            borderRadius: '50px',
-                            padding: '8px 20px',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            cursor: (underwriteSummary?.isSaving || underwriteSummary?.isSaveDisabled) ? 'not-allowed' : 'pointer',
-                            boxShadow: underwriteSummary?.isSaveDisabled ? 'none' : '0 2px 8px rgba(65, 16, 27, 0.25)',
-                            transition: 'all 0.15s ease'
-                          }}
                         >
                           {underwriteSummary?.isSaving ? 'SAVING...' : 'SAVE ANALYSIS'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
@@ -3196,107 +3134,114 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       {/* ========================================================================= */}
       {!activePropertyId && (
         <>
-          {/* HERO SECTION */}
-          <header style={{ marginBottom: '40px', textAlign: 'center' }}>
-            <span style={{
-              display: 'block',
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '12px',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'rgba(52, 41, 42, 0.6)',
-              marginBottom: '16px'
-            }}>
-              INVESTOR STUDIO · PRIVATE
-            </span>
+          {/* HERO SECTION WITH PHOTO BACKGROUND */}
+          <DarkBand
+            photoUrl="/images/investor-hero.jpg"
+            photoWebpUrl="/images/investor-hero.webp"
+            blendToCream={true}
+            overlayOpacity={0.50}
+            maxWidth="900px"
+            paddingTop="96px"
+            paddingBottom="120px"
+          >
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <Eyebrow onDark style={{ marginBottom: '16px' }}>
+                INVESTOR STUDIO · PRIVATE
+              </Eyebrow>
 
-            <h1 className="investor-hero-title" style={{
-              fontSize: 'clamp(36px, 4.5vw, 56px)',
-              margin: '0 auto 20px auto',
-              textAlign: 'center',
-              maxWidth: '850px'
-            }}>
-              Find the property.<br />
-              <i>Know the numbers.</i>
-            </h1>
+              <h1 className="investor-hero-title" style={{
+                fontSize: 'clamp(36px, 4.5vw, 56px)',
+                margin: '0 auto 20px auto',
+                textAlign: 'center',
+                maxWidth: '850px',
+                color: 'var(--cream)',
+                textShadow: '0 2px 20px rgba(0, 0, 0, 0.45)'
+              }}>
+                Find the property.<br />
+                <i style={{ fontStyle: 'italic' }}>Know the numbers.</i>
+              </h1>
 
-            <p style={{
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '15px',
-              color: 'rgba(52, 41, 42, 0.7)',
-              margin: '0 auto',
-              maxWidth: '620px',
-              lineHeight: '1.6',
-              textAlign: 'center'
-            }}>
-              Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
-            </p>
-          </header>
-
-          {/* PILL SEARCH BAR */}
-          <form onSubmit={handleSearchSubmit} className="investor-search-container">
-            <div className="investor-search-bar">
-              <div className="investor-search-field">
-                <label htmlFor="investor-loc" className="investor-search-label">
-                  LOCATION
-                </label>
-                <input
-                  id="investor-loc"
-                  type="text"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  placeholder="Address, city or ZIP"
-                  className="investor-search-input"
-                />
-              </div>
-
-              <div className="investor-search-divider" />
-
-              <div className="investor-search-field">
-                <label htmlFor="investor-type" className="investor-search-label">
-                  PROPERTY TYPE
-                </label>
-                <select
-                  id="investor-type"
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="investor-search-select"
-                >
-                  <option value="all">Any</option>
-                  <option value="single_family">Single-family</option>
-                  <option value="condo_townhome">Condo / townhome</option>
-                  <option value="multifamily_2_9">Multifamily 2–9 units</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div className="investor-search-divider" />
-
-              <div className="investor-search-field">
-                <label htmlFor="investor-strat" className="investor-search-label">
-                  STRATEGY
-                </label>
-                <select
-                  id="investor-strat"
-                  value={strategyFilter}
-                  onChange={(e) => setStrategyFilter(e.target.value)}
-                  className="investor-search-select"
-                >
-                  <option value="all">Any</option>
-                  <option value="rental">Rental</option>
-                  <option value="flip">Flip</option>
-                  <option value="brrrr">BRRRR</option>
-                </select>
-              </div>
-
-              <button type="submit" className="investor-search-btn">
-                SEARCH &rarr;
-              </button>
+              <p style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '15px',
+                color: 'var(--eyebrow-on-dark)',
+                margin: '0 auto',
+                maxWidth: '620px',
+                lineHeight: '1.6',
+                textAlign: 'center',
+                textShadow: '0 1px 10px rgba(0, 0, 0, 0.5)'
+              }}>
+                Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
+              </p>
             </div>
-          </form>
 
-          {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
-          <div className="investor-split-view">
+            {/* PILL SEARCH BAR */}
+            <form onSubmit={handleSearchSubmit} className="investor-search-container" style={{ margin: '0 auto' }}>
+              <div className="investor-search-bar" style={{ boxShadow: 'var(--shadow-floating)' }}>
+                <div className="investor-search-field">
+                  <label htmlFor="investor-loc" className="investor-search-label">
+                    LOCATION
+                  </label>
+                  <input
+                    id="investor-loc"
+                    type="text"
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value)}
+                    placeholder="Address, city or ZIP"
+                    className="investor-search-input"
+                  />
+                </div>
+
+                <div className="investor-search-divider" />
+
+                <div className="investor-search-field">
+                  <label htmlFor="investor-type" className="investor-search-label">
+                    PROPERTY TYPE
+                  </label>
+                  <select
+                    id="investor-type"
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="investor-search-select"
+                  >
+                    <option value="all">Any</option>
+                    <option value="single_family">Single-family</option>
+                    <option value="condo_townhome">Condo / townhome</option>
+                    <option value="multifamily_2_9">Multifamily 2–9 units</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div className="investor-search-divider" />
+
+                <div className="investor-search-field">
+                  <label htmlFor="investor-strat" className="investor-search-label">
+                    STRATEGY
+                  </label>
+                  <select
+                    id="investor-strat"
+                    value={strategyFilter}
+                    onChange={(e) => setStrategyFilter(e.target.value)}
+                    className="investor-search-select"
+                  >
+                    <option value="all">Any</option>
+                    <option value="rental">Rental</option>
+                    <option value="flip">Flip</option>
+                    <option value="brrrr">BRRRR</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="investor-search-btn">
+                  SEARCH &rarr;
+                </button>
+              </div>
+            </form>
+          </DarkBand>
+
+          {/* PAGE CONTENT CONTAINER */}
+          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px 60px 24px', boxSizing: 'border-box' }}>
+            {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
+            <div className="investor-split-view">
             {/* LEFT: Scrollable list of compact cards */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="investor-split-list-header">
@@ -3540,22 +3485,13 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
               gap: '16px'
             }}>
               <div>
-                <h2 style={{
-                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                  fontSize: 'clamp(32px, 3.8vw, 44px)',
-                  fontWeight: 300,
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.2,
-                  color: 'var(--espresso, #34292A)',
-                  margin: '0 0 6px 0',
-                  textAlign: 'left'
-                }}>
+                <SectionHeading level="h2" style={{ marginBottom: '6px' }}>
                   Your saved properties
-                </h2>
+                </SectionHeading>
                 <p style={{
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontSize: '13px',
-                  color: 'rgba(52, 41, 42, 0.6)',
+                  color: 'var(--muted)',
                   margin: 0
                 }}>
                   {properties.length > 0 ? (
@@ -3568,51 +3504,24 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                 {isFiltered && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="text"
                     onClick={handleClearFilters}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '12px',
-                      color: 'var(--secondary-color, #41101B)',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      padding: 0
-                    }}
                   >
                     Clear filters
-                  </button>
+                  </Button>
                 )}
 
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => setIsProfileModalOpen(true)}
-                  style={{
-                    backgroundColor: 'rgba(52, 41, 42, 0.05)',
-                    color: 'var(--espresso, #34292A)',
-                    border: '1px solid rgba(52, 41, 42, 0.16)',
-                    borderRadius: '50px',
-                    padding: '10px 18px',
-                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s ease'
-                  }}
                 >
                   <span>BUYING PROFILE</span>
                   {buyingProfile && (
                     <span style={{
-                      backgroundColor: 'rgba(65, 16, 27, 0.08)',
-                      color: 'var(--secondary-color, #41101B)',
-                      borderRadius: '50px',
+                      backgroundColor: 'var(--beige)',
+                      color: 'var(--burgundy)',
+                      borderRadius: 'var(--radius-pill)',
                       padding: '2px 8px',
                       fontSize: '10px',
                       fontWeight: 700
@@ -3620,19 +3529,14 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                       {buyingProfile.credit_tier} · {formatPrice(buyingProfile.liquid_cash)}
                     </span>
                   )}
-                </button>
+                </Button>
 
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={handleOpenAddProperty}
-                  className="investor-search-btn"
-                  style={{
-                    padding: '11px 22px',
-                    fontSize: '11.5px'
-                  }}
                 >
                   + ADD PROPERTY
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -3667,97 +3571,27 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
             )}
 
             {!loading && !error && properties.length === 0 && (
-              <div className="investor-empty-card" style={{
-                maxWidth: '800px',
-                margin: '0 auto',
-                textAlign: 'center',
-                backgroundColor: '#fff',
-                border: '1px solid rgba(52, 41, 42, 0.1)',
-                borderRadius: '16px',
-                padding: '48px 32px',
-                boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
-              }}>
-                <h3 style={{
-                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                  fontSize: '24px',
-                  color: 'var(--espresso, #34292A)',
-                  marginBottom: '16px',
-                  fontWeight: 400
-                }}>
-                  No saved properties yet
-                </h3>
-                <p style={{
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '15px',
-                  color: 'rgba(52, 41, 42, 0.7)',
-                  lineHeight: '1.6',
-                  margin: '0 0 24px 0'
-                }}>
-                  Add your first property to start running comps and numbers.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleOpenAddProperty}
-                  className="investor-search-btn"
-                  style={{
-                    display: 'inline-flex',
-                    margin: '0 auto',
-                    padding: '12px 26px',
-                    fontSize: '12px'
-                  }}
-                >
-                  + ADD PROPERTY
-                </button>
-              </div>
+              <EmptyState
+                title="No saved properties yet"
+                description="Add your first property to start running comps and numbers."
+                action={
+                  <Button variant="primary" onClick={handleOpenAddProperty}>
+                    + ADD PROPERTY
+                  </Button>
+                }
+              />
             )}
 
             {!loading && !error && properties.length > 0 && filteredProperties.length === 0 && (
-              <div className="investor-empty-card" style={{
-                maxWidth: '800px',
-                margin: '0 auto',
-                textAlign: 'center',
-                backgroundColor: '#fff',
-                border: '1px solid rgba(52, 41, 42, 0.1)',
-                borderRadius: '16px',
-                padding: '48px',
-                boxShadow: '0 4px 24px rgba(52, 41, 42, 0.05)'
-              }}>
-                <h3 style={{
-                  fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                  fontSize: '24px',
-                  color: 'var(--espresso, #34292A)',
-                  marginBottom: '16px',
-                  fontWeight: 400
-                }}>
-                  No matching properties
-                </h3>
-                <p style={{
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '15px',
-                  color: 'rgba(52, 41, 42, 0.7)',
-                  lineHeight: '1.6',
-                  margin: '0 0 20px 0'
-                }}>
-                  None of your saved properties match the current search filters.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  style={{
-                    backgroundColor: 'var(--lighter-tone, #FAF8F5)',
-                    border: '1px solid rgba(52, 41, 42, 0.15)',
-                    borderRadius: '50px',
-                    padding: '10px 22px',
-                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: 'var(--espresso, #1E1509)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Reset Search Filters
-                </button>
-              </div>
+              <EmptyState
+                title="No matching properties"
+                description="None of your saved properties match the current search filters."
+                action={
+                  <Button variant="secondary" onClick={handleClearFilters}>
+                    Reset Search Filters
+                  </Button>
+                }
+              />
             )}
 
             {!loading && !error && filteredProperties.length > 0 && (
@@ -3926,81 +3760,53 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                             {p.zoning_code && (
                               <div
                                 title={p.zoning_desc ? `Zoning: ${p.zoning_code} (${p.zoning_desc})` : `Zoning: ${p.zoning_code}`}
-                                style={{
-                                  backgroundColor: 'rgba(52, 41, 42, 0.08)',
-                                  color: 'var(--espresso, #34292A)',
-                                  border: '1px solid rgba(52, 41, 42, 0.16)',
-                                  fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: '4px',
-                                  letterSpacing: '0.04em',
-                                  fontSize: '10px'
-                                }}
                               >
-                                {p.zoning_code}
+                                <Pill variant="neutral" size="sm">
+                                  {p.zoning_code}
+                                </Pill>
                               </div>
                             )}
 
                             {p.flood_zone && (
                               <div
                                 title={p.flood_sfha ? 'Special Flood Hazard Area (High Risk)' : 'FEMA Flood Zone'}
-                                style={{
-                                  backgroundColor: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
-                                    ? 'rgba(217, 83, 79, 0.12)'
-                                    : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
-                                      ? 'rgba(240, 173, 78, 0.18)'
-                                      : 'rgba(189, 211, 226, 0.35)',
-                                  color: (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
-                                    ? '#9E2A2B'
-                                    : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
-                                      ? '#8A5D1A'
-                                      : '#34292A',
-                                  fontWeight: 700,
-                                  padding: '3px 8px',
-                                  borderRadius: '4px',
-                                  letterSpacing: '0.04em',
-                                  fontSize: '10px'
-                                }}
                               >
-                                {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
-                                  ? 'Zone X shaded'
-                                  : (p.flood_bfe ? `Zone ${p.flood_zone} · BFE ${Math.round(p.flood_bfe)}ft` : `Zone ${p.flood_zone}`)}
+                                <Pill
+                                  variant={
+                                    (p.flood_sfha || ['A', 'AE', 'AH', 'AO', 'V', 'VE'].includes(p.flood_zone))
+                                      ? 'negative'
+                                      : (p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500')))
+                                        ? 'warning'
+                                        : 'neutral'
+                                  }
+                                  size="sm"
+                                >
+                                  {p.flood_zone === 'X' && (p.flood_subtype?.includes('0.2') || p.flood_subtype?.includes('500'))
+                                    ? 'Zone X shaded'
+                                    : (p.flood_bfe ? `Zone ${p.flood_zone} · BFE ${Math.round(p.flood_bfe)}ft` : `Zone ${p.flood_zone}`)}
+                                </Pill>
                               </div>
                             )}
 
-                            <div style={{
-                              backgroundColor: 'rgba(65, 16, 27, 0.06)',
-                              color: 'var(--secondary-color, #41101B)',
-                              fontWeight: 700,
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                              letterSpacing: '0.06em',
-                              fontSize: '10px'
-                            }}>
+                            <Pill variant="neutral" size="sm">
                               {formatStatus(p.strategy)}
-                            </div>
+                            </Pill>
 
-                            <button
-                              type="button"
+                            <Button
+                              variant="text"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenEditProperty(p);
                               }}
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'rgba(52, 41, 42, 0.65)',
-                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                padding: '2px 6px',
                                 fontSize: '11px',
-                                fontWeight: 600,
-                                letterSpacing: '0.04em',
-                                cursor: 'pointer',
-                                padding: '2px 4px',
+                                minHeight: 'auto',
                                 textDecoration: 'underline'
                               }}
                             >
                               Edit
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -4010,6 +3816,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
               </div>
             )}
           </section>
+          </div>
         </>
       )}
 
@@ -4482,45 +4289,20 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                     ) : <div />}
 
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        type="button"
+                      <Button
+                        variant="secondary"
                         onClick={handleClosePropertyPanel}
                         disabled={isPropSaving}
-                        style={{
-                          backgroundColor: 'transparent',
-                          border: '1px solid rgba(52, 41, 42, 0.22)',
-                          borderRadius: '50px',
-                          padding: '11px 22px',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'var(--espresso, #1E1509)',
-                          cursor: isPropSaving ? 'not-allowed' : 'pointer'
-                        }}
                       >
                         CANCEL
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
                         type="submit"
                         disabled={isPropSaving}
-                        style={{
-                          backgroundColor: 'var(--secondary-color, #41101B)',
-                          color: 'var(--lighter-tone, #FAF8F5)',
-                          border: 'none',
-                          borderRadius: '50px',
-                          padding: '11px 24px',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          cursor: isPropSaving ? 'not-allowed' : 'pointer'
-                        }}
                       >
                         {isPropSaving ? 'Saving…' : 'SAVE PROPERTY'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -4859,45 +4641,20 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                     ) : <div />}
 
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        type="button"
+                      <Button
+                        variant="secondary"
                         onClick={handleCloseCompPanel}
                         disabled={isCompSaving}
-                        style={{
-                          backgroundColor: 'transparent',
-                          border: '1px solid rgba(52, 41, 42, 0.22)',
-                          borderRadius: '50px',
-                          padding: '11px 22px',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'var(--espresso, #1E1509)',
-                          cursor: isCompSaving ? 'not-allowed' : 'pointer'
-                        }}
                       >
                         CANCEL
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
                         type="submit"
                         disabled={isCompSaving}
-                        style={{
-                          backgroundColor: 'var(--secondary-color, #41101B)',
-                          color: 'var(--lighter-tone, #FAF8F5)',
-                          border: 'none',
-                          borderRadius: '50px',
-                          padding: '11px 24px',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          cursor: isCompSaving ? 'not-allowed' : 'pointer'
-                        }}
                       >
                         {isCompSaving ? 'Saving…' : 'SAVE COMP'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}

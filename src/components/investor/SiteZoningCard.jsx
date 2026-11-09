@@ -55,7 +55,7 @@ export default function SiteZoningCard({ property, onPropertyUpdate, showToast, 
   const [zoningData, setZoningData] = useState(null);
   const [zoningLoading, setZoningLoading] = useState(false);
   const [zoningRefreshing, setZoningRefreshing] = useState(false);
-  const [zoningError, setZoningError] = useState(null);
+  const [_zoningError, setZoningError] = useState(null);
 
   // Manual zoning entry input
   const [manualCode, setManualCode] = useState('');

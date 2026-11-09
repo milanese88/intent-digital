@@ -1,0 +1,83 @@
+/* ==============================================================================
+   INTENT DIGITAL DESIGN TOKENS
+   Single source of truth for color, typography, shape, depth, and spacing.
+   ============================================================================== */
+
+:root {
+  /* --- Colors: Brand & Structural --- */
+  --espresso: #1B130D;
+  --burgundy: #3A1418;
+  --terracotta: #C05A2A;
+  --terracotta-soft: #E9B08F;
+  --cream: #FAF8F4;
+  --beige: #F2EEE8;
+  --sand: #F7F3EE;
+  --border: #E4DDD3;
+  --border-strong: #CFC5B8;
+  --text-2: #4A413A;
+  --muted: #5E544C;
+  --on-dark: #FAF8F4;
+  --on-dark-muted: #CFC5B8;
+  --eyebrow-on-dark: #E9DFD2;
+
+  /* --- Colors: Feedback & Status --- */
+  --positive: #3F5A3A;
+  --negative: #8A2A1E;
+  --warning: #7A5212;
+  --warning-bg: #F7EEDC;
+  --positive-bg: #EEF2EA;
+  --negative-bg: #F5E6E3;
+  --info: #274D73;
+  --info-bg: #EBF1F7;
+
+  /* --- Typography Families --- */
+  --font-display: 'Atelier Fleur', 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-display);
+  --font-sans: var(--font-body);
+
+  /* --- Typography Scale --- */
+  --text-display: clamp(60px, 6vw, 76px);
+  --text-h1: clamp(36px, 4.5vw, 56px);
+  --text-h2: 32px;
+  --text-h3: 25px;
+  --text-body: 15px;
+  --text-body-sm: 14px;
+  --text-label: 11px;
+  --text-label-lg: 12px;
+
+  /* --- Letter Spacing --- */
+  --letter-spacing-eyebrow: 0.22em;
+  --letter-spacing-label: 0.12em;
+  --letter-spacing-pill: 0.08em;
+  --letter-spacing-tight: -0.02em;
+
+  /* --- Shape & Border Radius --- */
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-tile: 14px;
+  --radius-input: 14px;
+  --radius-sm: 10px;
+
+  /* --- Shadows & Depth --- */
+  --shadow-card: 0 10px 30px rgba(27, 19, 13, 0.07);
+  --shadow-floating: 0 18px 48px rgba(27, 19, 13, 0.28);
+  --shadow-subtle: 0 4px 18px rgba(27, 19, 13, 0.04);
+  --shadow-lift: 0 12px 32px rgba(27, 19, 13, 0.09);
+
+  /* --- Spacing Scale (4, 8, 12, 16, 20, 24, 32, 48, 64, 96) --- */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-96: 96px;
+
+  /* --- Focus Ring for Accessibility --- */
+  --focus-ring: 0 0 0 2px var(--cream), 0 0 0 4px var(--burgundy);
+  --focus-ring-terracotta: 0 0 0 2px var(--cream), 0 0 0 4px var(--terracotta);
+}
