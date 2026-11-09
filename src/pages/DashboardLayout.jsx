@@ -153,7 +153,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           </button>
         </header>
 
-        <div style={{ padding: '40px 5%' }}>
+        <div style={{ padding: activeTab === 'investor' ? 0 : '40px 5%' }}>
           {children}
         </div>
       </main>

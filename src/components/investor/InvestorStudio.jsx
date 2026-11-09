@@ -777,27 +777,77 @@ export default function InvestorStudio() {
   const isFiltered = appliedFilters.location || appliedFilters.type !== 'all' || appliedFilters.strategy !== 'all';
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
+    <div style={{ width: '100%', position: 'relative' }}>
       <style>{`
-        /* Hero & Display Typography */
-        .investor-hero-title {
+        /* Search Hero Section with Photo Background */
+        .investor-search-hero {
+          position: relative;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 96px 24px 120px 24px;
+          background-color: #1B130D;
+          background-image: 
+            linear-gradient(to bottom, rgba(250, 248, 244, 0) calc(100% - 120px), #FAF8F4 100%),
+            linear-gradient(rgba(27, 19, 13, 0.55), rgba(27, 19, 13, 0.55)),
+            url('/images/investor-hero.jpg');
+          background-image: 
+            linear-gradient(to bottom, rgba(250, 248, 244, 0) calc(100% - 120px), #FAF8F4 100%),
+            linear-gradient(rgba(27, 19, 13, 0.55), rgba(27, 19, 13, 0.55)),
+            image-set(url('/images/investor-hero.webp') type('image/webp'), url('/images/investor-hero.jpg') type('image/jpeg'));
+          background-size: cover;
+          background-position: center 40%;
+          background-repeat: no-repeat;
+          text-align: center;
+        }
+        .investor-search-hero-content {
+          max-width: 900px;
+          margin: 0 auto;
+          position: relative;
+          z-index: 2;
+        }
+        .investor-search-hero-eyebrow {
+          display: block;
+          font-family: var(--font-sans, "Montserrat", sans-serif);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: #E9DFD2;
+          margin-bottom: 16px;
+        }
+        .investor-search-hero-title {
           font-family: var(--font-display, 'Atelier Fleur', Georgia, serif);
           font-weight: 300;
           letter-spacing: -0.02em;
           line-height: 1.15;
-          color: var(--espresso, #34292A);
+          font-size: clamp(34px, 5.5vw, 56px);
+          color: #FAF8F4;
+          text-shadow: 0 2px 24px rgba(27, 19, 13, 0.35);
+          margin: 0 auto 20px auto;
+          text-align: center;
+          max-width: 850px;
         }
-        .investor-hero-title i,
-        .investor-hero-title em {
+        .investor-search-hero-title i,
+        .investor-search-hero-title em {
           font-family: var(--font-display, 'Atelier Fleur', Georgia, serif);
           font-style: italic;
           font-weight: 400;
+        }
+        .investor-search-hero-desc {
+          font-family: var(--font-sans, "Montserrat", sans-serif);
+          font-size: 15px;
+          color: #F2EEE8;
+          text-shadow: 0 1px 12px rgba(27, 19, 13, 0.4);
+          margin: 0 auto 36px auto;
+          max-width: 640px;
+          line-height: 1.6;
+          text-align: center;
         }
 
         /* Pill Search Bar */
         .investor-search-container {
           max-width: 900px;
-          margin: 0 auto 64px auto;
+          margin: 0 auto;
         }
         .investor-search-bar {
           display: flex;
@@ -806,12 +856,12 @@ export default function InvestorStudio() {
           border: 1px solid rgba(52, 41, 42, 0.12);
           border-radius: 60px;
           padding: 8px 10px 8px 24px;
-          box-shadow: 0 4px 20px rgba(52, 41, 42, 0.05);
+          box-shadow: 0 18px 48px rgba(27, 19, 13, 0.28);
           transition: box-shadow 0.2s ease, border-color 0.2s ease;
         }
         .investor-search-bar:focus-within {
           border-color: var(--secondary-color, #41101B);
-          box-shadow: 0 6px 24px rgba(65, 16, 27, 0.08);
+          box-shadow: 0 22px 56px rgba(27, 19, 13, 0.34);
         }
         .investor-search-field {
           flex: 1;
@@ -978,6 +1028,9 @@ export default function InvestorStudio() {
           }
         }
         @media (max-width: 640px) {
+          .investor-search-hero {
+            padding: 64px 20px 80px 20px;
+          }
           .investor-split-map-header {
             flex-direction: column;
             align-items: flex-start;
@@ -1400,7 +1453,7 @@ export default function InvestorStudio() {
       {/* 1. PROPERTY DETAIL VIEW (When activePropertyId is set)                    */}
       {/* ========================================================================= */}
       {activePropertyId && (
-        <div>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '36px 24px 60px 24px' }}>
           {activeProperty ? (
             (() => {
               // Flood info
@@ -3075,106 +3128,89 @@ export default function InvestorStudio() {
       {/* ========================================================================= */}
       {!activePropertyId && (
         <>
-          {/* HERO SECTION */}
-          <header style={{ marginBottom: '40px', textAlign: 'center' }}>
-            <span style={{
-              display: 'block',
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '12px',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'rgba(52, 41, 42, 0.6)',
-              marginBottom: '16px'
-            }}>
-              INVESTOR STUDIO · PRIVATE
-            </span>
+          {/* SEARCH HERO SECTION WITH PHOTO BACKGROUND */}
+          <section className="investor-search-hero">
+            <div className="investor-search-hero-content">
+              <span className="investor-search-hero-eyebrow">
+                INVESTOR STUDIO · PRIVATE
+              </span>
 
-            <h1 className="investor-hero-title" style={{
-              fontSize: 'clamp(36px, 4.5vw, 56px)',
-              margin: '0 auto 20px auto',
-              textAlign: 'center',
-              maxWidth: '850px'
-            }}>
-              Find the property.<br />
-              <i>Know the numbers.</i>
-            </h1>
+              <h1 className="investor-search-hero-title">
+                Find the property.<br />
+                <em>Know the numbers.</em>
+              </h1>
 
-            <p style={{
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '15px',
-              color: 'rgba(52, 41, 42, 0.7)',
-              margin: '0 auto',
-              maxWidth: '620px',
-              lineHeight: '1.6',
-              textAlign: 'center'
-            }}>
-              Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
-            </p>
-          </header>
+              <p className="investor-search-hero-desc">
+                Search Broward and Palm Beach, pull sold comps, underwrite a deal and save everything to your own database.
+              </p>
 
-          {/* PILL SEARCH BAR */}
-          <form onSubmit={handleSearchSubmit} className="investor-search-container">
-            <div className="investor-search-bar">
-              <div className="investor-search-field">
-                <label htmlFor="investor-loc" className="investor-search-label">
-                  LOCATION
-                </label>
-                <input
-                  id="investor-loc"
-                  type="text"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  placeholder="Address, city or ZIP"
-                  className="investor-search-input"
-                />
-              </div>
+              {/* PILL SEARCH BAR */}
+              <form onSubmit={handleSearchSubmit} className="investor-search-container">
+                <div className="investor-search-bar">
+                  <div className="investor-search-field">
+                    <label htmlFor="investor-loc" className="investor-search-label">
+                      LOCATION
+                    </label>
+                    <input
+                      id="investor-loc"
+                      type="text"
+                      value={locationInput}
+                      onChange={(e) => setLocationInput(e.target.value)}
+                      placeholder="Address, city or ZIP"
+                      className="investor-search-input"
+                    />
+                  </div>
 
-              <div className="investor-search-divider" />
+                  <div className="investor-search-divider" />
 
-              <div className="investor-search-field">
-                <label htmlFor="investor-type" className="investor-search-label">
-                  PROPERTY TYPE
-                </label>
-                <select
-                  id="investor-type"
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="investor-search-select"
-                >
-                  <option value="all">Any</option>
-                  <option value="single_family">Single-family</option>
-                  <option value="condo_townhome">Condo / townhome</option>
-                  <option value="multifamily_2_9">Multifamily 2–9 units</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+                  <div className="investor-search-field">
+                    <label htmlFor="investor-type" className="investor-search-label">
+                      PROPERTY TYPE
+                    </label>
+                    <select
+                      id="investor-type"
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      className="investor-search-select"
+                    >
+                      <option value="all">Any</option>
+                      <option value="single_family">Single-family</option>
+                      <option value="condo_townhome">Condo / townhome</option>
+                      <option value="multifamily_2_9">Multifamily 2–9 units</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
 
-              <div className="investor-search-divider" />
+                  <div className="investor-search-divider" />
 
-              <div className="investor-search-field">
-                <label htmlFor="investor-strat" className="investor-search-label">
-                  STRATEGY
-                </label>
-                <select
-                  id="investor-strat"
-                  value={strategyFilter}
-                  onChange={(e) => setStrategyFilter(e.target.value)}
-                  className="investor-search-select"
-                >
-                  <option value="all">Any</option>
-                  <option value="rental">Rental</option>
-                  <option value="flip">Flip</option>
-                  <option value="brrrr">BRRRR</option>
-                </select>
-              </div>
+                  <div className="investor-search-field">
+                    <label htmlFor="investor-strat" className="investor-search-label">
+                      STRATEGY
+                    </label>
+                    <select
+                      id="investor-strat"
+                      value={strategyFilter}
+                      onChange={(e) => setStrategyFilter(e.target.value)}
+                      className="investor-search-select"
+                    >
+                      <option value="all">Any</option>
+                      <option value="rental">Rental</option>
+                      <option value="flip">Flip</option>
+                      <option value="brrrr">BRRRR</option>
+                    </select>
+                  </div>
 
-              <button type="submit" className="investor-search-btn">
-                SEARCH &rarr;
-              </button>
+                  <button type="submit" className="investor-search-btn">
+                    SEARCH &rarr;
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          </section>
 
-          {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
+          {/* MAIN CONTENT BELOW HERO */}
+          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px 60px 24px' }}>
+            {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
           <div className="investor-split-view">
             {/* LEFT: Scrollable list of compact cards */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -3889,8 +3925,9 @@ export default function InvestorStudio() {
               </div>
             )}
           </section>
-        </>
-      )}
+        </div>
+      </>
+    )}
 
       {/* ========================================================================= */}
       {/* 3. SLIDE-IN ADD / EDIT PROPERTY PANEL                                     */}
