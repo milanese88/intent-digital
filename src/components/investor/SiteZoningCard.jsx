@@ -44,7 +44,7 @@ export function getFloodPillStyle(riskLevel, isSfha) {
   };
 }
 
-export default function SiteZoningCard({ property, onPropertyUpdate, showToast }) {
+export default function SiteZoningCard({ property, onPropertyUpdate, showToast, onSiteDataChange }) {
   // Flood state
   const [floodData, setFloodData] = useState(null);
   const [floodLoading, setFloodLoading] = useState(false);
@@ -208,6 +208,12 @@ export default function SiteZoningCard({ property, onPropertyUpdate, showToast }
       setZoningError(null);
     }
   }, [parcelId, county, lat, lng]);
+
+  useEffect(() => {
+    if (onSiteDataChange) {
+      onSiteDataChange({ floodData, zoningData });
+    }
+  }, [floodData, zoningData]);
 
   const floodPillStyle = floodData
     ? getFloodPillStyle(floodData.riskLevel, floodData.isSfha)

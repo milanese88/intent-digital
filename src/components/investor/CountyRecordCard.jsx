@@ -19,7 +19,7 @@ function formatSaleDate(month, year) {
   return `${mStr}/${year}`;
 }
 
-export default function CountyRecordCard({ property, onPropertyUpdate, showToast }) {
+export default function CountyRecordCard({ property, onPropertyUpdate, showToast, onCountyDataChange }) {
   const [countyData, setCountyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -86,6 +86,12 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
       setError(null);
     }
   }, [property?.id, property?.parcel_id, property?.parcel_county]);
+
+  useEffect(() => {
+    if (onCountyDataChange) {
+      onCountyDataChange(countyData);
+    }
+  }, [countyData]);
 
   // Open "Find county record" modal prefilled with property address + zip
   const handleOpenFindModal = () => {
