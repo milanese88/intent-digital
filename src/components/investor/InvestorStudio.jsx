@@ -10,6 +10,7 @@ import MarketCard from './MarketCard.jsx';
 import WatchedLocations from './WatchedLocations.jsx';
 import AerialPhoto from './AerialPhoto.jsx';
 import PropertyPhotosSection from './PropertyPhotosSection.jsx';
+import BuyingProfileModal from './BuyingProfileModal.jsx';
 
 function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -37,6 +38,23 @@ export default function InvestorStudio() {
   });
   const [detailPhotoView, setDetailPhotoView] = useState('photos'); // 'photos' | 'aerial'
   const [activePropertyCover, setActivePropertyCover] = useState(null);
+
+  // Buying profile state
+  const [buyingProfile, setBuyingProfile] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/investor/profile')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isMounted && data) {
+          setBuyingProfile(data);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   // Search & filter state (List view)
   const [locationInput, setLocationInput] = useState('');
@@ -1795,6 +1813,8 @@ export default function InvestorStudio() {
                     property={activeProperty}
                     compValueRaw={rawCompValue}
                     compValueFormatted={compValueFormatted}
+                    profile={buyingProfile}
+                    onOpenProfileModal={() => setIsProfileModalOpen(true)}
                   />
                 </div>
               </div>
@@ -2227,6 +2247,42 @@ export default function InvestorStudio() {
                     Clear filters
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  style={{
+                    backgroundColor: 'rgba(52, 41, 42, 0.05)',
+                    color: 'var(--espresso, #34292A)',
+                    border: '1px solid rgba(52, 41, 42, 0.16)',
+                    borderRadius: '50px',
+                    padding: '10px 18px',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>BUYING PROFILE</span>
+                  {buyingProfile && (
+                    <span style={{
+                      backgroundColor: 'rgba(65, 16, 27, 0.08)',
+                      color: 'var(--secondary-color, #41101B)',
+                      borderRadius: '50px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      fontWeight: 700
+                    }}>
+                      {buyingProfile.credit_tier} · {formatPrice(buyingProfile.liquid_cash)}
+                    </span>
+                  )}
+                </button>
 
                 <button
                   type="button"
@@ -3512,6 +3568,13 @@ export default function InvestorStudio() {
           </div>
         </>
       )}
+      {/* Buying Profile Modal */}
+      <BuyingProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onProfileSaved={(p) => setBuyingProfile(p)}
+        currentProfile={buyingProfile}
+      />
     </div>
   );
 }
