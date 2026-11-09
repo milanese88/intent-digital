@@ -932,6 +932,22 @@ export default function InvestorStudio() {
           transform: translateY(-2px);
           background-color: #FFFDFB;
         }
+        .investor-split-list-header {
+          display: flex;
+          align-items: center;
+          min-height: 28px;
+          margin-bottom: 12px;
+          padding: 0 2px;
+        }
+        .investor-split-col-label {
+          font-family: var(--font-sans, "Montserrat", sans-serif);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(52, 41, 42, 0.55);
+          line-height: 1;
+        }
         .investor-split-map-container {
           display: flex;
           flex-direction: column;
@@ -939,9 +955,15 @@ export default function InvestorStudio() {
         }
         .investor-split-map-header {
           display: flex;
-          justifyContent: space-between;
           align-items: center;
+          gap: 16px;
+          min-height: 28px;
           margin-bottom: 12px;
+        }
+        .investor-split-map-pills {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
         @media (max-width: 960px) {
           .investor-split-view {
@@ -953,6 +975,14 @@ export default function InvestorStudio() {
           }
           .investor-split-list {
             height: 360px;
+          }
+        }
+        @media (max-width: 640px) {
+          .investor-split-map-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+            min-height: auto;
           }
         }
 
@@ -3148,21 +3178,8 @@ export default function InvestorStudio() {
           <div className="investor-split-view">
             {/* LEFT: Scrollable list of compact cards */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '12px',
-                padding: '0 2px'
-              }}>
-                <span style={{
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'rgba(52, 41, 42, 0.55)'
-                }}>
+              <div className="investor-split-list-header">
+                <span className="investor-split-col-label">
                   PROPERTIES IN VIEW ({filteredProperties.length})
                 </span>
               </div>
@@ -3264,32 +3281,26 @@ export default function InvestorStudio() {
             {/* RIGHT: Map ~620px tall with above-map pill toggles */}
             <div className="investor-split-map-container">
               <div className="investor-split-map-header">
-                <span style={{
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'rgba(52, 41, 42, 0.55)'
-                }}>
+                <span className="investor-split-col-label">
                   MAP VIEW
                 </span>
 
                 {/* Pill Toggles: My saved & Sold comps */}
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="investor-split-map-pills">
                   <button
                     type="button"
                     onClick={() => setShowSavedPins(prev => !prev)}
                     style={{
                       backgroundColor: showSavedPins ? 'var(--secondary-color, #41101B)' : 'transparent',
                       color: showSavedPins ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.75)',
-                      border: showSavedPins ? 'none' : '1px solid rgba(52, 41, 42, 0.2)',
+                      border: showSavedPins ? '1px solid var(--secondary-color, #41101B)' : '1px solid rgba(52, 41, 42, 0.2)',
                       borderRadius: '50px',
                       padding: '5px 14px',
                       fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                       fontSize: '11px',
                       fontWeight: 600,
                       letterSpacing: '0.04em',
+                      lineHeight: '16px',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -3303,13 +3314,14 @@ export default function InvestorStudio() {
                     style={{
                       backgroundColor: showCompsPins ? 'var(--secondary-color, #41101B)' : 'transparent',
                       color: showCompsPins ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.75)',
-                      border: showCompsPins ? 'none' : '1px solid rgba(52, 41, 42, 0.2)',
+                      border: showCompsPins ? '1px solid var(--secondary-color, #41101B)' : '1px solid rgba(52, 41, 42, 0.2)',
                       borderRadius: '50px',
                       padding: '5px 14px',
                       fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                       fontSize: '11px',
                       fontWeight: 600,
                       letterSpacing: '0.04em',
+                      lineHeight: '16px',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
