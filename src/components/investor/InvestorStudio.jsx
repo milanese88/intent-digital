@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
 import FormattedNumberInput from './FormattedNumberInput.jsx';

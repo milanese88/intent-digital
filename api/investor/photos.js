@@ -71,19 +71,25 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
-      const rows = await sql`
-        SELECT 
-          id,
-          property_id,
-          blob_url,
-          caption,
-          sort_order,
-          is_cover,
-          created_at
-        FROM investor_property_photos
-        WHERE property_id = ${property_id} AND lower(owner_email) = ${cleanEmail}
-        ORDER BY is_cover DESC, sort_order ASC, created_at ASC;
-      `;
+      let rows = [];
+      try {
+        rows = await sql`
+          SELECT 
+            id,
+            property_id,
+            blob_url,
+            caption,
+            sort_order,
+            is_cover,
+            created_at
+          FROM investor_property_photos
+          WHERE property_id = ${property_id} AND lower(owner_email) = ${cleanEmail}
+          ORDER BY is_cover DESC, sort_order ASC, created_at ASC;
+        `;
+      } catch (tableErr) {
+        console.warn('investor_property_photos query failed, returning empty array:', tableErr.message);
+        rows = [];
+      }
 
       return res.status(200).json({ photos: rows });
     }

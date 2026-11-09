@@ -36,7 +36,8 @@ export async function createSession(userId, res, req) {
 }
 
 export async function getUserFromSession(req) {
-  const cookies = parse(req.headers.cookie || '');
+  if (req && req._user) return req._user;
+  const cookies = parse(req?.headers?.cookie || '');
   const sessionToken = cookies.auth_session;
 
   if (!sessionToken) return null;
