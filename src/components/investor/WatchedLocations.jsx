@@ -570,8 +570,12 @@ export default function WatchedLocations({
                 color: 'rgba(52, 41, 42, 0.4)',
                 padding: '0 4px'
               }}
+              aria-label="Remove watched location"
             >
-              ✕
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
           </div>
 
@@ -748,7 +752,12 @@ export default function WatchedLocations({
             textAlign: 'center'
           }}
         >
-          <div style={{ fontSize: '24px', marginBottom: '8px', opacity: 0.7 }}>📍</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px', opacity: 0.65 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
           <h4
             style={{
               fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',

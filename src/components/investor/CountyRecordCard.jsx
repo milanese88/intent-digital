@@ -334,7 +334,11 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px', opacity: 0.6 }}>🏛️</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.65, flexShrink: 0 }} aria-hidden="true">
+              <path d="M3 21h18"/>
+              <path d="M5 21V10l7-5 7 5v11"/>
+              <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"/>
+            </svg>
             <span
               style={{
                 fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',

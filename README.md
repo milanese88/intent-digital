@@ -1,3 +1,5 @@
+> **Before any UI work, read docs/design-guidelines.md and use src/components/ui.**
+
 # Intent Digital Website
 
 React frontend built with Vite, connected to a serverless Vercel backend for live Cal.com calendar syncing.

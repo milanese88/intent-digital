@@ -650,8 +650,9 @@ export default function PropertyPhotosSection({
                 fontSize: '24px',
                 cursor: 'pointer'
               }}
+              aria-label="Close photo"
             >
-              ✕
+              &times;
             </button>
             <img
               src={activePhotoModal.blob_url}
