@@ -137,6 +137,29 @@ function getInsuranceStatus(dateStr) {
   };
 }
 
+/**
+ * Inline SVG Heart Icon:
+ * Outline when off, filled burgundy when on (no emoji / no text glyph).
+ */
+function HeartIcon({ filled = false, size = 15, color = 'var(--burgundy)' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? color : 'none'}
+      stroke={color}
+      strokeWidth={filled ? '1.5' : '2'}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
 export default function SourcingTab({
   currentProject,
   projects = [],
@@ -936,9 +959,11 @@ export default function SourcingTab({
                   outline: 'none'
                 }}
               >
-                <span style={{ fontSize: '13px', color: favoritesOnly ? 'var(--cream)' : 'var(--burgundy)' }}>
-                  {favoritesOnly ? '♥' : '♡'}
-                </span>
+                <HeartIcon
+                  filled={favoritesOnly}
+                  size={13}
+                  color={favoritesOnly ? 'var(--cream)' : 'var(--burgundy)'}
+                />
                 <span>Favorites only</span>
               </button>
             </div>
@@ -1123,7 +1148,7 @@ export default function SourcingTab({
                         </div>
                       )}
 
-                      {/* Favorite Heart Button */}
+                      {/* Favorite Heart Button (inline SVG outline when off, filled burgundy when on) */}
                       <button
                         type="button"
                         onClick={(e) => handleToggleFavorite(e, p)}
@@ -1137,20 +1162,18 @@ export default function SourcingTab({
                           width: '32px',
                           height: '32px',
                           borderRadius: 'var(--radius-pill)',
-                          backgroundColor: isFav ? 'var(--burgundy)' : 'rgba(255, 255, 255, 0.9)',
-                          color: isFav ? '#ffffff' : 'var(--espresso)',
-                          border: 'none',
+                          backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                          border: isFav ? '1.5px solid var(--burgundy)' : '1px solid var(--border)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          boxShadow: '0 2px 8px rgba(30, 21, 9, 0.15)',
-                          fontSize: '14px',
-                          transition: 'all 0.15s ease',
+                          boxShadow: '0 2px 8px rgba(30, 21, 9, 0.12)',
+                          transition: 'all 0.18s ease',
                           outline: 'none'
                         }}
                       >
-                        {isFav ? '♥' : '♡'}
+                        <HeartIcon filled={isFav} size={15} color="var(--burgundy)" />
                       </button>
 
                       {/* Category Badge overlay bottom-left */}
