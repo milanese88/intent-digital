@@ -38,10 +38,13 @@ export function mapTypeToUseCode(typeStr) {
  * Computes ZIP market series, quarterly rollups, and trailing summary metrics
  * anchored strictly to the county's last complete month (70% trailing average rule).
  */
-export async function getMarketTrends({ county = 'Broward', zip, type = 'single_family' }) {
+export async function getMarketTrends({ county = 'Broward', zip, type = 'single_family', mode = 'zip', lat = null, lng = null }) {
   const cleanCounty = /palm/i.test(county) ? 'Palm Beach' : 'Broward';
   const rawZip = String(zip || '').trim();
-  if (!/^\d{5}$/.test(rawZip)) {
+  const hasCoords = lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng));
+  const isOneMile = mode === '1mi' && hasCoords;
+
+  if (!isOneMile && !/^\d{5}$/.test(rawZip)) {
     throw new Error('A valid 5-digit zip parameter is required.');
   }
 
@@ -55,27 +58,67 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
   const completeMonth = countyFreshness.complete_month_num || 8;
   const completeThroughStr = countyFreshness.complete_through || formatMonthYear(completeYear, completeMonth);
 
-  // Query sales joined with parcels and sale codes for this county, zip and property type
-  const rows = await sql`
-    SELECT 
-      s.sale_year,
-      s.sale_month,
-      s.sale_price,
-      p.living_sqft,
-      COALESCE(c.is_market, false) AS is_market,
-      COALESCE(c.is_distressed, false) AS is_distressed
-    FROM county_sales s
-    JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
-    LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-    WHERE s.county = ${cleanCounty}
-      AND p.zip = ${rawZip}
-      AND p.use_code = ${useCode}
-      AND s.sale_year IS NOT NULL
-      AND s.sale_month IS NOT NULL
-      AND s.sale_month BETWEEN 1 AND 12
-      AND s.sale_price > 100
-    ORDER BY s.sale_year ASC, s.sale_month ASC;
-  `;
+  // Query sales joined with parcels and sale codes for this county and property type
+  let rows = [];
+  if (isOneMile) {
+    const maxDist = 1.0;
+    const nLat = Number(lat);
+    const nLng = Number(lng);
+    const deltaLat = maxDist / 69.0;
+    const deltaLng = maxDist / (69.0 * Math.cos(nLat * Math.PI / 180));
+    const minLat = nLat - deltaLat;
+    const maxLat = nLat + deltaLat;
+    const minLng = nLng - deltaLng;
+    const maxLng = nLng + deltaLng;
+
+    rows = await sql`
+      SELECT 
+        s.sale_year,
+        s.sale_month,
+        s.sale_price,
+        p.living_sqft,
+        COALESCE(c.is_market, false) AS is_market,
+        COALESCE(c.is_distressed, false) AS is_distressed
+      FROM county_sales s
+      JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
+      LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
+      WHERE s.county = ${cleanCounty}
+        AND p.lat BETWEEN ${minLat} AND ${maxLat}
+        AND p.lng BETWEEN ${minLng} AND ${maxLng}
+        AND p.use_code = ${useCode}
+        AND s.sale_year IS NOT NULL
+        AND s.sale_month IS NOT NULL
+        AND s.sale_month BETWEEN 1 AND 12
+        AND s.sale_price > 100
+      ORDER BY s.sale_year ASC, s.sale_month ASC;
+    `;
+  }
+
+  // Fall back to ZIP query if 1-mile query returns fewer than 5 rows or if not in 1-mile mode
+  if (!isOneMile || rows.length < 5) {
+    if (/^\d{5}$/.test(rawZip)) {
+      rows = await sql`
+        SELECT 
+          s.sale_year,
+          s.sale_month,
+          s.sale_price,
+          p.living_sqft,
+          COALESCE(c.is_market, false) AS is_market,
+          COALESCE(c.is_distressed, false) AS is_distressed
+        FROM county_sales s
+        JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
+        LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
+        WHERE s.county = ${cleanCounty}
+          AND p.zip = ${rawZip}
+          AND p.use_code = ${useCode}
+          AND s.sale_year IS NOT NULL
+          AND s.sale_month IS NOT NULL
+          AND s.sale_month BETWEEN 1 AND 12
+          AND s.sale_price > 100
+        ORDER BY s.sale_year ASC, s.sale_month ASC;
+      `;
+    }
+  }
 
   // Group sales into year-month buckets
   const monthGroups = new Map();
@@ -269,15 +312,46 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     ? Math.round((last12DistressedSales.length / total12Sales) * 1000) / 10
     : null;
 
+  const medianPriceLast12m = calculateMedian(last12MarketSales.map(r => Number(r.sale_price)));
+
+  // "Sales by price · 12 mo" bar list (5 standard price brackets)
+  const totalMarket12m = last12MarketSales.length;
+  const brackets = [
+    { key: 'under_350k', label: '< $350k', min: 0, max: 350000 },
+    { key: '350k_500k', label: '$350k – $500k', min: 350000, max: 500000 },
+    { key: '500k_750k', label: '$500k – $750k', min: 500000, max: 750000 },
+    { key: '750k_1m', label: '$750k – $1M', min: 750000, max: 1000000 },
+    { key: 'over_1m', label: '$1M+', min: 1000000, max: Infinity }
+  ];
+  const priceDistribution = brackets.map(b => {
+    const count = last12MarketSales.filter(s => {
+      const p = Number(s.sale_price);
+      return p >= b.min && (b.max === Infinity ? true : p < b.max);
+    }).length;
+    const pct = totalMarket12m > 0 ? Math.round((count / totalMarket12m) * 100) : 0;
+    return {
+      key: b.key,
+      label: b.label,
+      min: b.min,
+      max: b.max === Infinity ? null : b.max,
+      count,
+      pct
+    };
+  });
+
   const summary = {
     county: cleanCounty,
     zip: rawZip,
+    mode: isOneMile ? '1mi' : 'zip',
+    mode_label: isOneMile ? 'Within 1-mile radius' : `ZIP ${rawZip}`,
     property_type: type,
     type_label: typeLabel,
     use_code: useCode,
     complete_through: completeThroughStr,
     latest_month: countyFreshness.latest_sale_month || 'Sep 2026',
     sales_last_12m: last12MarketSales.length,
+    median_price_last_12m: medianPriceLast12m,
+    price_distribution: priceDistribution,
     median_price_last_6m: medianPriceLast6,
     median_price_prev_6m: medianPricePrev6,
     price_change_pct: priceChangePct,
@@ -314,8 +388,11 @@ export default async function handler(req, res) {
     const county = req.query?.county || 'Broward';
     const zip = req.query?.zip || '';
     const type = req.query?.type || 'single_family';
+    const mode = req.query?.mode || 'zip';
+    const lat = req.query?.lat ? Number(req.query.lat) : null;
+    const lng = req.query?.lng ? Number(req.query.lng) : null;
 
-    const result = await getMarketTrends({ county, zip, type });
+    const result = await getMarketTrends({ county, zip, type, mode, lat, lng });
     return res.status(200).json(result);
   } catch (err) {
     console.error('Error in /api/county/market:', err);

@@ -157,7 +157,8 @@ export default function UnderwritePanel({
   compValueRaw,
   compValueFormatted,
   profile: initialProfile,
-  onOpenProfileModal
+  onOpenProfileModal,
+  onUnderwriteChange
 }) {
   // Strategy toggle: 'rental' | 'flip' | 'brrrr'
   const initialStrategy = useMemo(() => {
@@ -528,6 +529,20 @@ export default function UnderwritePanel({
       setIsSaving(false);
     }
   };
+
+  // Notify parent component of live underwriting summary and save trigger
+  useEffect(() => {
+    if (onUnderwriteChange) {
+      onUnderwriteChange({
+        strategy,
+        results,
+        inputs: currentInputs,
+        isSaving,
+        isSaveDisabled,
+        handleSaveAnalysis: () => handleSaveAnalysis()
+      });
+    }
+  }, [strategy, results, currentInputs, isSaving, isSaveDisabled]);
 
   // Delete Analysis Handler
   const handleDeleteAnalysis = async (id) => {
