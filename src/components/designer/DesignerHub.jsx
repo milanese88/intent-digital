@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AddressAutocomplete from '../investor/AddressAutocomplete.jsx';
+import { getMapboxAerialUrl } from '../investor/mapboxAerial.js';
 import {
   Button,
   Pill,
@@ -7,18 +8,38 @@ import {
   StatTile,
   Eyebrow,
   SectionHeading,
+  SegmentedControl,
   Tabs,
   SidePanel,
   Field,
   EmptyState,
-  DarkBand
+  DarkBand,
+  ScriptAccent
 } from '../ui';
+import DesignStudio from './DesignStudio.jsx';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
   { value: 'investor', label: 'Investor' },
   { value: 'concept', label: 'Concept' },
   { value: 'coursework', label: 'Coursework' }
+];
+
+const TYPE_FILTER_OPTIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'client', label: 'Client' },
+  { id: 'investor', label: 'Investor' },
+  { id: 'concept', label: 'Concept' },
+  { id: 'coursework', label: 'Coursework' }
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'concept', label: 'Concept' },
+  { value: 'in_design', label: 'In Design' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'on_hold', label: 'On Hold' }
 ];
 
 const STATUS_PILL_MAP = {
@@ -100,6 +121,11 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   // Project switcher dropdown state
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef(null);
+
+  // Filter state for Projects tab
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Sync state with URL params
   const updateUrl = (tab, projId) => {
@@ -342,11 +368,33 @@ export default function DesignerHub({ setActiveDashboardTab }) {
     }
   };
 
-  // Calculate stats for Projects Tab
+  // Calculate stats for Projects Tab (Budgets tracked = sum for all projects with a target budget)
   const activeCount = projects.filter(p => p.status === 'in_design' || p.status === 'in_progress').length;
   const conceptCount = projects.filter(p => p.status === 'concept').length;
   const portfolioCount = projects.filter(p => p.status === 'complete').length;
   const totalBudgets = projects.reduce((acc, p) => acc + (Number(p.target_budget) || 0), 0);
+
+  // Filtered projects list based on typeFilter, statusFilter, searchQuery
+  const filteredProjects = projects.filter(p => {
+    if (typeFilter !== 'all' && p.project_type !== typeFilter) return false;
+    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = (p.name || '').toLowerCase().includes(q);
+      const matchLoc = (p.location || '').toLowerCase().includes(q);
+      const matchStyle = (p.style || '').toLowerCase().includes(q);
+      if (!matchName && !matchLoc && !matchStyle) return false;
+    }
+    return true;
+  });
+
+  const isFiltered = typeFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim().length > 0;
+
+  const handleClearFilters = () => {
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setSearchQuery('');
+  };
 
   const formatCurrency = (val) => {
     if (val == null || isNaN(val)) return '$0';
@@ -385,7 +433,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 fontFamily: 'var(--font-display)',
                 fontStyle: 'italic',
                 fontWeight: 400,
-                color: 'var(--terracotta-soft)'
+                color: 'var(--on-dark)'
               }}>
                 Own the budget.
               </em>
@@ -395,17 +443,16 @@ export default function DesignerHub({ setActiveDashboardTab }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-12)', flexWrap: 'wrap' }}>
             <Button
               variant="outline-on-dark"
-              disabled
-              title="Coming in Stage 2"
+              onClick={() => handleTabChange('studio')}
             >
-              + NEW MOOD BOARD
+              + DESIGN STUDIO &rarr;
             </Button>
 
             <Button
-              variant="accent"
+              variant="cream-on-dark"
               onClick={() => handleOpenNewProject()}
             >
-              + NEW PROJECT
+              + NEW PROJECT &rarr;
             </Button>
           </div>
         </div>
@@ -431,18 +478,23 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                   onClick={() => setSwitcherOpen(prev => !prev)}
                   title="Switch project"
                   style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '22px',
-                    fontWeight: 400,
-                    color: 'var(--on-dark)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
                   }}
                 >
-                  <span>{currentProject.name}</span>
-                  <span style={{ fontSize: '13px', opacity: 0.6 }}>▾</span>
+                  <span style={{
+                    fontFamily: "var(--font-display), 'Atelier Fleur', 'Playfair Display', 'Cormorant Garamond', Georgia, serif",
+                    fontSize: '22px',
+                    fontWeight: 400,
+                    color: 'var(--on-dark)',
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1.2
+                  }}>
+                    {currentProject.name}
+                  </span>
+                  <span style={{ fontSize: '13px', opacity: 0.6, color: 'var(--on-dark)' }}>▾</span>
                 </div>
 
                 {switcherOpen && (
@@ -478,8 +530,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
-                          backgroundColor: p.id === currentProject.id ? 'rgba(192, 90, 42, 0.2)' : 'transparent',
-                          color: p.id === currentProject.id ? 'var(--terracotta-soft)' : 'var(--on-dark)',
+                          backgroundColor: p.id === currentProject.id ? 'rgba(250, 248, 245, 0.12)' : 'transparent',
+                          color: p.id === currentProject.id ? 'var(--on-dark)' : 'var(--on-dark-muted)',
                           transition: 'background 0.15s ease'
                         }}
                         onMouseEnter={(e) => {
@@ -495,7 +547,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                         </span>
                       </div>
                     ))}
-                    <div style={{ borderTop: '1px solid rgba(233, 223, 210, 0.1)', marginTop: '6px', paddingTop: '6px' }}>
+                    <div style={{ borderTop: '1px solid rgba(230, 223, 215, 0.12)', marginTop: '6px', paddingTop: '6px' }}>
                       <div
                         onClick={() => { setSwitcherOpen(false); handleOpenNewProject(); }}
                         style={{
@@ -503,11 +555,12 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           cursor: 'pointer',
                           fontFamily: 'var(--font-sans)',
                           fontSize: '11px',
-                          color: 'var(--terracotta-soft)',
-                          fontWeight: 600
+                          color: 'var(--on-dark)',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em'
                         }}
                       >
-                        + Create new project
+                        + Create new project &rarr;
                       </div>
                     </div>
                   </div>
@@ -548,28 +601,28 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: 'rgba(192, 90, 42, 0.15)',
-                  border: '1px solid rgba(192, 90, 42, 0.35)',
+                  background: 'rgba(250, 248, 245, 0.08)',
+                  border: '1px solid rgba(250, 248, 245, 0.22)',
                   borderRadius: 'var(--radius-pill)',
-                  padding: '4px 12px',
+                  padding: '4px 14px',
                   fontFamily: 'var(--font-sans)',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: 'var(--terracotta-soft)',
+                  color: 'var(--on-dark)',
                   cursor: 'pointer',
                   minHeight: '32px',
                   transition: 'all 0.2s ease',
                   outline: 'none'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(192, 90, 42, 0.28)';
-                  e.currentTarget.style.borderColor = 'var(--terracotta)';
-                  e.currentTarget.style.color = 'var(--cream)';
+                  e.currentTarget.style.backgroundColor = 'rgba(250, 248, 245, 0.16)';
+                  e.currentTarget.style.borderColor = 'rgba(250, 248, 245, 0.45)';
+                  e.currentTarget.style.color = 'var(--white)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(192, 90, 42, 0.15)';
-                  e.currentTarget.style.borderColor = 'rgba(192, 90, 42, 0.35)';
-                  e.currentTarget.style.color = 'var(--terracotta-soft)';
+                  e.currentTarget.style.backgroundColor = 'rgba(250, 248, 245, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(250, 248, 245, 0.22)';
+                  e.currentTarget.style.color = 'var(--on-dark)';
                 }}
               >
                 <span>Linked to Investor Studio · {currentProject.investor_property_address || 'Property'} &rarr;</span>
@@ -633,170 +686,403 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 title="No projects yet"
                 description="Start with a concept or link a property from Investor Studio to begin tracking design and budgets."
                 action={
-                  <Button variant="accent" onClick={() => handleOpenNewProject()}>
-                    + Create your first project
+                  <Button variant="primary" onClick={() => handleOpenNewProject()}>
+                    + Create your first project &rarr;
                   </Button>
                 }
               />
             ) : (
-              /* Projects Grid using shared Card */
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                gap: 'var(--space-24)'
-              }}>
-                {projects.map(proj => {
-                  const statusConfig = STATUS_PILL_MAP[proj.status] || STATUS_PILL_MAP.concept;
-                  const budgetVal = Number(proj.target_budget) || 0;
-                  const contPct = Number(proj.contingency_pct) || 10;
-                  const initials = (proj.name || 'P').substring(0, 2).toUpperCase();
+              <div>
+                {/* Filter Bar: SegmentedControl + Search + Status */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 'var(--space-16)',
+                  marginBottom: isFiltered ? 'var(--space-16)' : 'var(--space-24)',
+                  paddingBottom: 'var(--space-16)',
+                  borderBottom: '1px solid var(--border)'
+                }}>
+                  {/* Left: Project Type Segmented Control */}
+                  <div style={{ overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+                    <SegmentedControl
+                      options={TYPE_FILTER_OPTIONS}
+                      value={typeFilter}
+                      onChange={setTypeFilter}
+                      size="md"
+                    />
+                  </div>
 
-                  return (
-                    <Card
-                      key={proj.id}
-                      hoverable
-                      onClick={() => handleSelectProject(proj.id, true)}
-                      style={{ display: 'flex', flexDirection: 'column' }}
-                    >
-                      {/* Cover */}
-                      <div style={{
-                        height: '190px',
-                        width: '100%',
-                        position: 'relative',
-                        backgroundColor: 'var(--espresso)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden'
-                      }}>
-                        {proj.cover_url ? (
-                          <img
-                            src={proj.cover_url}
-                            alt={proj.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <span style={{
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '42px',
-                            fontStyle: 'italic',
-                            color: 'rgba(255, 255, 255, 0.65)'
-                          }}>
-                            {initials}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Card Body */}
-                      <div style={{ padding: 'var(--space-24)', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: 'var(--space-12)'
-                        }}>
-                          <Pill variant={statusConfig.variant} size="sm">
-                            {statusConfig.label}
-                          </Pill>
-
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenEditProject(proj, e)}
-                              title="Edit project"
-                              aria-label="Edit project"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--muted)',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                padding: '6px',
-                                minWidth: '32px',
-                                minHeight: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 'var(--radius-pill)',
-                                outline: 'none'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--terracotta)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M12 20h9"/>
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                              </svg>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteProject(proj, e)}
-                              title="Delete project"
-                              aria-label="Delete project"
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--muted)',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                padding: '6px',
-                                minWidth: '32px',
-                                minHeight: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 'var(--radius-pill)',
-                                outline: 'none'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--negative)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <line x1="18" y1="6" x2="6" y2="18"/>
-                                <line x1="6" y1="6" x2="18" y2="18"/>
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        <SectionHeading level="h3" style={{ marginBottom: '6px' }}>
-                          {proj.name}
-                        </SectionHeading>
-
-                        <div style={{
+                  {/* Right: Search Box + Status Filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-12)', flexWrap: 'wrap' }}>
+                    {/* Search Box */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--muted)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ position: 'absolute', left: '14px', pointerEvents: 'none' }}
+                        aria-hidden="true"
+                      >
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search projects, style..."
+                        aria-label="Search projects by name, location, or style"
+                        style={{
+                          height: '38px',
+                          padding: '0 32px 0 36px',
                           fontFamily: 'var(--font-sans)',
-                          fontSize: '12px',
-                          color: 'var(--muted)',
-                          marginBottom: 'var(--space-4)'
-                        }}>
-                          {proj.location ? `${proj.location} · ` : ''}
-                          <span style={{ textTransform: 'capitalize' }}>{proj.project_type}</span>
-                          {proj.style ? ` · ${proj.style}` : ''}
-                        </div>
-
-                        {proj.investor_property_address && (
-                          <div style={{
-                            display: 'inline-flex',
+                          fontSize: '13px',
+                          color: 'var(--espresso)',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-pill)',
+                          outline: 'none',
+                          minWidth: '220px',
+                          transition: 'all 0.2s ease',
+                          boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = 'var(--espresso)';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(27, 19, 13, 0.08)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = 'var(--border)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Clear search text"
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
                             alignItems: 'center',
-                            gap: '4px',
-                            marginBottom: 'var(--space-12)',
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: 'var(--terracotta)'
-                          }}>
-                            <span>Linked to {proj.investor_property_address}</span>
-                          </div>
-                        )}
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
 
-                        <div style={{
-                          marginTop: 'auto',
-                          paddingTop: 'var(--space-4)',
-                          borderTop: '1px solid rgba(52, 41, 42, 0.08)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
+                    {/* Status Filter Dropdown */}
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        aria-label="Filter projects by status"
+                        style={{
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          height: '38px',
+                          padding: '0 32px 0 16px',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'var(--text-label)',
+                          fontWeight: 600,
+                          letterSpacing: 'var(--letter-spacing-label)',
+                          textTransform: 'uppercase',
+                          color: statusFilter === 'all' ? 'var(--text-2)' : 'var(--espresso)',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-pill)',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = 'var(--espresso)';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(27, 19, 13, 0.08)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = 'var(--border)';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      >
+                        {STATUS_FILTER_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <span style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        fontSize: '11px',
+                        color: 'var(--muted)'
+                      }}>
+                        ▾
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active filter count banner */}
+                {isFiltered && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--beige)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-pill)',
+                    marginBottom: 'var(--space-20)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--text-2)'
+                  }}>
+                    <span>
+                      Showing <strong>{filteredProjects.length}</strong> of <strong>{projects.length}</strong> projects
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearFilters}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        letterSpacing: 'var(--letter-spacing-label)',
+                        textTransform: 'uppercase',
+                        color: 'var(--burgundy)',
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                )}
+
+                {/* If filter produces 0 results */}
+                {filteredProjects.length === 0 ? (
+                  <EmptyState
+                    title="No matching projects"
+                    description="None of your projects match the current search filters."
+                    action={
+                      <Button variant="secondary" onClick={handleClearFilters}>
+                        Reset filters
+                      </Button>
+                    }
+                  />
+                ) : (
+                  /* Projects Grid using shared Card */
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+                    gap: 'var(--space-24)'
+                  }}>
+                    {filteredProjects.map(proj => {
+                      const statusConfig = STATUS_PILL_MAP[proj.status] || STATUS_PILL_MAP.concept;
+                      const budgetVal = Number(proj.target_budget) || 0;
+                      const contPct = Number(proj.contingency_pct) || 10;
+                      const isCurrent = currentProject && proj.id === currentProject.id;
+
+                      // Resolve cover: project cover_url, or linked investor property aerial image (via Mapbox satellite helper), or plain tone block (no text placeholder)
+                      const linkedProp = proj.investor_property_id
+                        ? investorProperties.find(p => p.id === proj.investor_property_id)
+                        : null;
+                      const propLng = proj.investor_property_lng || linkedProp?.lng;
+                      const propLat = proj.investor_property_lat || linkedProp?.lat;
+
+                      let coverSrc = null;
+                      if (proj.cover_url) {
+                        coverSrc = proj.cover_url;
+                      } else if (propLng && propLat) {
+                        coverSrc = getMapboxAerialUrl(propLng, propLat, 680, 380);
+                      } else if (proj.investor_property_cover_photo_url || linkedProp?.cover_photo_url) {
+                        coverSrc = proj.investor_property_cover_photo_url || linkedProp?.cover_photo_url;
+                      }
+
+                      return (
+                        <Card
+                          key={proj.id}
+                          featured={isCurrent}
+                          hoverable
+                          onClick={() => handleSelectProject(proj.id, true)}
+                          style={{ display: 'flex', flexDirection: 'column' }}
+                        >
+                          {/* Cover Image or Tone Block (No 11/letter initials) */}
+                          <div style={{
+                            height: '190px',
+                            width: '100%',
+                            position: 'relative',
+                            backgroundColor: isCurrent ? 'var(--espresso)' : 'var(--beige)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden'
+                          }}>
+                            {coverSrc ? (
+                              <img
+                                src={coverSrc}
+                                alt={proj.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div style={{
+                                width: '100%',
+                                height: '100%',
+                                backgroundColor: isCurrent ? 'var(--espresso)' : 'var(--beige)'
+                              }} />
+                            )}
+
+                            {/* Featured / Current Project Script Accent Stamp */}
+                            {isCurrent && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '12px',
+                                left: '14px',
+                                backgroundColor: 'var(--burgundy)',
+                                color: 'var(--cream)',
+                                padding: '3px 12px',
+                                borderRadius: 'var(--radius-pill)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}>
+                                <ScriptAccent size="sm" color="var(--cream)" tilt={false}>
+                                  Current project
+                                </ScriptAccent>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Body */}
+                          <div style={{ padding: 'var(--space-24)', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 'var(--space-12)'
+                            }}>
+                              <Pill variant={statusConfig.variant} size="sm">
+                                {statusConfig.label}
+                              </Pill>
+
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenEditProject(proj, e)}
+                                  title="Edit project"
+                                  aria-label="Edit project"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--muted)',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    padding: '6px',
+                                    minWidth: '32px',
+                                    minHeight: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 'var(--radius-pill)',
+                                    outline: 'none'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--burgundy)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M12 20h9"/>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                                  </svg>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteProject(proj, e)}
+                                  title="Delete project"
+                                  aria-label="Delete project"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--muted)',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    padding: '6px',
+                                    minWidth: '32px',
+                                    minHeight: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 'var(--radius-pill)',
+                                    outline: 'none'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--negative)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted)'; }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <SectionHeading level="h3" style={{ marginBottom: '6px' }}>
+                              {proj.name}
+                            </SectionHeading>
+
+                            <div style={{
+                              fontFamily: 'var(--font-sans)',
+                              fontSize: '12px',
+                              color: 'var(--muted)',
+                              marginBottom: 'var(--space-4)'
+                            }}>
+                              {proj.location ? `${proj.location} · ` : ''}
+                              <span style={{ textTransform: 'capitalize' }}>{proj.project_type}</span>
+                              {proj.style ? ` · ${proj.style}` : ''}
+                            </div>
+
+                            {proj.investor_property_address && (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginBottom: 'var(--space-12)',
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: 'var(--burgundy)'
+                              }}>
+                                <span>Linked to {proj.investor_property_address} &rarr;</span>
+                              </div>
+                            )}
+
+                            <div style={{
+                              marginTop: 'auto',
+                              paddingTop: 'var(--space-8)',
+                              borderTop: '1px solid var(--border)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
                           fontFamily: 'var(--font-sans)',
                           fontSize: '12px',
                           color: 'var(--espresso)'
@@ -822,18 +1108,40 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                     </Card>
                   );
                 })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Placeholder for tabs other than Projects (No Emojis) */}
-        {!loading && activeTab !== 'projects' && (
+        {/* Design Studio Tab */}
+        {!loading && activeTab === 'studio' && (
+          currentProject ? (
+            <DesignStudio
+              project={currentProject}
+              onProjectUpdated={fetchProjects}
+            />
+          ) : (
+            <EmptyState
+              title="No project selected"
+              description="Choose a project or create a new one to access the Design studio."
+              action={
+                <Button variant="primary" onClick={() => handleOpenNewProject()}>
+                  + CREATE PROJECT &rarr;
+                </Button>
+              }
+            />
+          )
+        )}
+
+        {/* Placeholder for tabs other than Projects and Studio (No Emojis) */}
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."
             icon={
-              <Pill variant="warning" size="md">STAGE 2 FEATURE</Pill>
+              <Pill variant="warning" size="md">COMING NEXT</Pill>
             }
             action={
               currentProject ? (
@@ -876,12 +1184,12 @@ export default function DesignerHub({ setActiveDashboardTab }) {
             </Button>
 
             <Button
-              variant="accent"
+              variant="primary"
               type="submit"
               disabled={formSaving}
               onClick={handleSaveProject}
             >
-              {formSaving ? 'Saving...' : (editingProject ? 'Update Project' : 'Create Project')}
+              {formSaving ? 'Saving...' : (editingProject ? 'Update Project →' : 'Create Project →')}
             </Button>
           </>
         }
@@ -1065,7 +1373,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           setFormRooms(prev => prev.filter(r => r !== room));
                         }
                       }}
-                      style={{ accentColor: 'var(--terracotta)', width: '16px', height: '16px' }}
+                      style={{ accentColor: 'var(--burgundy)', width: '16px', height: '16px' }}
                     />
                     {room}
                   </label>

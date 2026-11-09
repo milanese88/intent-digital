@@ -193,8 +193,8 @@
 }
 
 .btn-nav-cta:hover {
-  background-color: var(--terracotta);
-  color: var(--espresso);
+  background-color: var(--burgundy, #41101B);
+  color: #FFFFFF;
 }
 
 .mobile-toggle-btn {
@@ -721,13 +721,13 @@
 }
 
 .btn-hero-primary {
-  background-color: var(--terracotta);
-  color: var(--espresso);
+  background-color: var(--burgundy, #41101B);
+  color: #FFFFFF;
 }
 
 .btn-hero-primary:hover {
-  background-color: var(--terracotta-hover);
-  color: var(--espresso);
+  background-color: var(--espresso, #1E1509);
+  color: #FFFFFF;
 }
 
 .btn-hero-secondary {
@@ -1738,7 +1738,7 @@
   content: '✓';
   position: absolute;
   left: 0;
-  color: var(--terracotta);
+  color: var(--burgundy, #41101B);
   font-weight: bold;
 }
 
@@ -2427,7 +2427,7 @@
 .letter-divider {
   width: 30px;
   height: 1px;
-  background: var(--terracotta);
+  background: var(--burgundy, #41101B);
   opacity: 0.6;
   margin: 12px 0;
 }
@@ -2458,7 +2458,7 @@
   transform: translate(-50%, -50%);
   width: 36px;
   height: 36px;
-  background: var(--terracotta);
+  background: var(--burgundy, #41101B);
   border-radius: 53% 47% 48% 52% / 47% 53% 47% 53%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.25);
   display: flex;
@@ -2684,8 +2684,8 @@
 }
 
 .btn-submit-inquiry:hover {
-  background-color: var(--terracotta);
-  color: var(--espresso);
+  background-color: var(--espresso, #1E1509);
+  color: #FFFFFF;
 }
 
 .contact-info-panel {

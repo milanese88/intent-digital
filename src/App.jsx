@@ -26,6 +26,9 @@ function App() {
       if (path === '/reset-password') {
         return 'reset-password';
       }
+      if (path === '/admin' || path.startsWith('/admin')) {
+        return 'admin';
+      }
 
       const params = new URLSearchParams(window.location.search);
       const route = params.get('route');

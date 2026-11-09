@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import { ALLOWED_CREDIT_TIERS, DEFAULT_RATE_SHEET } from './underwriting.js';
+import { Button } from '../ui';
 
 const LOAN_TYPE_LABELS = {
   conventional_investment: 'Conventional (Investment)',
@@ -513,43 +514,19 @@ export default function BuyingProfileModal({ isOpen, onClose, onProfileSaved, cu
           borderBottomLeftRadius: '12px',
           borderBottomRightRadius: '12px'
         }}>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid rgba(52, 41, 42, 0.2)',
-              backgroundColor: '#FFFFFF',
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              color: 'var(--espresso, #34292A)'
-            }}
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={isSaving}
-            style={{
-              padding: '8px 20px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: 'var(--espresso, #34292A)',
-              color: '#FAF8F5',
-              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              cursor: isSaving ? 'not-allowed' : 'pointer',
-              opacity: isSaving ? 0.7 : 1,
-              transition: 'background-color 0.15s ease'
-            }}
           >
             {isSaving ? 'Saving...' : 'Save Profile'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

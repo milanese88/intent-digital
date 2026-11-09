@@ -5,9 +5,9 @@ import React from 'react';
  * Accessible, 44px touch targets, full token styling.
  * 
  * Variants:
- * - 'primary': Burgundy pill (main actions)
+ * - 'primary': Burgundy pill with white uppercase letter-spaced text (main actions)
  * - 'secondary': Outline pill on light surfaces
- * - 'accent': Terracotta pill (Designer Hub actions)
+ * - 'cream-on-dark': Cream pill with espresso text for dark espresso hero bands
  * - 'outline-on-dark': Outline pill on dark espresso hero bands
  * - 'text': Uppercase letter-spaced link
  */
@@ -61,7 +61,7 @@ export default function Button({
     variantStyle = {
       backgroundColor: 'var(--burgundy)',
       color: 'var(--cream)',
-      boxShadow: disabled ? 'none' : '0 4px 14px rgba(58, 20, 24, 0.25)',
+      boxShadow: disabled ? 'none' : '0 4px 14px rgba(65, 16, 27, 0.25)',
       border: '1px solid var(--burgundy)'
     };
   } else if (variant === 'secondary') {
@@ -69,19 +69,19 @@ export default function Button({
       backgroundColor: '#ffffff',
       border: '1px solid var(--border-strong)',
       color: 'var(--espresso)',
-      boxShadow: '0 2px 8px rgba(27, 19, 13, 0.03)'
+      boxShadow: '0 2px 8px rgba(30, 21, 9, 0.03)'
     };
-  } else if (variant === 'accent') {
+  } else if (variant === 'cream-on-dark' || variant === 'primary-on-dark' || variant === 'accent') {
     variantStyle = {
-      backgroundColor: 'var(--terracotta)',
-      border: '1px solid var(--terracotta)',
-      color: '#ffffff',
-      boxShadow: disabled ? 'none' : '0 4px 16px rgba(192, 90, 42, 0.35)'
+      backgroundColor: 'var(--cream)',
+      border: '1px solid var(--cream)',
+      color: 'var(--espresso)',
+      boxShadow: disabled ? 'none' : '0 4px 14px rgba(0, 0, 0, 0.16)'
     };
   } else if (variant === 'outline-on-dark') {
     variantStyle = {
       backgroundColor: 'transparent',
-      border: '1px solid rgba(233, 223, 210, 0.35)',
+      border: '1px solid rgba(230, 223, 215, 0.35)',
       color: 'var(--eyebrow-on-dark)'
     };
   } else if (variant === 'text') {
@@ -102,9 +102,9 @@ export default function Button({
       e.currentTarget.style.borderColor = 'var(--burgundy)';
       e.currentTarget.style.color = 'var(--burgundy)';
       e.currentTarget.style.transform = 'translateY(-1px)';
-    } else if (variant === 'accent') {
-      e.currentTarget.style.backgroundColor = '#A84B1F';
-      e.currentTarget.style.borderColor = '#A84B1F';
+    } else if (variant === 'cream-on-dark' || variant === 'primary-on-dark' || variant === 'accent') {
+      e.currentTarget.style.backgroundColor = '#FFFFFF';
+      e.currentTarget.style.borderColor = '#FFFFFF';
       e.currentTarget.style.transform = 'translateY(-1px)';
     } else if (variant === 'outline-on-dark') {
       e.currentTarget.style.borderColor = 'var(--eyebrow-on-dark)';
@@ -124,12 +124,12 @@ export default function Button({
       e.currentTarget.style.borderColor = 'var(--border-strong)';
       e.currentTarget.style.color = 'var(--espresso)';
       e.currentTarget.style.transform = 'none';
-    } else if (variant === 'accent') {
-      e.currentTarget.style.backgroundColor = 'var(--terracotta)';
-      e.currentTarget.style.borderColor = 'var(--terracotta)';
+    } else if (variant === 'cream-on-dark' || variant === 'primary-on-dark' || variant === 'accent') {
+      e.currentTarget.style.backgroundColor = 'var(--cream)';
+      e.currentTarget.style.borderColor = 'var(--cream)';
       e.currentTarget.style.transform = 'none';
     } else if (variant === 'outline-on-dark') {
-      e.currentTarget.style.borderColor = 'rgba(233, 223, 210, 0.35)';
+      e.currentTarget.style.borderColor = 'rgba(230, 223, 215, 0.35)';
       e.currentTarget.style.backgroundColor = 'transparent';
     } else if (variant === 'text') {
       e.currentTarget.style.color = 'var(--espresso)';
@@ -137,7 +137,7 @@ export default function Button({
   };
 
   const handleFocus = (e) => {
-    e.currentTarget.style.boxShadow = variant === 'accent' ? 'var(--focus-ring-terracotta)' : 'var(--focus-ring)';
+    e.currentTarget.style.boxShadow = 'var(--focus-ring)';
   };
 
   const handleBlur = (e) => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { formatNiceAddress, toTitleCase, forwardGeocodeMapbox } from './AddressAutocomplete.jsx';
+import { Button, Pill } from '../ui';
 
 /**
  * Formats sale date to "Sold MMM YYYY" (e.g. "Sold Sep 2026")
@@ -503,85 +504,45 @@ export default function SuggestedCompsPanel({
 
                   {/* Likely Renovated Pill */}
                   {c.likely_renovated && (
-                    <span
+                    <Pill
+                      variant="info"
+                      size="sm"
                       title={`Effective year built is ${c.eff_year_built} (actual ${c.year_built})`}
-                      style={{
-                        backgroundColor: 'rgba(133, 157, 206, 0.2)',
-                        color: '#2D5584',
-                        border: '1px solid rgba(133, 157, 206, 0.4)',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '10.5px',
-                        fontWeight: 600,
-                        letterSpacing: '0.02em',
-                        cursor: 'help'
-                      }}
+                      style={{ cursor: 'help' }}
                     >
                       Renovated?
-                    </span>
+                    </Pill>
                   )}
 
                   {/* Distressed Pill */}
                   {c.is_distressed && (
-                    <span
-                      style={{
-                        backgroundColor: '#FDF0ED',
-                        color: '#B03823',
-                        border: '1px solid rgba(176, 56, 35, 0.3)',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '10.5px',
-                        fontWeight: 600,
-                        letterSpacing: '0.02em'
-                      }}
-                    >
+                    <Pill variant="negative" size="sm">
                       Distressed
-                    </span>
+                    </Pill>
                   )}
                 </div>
 
                 {/* Right Action Button: "+ ADD" or "✓ Added" */}
                 <div>
                   {alreadyAdded ? (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled
-                      style={{
-                        padding: '6px 14px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        letterSpacing: '0.04em',
-                        backgroundColor: 'rgba(52, 41, 42, 0.08)',
-                        color: 'rgba(52, 41, 42, 0.55)',
-                        border: '1px solid rgba(52, 41, 42, 0.12)',
-                        borderRadius: '6px',
-                        cursor: 'default',
-                        whiteSpace: 'nowrap'
-                      }}
+                      style={{ cursor: 'default', whiteSpace: 'nowrap' }}
                     >
                       ✓ Added
-                    </button>
+                    </Button>
                   ) : (
-                    <button
-                      type="button"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => handleAddCandidate(c)}
                       disabled={isAdding}
-                      style={{
-                        padding: '6px 14px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        letterSpacing: '0.06em',
-                        backgroundColor: 'var(--secondary-color, #41101B)',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: isAdding ? 'wait' : 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'opacity 0.15s ease'
-                      }}
+                      style={{ whiteSpace: 'nowrap' }}
                     >
                       {isAdding ? 'ADDING...' : '+ ADD'}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

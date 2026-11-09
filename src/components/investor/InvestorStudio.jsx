@@ -2427,7 +2427,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                           <div style={{
                             height: '100%',
                             width: `${Math.round((completedCount / 7) * 100)}%`,
-                            backgroundColor: completedCount === 7 ? '#2ECC71' : '#859DCE',
+                            backgroundColor: completedCount === 7 ? 'var(--positive)' : 'var(--cream)',
                             borderRadius: '50px',
                             transition: 'width 0.3s ease'
                           }} />
