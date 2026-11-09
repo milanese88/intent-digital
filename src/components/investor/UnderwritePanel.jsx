@@ -2,28 +2,44 @@ import React, { useState, useEffect, useMemo } from 'react';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
 import {
   calculateMortgagePayment,
+  calculateFloridaLoanTaxes,
+  calculateFloridaOwnerTitlePolicy,
+  calculateMonthlyPayment,
+  calculateCashToClose,
+  calculateLiquidCashNeeded,
   formatCurrency,
   formatPercent,
   formatRatio,
   underwriteRental,
   underwriteFlip,
-  underwriteBrrrr
+  underwriteBrrrr,
+  LOAN_TYPES,
+  ESTIMATED_CLOSING_DEFAULTS
 } from './underwriting.js';
 
 // Section Header for Compact Underwriting Form
-function SectionHeader({ title }) {
+function SectionHeader({ title, action = null }) {
   return (
     <div style={{
-      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-      fontSize: '9.5px',
-      fontWeight: 700,
-      letterSpacing: '0.12em',
-      textTransform: 'uppercase',
-      color: 'rgba(52, 41, 42, 0.5)',
-      marginTop: '16px',
-      marginBottom: '6px'
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: '18px',
+      marginBottom: '8px',
+      borderBottom: '1px solid rgba(52, 41, 42, 0.08)',
+      paddingBottom: '4px'
     }}>
-      {title}
+      <span style={{
+        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+        fontSize: '9.5px',
+        fontWeight: 700,
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase',
+        color: 'var(--secondary-color, #41101B)'
+      }}>
+        {title}
+      </span>
+      {action}
     </div>
   );
 }
@@ -39,7 +55,8 @@ function InputRow({
   sublabel = '',
   placeholder = '',
   allowDecimal = false,
-  formatOnBlur = true
+  formatOnBlur = true,
+  disabled = false
 }) {
   const decimalAllowed = allowDecimal || suffix === '%';
   return (
@@ -49,7 +66,8 @@ function InputRow({
       justifyContent: 'space-between',
       gap: '12px',
       padding: '7px 0',
-      borderBottom: '1px solid rgba(52, 41, 42, 0.05)'
+      borderBottom: '1px solid rgba(52, 41, 42, 0.05)',
+      opacity: disabled ? 0.6 : 1
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <label
@@ -60,7 +78,7 @@ function InputRow({
             fontWeight: 500,
             color: 'var(--espresso, #34292A)',
             display: 'block',
-            cursor: id ? 'pointer' : 'default'
+            cursor: id && !disabled ? 'pointer' : 'default'
           }}
         >
           {label}
@@ -82,7 +100,7 @@ function InputRow({
       <div style={{
         display: 'inline-flex',
         alignItems: 'center',
-        backgroundColor: '#ffffff',
+        backgroundColor: disabled ? 'rgba(52, 41, 42, 0.04)' : '#ffffff',
         border: '1px solid rgba(52, 41, 42, 0.18)',
         borderRadius: '6px',
         padding: '5px 8px',
@@ -103,6 +121,7 @@ function InputRow({
           id={id}
           value={value}
           onChange={onChange}
+          disabled={disabled}
           allowDecimal={decimalAllowed}
           formatOnBlur={prefix === '$' ? true : formatOnBlur}
           placeholder={placeholder}
@@ -133,14 +152,19 @@ function InputRow({
   );
 }
 
-
-export default function UnderwritePanel({ property, compValueRaw, compValueFormatted }) {
+export default function UnderwritePanel({
+  property,
+  compValueRaw,
+  compValueFormatted,
+  profile: initialProfile,
+  onOpenProfileModal
+}) {
   // Strategy toggle: 'rental' | 'flip' | 'brrrr'
   const initialStrategy = useMemo(() => {
     if (property?.strategy && ['rental', 'flip', 'brrrr'].includes(property.strategy.toLowerCase())) {
       return property.strategy.toLowerCase();
     }
-    return 'flip';
+    return 'rental';
   }, [property?.strategy]);
 
   const [strategy, setStrategy] = useState(initialStrategy);
@@ -152,35 +176,124 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
     }
   }, [property?.id, property?.strategy]);
 
-  // Default Inputs Builder
-  const buildDefaultInputs = (strat, prop) => {
+  // Buying profile state
+  const [profile, setProfile] = useState(initialProfile || null);
+
+  useEffect(() => {
+    if (initialProfile) {
+      setProfile(initialProfile);
+    } else {
+      let isMounted = true;
+      fetch('/api/investor/profile')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (isMounted && data) {
+            setProfile(data);
+          }
+        })
+        .catch(() => {});
+      return () => { isMounted = false; };
+    }
+  }, [initialProfile]);
+
+  // FRED weekly Freddie Mac 30-year fixed rate reference
+  const [fredRate, setFredRate] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/rates/reference')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (isMounted && data?.rate != null) {
+          setFredRate(data);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  // Check property condo & flood status
+  const isCondo = useMemo(() => {
+    const pType = (property?.property_type || '').toLowerCase();
+    const useCode = String(property?.use_code || '').trim();
+    return pType === 'condo' || useCode === '004';
+  }, [property?.property_type, property?.use_code]);
+
+  const isSFHA = useMemo(() => {
+    if (property?.flood_sfha === true) return true;
+    const fZone = (property?.flood_zone || '').toUpperCase();
+    return ['A', 'AE', 'AH', 'AO', 'A99', 'AR', 'V', 'VE'].includes(fZone);
+  }, [property?.flood_sfha, property?.flood_zone]);
+
+  // Helper to get initial rate from profile for a loan type
+  const getProfileRate = (loanTypeKey, userProfile) => {
+    const loanCfg = LOAN_TYPES[loanTypeKey] || LOAN_TYPES.conventional_investment;
+    if (loanCfg.isCash) return 0;
+    if (userProfile?.rate_sheet && userProfile.rate_sheet[loanTypeKey]) {
+      const sheet = userProfile.rate_sheet[loanTypeKey];
+      const base = sheet.base_rate != null ? Number(sheet.base_rate) : loanCfg.defaultRatePct;
+      const tier = userProfile.credit_tier || '740-759';
+      const adj = sheet.adjustments?.[tier] != null ? Number(sheet.adjustments[tier]) : 0;
+      return Number((base + adj).toFixed(3));
+    }
+    return loanCfg.defaultRatePct;
+  };
+
+  // Build Default Inputs
+  const buildDefaultInputs = (strat, prop, userProfile) => {
     const listPrice = prop?.list_price != null ? Number(prop.list_price) : '';
     const estTaxes = listPrice ? Math.round(Number(listPrice) * 0.02) : '';
+    const initialLoanType = strat === 'flip' ? 'hard_money' : 'conventional_investment';
+    const loanCfg = LOAN_TYPES[initialLoanType] || LOAN_TYPES.conventional_investment;
+    const defaultRate = getProfileRate(initialLoanType, userProfile);
+
+    const base = {
+      purchasePrice: listPrice,
+      loanType: initialLoanType,
+      downPaymentPct: loanCfg.defaultDownPct,
+      interestRatePct: defaultRate,
+      loanTermYears: loanCfg.defaultTermYears,
+      isInterestOnly: loanCfg.defaultInterestOnly,
+      pointsPct: loanCfg.defaultPointsPct,
+      pmiPct: loanCfg.defaultPmiPct,
+
+      // Monthly expenses
+      propertyTaxesYr: estTaxes,
+      insuranceYr: '',
+      floodInsuranceYr: isSFHA ? ESTIMATED_CLOSING_DEFAULTS.defaultFloodInsuranceYr : '',
+      isFloodEnabled: isSFHA,
+      hoaMo: isCondo ? ESTIMATED_CLOSING_DEFAULTS.defaultCondoHoaMo : 0,
+      isHoaEnabled: isCondo,
+      specialAssessmentsMo: 0,
+
+      // Cash to Close customizations
+      earnestMoney: listPrice ? Math.max(5000, Math.round(Number(listPrice) * 0.01)) : 5000,
+      sellerCredits: 0,
+      ownerTitlePaidByBuyer: true,
+      escrowMonths: 3,
+      prepaidInterestDays: 15,
+
+      // Profile reserve override
+      reserveMonths: userProfile?.reserve_months != null ? userProfile.reserve_months : 6,
+      profileLiquidCash: userProfile?.liquid_cash != null ? userProfile.liquid_cash : 100000
+    };
 
     if (strat === 'rental') {
       return {
-        purchasePrice: listPrice,
-        downPaymentPct: 25,
-        interestRatePct: 7.0,
-        loanTermYears: 30,
-        closingCostsPct: 3,
+        ...base,
         monthlyRent: '',
         vacancyPct: 5,
         maintenancePct: 5,
         capexPct: 5,
-        managementPct: 0,
-        propertyTaxesYr: estTaxes,
-        insuranceYr: '',
-        hoaMo: 0
+        managementPct: 0
       };
     }
 
     if (strat === 'flip') {
       return {
-        purchasePrice: listPrice,
+        ...base,
         rehabBudget: '',
         arv: '',
-        buyingClosingCostsPct: 2,
         holdingMonths: 6,
         holdingCostMo: '',
         sellingCostsPct: 8
@@ -189,10 +302,10 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
     // BRRRR
     return {
-      purchasePrice: listPrice,
+      ...base,
       rehabBudget: '',
       arv: '',
-      buyingClosingCostsPct: 2,
+      holdingMonths: 6,
       refiLtvPct: 75,
       refiRatePct: 7.0,
       refiTermYears: 30,
@@ -201,27 +314,27 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
       vacancyPct: 5,
       maintenancePct: 5,
       capexPct: 5,
-      managementPct: 0,
-      propertyTaxesYr: estTaxes,
-      insuranceYr: '',
-      hoaMo: 0
+      managementPct: 0
     };
   };
 
-  const [rentalInputs, setRentalInputs] = useState(() => buildDefaultInputs('rental', property));
-  const [flipInputs, setFlipInputs] = useState(() => buildDefaultInputs('flip', property));
-  const [brrrrInputs, setBrrrrInputs] = useState(() => buildDefaultInputs('brrrr', property));
+  const [rentalInputs, setRentalInputs] = useState(() => buildDefaultInputs('rental', property, profile));
+  const [flipInputs, setFlipInputs] = useState(() => buildDefaultInputs('flip', property, profile));
+  const [brrrrInputs, setBrrrrInputs] = useState(() => buildDefaultInputs('brrrr', property, profile));
+
+  // Toggle for detailed cash to close breakdown
+  const [showDetailedClosing, setShowDetailedClosing] = useState(false);
 
   // Reset inputs when property ID changes
   useEffect(() => {
-    setRentalInputs(buildDefaultInputs('rental', property));
-    setFlipInputs(buildDefaultInputs('flip', property));
-    setBrrrrInputs(buildDefaultInputs('brrrr', property));
+    setRentalInputs(buildDefaultInputs('rental', property, profile));
+    setFlipInputs(buildDefaultInputs('flip', property, profile));
+    setBrrrrInputs(buildDefaultInputs('brrrr', property, profile));
   }, [property?.id]);
 
   // Saved Analyses State
   const [savedAnalyses, setSavedAnalyses] = useState([]);
-  const [analysesLoading, setAnalysesLoading] = useState(false);
+  const [_analysesLoading, setAnalysesLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [deletingId, setDeletingId] = useState(null);
@@ -249,77 +362,121 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
   // Input Change Helper
   const handleInputChange = (field, val) => {
-    // Strip non-numeric except decimal
-    const cleanNum = val === '' ? '' : val;
+    const clean = val === '' ? '' : val;
     if (strategy === 'rental') {
-      setRentalInputs(prev => ({ ...prev, [field]: cleanNum }));
+      setRentalInputs(prev => ({ ...prev, [field]: clean }));
     } else if (strategy === 'flip') {
-      setFlipInputs(prev => ({ ...prev, [field]: cleanNum }));
+      setFlipInputs(prev => ({ ...prev, [field]: clean }));
     } else {
-      setBrrrrInputs(prev => ({ ...prev, [field]: cleanNum }));
+      setBrrrrInputs(prev => ({ ...prev, [field]: clean }));
     }
   };
 
-  // Convert percentage fields from 0-100 to decimal
+  // Loan Type Selection Handler
+  const handleLoanTypeSelect = (newLoanType) => {
+    const cfg = LOAN_TYPES[newLoanType] || LOAN_TYPES.conventional_investment;
+    const computedRate = getProfileRate(newLoanType, profile);
+
+    const updateState = (prev) => {
+      let pmiVal = cfg.defaultPmiPct;
+      if (!cfg.isCash && (cfg.defaultDownPct < 20 || prev.downPaymentPct < 20) && pmiVal === 0) {
+        pmiVal = 0.75;
+      }
+      return {
+        ...prev,
+        loanType: newLoanType,
+        downPaymentPct: cfg.defaultDownPct,
+        interestRatePct: computedRate,
+        loanTermYears: cfg.defaultTermYears,
+        pointsPct: cfg.defaultPointsPct,
+        isInterestOnly: cfg.defaultInterestOnly,
+        pmiPct: pmiVal
+      };
+    };
+
+    if (strategy === 'rental') setRentalInputs(updateState);
+    else if (strategy === 'flip') setFlipInputs(updateState);
+    else setBrrrrInputs(updateState);
+  };
+
+  // Active inputs pointer
   const currentInputs = strategy === 'rental' ? rentalInputs : strategy === 'flip' ? flipInputs : brrrrInputs;
 
-  // Compute Results Live
+  // Compute Results Live via underwriting.js
   const results = useMemo(() => {
+    const sharedInputs = {
+      purchasePrice: Number(currentInputs.purchasePrice) || 0,
+      loanType: currentInputs.loanType,
+      isCash: currentInputs.loanType === 'cash',
+      downPaymentPct: Number(currentInputs.downPaymentPct) || 0,
+      interestRatePct: Number(currentInputs.interestRatePct) || 0,
+      loanTermYears: Number(currentInputs.loanTermYears) || 0,
+      isInterestOnly: Boolean(currentInputs.isInterestOnly),
+      pointsPct: Number(currentInputs.pointsPct) || 0,
+      pmiPct: Number(currentInputs.pmiPct) || 0,
+
+      // Monthly carry
+      propertyTaxesYr: currentInputs.propertyTaxesYr !== '' ? Number(currentInputs.propertyTaxesYr) : null,
+      insuranceYr: currentInputs.insuranceYr !== '' ? Number(currentInputs.insuranceYr) : null,
+      floodInsuranceYr: currentInputs.floodInsuranceYr !== '' ? Number(currentInputs.floodInsuranceYr) : null,
+      isFloodEnabled: Boolean(currentInputs.isFloodEnabled),
+      hoaMo: Number(currentInputs.hoaMo) || 0,
+      isHoaEnabled: Boolean(currentInputs.isHoaEnabled),
+      specialAssessmentsMo: Number(currentInputs.specialAssessmentsMo) || 0,
+
+      // Cash to Close overrides
+      earnestMoney: currentInputs.earnestMoney !== '' ? Number(currentInputs.earnestMoney) : null,
+      sellerCredits: Number(currentInputs.sellerCredits) || 0,
+      ownerTitlePaidByBuyer: currentInputs.ownerTitlePaidByBuyer !== false,
+      escrowMonths: Number(currentInputs.escrowMonths) || 3,
+      prepaidInterestDays: Number(currentInputs.prepaidInterestDays) || 15,
+
+      // Profile overrides
+      reserveMonths: currentInputs.reserveMonths != null ? Number(currentInputs.reserveMonths) : 6,
+      profileLiquidCash: profile?.liquid_cash != null ? Number(profile.liquid_cash) : 100000
+    };
+
     if (strategy === 'rental') {
       return underwriteRental({
-        purchasePrice: Number(rentalInputs.purchasePrice) || 0,
-        downPaymentPct: (Number(rentalInputs.downPaymentPct) || 0) / 100,
-        interestRatePct: (Number(rentalInputs.interestRatePct) || 0) / 100,
-        loanTermYears: Number(rentalInputs.loanTermYears) || 30,
-        closingCostsPct: (Number(rentalInputs.closingCostsPct) || 0) / 100,
+        ...sharedInputs,
         monthlyRent: rentalInputs.monthlyRent !== '' ? Number(rentalInputs.monthlyRent) : null,
-        vacancyPct: (Number(rentalInputs.vacancyPct) || 0) / 100,
-        maintenancePct: (Number(rentalInputs.maintenancePct) || 0) / 100,
-        capexPct: (Number(rentalInputs.capexPct) || 0) / 100,
-        managementPct: (Number(rentalInputs.managementPct) || 0) / 100,
-        propertyTaxesYr: rentalInputs.propertyTaxesYr !== '' ? Number(rentalInputs.propertyTaxesYr) : null,
-        insuranceYr: rentalInputs.insuranceYr !== '' ? Number(rentalInputs.insuranceYr) : null,
-        hoaMo: Number(rentalInputs.hoaMo) || 0
+        vacancyPct: Number(rentalInputs.vacancyPct) || 0,
+        maintenancePct: Number(rentalInputs.maintenancePct) || 0,
+        capexPct: Number(rentalInputs.capexPct) || 0,
+        managementPct: Number(rentalInputs.managementPct) || 0
       });
     }
 
     if (strategy === 'flip') {
       return underwriteFlip({
-        purchasePrice: Number(flipInputs.purchasePrice) || 0,
+        ...sharedInputs,
         rehabBudget: Number(flipInputs.rehabBudget) || 0,
         arv: flipInputs.arv !== '' ? Number(flipInputs.arv) : null,
-        buyingClosingCostsPct: (Number(flipInputs.buyingClosingCostsPct) || 0) / 100,
         holdingMonths: Number(flipInputs.holdingMonths) || 6,
-        holdingCostMo: Number(flipInputs.holdingCostMo) || 0,
-        sellingCostsPct: (Number(flipInputs.sellingCostsPct) || 0) / 100
+        holdingCostMo: flipInputs.holdingCostMo !== '' ? Number(flipInputs.holdingCostMo) : null,
+        sellingCostsPct: Number(flipInputs.sellingCostsPct) || 0
       });
     }
 
     // BRRRR
     return underwriteBrrrr({
-      purchasePrice: Number(brrrrInputs.purchasePrice) || 0,
+      ...sharedInputs,
       rehabBudget: Number(brrrrInputs.rehabBudget) || 0,
       arv: brrrrInputs.arv !== '' ? Number(brrrrInputs.arv) : null,
-      buyingClosingCostsPct: (Number(brrrrInputs.buyingClosingCostsPct) || 0) / 100,
-      refiLtvPct: (Number(brrrrInputs.refiLtvPct) || 0) / 100,
-      refiRatePct: (Number(brrrrInputs.refiRatePct) || 0) / 100,
+      holdingMonths: Number(brrrrInputs.holdingMonths) || 6,
+      refiLtvPct: Number(brrrrInputs.refiLtvPct) || 0,
+      refiRatePct: Number(brrrrInputs.refiRatePct) || 0,
       refiTermYears: Number(brrrrInputs.refiTermYears) || 30,
-      refiClosingPct: (Number(brrrrInputs.refiClosingPct) || 0) / 100,
+      refiClosingPct: Number(brrrrInputs.refiClosingPct) || 0,
       monthlyRent: brrrrInputs.monthlyRent !== '' ? Number(brrrrInputs.monthlyRent) : null,
-      vacancyPct: (Number(brrrrInputs.vacancyPct) || 0) / 100,
-      maintenancePct: (Number(brrrrInputs.maintenancePct) || 0) / 100,
-      capexPct: (Number(brrrrInputs.capexPct) || 0) / 100,
-      managementPct: (Number(brrrrInputs.managementPct) || 0) / 100,
-      propertyTaxesYr: brrrrInputs.propertyTaxesYr !== '' ? Number(brrrrInputs.propertyTaxesYr) : null,
-      insuranceYr: brrrrInputs.insuranceYr !== '' ? Number(brrrrInputs.insuranceYr) : null,
-      hoaMo: Number(brrrrInputs.hoaMo) || 0
+      vacancyPct: Number(brrrrInputs.vacancyPct) || 0,
+      maintenancePct: Number(brrrrInputs.maintenancePct) || 0,
+      capexPct: Number(brrrrInputs.capexPct) || 0,
+      managementPct: Number(brrrrInputs.managementPct) || 0
     });
-  }, [strategy, rentalInputs, flipInputs, brrrrInputs]);
+  }, [strategy, currentInputs, rentalInputs, flipInputs, brrrrInputs, profile]);
 
-  // Save Analysis validation:
-  // Rental: monthlyRent > 0 and insuranceYr > 0
-  // Flip: arv > 0
-  // BRRRR: arv > 0, monthlyRent > 0, and insuranceYr > 0
+  // Save Analysis validation
   const isSaveDisabled = useMemo(() => {
     if (strategy === 'rental') {
       const rent = Number(rentalInputs.monthlyRent);
@@ -406,14 +563,6 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
     }
   };
 
-  // Formatter for currency inputs (strips non-digits for raw state, shows with commas)
-  const formatNumWithCommas = (val) => {
-    if (val === '' || val == null) return '';
-    const digits = String(val).replace(/[^0-9]/g, '');
-    if (!digits) return '';
-    return Number(digits).toLocaleString('en-US');
-  };
-
   // Headline number for saved analysis
   const getSavedHeadline = (item) => {
     const res = item.results || {};
@@ -444,6 +593,11 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
     return 'Analysis';
   };
 
+  // Monthly Details from live calculations
+  const monthlyDetails = results.monthlyDetails || {};
+  const closingDetails = results.closingDetails || {};
+  const liquidDetails = results.liquidCashDetails || {};
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Main Underwrite Panel Card */}
@@ -455,16 +609,38 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
         boxShadow: '0 4px 16px rgba(52, 41, 42, 0.03)'
       }}>
         {/* Title */}
-        <h3 style={{
-          fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-          fontSize: '26px',
-          fontWeight: 400,
-          color: 'var(--espresso, #34292A)',
-          margin: '0 0 16px 0',
-          letterSpacing: '-0.01em'
-        }}>
-          Underwrite
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{
+            fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+            fontSize: '26px',
+            fontWeight: 400,
+            color: 'var(--espresso, #34292A)',
+            margin: 0,
+            letterSpacing: '-0.01em'
+          }}>
+            Underwrite
+          </h3>
+
+          {onOpenProfileModal && (
+            <button
+              type="button"
+              onClick={onOpenProfileModal}
+              style={{
+                background: 'none',
+                border: '1px solid rgba(52, 41, 42, 0.15)',
+                borderRadius: '50px',
+                padding: '4px 12px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'var(--secondary-color, #41101B)',
+                cursor: 'pointer'
+              }}
+            >
+              My Buying Profile
+            </button>
+          )}
+        </div>
 
         {/* 3-way Strategy Pill Toggle: RENTAL / FLIP / BRRRR */}
         <div style={{
@@ -507,56 +683,758 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
           })}
         </div>
 
-        {/* Inputs Group Container */}
+        {/* ================================================================= */}
+        {/* 1. PURCHASE & FINANCING BLOCK (SHARED ACROSS STRATEGIES)          */}
+        {/* ================================================================= */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* ============================================================= */}
-          {/* RENTAL INPUTS                                                 */}
-          {/* ============================================================= */}
-          {strategy === 'rental' && (
+          <SectionHeader title="PURCHASE & FINANCING" />
+
+          {/* Purchase Price */}
+          <InputRow
+            id="underwrite-purchase-price"
+            label="Purchase Price"
+            prefix="$"
+            value={currentInputs.purchasePrice}
+            onChange={(val) => handleInputChange('purchasePrice', val)}
+            placeholder="0"
+          />
+
+          {/* Strategy specific purchase items */}
+          {(strategy === 'flip' || strategy === 'brrrr') && (
+            <InputRow
+              id="underwrite-rehab-budget"
+              label="Rehab Budget"
+              prefix="$"
+              value={currentInputs.rehabBudget}
+              onChange={(val) => handleInputChange('rehabBudget', val)}
+              placeholder="0"
+            />
+          )}
+
+          {/* Loan Type Select */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '7px 0',
+            borderBottom: '1px solid rgba(52, 41, 42, 0.05)'
+          }}>
+            <div>
+              <label style={{
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                color: 'var(--espresso, #34292A)',
+                display: 'block'
+              }}>
+                Loan Type
+              </label>
+              <span style={{
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '10.5px',
+                color: 'rgba(52, 41, 42, 0.55)',
+                display: 'block',
+                marginTop: '1px'
+              }}>
+                Sets editable down %, term, points & rate
+              </span>
+            </div>
+
+            <select
+              value={currentInputs.loanType || 'conventional_investment'}
+              onChange={(e) => handleLoanTypeSelect(e.target.value)}
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(52, 41, 42, 0.18)',
+                borderRadius: '6px',
+                padding: '6px 8px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--espresso, #1E1509)',
+                outline: 'none',
+                maxWidth: '180px'
+              }}
+            >
+              {Object.values(LOAN_TYPES).map(lt => (
+                <option key={lt.key} value={lt.key}>{lt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* FHA Note */}
+          {currentInputs.loanType === 'fha' && (
+            <div style={{
+              backgroundColor: 'rgba(189, 211, 226, 0.25)',
+              border: '1px solid rgba(133, 157, 206, 0.35)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '11px',
+              color: 'var(--espresso, #34292A)',
+              lineHeight: 1.4,
+              marginTop: '4px',
+              marginBottom: '6px',
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+            }}>
+              <strong>FHA Note:</strong> Owner-occupied only (1–4 units). FHA loans cannot be used for purely non-owner-occupied investment properties.
+            </div>
+          )}
+
+          {/* Down Payment % and calculated $ */}
+          {currentInputs.loanType !== 'cash' && (
+            <InputRow
+              id="underwrite-down-payment"
+              label="Down Payment"
+              sublabel={currentInputs.purchasePrice ? `${formatCurrency(closingDetails.downPayment || 0)} down` : ''}
+              suffix="%"
+              value={currentInputs.downPaymentPct}
+              onChange={(val) => handleInputChange('downPaymentPct', val)}
+              placeholder="25"
+            />
+          )}
+
+          {/* Interest Rate & FRED reference */}
+          {currentInputs.loanType !== 'cash' && (
             <>
-              <SectionHeader title="PURCHASE & FINANCING" />
               <InputRow
-                id="rental-purchase-price"
-                label="Purchase Price"
-                prefix="$"
-                value={rentalInputs.purchasePrice}
-                onChange={(val) => handleInputChange('purchasePrice', val)}
-                placeholder="0"
-              />
-              <InputRow
-                id="rental-down-payment"
-                label="Down Payment"
-                suffix="%"
-                value={rentalInputs.downPaymentPct}
-                onChange={(val) => handleInputChange('downPaymentPct', val)}
-                placeholder="25"
-              />
-              <InputRow
-                id="rental-interest-rate"
+                id="underwrite-interest-rate"
                 label="Interest Rate"
+                sublabel={profile?.credit_tier ? `Profile (${profile.credit_tier}) quote` : 'Editable per deal'}
                 suffix="%"
-                value={rentalInputs.interestRatePct}
+                value={currentInputs.interestRatePct}
                 onChange={(val) => handleInputChange('interestRatePct', val)}
                 placeholder="7.0"
+                allowDecimal={true}
               />
+
+              {/* FRED Freddie Mac weekly average reference */}
+              {fredRate?.rate != null && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 8px',
+                  backgroundColor: 'rgba(52, 41, 42, 0.03)',
+                  borderRadius: '6px',
+                  marginTop: '2px',
+                  marginBottom: '6px'
+                }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'rgba(52, 41, 42, 0.75)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                  }}>
+                    National avg this week: <strong style={{ color: '#1B5E20' }}>{fredRate.rate.toFixed(2)}%</strong> (Freddie Mac)
+                  </div>
+                  <span style={{
+                    fontSize: '10px',
+                    color: 'rgba(52, 41, 42, 0.5)',
+                    fontStyle: 'italic',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                  }}>
+                    Investor rates are usually higher
+                  </span>
+                </div>
+              )}
+
+              {/* Loan Term */}
               <InputRow
-                id="rental-loan-term"
+                id="underwrite-loan-term"
                 label="Loan Term"
                 suffix="yrs"
-                value={rentalInputs.loanTermYears}
+                value={currentInputs.loanTermYears}
                 onChange={(val) => handleInputChange('loanTermYears', val)}
                 placeholder="30"
               />
+
+              {/* Points */}
               <InputRow
-                id="rental-closing-costs"
-                label="Closing Costs"
+                id="underwrite-points"
+                label="Lender Points"
+                sublabel={currentInputs.loanTermYears ? `${formatCurrency(closingDetails.lenderFees?.pointsCost || 0)}` : ''}
                 suffix="%"
-                value={rentalInputs.closingCostsPct}
-                onChange={(val) => handleInputChange('closingCostsPct', val)}
-                placeholder="3"
+                value={currentInputs.pointsPct}
+                onChange={(val) => handleInputChange('pointsPct', val)}
+                placeholder="0"
+                allowDecimal={true}
               />
 
-              <SectionHeader title="INCOME" />
+              {/* Interest-Only Checkbox */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '6px 0',
+                borderBottom: '1px solid rgba(52, 41, 42, 0.05)'
+              }}>
+                <label htmlFor="underwrite-interest-only" style={{
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  color: 'var(--espresso, #34292A)',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  cursor: 'pointer'
+                }}>
+                  Interest-Only Payment
+                </label>
+                <input
+                  id="underwrite-interest-only"
+                  type="checkbox"
+                  checked={Boolean(currentInputs.isInterestOnly)}
+                  onChange={(e) => handleInputChange('isInterestOnly', e.target.checked)}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+              </div>
+
+              {/* PMI (% per year) if down payment < 20% or FHA */}
+              {(Number(currentInputs.downPaymentPct) < 20 || currentInputs.loanType === 'fha') && (
+                <InputRow
+                  id="underwrite-pmi"
+                  label="PMI / Mortgage Insurance"
+                  sublabel="annual % of loan (down < 20%)"
+                  suffix="%"
+                  value={currentInputs.pmiPct}
+                  onChange={(val) => handleInputChange('pmiPct', val)}
+                  placeholder="0.75"
+                  allowDecimal={true}
+                />
+              )}
+            </>
+          )}
+
+          {/* ============================================================= */}
+          {/* 2. MONTHLY PAYMENT (PITI + HOA) ITEMIZATION                   */}
+          {/* ============================================================= */}
+          <SectionHeader title="MONTHLY PAYMENT (PITI + HOA)" />
+
+          {/* Large Total Monthly Payment Banner */}
+          <div style={{
+            backgroundColor: '#FAF8F5',
+            border: '1px solid rgba(52, 41, 42, 0.12)',
+            borderRadius: '10px',
+            padding: '14px 16px',
+            marginBottom: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <span style={{
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'rgba(52, 41, 42, 0.55)',
+                display: 'block'
+              }}>
+                TOTAL MONTHLY PAYMENT
+              </span>
+              <span style={{
+                fontSize: '11px',
+                color: 'rgba(52, 41, 42, 0.65)',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+              }}>
+                P&I + Taxes + Insurance + Flood + HOA
+              </span>
+            </div>
+
+            <div style={{
+              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+              fontSize: '28px',
+              fontWeight: 600,
+              color: 'var(--espresso, #34292A)',
+              letterSpacing: '-0.02em'
+            }}>
+              {formatCurrency(monthlyDetails.totalMonthlyPayment || 0)}
+              <span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(52, 41, 42, 0.55)', marginLeft: '3px' }}>/mo</span>
+            </div>
+          </div>
+
+          {/* Monthly P&I (Read only summary) */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '6px 0',
+            borderBottom: '1px solid rgba(52, 41, 42, 0.05)',
+            fontSize: '12.5px',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+          }}>
+            <span style={{ color: 'var(--espresso, #34292A)' }}>
+              Principal & Interest {currentInputs.isInterestOnly ? '(Interest-Only)' : ''}
+            </span>
+            <strong style={{ color: 'var(--espresso, #34292A)' }}>
+              {formatCurrency(monthlyDetails.monthlyPI || 0)}/mo
+            </strong>
+          </div>
+
+          {/* Property Taxes */}
+          <InputRow
+            id="underwrite-property-taxes"
+            label="Property Taxes / yr"
+            sublabel="estimate — FL taxes reset after sale"
+            prefix="$"
+            value={currentInputs.propertyTaxesYr}
+            onChange={(val) => handleInputChange('propertyTaxesYr', val)}
+            placeholder="0"
+          />
+
+          {/* Homeowners Insurance */}
+          <InputRow
+            id="underwrite-insurance"
+            label="Homeowners Insurance / yr *"
+            prefix="$"
+            value={currentInputs.insuranceYr}
+            onChange={(val) => handleInputChange('insuranceYr', val)}
+            placeholder="e.g. 2,400"
+          />
+
+          {/* Flood Insurance (Toggle + Amount) */}
+          <div style={{ padding: '6px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="underwrite-flood-enabled"
+                  type="checkbox"
+                  checked={Boolean(currentInputs.isFloodEnabled)}
+                  onChange={(e) => handleInputChange('isFloodEnabled', e.target.checked)}
+                  style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                />
+                <label htmlFor="underwrite-flood-enabled" style={{
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  color: 'var(--espresso, #34292A)',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  cursor: 'pointer'
+                }}>
+                  Flood Insurance {isSFHA ? '(SFHA required)' : '(Optional)'}
+                </label>
+              </div>
+
+              {currentInputs.isFloodEnabled && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid rgba(52, 41, 42, 0.18)',
+                  borderRadius: '6px',
+                  padding: '4px 6px',
+                  width: '110px'
+                }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.45)', marginRight: '3px' }}>$</span>
+                  <FormattedNumberInput
+                    value={currentInputs.floodInsuranceYr}
+                    onChange={(val) => handleInputChange('floodInsuranceYr', val)}
+                    placeholder="1,800"
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      textAlign: 'right',
+                      width: '100%',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--espresso, #1E1509)'
+                    }}
+                  />
+                  <span style={{ fontSize: '10px', color: 'rgba(52, 41, 42, 0.45)', marginLeft: '2px' }}>/yr</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* HOA Dues (Toggle + Amount) */}
+          <div style={{ padding: '6px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="underwrite-hoa-enabled"
+                  type="checkbox"
+                  checked={Boolean(currentInputs.isHoaEnabled)}
+                  onChange={(e) => handleInputChange('isHoaEnabled', e.target.checked)}
+                  style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                />
+                <label htmlFor="underwrite-hoa-enabled" style={{
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  color: 'var(--espresso, #34292A)',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  cursor: 'pointer'
+                }}>
+                  HOA Dues {isCondo ? '(Condo auto-enabled)' : ''}
+                </label>
+              </div>
+
+              {currentInputs.isHoaEnabled && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid rgba(52, 41, 42, 0.18)',
+                  borderRadius: '6px',
+                  padding: '4px 6px',
+                  width: '110px'
+                }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.45)', marginRight: '3px' }}>$</span>
+                  <FormattedNumberInput
+                    value={currentInputs.hoaMo}
+                    onChange={(val) => handleInputChange('hoaMo', val)}
+                    placeholder="350"
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      textAlign: 'right',
+                      width: '100%',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--espresso, #1E1509)'
+                    }}
+                  />
+                  <span style={{ fontSize: '10px', color: 'rgba(52, 41, 42, 0.45)', marginLeft: '2px' }}>/mo</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Special Assessments */}
+          <InputRow
+            id="underwrite-special-assessments"
+            label="Special Assessments / mo"
+            prefix="$"
+            value={currentInputs.specialAssessmentsMo}
+            onChange={(val) => handleInputChange('specialAssessmentsMo', val)}
+            placeholder="0"
+          />
+
+          {/* ============================================================= */}
+          {/* 3. CASH TO CLOSE (ITEMIZED & EDITABLE)                        */}
+          {/* ============================================================= */}
+          <SectionHeader
+            title="CASH TO CLOSE"
+            action={(
+              <button
+                type="button"
+                onClick={() => setShowDetailedClosing(prev => !prev)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--secondary-color, #41101B)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0
+                }}
+              >
+                {showDetailedClosing ? 'Hide Itemized' : 'Edit All Costs'}
+              </button>
+            )}
+          />
+
+          {/* Cash to Close Highlight Card */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid rgba(52, 41, 42, 0.15)',
+            borderRadius: '10px',
+            padding: '14px 16px',
+            marginBottom: '10px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(52, 41, 42, 0.55)',
+                  display: 'block'
+                }}>
+                  TOTAL CASH TO CLOSE
+                </span>
+                <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)' }}>
+                  Down payment + closing fees & prepaids
+                </span>
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                fontSize: '26px',
+                fontWeight: 600,
+                color: 'var(--espresso, #34292A)'
+              }}>
+                {formatCurrency(closingDetails.totalCashToClose || 0)}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: '8px',
+              borderTop: '1px dashed rgba(52, 41, 42, 0.12)',
+              fontSize: '11.5px',
+              color: 'rgba(52, 41, 42, 0.8)'
+            }}>
+              <span>Due at contract (Earnest Money): <strong>{formatCurrency(closingDetails.earnestMoney || 0)}</strong></span>
+              <span>Due at closing table: <strong>{formatCurrency(closingDetails.balanceDueAtClosing || 0)}</strong></span>
+            </div>
+          </div>
+
+          {/* Quick Primary Inputs: Earnest Money & Seller Credits */}
+          <InputRow
+            id="underwrite-earnest-money"
+            label="Earnest Money Deposit (EMD)"
+            sublabel="Due at contract signing (counted in total)"
+            prefix="$"
+            value={currentInputs.earnestMoney}
+            onChange={(val) => handleInputChange('earnestMoney', val)}
+            placeholder="5,000"
+          />
+
+          <InputRow
+            id="underwrite-seller-credits"
+            label="Seller Credits"
+            sublabel="Deducted from closing costs"
+            prefix="$"
+            value={currentInputs.sellerCredits}
+            onChange={(val) => handleInputChange('sellerCredits', val)}
+            placeholder="0"
+          />
+
+          {/* Detailed Itemized Costs Drawer / Accordion */}
+          {showDetailedClosing && (
+            <div style={{
+              backgroundColor: '#FAF8F5',
+              border: '1px solid rgba(52, 41, 42, 0.1)',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              marginTop: '8px',
+              marginBottom: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                color: 'var(--secondary-color, #41101B)',
+                letterSpacing: '0.08em',
+                marginBottom: '4px'
+              }}>
+                Estimated Closing Cost Breakdown (FL Promulgated Rates & Averages)
+              </div>
+
+              {/* Florida Statutory Loan Taxes */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                padding: '3px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <span>FL Mortgage Doc Stamps (0.35% of loan):</span>
+                <strong>{formatCurrency(closingDetails.floridaLoanTaxes?.docStamps || 0)}</strong>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                padding: '3px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <span>FL Intangible Tax (0.20% of loan):</span>
+                <strong>{formatCurrency(closingDetails.floridaLoanTaxes?.intangibleTax || 0)}</strong>
+              </div>
+
+              {/* Title Fees with Owner Title Toggle */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '11.5px',
+                padding: '4px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <div>
+                  <span>Owner Title Policy:</span>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('ownerTitlePaidByBuyer', true)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: '9.5px',
+                        borderRadius: '3px',
+                        border: '1px solid rgba(52,41,42,0.2)',
+                        backgroundColor: currentInputs.ownerTitlePaidByBuyer !== false ? 'var(--secondary-color, #41101B)' : 'transparent',
+                        color: currentInputs.ownerTitlePaidByBuyer !== false ? '#FAF8F5' : 'inherit',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Paid by Buyer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('ownerTitlePaidByBuyer', false)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: '9.5px',
+                        borderRadius: '3px',
+                        border: '1px solid rgba(52,41,42,0.2)',
+                        backgroundColor: currentInputs.ownerTitlePaidByBuyer === false ? 'var(--secondary-color, #41101B)' : 'transparent',
+                        color: currentInputs.ownerTitlePaidByBuyer === false ? '#FAF8F5' : 'inherit',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Paid by Seller
+                    </button>
+                  </div>
+                </div>
+                <strong>{formatCurrency(closingDetails.titleFees?.ownersTitlePolicy || 0)}</strong>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                padding: '3px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <span>Lender Title Policy + Settlement & Recording:</span>
+                <strong>{formatCurrency((closingDetails.titleFees?.lendersTitlePolicy || 0) + (closingDetails.titleFees?.settlementFee || 0) + (closingDetails.titleFees?.recordingFees || 0))}</strong>
+              </div>
+
+              {/* Prepaids & Escrow */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                padding: '3px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <span>Prepaids & Escrows (12mo Ins + Taxes/Escrow + Interest):</span>
+                <strong>{formatCurrency(closingDetails.prepaidsEscrow?.totalPrepaidsEscrow || 0)}</strong>
+              </div>
+
+              {/* Lender Fees */}
+              {currentInputs.loanType !== 'cash' && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11.5px',
+                  padding: '3px 0',
+                  borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+                }}>
+                  <span>Lender Origination, Underwriting & Appraisal:</span>
+                  <strong>{formatCurrency((closingDetails.lenderFees?.totalLenderFees || 0) - (closingDetails.lenderFees?.pointsCost || 0))}</strong>
+                </div>
+              )}
+
+              {/* Inspections */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11.5px',
+                padding: '3px 0',
+                borderBottom: '1px dashed rgba(52, 41, 42, 0.08)'
+              }}>
+                <span>Inspections (General, 4-Point, Wind, Survey, Termite):</span>
+                <strong>{formatCurrency(closingDetails.inspections?.totalInspectionFees || 0)}</strong>
+              </div>
+
+              {/* HOA / Condo Fees */}
+              {currentInputs.isHoaEnabled && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11.5px',
+                  padding: '3px 0'
+                }}>
+                  <span>HOA Estoppel, Transfer & Capital Contribution:</span>
+                  <strong>{formatCurrency(closingDetails.hoaFees?.totalHoaFees || 0)}</strong>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================= */}
+          {/* 4. TOTAL LIQUID CASH NEEDED SUMMARY CARD                      */}
+          {/* ============================================================= */}
+          <div style={{
+            marginTop: '14px',
+            marginBottom: '10px',
+            padding: '14px 16px',
+            borderRadius: '10px',
+            backgroundColor: liquidDetails.isCovered ? 'rgba(52, 168, 83, 0.1)' : 'rgba(224, 106, 59, 0.12)',
+            border: `1px solid ${liquidDetails.isCovered ? 'rgba(52, 168, 83, 0.3)' : 'rgba(224, 106, 59, 0.35)'}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: liquidDetails.isCovered ? '#1B5E20' : '#B71C1C'
+              }}>
+                LIQUID CASH CHECK
+              </span>
+
+              {onOpenProfileModal && (
+                <button
+                  type="button"
+                  onClick={onOpenProfileModal}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontSize: '10.5px',
+                    color: 'rgba(52, 41, 42, 0.7)',
+                    textDecoration: 'underline',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Edit profile
+                </button>
+              )}
+            </div>
+
+            <div style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: liquidDetails.isCovered ? '#1B5E20' : '#B71C1C'
+            }}>
+              {liquidDetails.summaryText}
+            </div>
+
+            <div style={{
+              fontSize: '11px',
+              color: 'rgba(52, 41, 42, 0.7)',
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              marginTop: '2px'
+            }}>
+              Includes {formatCurrency(closingDetails.totalCashToClose || 0)} closing
+              {Number(currentInputs.rehabBudget) > 0 ? ` + ${formatCurrency(currentInputs.rehabBudget)} cash rehab` : ''}
+              {` + ${liquidDetails.reserveMonths || 6} mos reserves (${formatCurrency(liquidDetails.reserveCash || 0)})`}.
+            </div>
+          </div>
+
+          {/* ============================================================= */}
+          {/* 5. STRATEGY SPECIFIC OPERATIONS (RENTAL / FLIP / BRRRR)       */}
+          {/* ============================================================= */}
+
+          {/* RENTAL INCOME & OPERATING EXPENSES */}
+          {strategy === 'rental' && (
+            <>
+              <SectionHeader title="RENTAL INCOME" />
               <InputRow
                 id="rental-monthly-rent"
                 label="Monthly Rent *"
@@ -574,32 +1452,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 placeholder="5"
               />
 
-              <SectionHeader title="EXPENSES" />
-              <InputRow
-                id="rental-property-taxes"
-                label="Property Taxes / yr"
-                sublabel="estimate — FL taxes reset after sale"
-                prefix="$"
-                value={rentalInputs.propertyTaxesYr}
-                onChange={(val) => handleInputChange('propertyTaxesYr', val)}
-                placeholder="0"
-              />
-              <InputRow
-                id="rental-insurance"
-                label="Insurance / yr *"
-                prefix="$"
-                value={rentalInputs.insuranceYr}
-                onChange={(val) => handleInputChange('insuranceYr', val)}
-                placeholder="e.g. 6,000"
-              />
-              <InputRow
-                id="rental-hoa"
-                label="HOA / mo"
-                prefix="$"
-                value={rentalInputs.hoaMo}
-                onChange={(val) => handleInputChange('hoaMo', val)}
-                placeholder="0"
-              />
+              <SectionHeader title="OPERATING RESERVES" />
               <InputRow
                 id="rental-maintenance"
                 label="Maintenance"
@@ -627,29 +1480,10 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
             </>
           )}
 
-          {/* ============================================================= */}
-          {/* FLIP INPUTS                                                   */}
-          {/* ============================================================= */}
+          {/* FLIP HOLDING & SELLING */}
           {strategy === 'flip' && (
             <>
-              <SectionHeader title="PURCHASE & REHAB" />
-              <InputRow
-                id="flip-purchase-price"
-                label="Purchase Price"
-                prefix="$"
-                value={flipInputs.purchasePrice}
-                onChange={(val) => handleInputChange('purchasePrice', val)}
-                placeholder="0"
-              />
-              <InputRow
-                id="flip-rehab-budget"
-                label="Rehab Budget"
-                prefix="$"
-                value={flipInputs.rehabBudget}
-                onChange={(val) => handleInputChange('rehabBudget', val)}
-                placeholder="0"
-              />
-
+              <SectionHeader title="AFTER-REPAIR VALUE & EXIT" />
               <div>
                 <InputRow
                   id="flip-arv"
@@ -693,14 +1527,6 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
 
               <SectionHeader title="HOLDING & SELLING" />
               <InputRow
-                id="flip-buying-closing-costs"
-                label="Buying Closing Costs"
-                suffix="%"
-                value={flipInputs.buyingClosingCostsPct}
-                onChange={(val) => handleInputChange('buyingClosingCostsPct', val)}
-                placeholder="2"
-              />
-              <InputRow
                 id="flip-holding-months"
                 label="Holding Period"
                 suffix="mos"
@@ -711,11 +1537,11 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
               <InputRow
                 id="flip-holding-cost-mo"
                 label="Holding Cost / mo"
-                sublabel="taxes, insurance, utilities, debt"
+                sublabel="Defaults to full monthly carry"
                 prefix="$"
                 value={flipInputs.holdingCostMo}
                 onChange={(val) => handleInputChange('holdingCostMo', val)}
-                placeholder="0"
+                placeholder={String(Math.round(monthlyDetails.totalMonthlyPayment || 0))}
               />
               <InputRow
                 id="flip-selling-costs"
@@ -729,28 +1555,10 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
             </>
           )}
 
-          {/* ============================================================= */}
-          {/* BRRRR INPUTS                                                  */}
-          {/* ============================================================= */}
+          {/* BRRRR REFINANCE & OPERATIONS */}
           {strategy === 'brrrr' && (
             <>
-              <SectionHeader title="BUY & REHAB" />
-              <InputRow
-                id="brrrr-purchase-price"
-                label="Purchase Price"
-                prefix="$"
-                value={brrrrInputs.purchasePrice}
-                onChange={(val) => handleInputChange('purchasePrice', val)}
-                placeholder="0"
-              />
-              <InputRow
-                id="brrrr-rehab-budget"
-                label="Rehab Budget"
-                prefix="$"
-                value={brrrrInputs.rehabBudget}
-                onChange={(val) => handleInputChange('rehabBudget', val)}
-                placeholder="0"
-              />
+              <SectionHeader title="AFTER-REPAIR VALUE & EXIT" />
               <div>
                 <InputRow
                   id="brrrr-arv"
@@ -791,14 +1599,6 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                   </div>
                 </div>
               </div>
-              <InputRow
-                id="brrrr-buying-closing-costs"
-                label="Buying Closing Costs"
-                suffix="%"
-                value={brrrrInputs.buyingClosingCostsPct}
-                onChange={(val) => handleInputChange('buyingClosingCostsPct', val)}
-                placeholder="2"
-              />
 
               <SectionHeader title="REFINANCE" />
               <InputRow
@@ -851,31 +1651,6 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                 value={brrrrInputs.vacancyPct}
                 onChange={(val) => handleInputChange('vacancyPct', val)}
                 placeholder="5"
-              />
-              <InputRow
-                id="brrrr-property-taxes"
-                label="Property Taxes / yr"
-                sublabel="estimate — FL taxes reset after sale"
-                prefix="$"
-                value={brrrrInputs.propertyTaxesYr}
-                onChange={(val) => handleInputChange('propertyTaxesYr', val)}
-                placeholder="0"
-              />
-              <InputRow
-                id="brrrr-insurance"
-                label="Insurance / yr *"
-                prefix="$"
-                value={brrrrInputs.insuranceYr}
-                onChange={(val) => handleInputChange('insuranceYr', val)}
-                placeholder="e.g. 6,000"
-              />
-              <InputRow
-                id="brrrr-hoa"
-                label="HOA / mo"
-                prefix="$"
-                value={brrrrInputs.hoaMo}
-                onChange={(val) => handleInputChange('hoaMo', val)}
-                placeholder="0"
               />
               <InputRow
                 id="brrrr-maintenance"
@@ -1376,7 +2151,7 @@ export default function UnderwritePanel({ property, compValueRaw, compValueForma
                     </span>
                   </div>
 
-                  {/* Quiet Delete Link */}
+                  {/* Delete Link */}
                   {isConfirming ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       <button
