@@ -7,6 +7,7 @@ import News from './pages/News.jsx';
 import Login from './pages/Login.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import LearningLab from './pages/LearningLab.jsx';
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -28,6 +29,9 @@ function App() {
       }
       if (path === '/admin' || path.startsWith('/admin')) {
         return 'admin';
+      }
+      if (path === '/learning-lab' || path.startsWith('/learning-lab')) {
+        return 'learning-lab';
       }
 
       const params = new URLSearchParams(window.location.search);
@@ -120,6 +124,10 @@ function App() {
 
   if (currentPage === 'admin') {
     return <AdminDashboard navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'learning-lab') {
+    return <LearningLab navigateTo={navigateTo} />;
   }
 
   return <Home navigateTo={navigateTo} />;

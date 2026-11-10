@@ -52,7 +52,7 @@ export default function AdminDashboard({ navigateTo }) {
 
   const renderActiveTab = () => {
     switch (activeTab) {
-      case 'overview': return <Overview />;
+      case 'overview': return <Overview setActiveTab={handleTabChange} navigateTo={navigateTo} />;
       case 'user': return <UserProfile />;
       case 'settings': return <Settings />;
       case 'email-templates': return <EmailTemplates />;
