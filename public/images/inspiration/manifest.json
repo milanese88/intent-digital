@@ -1,0 +1,65 @@
+[
+  {
+    "file": "/images/inspiration/pool-pavilion.webp",
+    "title": "Pool Pavilion",
+    "credit": null,
+    "alt": "Teak outdoor daybeds, ivory umbrella, and turquoise pool framed by banana trees and palm fronds.",
+    "notice": "Notice how silvered teak calms the bright turquoise pool water without competing with lush greenery.",
+    "try_it": "Ground high-chroma water or garden views with weathered grey timber seating.",
+    "palette": ["#5B8F89", "#9D8C7B", "#3E4E38"]
+  },
+  {
+    "file": "/images/inspiration/timber-atrium.webp",
+    "title": "Timber Atrium",
+    "credit": null,
+    "alt": "Indoor-outdoor lounge with curved oat linen sectional, vertical timber slat walls, skylight, and low oak tables.",
+    "notice": "Notice how vertical timber slats turn daylight into architectural pattern across plain upholstery.",
+    "try_it": "Run narrow vertical wood slats behind a curved sofa to break up flat drywall.",
+    "palette": ["#8E5736", "#DDD2C4", "#C17D42"]
+  },
+  {
+    "file": "/images/inspiration/the-blush-door.webp",
+    "title": "The Blush Door",
+    "credit": "Photo: Sydney Resnik",
+    "alt": "Blush pink townhouse entrance with dark green front door, brass lion knocker, and terracotta potted plants.",
+    "notice": "Notice how one deep green door makes the whole blush facade feel intentional.",
+    "try_it": "Ground a soft wall color with one dark, glossy door.",
+    "palette": ["#E4B8A6", "#22382D", "#AE6748"]
+  },
+  {
+    "file": "/images/inspiration/stucco-and-shadow.webp",
+    "title": "Stucco & Shadow",
+    "credit": "Photo: Sarah Roman",
+    "alt": "Cream stucco Mediterranean villa with stone balustrade balconies and sharp diagonal palm tree shadows.",
+    "notice": "Notice how stark sun shadows do the ornamental work that moldings usually have to do.",
+    "try_it": "Keep exterior walls flat and pale where trees can paint daily moving shadows.",
+    "palette": ["#EBDCD2", "#745244", "#284E38"]
+  },
+  {
+    "file": "/images/inspiration/boulevard-golden-hour.webp",
+    "title": "Boulevard Golden Hour",
+    "credit": null,
+    "alt": "Classic European stone apartment buildings with wrought-iron balconies and rooftop gardens against a clear blue sky.",
+    "notice": "Notice how lush rooftop plantings soften heavy classical stone corners against the sky.",
+    "try_it": "Crown a structured parapet or balcony ledge with dense evergreen container plantings.",
+    "palette": ["#E2C59F", "#4A8FC7", "#2C402E"]
+  },
+  {
+    "file": "/images/inspiration/solitary-palm.webp",
+    "title": "Solitary Palm",
+    "credit": "Photo: Alex Rusciano",
+    "alt": "Single California fan palm centered against a pale warm sky with fine film grain.",
+    "notice": "Notice how a single tall silhouette can hold an entire field of negative space.",
+    "try_it": "Anchor a tall empty corner with one sculptural potted palm instead of gallery art.",
+    "palette": ["#4E5B3D", "#D8DAD4", "#8B7355"]
+  },
+  {
+    "file": "/images/inspiration/coastal-horizon.webp",
+    "title": "Coastal Horizon",
+    "credit": "Photo: Micaela Rosales",
+    "alt": "Ocean horizon viewed through a stand of slender palm trunks with soft coastal shrubs in the foreground.",
+    "notice": "Notice how layering foreground foliage turns a generic horizon into a private framed vista.",
+    "try_it": "Layer sheer linen drapes and tall floor plants to frame wide window views.",
+    "palette": ["#5D7A88", "#C8D1C5", "#48533B"]
+  }
+]

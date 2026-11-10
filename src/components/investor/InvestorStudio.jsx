@@ -436,7 +436,8 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       listing_url: '',
       notes: '',
       parcel_id: null,
-      parcel_county: null
+      parcel_county: null,
+      is_studying: false
     });
     setPropFormErrors({});
     setIsPropDeleteConfirming(false);
@@ -468,7 +469,8 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       listing_url: p.listing_url || '',
       notes: p.notes || '',
       parcel_id: p.parcel_id || null,
-      parcel_county: p.parcel_county || null
+      parcel_county: p.parcel_county || null,
+      is_studying: Boolean(p.is_studying)
     });
     setPropFormErrors({});
     setIsPropDeleteConfirming(false);
@@ -516,7 +518,8 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       listing_url: propFormData.listing_url.trim() || null,
       notes: propFormData.notes.trim() || null,
       parcel_id: propFormData.parcel_id || null,
-      parcel_county: propFormData.parcel_county || null
+      parcel_county: propFormData.parcel_county || null,
+      is_studying: propFormData.is_studying !== undefined ? Boolean(propFormData.is_studying) : (editingProperty ? Boolean(editingProperty.is_studying) : false)
     };
 
     if (editingProperty) {
@@ -589,6 +592,30 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
       setPropFormErrors({ general: err.message || 'An unexpected error occurred while deleting.' });
     } finally {
       setIsPropDeleting(false);
+    }
+  };
+
+  // Toggle Studying status for Journal
+  const handleToggleStudying = async (propToToggle) => {
+    const targetProp = propToToggle || activeProperty;
+    if (!targetProp) return;
+    const nextStudying = !targetProp.is_studying;
+    try {
+      const res = await fetch('/api/investor/properties', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: targetProp.id, is_studying: nextStudying })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to update studying status', 'error');
+        return;
+      }
+      setProperties(prev => prev.map(p => (p.id === targetProp.id ? { ...p, is_studying: nextStudying } : p)));
+      showToast(nextStudying ? 'Pinned to Studio Journal ("Studying")' : 'Unpinned from Studying');
+    } catch (err) {
+      console.error('Error toggling studying:', err);
+      showToast('Error updating studying status', 'error');
     }
   };
 
@@ -2066,22 +2093,48 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
 
                       {/* Right: Status Eyebrow, H1 Address, Subtitle, Row of Pill Tags */}
                       <div style={{ flex: 1, minWidth: '280px' }}>
-                        {/* Status Pill */}
-                        <span style={{
-                          display: 'inline-block',
-                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          letterSpacing: '0.12em',
-                          textTransform: 'uppercase',
-                          color: 'var(--secondary-color, #41101B)',
-                          backgroundColor: 'rgba(65, 16, 27, 0.08)',
-                          padding: '3px 10px',
-                          borderRadius: '50px',
-                          marginBottom: '8px'
-                        }}>
-                          {formatStatus(activeProperty.status)}
-                        </span>
+                        {/* Status & Studying Pills */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            letterSpacing: '0.12em',
+                            textTransform: 'uppercase',
+                            color: 'var(--secondary-color, #41101B)',
+                            backgroundColor: 'rgba(65, 16, 27, 0.08)',
+                            padding: '3px 10px',
+                            borderRadius: '50px'
+                          }}>
+                            {formatStatus(activeProperty.status)}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStudying(activeProperty)}
+                            title={activeProperty.is_studying ? "Pinned as 'Deal I'm Studying' in Journal" : "Pin as 'Deal I'm Studying' in Journal"}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: activeProperty.is_studying ? '#FAF8F5' : 'var(--secondary-color, #41101B)',
+                              backgroundColor: activeProperty.is_studying ? 'var(--secondary-color, #41101B)' : 'transparent',
+                              border: '1px solid var(--secondary-color, #41101B)',
+                              padding: '2px 10px',
+                              borderRadius: '50px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{activeProperty.is_studying ? '★ Studying' : '☆ Pin to Study'}</span>
+                          </button>
+                        </div>
 
                         {/* Large Serif H1 Address */}
                         <h1 style={{
@@ -3642,6 +3695,27 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                         }}>
                           {formatStatus(p.status)}
                         </div>
+
+                        {p.is_studying && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '12px',
+                            right: '12px',
+                            backgroundColor: 'var(--secondary-color, #41101B)',
+                            color: '#FAF8F5',
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            fontSize: '9.5px',
+                            fontWeight: 700,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: '50px',
+                            zIndex: 2,
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                          }}>
+                            ★ Studying
+                          </div>
+                        )}
 
                         {/* Badges on Photo */}
                         <div style={{

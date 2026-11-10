@@ -117,6 +117,7 @@ function validateProperty(body) {
   const rehab_budget = parseNumField(body.rehab_budget, 'rehab_budget', 'Rehab budget');
   const rehab_budget_source = body.rehab_budget_source != null && String(body.rehab_budget_source).trim() !== '' ? String(body.rehab_budget_source).trim() : null;
   const rehab_budget_updated_at = body.rehab_budget_updated_at != null && String(body.rehab_budget_updated_at).trim() !== '' ? new Date(body.rehab_budget_updated_at).toISOString() : null;
+  const is_studying = body.is_studying !== undefined ? Boolean(body.is_studying) : false;
 
   return {
     errors,
@@ -146,7 +147,8 @@ function validateProperty(body) {
       parcel_county,
       rehab_budget,
       rehab_budget_source,
-      rehab_budget_updated_at
+      rehab_budget_updated_at,
+      is_studying
     }
   };
 }
@@ -203,6 +205,7 @@ export default async function handler(req, res) {
               p.rehab_budget,
               p.rehab_budget_source,
               p.rehab_budget_updated_at,
+              COALESCE(p.is_studying, false) AS is_studying,
               ipp.blob_url AS cover_photo_url,
               p.created_at,
               p.updated_at
@@ -258,6 +261,7 @@ export default async function handler(req, res) {
                 NULL::numeric AS rehab_budget,
                 NULL::text AS rehab_budget_source,
                 NULL::timestamptz AS rehab_budget_updated_at,
+                COALESCE(is_studying, false) AS is_studying,
                 NULL::text AS cover_photo_url,
                 created_at,
                 updated_at
@@ -303,6 +307,7 @@ export default async function handler(req, res) {
                 NULL::numeric AS rehab_budget,
                 NULL::text AS rehab_budget_source,
                 NULL::timestamptz AS rehab_budget_updated_at,
+                COALESCE(is_studying, false) AS is_studying,
                 NULL::text AS cover_photo_url,
                 created_at,
                 updated_at
@@ -359,6 +364,7 @@ export default async function handler(req, res) {
             p.rehab_budget,
             p.rehab_budget_source,
             p.rehab_budget_updated_at,
+            COALESCE(p.is_studying, false) AS is_studying,
             ipp.blob_url AS cover_photo_url,
             p.created_at,
             p.updated_at
@@ -415,6 +421,7 @@ export default async function handler(req, res) {
               NULL::numeric AS rehab_budget,
               NULL::text AS rehab_budget_source,
               NULL::timestamptz AS rehab_budget_updated_at,
+              COALESCE(is_studying, false) AS is_studying,
               NULL::text AS cover_photo_url,
               created_at,
               updated_at
@@ -461,6 +468,7 @@ export default async function handler(req, res) {
               NULL::numeric AS rehab_budget,
               NULL::text AS rehab_budget_source,
               NULL::timestamptz AS rehab_budget_updated_at,
+              COALESCE(is_studying, false) AS is_studying,
               NULL::text AS cover_photo_url,
               created_at,
               updated_at
@@ -640,7 +648,8 @@ export default async function handler(req, res) {
             parcel_county = ${data.parcel_county},
             rehab_budget = ${data.rehab_budget},
             rehab_budget_source = ${data.rehab_budget_source},
-            rehab_budget_updated_at = ${data.rehab_budget_updated_at}
+            rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+            is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -669,7 +678,8 @@ export default async function handler(req, res) {
             condition = ${data.condition},
             roof_year = ${data.roof_year},
             listing_url = ${data.listing_url},
-            notes = ${data.notes}
+            notes = ${data.notes},
+            is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -742,7 +752,8 @@ export default async function handler(req, res) {
             parcel_county = ${data.parcel_county},
             rehab_budget = ${data.rehab_budget},
             rehab_budget_source = ${data.rehab_budget_source},
-            rehab_budget_updated_at = ${data.rehab_budget_updated_at}
+            rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+            is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -771,7 +782,8 @@ export default async function handler(req, res) {
             condition = ${data.condition},
             roof_year = ${data.roof_year},
             listing_url = ${data.listing_url},
-            notes = ${data.notes}
+            notes = ${data.notes},
+            is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
