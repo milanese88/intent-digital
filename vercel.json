@@ -9,6 +9,10 @@
     {
       "source": "/auth/verify",
       "destination": "/api/verify-magic-link"
+    },
+    {
+      "source": "/((?!api/|assets/|images/|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ]
 }

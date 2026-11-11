@@ -260,7 +260,8 @@ export default function UnderwritePanel({
   profile: initialProfile,
   onOpenProfileModal,
   onUnderwriteChange,
-  setActiveDashboardTab
+  setActiveDashboardTab,
+  navigateTo
 }) {
   // Strategy toggle: 'rental' | 'flip' | 'brrrr'
   const initialStrategy = useMemo(() => {
@@ -2654,10 +2655,18 @@ export default function UnderwritePanel({
             <button
               type="button"
               id="underwrite-deal-report-btn"
-              onClick={() => {
+              onClick={(e) => {
                 const targetAnalysisId = selectedReportAnalysisId || (savedAnalyses.length > 0 ? savedAnalyses[0].id : '');
-                const targetUrl = `/admin/investor/report/${property.id}${targetAnalysisId ? `?analysis=${targetAnalysisId}` : ''}`;
-                window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                if (e.metaKey || e.ctrlKey) {
+                  const targetUrl = `/admin/investor/report/${property.id}${targetAnalysisId ? `?analysis=${targetAnalysisId}` : ''}`;
+                  window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                  return;
+                }
+                if (navigateTo) {
+                  navigateTo('deal-report', null, property.id, targetAnalysisId);
+                } else {
+                  window.location.href = `/admin/investor/report/${property.id}${targetAnalysisId ? `?analysis=${targetAnalysisId}` : ''}`;
+                }
               }}
               style={{
                 display: 'inline-flex',

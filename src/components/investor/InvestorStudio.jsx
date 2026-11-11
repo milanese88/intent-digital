@@ -33,7 +33,7 @@ function calculateMedian(numbers) {
   return (valid[mid - 1] + valid[mid]) / 2;
 }
 
-export default function InvestorStudio({ setActiveDashboardTab }) {
+export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -3075,6 +3075,7 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                       compValueFormatted={compValueFormatted}
                       profile={buyingProfile}
                       setActiveDashboardTab={setActiveDashboardTab}
+                      navigateTo={navigateTo}
                       onOpenProfileModal={() => setIsProfileModalOpen(true)}
                       onUnderwriteChange={(summary) => {
                         setUnderwriteSummary(summary);
