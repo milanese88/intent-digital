@@ -3,6 +3,7 @@ import { formatCurrency, underwriteFlip, underwriteRental, underwriteBrrrr } fro
 import { getCmaStaticMapUrl, getMapboxAerialUrl } from '../../components/investor/mapboxAerial.js';
 import { getUseCodeLabel, toTitleCase, formatNiceAddress } from '../../components/investor/AddressAutocomplete.jsx';
 import { getFloodPillStyle } from '../../components/investor/SiteZoningCard.jsx';
+import { BRAND_NAME, DEAL_REPORT_FOOTER } from '../../config/legal.js';
 
 export default function DealReportPage({ propertyId, navigateTo }) {
   const [data, setData] = useState(null);
@@ -33,8 +34,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       market: true,
       notes: true
     },
-    includeFinances: false, // Default OFF for sharing
-    preparedFor: ''
+    includeFinances: true // Default ON: reports are internal for personal use
   });
 
   const resolvedPropId = propertyId || (() => {
@@ -531,7 +531,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             )}
           </div>
 
-          {/* Center: Finance privacy & Client name */}
+          {/* Center: Finance privacy toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <label style={{
               display: 'flex',
@@ -550,26 +550,6 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               />
               Include my finances
             </label>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.6)', fontWeight: 600 }}>
-                Prepared for:
-              </span>
-              <input
-                type="text"
-                value={options.preparedFor}
-                onChange={(e) => setOptions(prev => ({ ...prev, preparedFor: e.target.value }))}
-                placeholder="Client or lender name"
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(52, 41, 42, 0.2)',
-                  fontSize: '11.5px',
-                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  width: '160px'
-                }}
-              />
-            </div>
           </div>
 
           {/* Right: Actions */}
@@ -720,7 +700,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 textTransform: 'uppercase',
                 color: 'var(--espresso, #34292A)'
               }}>
-                INTENT DIGITAL · INVESTOR STUDIO
+                {BRAND_NAME.toUpperCase()} · INVESTOR STUDIO
               </span>
               <span style={{
                 fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -821,16 +801,6 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   {toTitleCase((property.property_type || 'single_family').replace('_', ' '))}
                 </span>
               </div>
-              {options.preparedFor && (
-                <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '18px' }}>
-                  <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', color: 'rgba(52, 41, 42, 0.5)', textTransform: 'uppercase' }}>
-                    PREPARED FOR
-                  </span>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                    {options.preparedFor}
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Verdict Stamp */}
@@ -1760,10 +1730,13 @@ export default function DealReportPage({ propertyId, navigateTo }) {
         {/* ================================================================= */}
         {/* RUNNING FOOTER & SOURCES / DISCLAIMER                             */}
         {/* ================================================================= */}
-        <footer className="avoid-break" style={{
+        <footer className="avoid-break running-footer" style={{
           borderTop: '1px solid rgba(52, 41, 42, 0.15)',
           paddingTop: '18px',
-          marginTop: '36px'
+          marginTop: '36px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
         }}>
           <div style={{
             display: 'flex',
@@ -1771,10 +1744,10 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             alignItems: 'center',
             fontSize: '10.5px',
             color: 'rgba(52, 41, 42, 0.55)',
-            marginBottom: '8px'
+            width: '100%'
           }}>
             <span style={{ fontWeight: 600 }}>
-              Intent Digital · Deal Report · {formatNiceAddress(property.address)}
+              {DEAL_REPORT_FOOTER}
             </span>
             <span>{todayStr}</span>
           </div>
@@ -1782,11 +1755,12 @@ export default function DealReportPage({ propertyId, navigateTo }) {
           <div style={{
             fontSize: '10px',
             color: 'rgba(52, 41, 42, 0.45)',
-            lineHeight: 1.45
+            lineHeight: 1.45,
+            width: '100%'
           }}>
-            Authoritative Sources: {property.county || 'Broward'} County Property Appraiser (2026 Final Roll), Florida Department of Revenue (DOR), FEMA National Flood Hazard Layer (NFHL), Mapbox Satellite & Geocoding.
+            Data Sources (Attribution only): {property.county || 'Broward'} County Property Appraiser DOR data, Florida Department of Revenue (DOR), FEMA National Flood Hazard Layer (NFHL), Mapbox Satellite & Geocoding. Public records referenced for attribution only; no claim of ownership or copyright over public domain data.
             <br />
-            <strong>For investment analysis only. Not an appraisal.</strong> All pro forma projections, return estimates, and construction budgets are subject to independent due diligence, contractor bids, and lender qualification.
+            <strong>Private internal investment analysis only. Not an appraisal.</strong> All pro forma projections, return estimates, and construction budgets are internal models subject to independent due diligence, contractor bids, and lender qualification.
           </div>
         </footer>
       </div>
