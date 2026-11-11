@@ -36,12 +36,12 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
   const [loading, setLoading] = useState(true);
   const [imageRotating, setImageRotating] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [labDeal, setLabDeal] = useState(null);
 
   // Modals & Drawers state
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isMoodboardModalOpen, setIsMoodboardModalOpen] = useState(false);
-  const [isLabModalOpen, setIsLabModalOpen] = useState(false);
 
   // Save to moodboard state
   const [designerProjects, setDesignerProjects] = useState([]);
@@ -93,10 +93,11 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
     async function loadJournalData() {
       try {
         setLoading(true);
-        const [statsRes, imageRes, notesRes] = await Promise.all([
+        const [statsRes, imageRes, notesRes, labRes] = await Promise.all([
           fetch('/api/journal/stats'),
           fetch('/api/journal/inspiration?mode=today'),
-          fetch('/api/journal/learning-notes')
+          fetch('/api/journal/learning-notes'),
+          fetch('/api/journal/learning-lab')
         ]);
 
         if (statsRes.ok) {
@@ -117,6 +118,13 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
           if (isMounted) {
             setLearningNote(notesData.latestNote || null);
             setAllNotes(notesData.allNotes || []);
+          }
+        }
+
+        if (labRes && labRes.ok) {
+          const labData = await labRes.json();
+          if (isMounted && labData.deal) {
+            setLabDeal(labData.deal);
           }
         }
       } catch (err) {
@@ -1449,20 +1457,27 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
       <section>
         <Card
           hoverable
-          onClick={() => setIsLabModalOpen(true)}
+          onClick={() => {
+            if (setActiveTab) {
+              setActiveTab('learning-lab');
+            } else if (navigateTo) {
+              navigateTo('admin');
+            }
+          }}
           style={{
             padding: '24px 32px',
             backgroundColor: '#FAF8F5',
-            border: '1px dashed var(--border-strong)',
+            border: '1px solid rgba(52, 41, 42, 0.12)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '16px'
+            gap: '16px',
+            transition: 'border-color 0.2s ease, transform 0.15s ease'
           }}
         >
-          <div>
+          <div style={{ maxWidth: '680px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
               <span style={{
                 fontFamily: 'var(--font-sans)',
@@ -1472,9 +1487,9 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
                 textTransform: 'uppercase',
                 color: 'var(--burgundy, #41101B)'
               }}>
-                THE LAB
+                TODAY IN THE LAB
               </span>
-              <Pill variant="neutral" size="sm">COMING SOON</Pill>
+              <Pill variant="neutral" size="sm">DEAL OF THE DAY</Pill>
             </div>
 
             <h4 style={{
@@ -1484,7 +1499,7 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
               color: 'var(--espresso, #1E1509)',
               margin: '0 0 4px 0'
             }}>
-              Today in the Lab →
+              {labDeal ? `${labDeal.address}, ${labDeal.city || 'Fort Lauderdale'}` : 'Today in the Lab →'}
             </h4>
 
             <p style={{
@@ -1493,7 +1508,7 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
               color: 'var(--muted, #52453C)',
               margin: 0
             }}>
-              Interactive experiments in daylight orientation, material tactility & spatial acoustics.
+              {labDeal?.question || 'Test your eye against real Broward county sales, ARV comps, and daily design principles.'}
             </p>
           </div>
 
@@ -1505,7 +1520,7 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
             textTransform: 'uppercase',
             color: 'var(--burgundy, #41101B)'
           }}>
-            PREVIEW EXPERIMENT →
+            ENTER THE LAB →
           </span>
         </Card>
       </section>
@@ -2264,83 +2279,6 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
           </div>
         </div>
       </SidePanel>
-
-      {/* =====================================================================
-          MODAL: TODAY IN THE LAB PREVIEW
-          ===================================================================== */}
-      {isLabModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(27, 19, 13, 0.48)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            zIndex: 1200
-          }}
-        >
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-card)',
-            maxWidth: '560px',
-            width: '100%',
-            padding: '40px',
-            boxShadow: 'var(--shadow-floating)',
-            textAlign: 'center'
-          }}>
-            <div style={{ marginBottom: '12px' }}>
-              <span style={{
-                fontFamily: "var(--font-script, 'Dreams on Paper', cursive)",
-                fontSize: '28px',
-                color: 'var(--burgundy, #41101B)'
-              }}>
-                Coming Soon
-              </span>
-            </div>
-
-            <Eyebrow style={{ margin: '0 0 12px 0' }}>THE LEARNING LAB</Eyebrow>
-
-            <h3 style={{
-              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-              fontSize: '32px',
-              fontWeight: 400,
-              color: 'var(--espresso)',
-              margin: '0 0 16px 0',
-              letterSpacing: '-0.02em'
-            }}>
-              Laboratory for Architectural Curiosity
-            </h3>
-
-            <p style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: '14.5px',
-              lineHeight: 1.65,
-              color: 'var(--text-2)',
-              margin: '0 auto 28px auto',
-              maxWidth: '460px'
-            }}>
-              We are assembling an interactive suite of real-time design simulations: sun-angle daylight calculators, texture-reflectance testing, and finish tactility studies for high-end residential interiors.
-            </p>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              <Button
-                variant="primary"
-                onClick={() => setIsLabModalOpen(false)}
-              >
-                RETURN TO JOURNAL →
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

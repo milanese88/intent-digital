@@ -1,0 +1,606 @@
+{
+  "terms": [
+    {
+      "id": "arv",
+      "title": "ARV",
+      "fullName": "After-Repair Value",
+      "definition": "The realistic market value of a property once all renovations, structural corrections, and finishes are executed to neighborhood standard.",
+      "example": "A home bought for $380,000 requiring $65,000 in work has a projected ARV of $540,000 based on recent sales within 1 mile.",
+      "appPointer": "Investor Studio Underwrite card and Deal of the Day analysis."
+    },
+    {
+      "id": "seventy_rule",
+      "title": "70% Rule",
+      "fullName": "The 70% Rule of Thumb",
+      "definition": "A flipper's benchmark calculating maximum allowable offer: ARV × 70% minus estimated rehab, leaving 30% for closing, holding, and profit.",
+      "example": "At a $500,000 ARV with $50,000 rehab, your max offer is $300,000 ($500K × 0.70 − $50K).",
+      "appPointer": "Flip strategy underwrite card and Deal of the Day verdict."
+    },
+    {
+      "id": "cap_rate",
+      "title": "Cap Rate",
+      "fullName": "Capitalization Rate",
+      "definition": "Annual net operating income divided by purchase price or market value, measuring unleveraged yield.",
+      "example": "A fourplex generating $48,000 annual NOI purchased for $600,000 trades at an 8.0% cap rate.",
+      "appPointer": "Rental strategy returns and portfolio analytics."
+    },
+    {
+      "id": "cash_on_cash",
+      "title": "Cash-on-Cash",
+      "fullName": "Cash-on-Cash Return (CoC)",
+      "definition": "Annual pre-tax cash flow divided by total liquid capital invested (down payment, closing costs, and out-of-pocket rehab).",
+      "example": "Investing $85,000 cash to generate $8,500 in net annual post-debt cash flow yields a 10.0% cash-on-cash return.",
+      "appPointer": "Rental underwrite return breakdown and BRRRR capital recycled summary."
+    },
+    {
+      "id": "dscr",
+      "title": "DSCR",
+      "fullName": "Debt Service Coverage Ratio",
+      "definition": "Monthly net operating income divided by monthly debt service (principal and interest), determining whether rental income covers the mortgage.",
+      "example": "A property earning $3,000 gross rent with $500 operating expenses leaves $2,500 NOI; against a $1,800 mortgage, DSCR is 1.39.",
+      "appPointer": "Rental underwrite loan panel and cash-flow schedule."
+    },
+    {
+      "id": "noi",
+      "title": "NOI",
+      "fullName": "Net Operating Income",
+      "definition": "Gross revenue minus operating expenses (taxes, insurance, maintenance, property management, and vacancy reserves), excluding debt service.",
+      "example": "$42,000 in gross annual rent minus $14,000 operating expenses produces a $28,000 NOI.",
+      "appPointer": "Rental cash-flow breakdown and cap rate calculations."
+    },
+    {
+      "id": "ltv",
+      "title": "LTV",
+      "fullName": "Loan-to-Value Ratio",
+      "definition": "The loan balance expressed as a percentage of the property’s appraised value or purchase price.",
+      "example": "Borrowing $360,000 on a $450,000 home purchase represents an 80% LTV.",
+      "appPointer": "Investor Studio loan selector (Conventional, FHA, Hard Money) and BRRRR refinance calculator."
+    },
+    {
+      "id": "brrrr",
+      "title": "BRRRR",
+      "fullName": "Buy, Rehab, Rent, Refinance, Repeat",
+      "definition": "Acquiring distressed real estate, renovating to force equity, tenanting, and executing a cash-out refinance to pull out original capital.",
+      "example": "Buying for $200K, rehabbing for $50K ($250K total), and refinancing 75% of a $360K ARV pulls out $270K, returning 100% of invested capital.",
+      "appPointer": "BRRRR strategy tab in Investor Studio."
+    },
+    {
+      "id": "comps",
+      "title": "Comps",
+      "fullName": "Comparable Market Sales",
+      "definition": "Recently sold nearby properties with similar square footage, age, and construction type used to establish fair market value.",
+      "example": "Three renovated 3-bed ranches sold within 0.5 miles for an average of $385/sf, establishing our valuation baseline.",
+      "appPointer": "Investor Studio Suggested Comps panel and County Comps search."
+    },
+    {
+      "id": "just_value",
+      "title": "Just Value",
+      "fullName": "County Property Appraiser Just Value",
+      "definition": "The statutory market value determined by the Florida county property appraiser for annual ad valorem tax assessments.",
+      "example": "A home listing for $620,000 may carry a county Just Value of $480,000, signaling lower current tax liability.",
+      "appPointer": "Parcel Site Info header and Broward County tax summary."
+    },
+    {
+      "id": "qualified_sale",
+      "title": "Qualified Sale",
+      "fullName": "Arm's Length Market Transfer (Code 01/02)",
+      "definition": "A real estate transfer between unrelated, willing parties acting in their own self-interest, certified by the county as representative of true market value.",
+      "example": "Sales coded 01 in Broward county records filter out family transfers, quitclaims, and foreclosure repossessions.",
+      "appPointer": "Deal of the Day market sales filter and county comp qualification."
+    },
+    {
+      "id": "piti",
+      "title": "PITI",
+      "fullName": "Principal, Interest, Taxes & Insurance",
+      "definition": "The complete four-component monthly carrying cost of homeownership financed through a standard mortgage.",
+      "example": "$2,200 principal and interest + $580 property taxes + $320 hazard insurance equals a $3,100 monthly PITI obligation.",
+      "appPointer": "Investor Studio monthly expenses schedule and Cash-to-Close breakdown."
+    },
+    {
+      "id": "pmi",
+      "title": "PMI",
+      "fullName": "Private Mortgage Insurance",
+      "definition": "A monthly premium charged on conventional loans when putting down less than 20% equity to protect the lender against default.",
+      "example": "Putting 5% down on a $400,000 purchase adds roughly $180/month in PMI until the mortgage reaches 80% LTV.",
+      "appPointer": "Underwrite loan inputs (toggled on for conventional loans under 20% down)."
+    },
+    {
+      "id": "escrow",
+      "title": "Escrow",
+      "fullName": "Prepaids & Impound Escrow Account",
+      "definition": "A lender-managed reserve holding borrower funds for upcoming annual property taxes, hazard insurance, and flood insurance payments.",
+      "example": "Lenders typically collect 3 months of taxes and 14 months of insurance upfront at closing to fund the initial escrow buffer.",
+      "appPointer": "Closing costs and cash-to-close card under Prepaids."
+    },
+    {
+      "id": "doc_stamps",
+      "title": "Doc Stamps",
+      "fullName": "Florida Documentary Stamp Tax",
+      "definition": "State excise taxes levied on recorded Florida deeds ($0.70 per $100 in Broward/FL) and recorded mortgages ($0.35 per $100).",
+      "example": "On a $400,000 purchase with a $300,000 mortgage, deed stamps cost $2,800 and mortgage stamps cost $1,050.",
+      "appPointer": "Closing costs itemized breakdown and cash-to-close card."
+    },
+    {
+      "id": "intangible_tax",
+      "title": "Intangible Tax",
+      "fullName": "Florida Nonrecurring Intangible Tax",
+      "definition": "A one-time Florida state tax of 2 mills (0.2%, or $2 per $1,000) levied on the principal amount of all newly recorded mortgages.",
+      "example": "Securing a $350,000 purchase loan triggers a $700 nonrecurring intangible tax at closing.",
+      "appPointer": "Loan origination fees in Investor Studio closing breakdown."
+    },
+    {
+      "id": "wind_mitigation",
+      "title": "Wind Mitigation",
+      "fullName": "Uniform Mitigation Inspection (OIR-B1-1802)",
+      "definition": "A certified inspection documenting hurricane-resistant structural features (roof shape, clips/straps, opening protection) that yield significant insurance discounts.",
+      "example": "Having third-nail roof straps and hurricane impact windows can reduce a South Florida insurance premium from $6,500 to $3,200 annually.",
+      "appPointer": "Parcel Site Info inspection checklist and insurance underwrite inputs."
+    },
+    {
+      "id": "four_point",
+      "title": "4-Point Inspection",
+      "fullName": "4-Point Insurance Inspection",
+      "definition": "A visual assessment of electrical, plumbing, HVAC, and roofing required by insurers for Florida homes over 20–30 years old.",
+      "example": "Insurance will be denied if the inspection uncovers an active Zinsco electrical panel, polybutylene plumbing, or a roof over 15 years old.",
+      "appPointer": "Property overview condition checks and roof year alert."
+    },
+    {
+      "id": "fema_fifty",
+      "title": "FEMA 50% Rule",
+      "fullName": "FEMA Substantial Improvement Rule",
+      "definition": "In flood zones AE and VE, if renovation costs equal or exceed 50% of the building's pre-improvement market value, the entire structure must be brought to current elevation code.",
+      "example": "A house with a $150,000 structural value cannot take more than $74,999 in permitted work without mandatory elevation.",
+      "appPointer": "Parcel Site Info flood risk warnings for SFHA / AE zones."
+    },
+    {
+      "id": "flood_zones",
+      "title": "Flood Zone AE vs. X",
+      "fullName": "FEMA Flood Insurance Rate Map Zones",
+      "definition": "Zone AE indicates high 100-year flood risk (SFHA) requiring mandatory lender flood insurance; Zone X designates minimal risk where insurance is optional.",
+      "example": "A Zone AE home in Fort Lauderdale may require $2,800/yr in NFIP flood insurance, while Zone X costs $600/yr for voluntary preferred risk coverage.",
+      "appPointer": "Parcel Site Info flood zone tag and underwrite annual flood insurance input."
+    },
+    {
+      "id": "bfe",
+      "title": "BFE",
+      "fullName": "Base Flood Elevation",
+      "definition": "The elevation surface water is expected to reach during a 100-year base flood, dictating minimum finished floor height for new construction and substantial rehab.",
+      "example": "If the BFE is +7.0 feet NAVD88 and the finished floor is at +5.5 feet, the structure is 1.5 feet below base flood, driving insurance premiums up.",
+      "appPointer": "Parcel Site Info FEMA elevation metrics."
+    },
+    {
+      "id": "sfha",
+      "title": "SFHA",
+      "fullName": "Special Flood Hazard Area",
+      "definition": "Land within the 100-year floodplain (zones A, AE, AH, AO, VE) having at least a 1% annual chance of inundation, mandating flood insurance on federally-backed loans.",
+      "example": "Properties flagged SFHA = true in county GIS data require proof of flood policy prior to clear-to-close.",
+      "appPointer": "Parcel Site Info SFHA badge."
+    },
+    {
+      "id": "zoning",
+      "title": "Zoning",
+      "fullName": "Municipal Zoning Classification",
+      "definition": "Local land-use regulations dictating permissible building uses, density, building heights, setbacks, and accessory dwelling unit allowances.",
+      "example": "A parcel zoned RS-8 allows only single-family residential with 8,000 sqft minimum lot sizes, preventing duplex conversion.",
+      "appPointer": "Investor Studio property details and city zoning link."
+    },
+    {
+      "id": "setbacks",
+      "title": "Setbacks",
+      "fullName": "Front, Side & Rear Setbacks",
+      "definition": "The required minimum distance between a building wall and property boundary lines established by municipal zoning ordinances.",
+      "example": "A 25-foot front setback and 10-foot side setback prevent building an attached garage expansion across the side property line.",
+      "appPointer": "Designer Hub exterior floor planning and zoning overview."
+    },
+    {
+      "id": "far",
+      "title": "FAR",
+      "fullName": "Floor Area Ratio",
+      "definition": "The ratio of a building’s total usable floor area relative to the total square footage of the lot it sits on, capping buildable mass.",
+      "example": "On a 6,000 sqft lot with a 0.50 FAR cap, the maximum allowable enclosed interior space across all stories is 3,000 sqft.",
+      "appPointer": "Zoning calculations for expansion and ADU additions."
+    },
+    {
+      "id": "hard_money",
+      "title": "Hard Money Loan",
+      "fullName": "Short-Term Private Asset-Based Bridge Loan",
+      "definition": "A short-term, asset-backed loan funded by private investors with interest-only payments, higher rates (10–12%), and 1–3 origination points used for rapid acquisition and rehab.",
+      "example": "Borrowing $320,000 at 10.5% interest-only for 6 months allows closing within 10 days before refinancing into permanent conventional debt.",
+      "appPointer": "Investor Studio loan selector under 'Hard money'."
+    },
+    {
+      "id": "holding_costs",
+      "title": "Holding Costs",
+      "fullName": "Carrying Costs During Renovation",
+      "definition": "The cumulative monthly recurring expenses incurred while renovating a property prior to sale or lease (loan interest, taxes, insurance, utilities, HOA).",
+      "example": "At $3,200/month across a 6-month flip timeline, holding costs siphon $19,200 from net profit.",
+      "appPointer": "Flip underwrite total holding cost schedule and timeline slider."
+    },
+    {
+      "id": "seller_credits",
+      "title": "Seller Credits",
+      "fullName": "Seller Concessions at Closing",
+      "definition": "Funds credited from the seller to the buyer at closing to offset buyer closing costs, prepaids, or minor inspection repairs.",
+      "example": "Negotiating a $10,000 seller credit directly reduces cash-to-close from $85,000 down to $75,000.",
+      "appPointer": "Investor Studio purchase setup under Seller credits."
+    },
+    {
+      "id": "earnest_money",
+      "title": "Earnest Money",
+      "fullName": "Earnest Money Deposit (EMD)",
+      "definition": "A deposit made by the buyer to the title escrow agent upon signing the purchase contract to demonstrate good-faith intent to close.",
+      "example": "Placing a 1% deposit ($5,000 on a $500,000 offer) holds the contract during the 10-day inspection period.",
+      "appPointer": "Purchase contract setup and cash-to-close ledger."
+    },
+    {
+      "id": "title_insurance",
+      "title": "Title Insurance",
+      "fullName": "Owner's & Lender's Title Insurance",
+      "definition": "An insurance policy protecting against past liens, encumbrances, forgery, or defects in the chain of ownership prior to transfer.",
+      "example": "In Broward and Miami-Dade, the buyer traditionally chooses the title agent and pays the owner's title policy premium.",
+      "appPointer": "Investor Studio 'Owner title paid by buyer' toggle."
+    },
+    {
+      "id": "assignment",
+      "title": "Assignment",
+      "fullName": "Assignment of Contract",
+      "definition": "A legal transfer of purchasing rights from the original contract buyer to an end buyer in exchange for an assignment fee.",
+      "example": "Putting a house under contract for $240,000 and assigning the contract to a rehabber for $260,000 yields a $20,000 assignment fee.",
+      "appPointer": "Wholesale and off-market acquisition underwriting."
+    },
+    {
+      "id": "due_diligence",
+      "title": "Due Diligence",
+      "fullName": "Contract Inspection & Feasibility Period",
+      "definition": "A negotiated timeframe (typically 7–15 days) during which the buyer conducts inspections, contractor bids, and zoning checks with right of cancellation.",
+      "example": "Canceling on day 8 after scoping a collapsed sewer line preserves your full earnest money deposit.",
+      "appPointer": "Investor Studio deal tracking milestones and inspection checklist."
+    },
+    {
+      "id": "contingency",
+      "title": "Contingency",
+      "fullName": "Construction Budget Contingency (10–15%)",
+      "definition": "A dedicated buffer reserved in the rehab budget to absorb unforeseen structural, electrical, or plumbing discoveries after demolition.",
+      "example": "On a $60,000 base scope, adding a 10% contingency reserves $6,000 for concealed termite damage or ungrounded wiring.",
+      "appPointer": "Designer Hub budget summary contingency line."
+    },
+    {
+      "id": "sow",
+      "title": "Scope of Work",
+      "fullName": "Detailed Scope of Work (SOW)",
+      "definition": "A line-item document detailing materials, labor specifications, architectural finishes, and structural milestones required for contractor bidding.",
+      "example": "Itemizing 12 architectural categories (demo, framing, MEP, finishes) prevents scope creep and contractor change orders.",
+      "appPointer": "Designer Hub itemized room expense ledger and category breakdown."
+    },
+    {
+      "id": "as_is",
+      "title": "As-Is Contract",
+      "fullName": "Florida Bar / Florida Realtors 'As-Is' Residential Contract",
+      "definition": "A standard contract where the seller makes no repair warranties, but the buyer maintains the unilateral right to inspect and cancel during due diligence.",
+      "example": "Submitting on an As-Is form provides a clean offer attractive to sellers while keeping earnest money safe until inspection sign-off.",
+      "appPointer": "Distressed property offer submission workflow."
+    },
+    {
+      "id": "lien_search",
+      "title": "Lien Search",
+      "fullName": "Municipal Lien & Code Violation Search",
+      "definition": "An inquiry with local municipalities checking for unrecorded utility liens, code compliance fines, open permits, or expired building permits.",
+      "example": "A municipal lien search uncovers an expired 2018 reroof permit that must be closed out before title transfer.",
+      "appPointer": "Closing costs itemized breakdown and parcel jurisdiction info."
+    },
+    {
+      "id": "forced_appreciation",
+      "title": "Forced Appreciation",
+      "fullName": "Value-Add Forced Equity",
+      "definition": "Increasing real estate value through intentional renovations, square footage additions, or NOI improvements rather than relying on market inflation.",
+      "example": "Adding an ensuite primary bathroom and modernizing kitchen layout forces $90,000 in equity on a $42,000 spend.",
+      "appPointer": "Designer Hub room board planning and Underwrite ROI calculations."
+    },
+    {
+      "id": "breakeven_occ",
+      "title": "Breakeven Occ",
+      "fullName": "Breakeven Occupancy Rate",
+      "definition": "The occupancy percentage a rental property must sustain so gross rents cover all operating expenses and debt service.",
+      "example": "A small multifamily building requiring $7,200/mo to service debt and expenses against $9,000 potential gross rent has an 80% breakeven occupancy.",
+      "appPointer": "Rental sensitivity analysis and stress-test card."
+    },
+    {
+      "id": "debt_yield",
+      "title": "Debt Yield",
+      "fullName": "Commercial Debt Yield",
+      "definition": "Annual NOI divided by the total loan amount, showing the lender's cash-on-cash return if they took over the asset upon foreclosure.",
+      "example": "A property generating $45,000 NOI with a $450,000 loan balance carries a 10.0% debt yield.",
+      "appPointer": "Portfolio financing and commercial DSCR loan underwriting."
+    },
+    {
+      "id": "exit_strategy",
+      "title": "Exit Strategy",
+      "fullName": "Underwriting Exit Multiple",
+      "definition": "The planned method for monetizing or refinancing a real estate acquisition (retail flip, long-term rental hold, or cash-out refi).",
+      "example": "Underwriting both a retail flip exit and a rental fallback ensures you never buy a property with only one narrow path to profit.",
+      "appPointer": "Investor Studio strategy selector (Flip, Rental, BRRRR)."
+    }
+  ],
+  "principles": [
+    {
+      "id": "sixty_thirty_ten",
+      "title": "The 60-30-10 Rule",
+      "definition": "A classic proportion framework balancing 60% dominant base canvas, 30% structural depth, and 10% high-intent accent.",
+      "example": "Toasted cream plaster walls and rugs (60%), espresso timber joinery and armchairs (30%), quietude blue ceramics and velvet pillows (10%).",
+      "visualType": "bar_60_30_10"
+    },
+    {
+      "id": "scale_proportion",
+      "title": "Scale & Proportion",
+      "definition": "The dimensional harmony between individual furniture volumes and the room's overarching architectural envelope.",
+      "example": "Placing a low 96-inch credenza with one oversized 50-inch canvas in an 11-foot ceiling salon rather than scattered smaller frames.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "layered_lighting",
+      "title": "Layered Lighting",
+      "definition": "Composing three distinct light tiers—ambient, task, and accent—to establish spatial depth and eliminate harsh overhead glare.",
+      "example": "Warm perimeter ceiling wash (ambient), patinated brass task sconces (task), and a low uplight behind a floor urn (accent).",
+      "visualType": "lighting_tiers"
+    },
+    {
+      "id": "architectural_focal_point",
+      "title": "Architectural Focal Point",
+      "definition": "Establishing one dominant structural element that commands the eye upon entry, around which secondary furniture is composed.",
+      "example": "Aligning the primary seating axis around a monolithic fluted plaster fireplace flanked by low limestone bench plinths.",
+      "visualType": "focal_point"
+    },
+    {
+      "id": "texture_contrast",
+      "title": "Texture Contrast",
+      "definition": "Juxtaposing coarse, honed, and reflective materials to create tactile interest within a restrained monochromatic palette.",
+      "example": "Pairing slubbed raw linen drapes with smooth honed travertine tables and dark patinated bronze hardware.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "rule_of_three",
+      "title": "The Rule of Three",
+      "definition": "Arranging objects in odd-numbered groupings to create dynamic visual movement that feels organic rather than rigid.",
+      "example": "Styling a stone console with one tall ribbed ceramic urn, a low stacked art book, and a solid bronze match striker.",
+      "visualType": "triad_cluster"
+    },
+    {
+      "id": "negative_space",
+      "title": "Negative Space",
+      "definition": "Leaving intentional unadorned areas of floor or wall to give architectural forms room to breathe.",
+      "example": "Leaving six feet of bare cream plaster beside a solitary potted palm instead of hanging gallery art.",
+      "visualType": "negative_space"
+    },
+    {
+      "id": "rhythm_repetition",
+      "title": "Rhythm & Repetition",
+      "definition": "Carrying selected architectural details, finishes, or forms across rooms to create a continuous spatial journey.",
+      "example": "Repeating the gentle arched opening from the front foyer in the dining niche and primary bath mirrors.",
+      "visualType": "rhythm_dots"
+    },
+    {
+      "id": "compression_release",
+      "title": "Compression & Release",
+      "definition": "Transitioning between intimate, lower-ceilinged entry thresholds and expansive, sunlit destination spaces to heighten spatial drama.",
+      "example": "Moving from a narrow, espresso-paneled vestibule into a soaring 14-foot ceiling courtyard pavilion.",
+      "visualType": "compression_door"
+    },
+    {
+      "id": "sightline_alignment",
+      "title": "Sightline Alignment",
+      "definition": "Orienting corridors, doors, and furniture so primary pathways terminate at natural light, exterior greenery, or architectural art.",
+      "example": "Aligning the central hallway corridor directly with an outdoor reflecting pool through floor-to-ceiling glass.",
+      "visualType": "symmetry_axis"
+    },
+    {
+      "id": "color_temperature",
+      "title": "Color Temperature (Kelvin)",
+      "definition": "Calibrating light bulb warmth (2700K vs. 3000K) to complement warm plaster and wood grains without sterile blue spikes.",
+      "example": "Using 2700K warm-dim LEDs in living rooms to turn cream walls golden at dusk while reserving 3000K for task vanity mirrors.",
+      "visualType": "lighting_tiers"
+    },
+    {
+      "id": "spatial_balance",
+      "title": "Spatial Balance",
+      "definition": "Equilibrating visual weight across an axis through either formal symmetry or informal, sculptural asymmetry.",
+      "example": "Balancing a massive dark oak bookcase on the left wall with a pair of deep lounge chairs and an oversized floor lamp on the right.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "visual_weight",
+      "title": "Visual Weight",
+      "definition": "How heavily an object draws the eye based on its color darkness, material density, pattern complexity, and scale.",
+      "example": "A dark espresso solid-base pedestal table carries more visual gravity than an identical-sized glass top on brass hairpin legs.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "harmony_unity",
+      "title": "Harmony & Unity",
+      "definition": "Ensuring all architectural finishes, fabrics, and metal accents share an underlying tonal affinity that reads as one cohesive vision.",
+      "example": "Anchoring hardware across the entire main floor in unlacquered brass so kitchens, powder baths, and built-ins feel unified.",
+      "visualType": "rhythm_dots"
+    },
+    {
+      "id": "threshold_framing",
+      "title": "Threshold Framing",
+      "definition": "Designing doorways and casing profiles as visual frames that compose painterly views into adjoining rooms.",
+      "example": "Framing a deep green dining room through a wide, casing-free arched portal cut into a sunlit cream living room.",
+      "visualType": "compression_door"
+    },
+    {
+      "id": "finish_tactility",
+      "title": "Finish Tactility",
+      "definition": "Selecting honed, wire-brushed, or tumbled finishes that invite touch and diffuse light naturally rather than reflecting artificial sheen.",
+      "example": "Specifying a honed matte marble island countertop over high-gloss polished stone for softer reflections and understated luxury.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "ceiling_verticality",
+      "title": "Ceiling Height Illusion",
+      "definition": "Using floor-to-ceiling drapery, full-height doors, and low-profile horizontal seating to draw the eye upward and exaggerate volume.",
+      "example": "Hanging linen drapery tracks directly against the ceiling crown rather than the window casing to visually lift an 8-foot ceiling.",
+      "visualType": "symmetry_axis"
+    },
+    {
+      "id": "acoustic_softening",
+      "title": "Acoustic Softening",
+      "definition": "Balancing hard reflective planes (tile, plaster, glass) with plush acoustic absorption (wool rugs, drapery, bouclé, upholstery) to dampen echo.",
+      "example": "Placing an expansive thick wool-pile area rug and heavy pleated linen panels in a limestone dining room to make dinner conversation intimate.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "wabi_sabi",
+      "title": "Organic Imperfection",
+      "definition": "Incorporating artisanal hand-thrown ceramics, raw edges, and natural grain variations to prevent modern minimalism from feeling clinical.",
+      "example": "Centering a hand-carved solid suar wood bench with natural edge checking in a sleek, minimalist plaster entry hall.",
+      "visualType": "triad_cluster"
+    },
+    {
+      "id": "biophilic_connection",
+      "title": "Biophilic Connection",
+      "definition": "Integrating natural daylight, organic botanicals, and raw earthy materials to foster calm well-being within interior spaces.",
+      "example": "Positioning an oversized clay urn holding cut olive branches directly beneath a ceiling skylight in a central atrium.",
+      "visualType": "focal_point"
+    },
+    {
+      "id": "monochromatic_nuance",
+      "title": "Monochromatic Nuance",
+      "definition": "Building depth within a single color family by varying sheen, weave density, and minute tone shifts from cream to sand.",
+      "example": "Layering alabaster plaster walls, oat boucle armchairs, ivory cashmere throws, and a natural jute rug without introducing any other hue.",
+      "visualType": "bar_60_30_10"
+    },
+    {
+      "id": "curated_restraint",
+      "title": "Curated Material Restraint",
+      "definition": "Limiting a home’s primary finish palette to no more than 3 core materials across all rooms for intentional luxury.",
+      "example": "Restricting every surface across the property to rift-sawn white oak, Calacatta Viola marble, and unlacquered burnished brass.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "circulation_flow",
+      "title": "Circulation & Flow",
+      "definition": "Maintaining a minimum 36-inch continuous clearance corridor between major furniture pieces for effortless movement.",
+      "example": "Allowing 42 inches between kitchen island barstools and the dining table so two people can pass comfortably.",
+      "visualType": "symmetry_axis"
+    },
+    {
+      "id": "plinth_grounding",
+      "title": "Plinth Grounding",
+      "definition": "Using low, solid-base platform furniture and stone plinths to anchor seating firmly to the floor plane.",
+      "example": "Mounting a custom low oak platform beneath the sofa and credenza so furniture feels rooted rather than hovering on spindly legs.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "lrv_light_reflectance",
+      "title": "Light Reflectance Value (LRV)",
+      "definition": "The percentage of light a paint color reflects, determining how bright a room will feel under natural and artificial exposure.",
+      "example": "Choosing an off-white with an LRV of 74 ensures the north-facing bedroom stays luminous without glaring under morning sun.",
+      "visualType": "lighting_tiers"
+    },
+    {
+      "id": "spatial_hierarchy",
+      "title": "Spatial Hierarchy",
+      "definition": "Graduating importance across interconnected zones through varying ceiling heights, flooring transitions, and scale.",
+      "example": "Designing the primary great room with double-height volume and rich coffering while keeping adjoining hallways understated.",
+      "visualType": "compression_door"
+    },
+    {
+      "id": "architectural_reveal",
+      "title": "Architectural Reveal",
+      "definition": "Introducing a subtle recessed groove or shadow line (typically 0.5 inches) where materials meet instead of applying bulky surface baseboards.",
+      "example": "Installing flush reglet drywall baseboards with a recessed 1/2-inch shadow line where plaster meets wide-plank oak flooring.",
+      "visualType": "rhythm_dots"
+    },
+    {
+      "id": "patina_aging",
+      "title": "Patina & Aging",
+      "definition": "Selecting living finishes (unlacquered brass, oiled walnut, vegetable-tanned leather) that grow richer and more characterful with daily touch.",
+      "example": "Installing unlacquered brass lever handles that darken to a warm, mottled bronze at contact points over years of handling.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "concealed_storage",
+      "title": "Concealed Storage",
+      "definition": "Integrating touch-latch or pocketing panel cabinetry that disguises everyday clutter as clean architectural millwork.",
+      "example": "Concealing a coffee station and pantry appliances behind full-height pocketing oak doors flush with the perimeter kitchen wall.",
+      "visualType": "negative_space"
+    },
+    {
+      "id": "anchoring_floor_plane",
+      "title": "Anchoring the Floor Plane",
+      "definition": "Selecting an area rug large enough so all front and rear legs of primary seating rest firmly on the weave.",
+      "example": "Specifying a generous 10x14-foot wool rug rather than an 8x10 so the sectional, lounge chairs, and cocktail table sit fully inside its border.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "transitional_vignette",
+      "title": "Transitional Vignette",
+      "definition": "Composing small, curated moments of pause at landings, alcoves, and hallway turns to enrich the home’s secondary journey.",
+      "example": "Placing a petite marble pedestal with a single bronze sculpture and soft directional pin spot at the top of the stair landing.",
+      "visualType": "triad_cluster"
+    },
+    {
+      "id": "wood_warmth",
+      "title": "Natural Wood Warmth",
+      "definition": "Introducing authentic wood species to counter cool masonry, glass, and metals with tactile warmth and grounding organic grain.",
+      "example": "Wrapping ceiling beams in warm quarter-sawn white oak to balance cool large-format porcelain floor tiles.",
+      "visualType": "texture_swatches"
+    },
+    {
+      "id": "mass_and_void",
+      "title": "Contrast of Mass and Void",
+      "definition": "Balancing solid, heavy architectural volumes with transparent openings, floating plinths, and negative voids.",
+      "example": "Cantilevering a heavy stone vanity over an open, illuminated floor gap to keep the powder room feeling weightless.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "ambient_wash",
+      "title": "Ambient Wash",
+      "definition": "Grazing architectural walls with soft, indirect perimeter lighting to emphasize plaster texture without visible bulb glare.",
+      "example": "Concealing a continuous warm LED cove tape inside a ceiling drop to wash textured Roman clay plaster in gentle diffused glow.",
+      "visualType": "lighting_tiers"
+    },
+    {
+      "id": "scale_juxtaposition",
+      "title": "Scale Juxtaposition",
+      "definition": "Pairing unexpectedly large focal objects with delicate minimal accents to create deliberate editorial tension.",
+      "example": "Suspending a dramatic 42-inch wide ceramic pendant over a slender, low-profile two-person dining banquette.",
+      "visualType": "scale_boxes"
+    },
+    {
+      "id": "tonal_graduation",
+      "title": "Tonal Graduation",
+      "definition": "Progressively shifting values from dark to light as sightlines travel from floor to ceiling to maximize perceived headroom.",
+      "example": "Deep espresso hardwood floors anchoring the base, mid-tone oat furniture at eye level, and ethereal toasted cream ceilings overhead.",
+      "visualType": "bar_60_30_10"
+    },
+    {
+      "id": "directional_lay",
+      "title": "Directional Flooring Lay",
+      "definition": "Running hardwood planks or large stone pavers parallel to primary natural light sources to visually extend room length.",
+      "example": "Orienting wide-plank oak flooring perpendicular to the front door so plank lines guide the eye toward rear garden sliders.",
+      "visualType": "symmetry_axis"
+    },
+    {
+      "id": "hardware_consistency",
+      "title": "Hardware Consistency",
+      "definition": "Maintaining a disciplined standard of metal weights, finishes, and profiles across doors, cabinets, and drapery rods.",
+      "example": "Standardizing all interior door levers in solid knurled burnished brass matching the cabinet pulls in the open kitchen.",
+      "visualType": "rhythm_dots"
+    },
+    {
+      "id": "sculptural_silhouette",
+      "title": "Sculptural Silhouette",
+      "definition": "Selecting chairs or accent pieces with expressive profiles that read as freestanding art from all 360-degree room angles.",
+      "example": "Floating a rounded bouclé swivel chair with a curved sculptural barrel back in the center of the room.",
+      "visualType": "triad_cluster"
+    },
+    {
+      "id": "curated_asymmetry",
+      "title": "Curated Asymmetry",
+      "definition": "Balancing disparate elements of equal visual weight on either side of an axis to avoid predictable, rigid mirror imaging.",
+      "example": "Flanking a king bed with a tall fluted wood cabinet on the left and a low stone cantilevered nightstand with hanging pendant on the right.",
+      "visualType": "scale_boxes"
+    }
+  ]
+}
