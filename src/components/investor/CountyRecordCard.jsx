@@ -44,8 +44,10 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
   const [isFindModalOpen, setIsFindModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searchMeta, setSearchMeta] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [cardSearchError, setCardSearchError] = useState(null);
   const [linkingParcelId, setLinkingParcelId] = useState(null);
 
   // Discrepancy updating state
@@ -93,38 +95,101 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
     }
   }, [countyData]);
 
+  // Execute county parcel search with support for exact, fallback prefix, and fallback coords
+  const executeCountySearch = async (q, options = {}) => {
+    if (!q || q.trim().length < 3) return null;
+    setSearchLoading(true);
+    setSearchError(null);
+    setCardSearchError(null);
+
+    const county = options.county || property?.parcel_county || property?.county || 'Broward';
+    const zip = options.zip || property?.zip || '';
+    const lat = options.lat != null ? options.lat : property?.lat;
+    const lng = options.lng != null ? options.lng : property?.lng;
+
+    let url = `/api/county/search?q=${encodeURIComponent(q.trim())}&county=${encodeURIComponent(county)}`;
+    if (zip) url += `&zip=${encodeURIComponent(zip)}`;
+    if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+      url += `&lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
+    }
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        if (res.status === 504) {
+          throw new Error('Search timed out after 5 seconds. Please refine your search query.');
+        }
+        throw new Error('Search failed');
+      }
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data?.results || []);
+      const meta = {
+        matchType: data?.matchType || (list[0]?.matchType) || (list.length > 0 ? 'exact' : 'none'),
+        requiresConfirmation: data?.requiresConfirmation ?? (list[0]?.requiresConfirmation ?? false),
+        normalizedQuery: data?.normalizedQuery || q,
+        message: data?.message || ''
+      };
+
+      setSearchResults(list);
+      setSearchMeta(meta);
+
+      if (list.length === 0) {
+        const msg = meta.message || `No match found for ${meta.normalizedQuery || q} — try editing the address or pick from the map.`;
+        setSearchError(msg);
+        setCardSearchError(msg);
+      }
+
+      return { list, meta };
+    } catch (err) {
+      const errMsg = err.message || 'Error connecting to county search.';
+      setSearchError(errMsg);
+      setCardSearchError(errMsg);
+      setSearchResults([]);
+      setSearchMeta(null);
+      return null;
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Direct "Find County Record" action from card
+  const handleFindCountyRecordClick = async () => {
+    const q = property.address || '';
+    if (!q || q.trim().length < 3) {
+      handleOpenFindModal();
+      return;
+    }
+
+    setCardSearchError(null);
+    const searchRes = await executeCountySearch(q);
+    if (!searchRes) {
+      setIsFindModalOpen(true);
+      return;
+    }
+
+    const { list, meta } = searchRes;
+
+    // Exact match: if exactly 1 match and does NOT require confirmation, auto-link!
+    if (meta.matchType === 'exact' && !meta.requiresConfirmation && list.length === 1) {
+      await handleLinkRecord(list[0]);
+      return;
+    }
+
+    // Fallback match, multiple matches, or 0 matches: open modal for user confirmation / review
+    setSearchQuery(`${property.address || ''} ${property.zip || ''}`.trim());
+    setIsFindModalOpen(true);
+  };
+
   // Open "Find county record" modal prefilled with property address + zip
   const handleOpenFindModal = () => {
     const prefill = `${property.address || ''} ${property.zip || ''}`.trim();
     setSearchQuery(prefill);
     setSearchResults([]);
+    setSearchMeta(null);
     setSearchError(null);
     setIsFindModalOpen(true);
     if (prefill.length >= 3) {
       executeCountySearch(prefill);
-    }
-  };
-
-  const executeCountySearch = async (q) => {
-    if (!q || q.trim().length < 3) return;
-    setSearchLoading(true);
-    setSearchError(null);
-    try {
-      const res = await fetch(`/api/county/search?q=${encodeURIComponent(q.trim())}`);
-      if (!res.ok) {
-        throw new Error('Search failed');
-      }
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setSearchResults(list);
-      if (list.length === 0) {
-        setSearchError('No matching county records found. Try searching by house number and street name.');
-      }
-    } catch (err) {
-      setSearchError('Error connecting to county search.');
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
     }
   };
 
@@ -303,7 +368,8 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
 
           <button
             type="button"
-            onClick={handleOpenFindModal}
+            onClick={handleFindCountyRecordClick}
+            disabled={searchLoading}
             className="investor-search-btn"
             style={{
               padding: '9px 18px',
@@ -314,12 +380,55 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
               color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
-              cursor: 'pointer'
+              cursor: searchLoading ? 'wait' : 'pointer',
+              opacity: searchLoading ? 0.75 : 1
             }}
           >
-            FIND COUNTY RECORD
+            {searchLoading ? 'Searching county records…' : 'FIND COUNTY RECORD'}
           </button>
         </div>
+
+        {cardSearchError && (
+          <div
+            style={{
+              backgroundColor: '#FAF8F5',
+              border: '1px solid rgba(52, 41, 42, 0.22)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--espresso, #34292A)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span style={{ fontSize: '12.5px', color: 'var(--espresso, #34292A)', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}>
+                {cardSearchError}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenFindModal}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--secondary-color, #41101B)',
+                fontWeight: 600,
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontSize: '12px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Edit address →
+            </button>
+          </div>
+        )}
 
         <div
           style={{
@@ -401,7 +510,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
             backgroundColor: '#ffffff',
             borderRadius: '14px',
             width: '100%',
-            maxWidth: '620px',
+            maxWidth: '640px',
             boxShadow: '0 20px 48px rgba(30, 21, 9, 0.25)',
             overflow: 'hidden',
             display: 'flex',
@@ -439,7 +548,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                   margin: '4px 0 0 0'
                 }}
               >
-                Search Broward County residential property roll by address or folio
+                Search Florida County residential property roll by address or folio
               </p>
             </div>
             <button
@@ -487,7 +596,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                   whiteSpace: 'nowrap'
                 }}
               >
-                {searchLoading ? 'SEARCHING...' : 'SEARCH'}
+                {searchLoading ? 'Searching county records…' : 'SEARCH'}
               </button>
             </form>
           </div>
@@ -496,13 +605,50 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
           <div style={{ padding: '0 24px 24px', overflowY: 'auto', flex: 1 }}>
             {searchLoading && (
               <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(52, 41, 42, 0.6)', fontSize: '13px' }}>
-                Searching county records...
+                Searching county records…
               </div>
             )}
 
             {searchError && !searchLoading && (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(52, 41, 42, 0.65)', fontSize: '13px' }}>
+              <div
+                style={{
+                  padding: '18px 20px',
+                  textAlign: 'center',
+                  color: 'var(--espresso, #34292A)',
+                  backgroundColor: '#FAF8F5',
+                  borderRadius: '8px',
+                  border: '1px dashed rgba(52, 41, 42, 0.2)',
+                  fontSize: '13px',
+                  margin: '12px 0',
+                  lineHeight: 1.5
+                }}
+              >
                 {searchError}
+              </div>
+            )}
+
+            {!searchLoading && searchResults.length > 0 && searchMeta?.requiresConfirmation && (
+              <div
+                style={{
+                  backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                  border: '1px solid rgba(133, 157, 206, 0.45)',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginTop: '8px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--espresso, #34292A)' }}>
+                  Is this it?
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.75)' }}>
+                  {searchMeta.matchType === 'fallback_coords'
+                    ? 'Nearest parcel within 60 m using map coordinates — please confirm before linking:'
+                    : 'Similar addresses found nearby — please confirm before linking:'}
+                </div>
               </div>
             )}
 
@@ -515,6 +661,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                   const typeLabel = getUseCodeLabel(match.use_code);
                   const sqftStr = match.living_sqft ? `${Number(match.living_sqft).toLocaleString()} sf` : '—';
                   const builtStr = match.year_built ? `Built ${match.year_built}` : '';
+                  const distStr = match.distance_m != null ? ` · ${match.distance_m}m away` : '';
 
                   return (
                     <div
@@ -553,7 +700,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                           </span>
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.65)' }}>
-                          {cityZip} · <span style={{ fontWeight: 500 }}>{typeLabel}</span> · {sqftStr} {builtStr ? `· ${builtStr}` : ''}
+                          {cityZip} · <span style={{ fontWeight: 500 }}>{typeLabel}</span> · {sqftStr} {builtStr ? `· ${builtStr}` : ''}{distStr}
                         </div>
                         <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.45)', marginTop: '4px', fontFamily: 'monospace' }}>
                           FOLIO: {match.parcel_id}
@@ -577,7 +724,9 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        {isLinking ? 'LINKING...' : 'LINK RECORD'}
+                        {isLinking
+                          ? 'LINKING...'
+                          : (searchMeta?.requiresConfirmation ? 'CONFIRM & LINK' : 'LINK RECORD')}
                       </button>
                     </div>
                   );

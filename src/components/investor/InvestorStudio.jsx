@@ -10,6 +10,7 @@ import MarketCard from './MarketCard.jsx';
 import WatchedLocations from './WatchedLocations.jsx';
 import AerialPhoto from './AerialPhoto.jsx';
 import PropertyPhotosSection from './PropertyPhotosSection.jsx';
+import PropertyDocumentsSection from './PropertyDocumentsSection.jsx';
 import BuyingProfileModal from './BuyingProfileModal.jsx';
 import { formatCurrency } from './underwriting.js';
 import {
@@ -3095,6 +3096,12 @@ export default function InvestorStudio({ setActiveDashboardTab }) {
                         setActivePropertyCover(newCoverUrl);
                         setProperties(prev => prev.map(p => (p.id === activeProperty.id ? { ...p, cover_photo_url: newCoverUrl } : p)));
                       }}
+                      showToast={showToast}
+                    />
+
+                    {/* Documents & Saved Reports */}
+                    <PropertyDocumentsSection
+                      property={activeProperty}
                       showToast={showToast}
                     />
 

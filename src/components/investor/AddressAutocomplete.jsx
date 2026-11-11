@@ -223,7 +223,7 @@ export default function AddressAutocomplete({
         promises.push(
           fetch(`/api/county/search?q=${encodeURIComponent(trimmed)}`)
             .then(res => (res.ok ? res.json() : []))
-            .then(data => (Array.isArray(data) ? data : []))
+            .then(data => (Array.isArray(data) ? data : (data?.results || [])))
             .catch(() => [])
         );
       } else {
