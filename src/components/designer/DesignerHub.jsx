@@ -138,9 +138,24 @@ class TabErrorBoundary extends React.Component {
 }
 
 export default function DesignerHub({ setActiveDashboardTab }) {
-  const [projects, setProjects] = useState([]);
-  const [investorProperties, setInvestorProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects)) {
+      return window.__cachedDesignerProjects;
+    }
+    return [];
+  });
+  const [investorProperties, setInvestorProperties] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedInvestorProperties)) {
+      return window.__cachedInvestorProperties;
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects) && window.__cachedDesignerProjects.length > 0) {
+      return false;
+    }
+    return true;
+  });
   const [error, setError] = useState(null);
 
   // Tab & selected project from URL
@@ -230,8 +245,10 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   }, []);
 
   // Fetch projects and investor properties on load
-  const fetchProjects = async () => {
-    setLoading(true);
+  const fetchProjects = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await fetch('/api/designer/projects');
@@ -243,6 +260,9 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       }
       const data = await res.json();
       const list = data.projects || [];
+      if (typeof window !== 'undefined') {
+        window.__cachedDesignerProjects = list;
+      }
       setProjects(list);
 
       // Auto-select project: check investor_property_id param first, then project_id, then prev, then list[0]
@@ -260,18 +280,28 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       });
     } catch (err) {
       console.error('fetchProjects error:', err);
-      setError(err.message || 'Failed to load projects');
+      if (!silent) {
+        setError(err.message || 'Failed to load projects');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchInvestorProperties = async () => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedInvestorProperties) && window.__cachedInvestorProperties.length > 0) {
+      setInvestorProperties(window.__cachedInvestorProperties);
+      return;
+    }
     try {
       const res = await fetch('/api/investor/properties');
       if (res.ok) {
         const data = await res.json();
-        setInvestorProperties(data.properties || []);
+        const list = data.properties || [];
+        if (typeof window !== 'undefined') {
+          window.__cachedInvestorProperties = list;
+        }
+        setInvestorProperties(list);
       }
     } catch (err) {
       console.warn('Could not load investor properties for linking:', err);
@@ -279,9 +309,23 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   };
 
   useEffect(() => {
-    fetchProjects();
-    fetchInvestorProperties();
+    const hasCache = typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects) && window.__cachedDesignerProjects.length > 0;
+    fetchProjects(hasCache);
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new_project_property_id')) {
+        fetchInvestorProperties();
+      }
+    }
   }, []);
+
+  // Lazily fetch investor properties when opening the create/edit modal panel
+  useEffect(() => {
+    if (isPanelOpen) {
+      fetchInvestorProperties();
+    }
+  }, [isPanelOpen]);
 
   // Listen to popstate for URL updates (e.g. navigation from Investor Studio)
   useEffect(() => {
