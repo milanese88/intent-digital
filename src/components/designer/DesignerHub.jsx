@@ -19,6 +19,8 @@ import {
 import DesignStudio from './DesignStudio.jsx';
 import BudgetTab from './BudgetTab.jsx';
 import SourcingTab from './SourcingTab.jsx';
+import InspirationTab from './InspirationTab.jsx';
+import { loadPinterestScript } from '../../utils/pinterest.js';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
@@ -75,6 +77,7 @@ const QUICK_ROOMS = [
 const DESIGNER_TABS = [
   { id: 'projects', label: 'Projects' },
   { id: 'studio', label: 'Design studio' },
+  { id: 'inspiration', label: 'Inspiration' },
   { id: 'budget', label: 'Budget & costs' },
   { id: 'sourcing', label: 'Sourcing library' },
   { id: 'portfolio', label: 'Portfolio' }
@@ -82,6 +85,7 @@ const DESIGNER_TABS = [
 
 const normalizeDesignerTab = (tab) => {
   if (tab === 'budget-costs' || tab === 'budget_costs' || tab === 'budget') return 'budget';
+  if (tab === 'inspiration' || tab === 'pinterest') return 'inspiration';
   return tab || 'projects';
 };
 
@@ -309,6 +313,8 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   };
 
   useEffect(() => {
+    loadPinterestScript();
+
     const hasCache = typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects) && window.__cachedDesignerProjects.length > 0;
     fetchProjects(hasCache);
 
@@ -1269,7 +1275,14 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* ======================================================================= */}
-        {/* 5. TAB 3: BUDGET & COSTS TAB                                            */}
+        {/* TAB 3: INSPIRATION (PINTEREST BOARDS)                                   */}
+        {/* ======================================================================= */}
+        {!loading && activeTab === 'inspiration' && (
+          <InspirationTab />
+        )}
+
+        {/* ======================================================================= */}
+        {/* 5. TAB 4: BUDGET & COSTS TAB                                            */}
         {/* ======================================================================= */}
         {!loading && activeTab === 'budget' && (
           currentProject ? (
@@ -1292,7 +1305,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* ======================================================================= */}
-        {/* 6. TAB 4: SOURCING LIBRARY TAB                                         */}
+        {/* 6. TAB 5: SOURCING LIBRARY TAB                                         */}
         {/* ======================================================================= */}
         {!loading && activeTab === 'sourcing' && (
           <SourcingTab
@@ -1303,7 +1316,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* Placeholder for Portfolio (No Emojis) */}
-        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'budget' && activeTab !== 'sourcing' && (
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'inspiration' && activeTab !== 'budget' && activeTab !== 'sourcing' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."
