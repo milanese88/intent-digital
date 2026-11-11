@@ -1,7 +1,8 @@
 -- ==============================================================================
 -- Migration: Add Pinterest boards and Room pins tables
 -- Created: 2026-11-10
--- Description: Supports Pinterest inspiration boards in Designer Hub
+-- Updated: 2026-11-11 (Added board section support via 'kind' column)
+-- Description: Supports Pinterest inspiration boards and sections in Designer Hub
 --              and Room-level pin mood boards in Design Studio.
 -- ==============================================================================
 
@@ -11,9 +12,13 @@ CREATE TABLE IF NOT EXISTS pinterest_boards (
   owner_email text NOT NULL,
   board_url text NOT NULL,
   title text NOT NULL,
+  kind text NOT NULL DEFAULT 'board' CHECK (kind IN ('board', 'section')),
   sort_order int NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- For existing tables that were created without the kind column:
+ALTER TABLE pinterest_boards ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'board' CHECK (kind IN ('board', 'section'));
 
 CREATE INDEX IF NOT EXISTS idx_pinterest_boards_owner 
   ON pinterest_boards (lower(owner_email), sort_order ASC, created_at DESC);

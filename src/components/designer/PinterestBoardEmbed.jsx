@@ -5,12 +5,17 @@ import { buildPinterestWidgets } from '../../utils/pinterest.js';
  * PinterestBoardEmbed renders Pinterest's official embedBoard widget
  * with a responsive container and an 8-second timeout fallback.
  *
+ * For section URLs, Pinterest often only embeds full boards, so if the
+ * widget doesn't render within 8 seconds, it shows the tailored fallback card:
+ * section title + "Open on Pinterest →" + small note
+ * "Pinterest only embeds full boards — showing a link to this section."
+ *
  * Pattern:
  * <a data-pin-do="embedBoard" data-pin-board-width="400" data-pin-scale-height="240" data-pin-scale-width="80" href="...">
  */
-export default function PinterestBoardEmbed({ boardUrl, title }) {
+export default function PinterestBoardEmbed({ boardUrl, title, kind }) {
   const containerRef = useRef(null);
-  const [isRendered, setIsRendered] = useState(false);
+  const [, setIsRendered] = useState(false);
   const [hasTimedOut, setHasTimedOut] = useState(false);
 
   useEffect(() => {
@@ -50,6 +55,8 @@ export default function PinterestBoardEmbed({ boardUrl, title }) {
       clearTimeout(timer);
     };
   }, [boardUrl]);
+
+  const isSection = kind === 'section';
 
   return (
     <div
@@ -92,7 +99,7 @@ export default function PinterestBoardEmbed({ boardUrl, title }) {
             textDecoration: 'none'
           }}
         >
-          {title || 'Loading Pinterest Board...'}
+          {title || (isSection ? 'Loading Board Section...' : 'Loading Pinterest Board...')}
         </a>
       </div>
 
@@ -139,7 +146,7 @@ export default function PinterestBoardEmbed({ boardUrl, title }) {
                 color: 'var(--espresso)'
               }}
             >
-              {title || 'Pinterest Board'}
+              {title || (isSection ? 'Board Section' : 'Pinterest Board')}
             </h4>
             <p
               style={{
@@ -150,7 +157,9 @@ export default function PinterestBoardEmbed({ boardUrl, title }) {
                 lineHeight: 1.5
               }}
             >
-              The Pinterest widget preview could not be rendered. Click below to view the full inspiration board directly.
+              {isSection
+                ? 'Pinterest only embeds full boards — showing a link to this section.'
+                : 'The Pinterest widget preview could not be rendered. Click below to view the full inspiration board directly.'}
             </p>
           </div>
           <a
@@ -173,7 +182,7 @@ export default function PinterestBoardEmbed({ boardUrl, title }) {
               transition: 'background-color 0.2s ease'
             }}
           >
-            Open on Pinterest &rarr;
+            Open on Pinterest →
           </a>
         </div>
       )}

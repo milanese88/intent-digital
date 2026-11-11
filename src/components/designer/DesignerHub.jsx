@@ -132,7 +132,7 @@ class TabErrorBoundary extends React.Component {
               cursor: 'pointer'
             }}
           >
-            Retry &rarr;
+            Retry →
           </button>
         </div>
       );
@@ -583,14 +583,14 @@ export default function DesignerHub({ setActiveDashboardTab }) {
               variant="outline-on-dark"
               onClick={() => handleTabChange('studio')}
             >
-              + DESIGN STUDIO &rarr;
+              + DESIGN STUDIO →
             </Button>
 
             <Button
               variant="cream-on-dark"
               onClick={() => handleOpenNewProject()}
             >
-              + NEW PROJECT &rarr;
+              + NEW PROJECT →
             </Button>
           </div>
         </div>
@@ -698,7 +698,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                           letterSpacing: '0.04em'
                         }}
                       >
-                        + Create new project &rarr;
+                        + Create new project →
                       </div>
                     </div>
                   </div>
@@ -763,7 +763,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                   e.currentTarget.style.color = 'var(--on-dark)';
                 }}
               >
-                <span>Linked to Investor Studio · {currentProject.investor_property_address || 'Property'} &rarr;</span>
+                <span>Linked to Investor Studio · {currentProject.investor_property_address || 'Property'} →</span>
               </button>
             )}
           </div>
@@ -826,7 +826,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                 description="Start with a concept or link a property from Investor Studio to begin tracking design and budgets."
                 action={
                   <Button variant="primary" onClick={() => handleOpenNewProject()}>
-                    + Create your first project &rarr;
+                    + Create your first project →
                   </Button>
                 }
               />
@@ -1211,7 +1211,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
                                 fontWeight: 600,
                                 color: 'var(--burgundy)'
                               }}>
-                                <span>Linked to {proj.investor_property_address} &rarr;</span>
+                                <span>Linked to {proj.investor_property_address} →</span>
                               </div>
                             )}
 
@@ -1267,7 +1267,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
               description="Choose a project or create a new one to access the Design studio."
               action={
                 <Button variant="primary" onClick={() => handleOpenNewProject()}>
-                  + CREATE PROJECT &rarr;
+                  + CREATE PROJECT →
                 </Button>
               }
             />
@@ -1297,7 +1297,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
               description="Choose a project or create a new one to access Budget & costs."
               action={
                 <Button variant="primary" onClick={() => handleOpenNewProject()}>
-                  + CREATE PROJECT &rarr;
+                  + CREATE PROJECT →
                 </Button>
               }
             />

@@ -1,6 +1,10 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
-import { isValidPinterestBoardUrl, normalizePinterestBoardUrl, deriveBoardTitleFromUrl } from '../../src/utils/pinterest.js';
+import {
+  validateAndParsePinterestBoardUrl,
+  resolvePinterestShortLink,
+  deriveBoardTitleFromUrl
+} from '../../src/utils/pinterest.js';
 
 export default async function handler(req, res) {
   try {
@@ -18,7 +22,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       try {
         const rows = await sql`
-          SELECT id, owner_email, board_url, title, sort_order, created_at
+          SELECT id, owner_email, board_url, title, kind, sort_order, created_at
           FROM pinterest_boards
           WHERE lower(owner_email) = ${cleanEmail}
           ORDER BY sort_order ASC, created_at DESC;
@@ -29,24 +33,60 @@ export default async function handler(req, res) {
         if (dbErr.message && (dbErr.message.includes('relation "pinterest_boards" does not exist') || dbErr.code === '42P01')) {
           return res.status(200).json({ boards: [], migrationPending: true });
         }
+        // Column 'kind' might not exist yet on existing table before ALTER TABLE migration
+        if (dbErr.message && (dbErr.message.includes('column "kind" does not exist') || dbErr.code === '42703')) {
+          const fallbackRows = await sql`
+            SELECT id, owner_email, board_url, title, sort_order, created_at
+            FROM pinterest_boards
+            WHERE lower(owner_email) = ${cleanEmail}
+            ORDER BY sort_order ASC, created_at DESC;
+          `;
+          return res.status(200).json({
+            boards: fallbackRows.map(r => {
+              const parsed = validateAndParsePinterestBoardUrl(r.board_url);
+              return {
+                ...r,
+                kind: parsed.valid ? parsed.kind : 'board'
+              };
+            })
+          });
+        }
         throw dbErr;
       }
     }
 
     // =========================================================================
-    // POST: Add a new Pinterest board
+    // POST: Add a new Pinterest board or section
     // =========================================================================
     if (req.method === 'POST') {
       const body = req.body || {};
       const rawUrl = (body.board_url || '').trim();
 
-      if (!isValidPinterestBoardUrl(rawUrl)) {
+      const validation = validateAndParsePinterestBoardUrl(rawUrl);
+      if (!validation.valid) {
         return res.status(400).json({
-          error: 'Please enter a valid Pinterest board URL (e.g. pinterest.com/<user>/<board>/ or pin.it short link).'
+          error: validation.error || 'Please enter a valid Pinterest board URL.'
         });
       }
 
-      const boardUrl = normalizePinterestBoardUrl(rawUrl);
+      let boardUrl = validation.normalizedUrl;
+      let kind = validation.kind || 'board';
+
+      // If it's a short link (pin.it), resolve it via Location header
+      if (validation.isShortLink) {
+        const resolved = await resolvePinterestShortLink(rawUrl);
+        if (resolved) {
+          const resolvedParsed = validateAndParsePinterestBoardUrl(resolved);
+          if (!resolvedParsed.valid) {
+            return res.status(400).json({
+              error: resolvedParsed.error || 'Could not validate resolved Pinterest URL.'
+            });
+          }
+          boardUrl = resolvedParsed.normalizedUrl;
+          kind = resolvedParsed.kind || 'board';
+        }
+      }
+
       const title = (body.title || '').trim() || deriveBoardTitleFromUrl(boardUrl);
 
       // Get highest sort_order
@@ -57,22 +97,45 @@ export default async function handler(req, res) {
       `;
       const nextOrder = Number(maxOrderRow[0]?.max_order ?? -1) + 1;
 
-      const inserted = await sql`
-        INSERT INTO pinterest_boards (
-          owner_email,
-          board_url,
-          title,
-          sort_order
-        ) VALUES (
-          ${cleanEmail},
-          ${boardUrl},
-          ${title},
-          ${nextOrder}
-        )
-        RETURNING *;
-      `;
-
-      return res.status(201).json({ success: true, board: inserted[0] });
+      try {
+        const inserted = await sql`
+          INSERT INTO pinterest_boards (
+            owner_email,
+            board_url,
+            title,
+            kind,
+            sort_order
+          ) VALUES (
+            ${cleanEmail},
+            ${boardUrl},
+            ${title},
+            ${kind},
+            ${nextOrder}
+          )
+          RETURNING *;
+        `;
+        return res.status(201).json({ success: true, board: inserted[0] });
+      } catch (insertErr) {
+        // Fallback if 'kind' column has not been added via ALTER TABLE yet
+        if (insertErr.code === '42703' || (insertErr.message && insertErr.message.includes('column "kind" does not exist'))) {
+          const fallback = await sql`
+            INSERT INTO pinterest_boards (
+              owner_email,
+              board_url,
+              title,
+              sort_order
+            ) VALUES (
+              ${cleanEmail},
+              ${boardUrl},
+              ${title},
+              ${nextOrder}
+            )
+            RETURNING *;
+          `;
+          return res.status(201).json({ success: true, board: { ...fallback[0], kind } });
+        }
+        throw insertErr;
+      }
     }
 
     // =========================================================================

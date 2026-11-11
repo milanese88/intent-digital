@@ -812,14 +812,14 @@ export default function SourcingTab({
             variant="primary"
             onClick={() => handleOpenProductDrawer()}
           >
-            + ADD PRODUCT &rarr;
+            + ADD PRODUCT →
           </Button>
         ) : (
           <Button
             variant="primary"
             onClick={() => handleOpenTradeDrawer()}
           >
-            + ADD TRADE OR VENDOR &rarr;
+            + ADD TRADE OR VENDOR →
           </Button>
         )}
       </div>
@@ -1032,7 +1032,7 @@ export default function SourcingTab({
               description="Save the finishes, fixtures, and pieces you use again and again across your projects."
               action={
                 <Button variant="primary" onClick={() => handleOpenProductDrawer()}>
-                  + ADD PRODUCT &rarr;
+                  + ADD PRODUCT →
                 </Button>
               }
             />
@@ -1074,7 +1074,7 @@ export default function SourcingTab({
                   textDecoration: 'underline'
                 }}
               >
-                Reset all filters &rarr;
+                Reset all filters →
               </button>
             </div>
           )}
@@ -1261,7 +1261,7 @@ export default function SourcingTab({
                           onClick={(e) => handleOpenToRoomModal(e, p)}
                           style={{ width: '100%', justifyContent: 'center' }}
                         >
-                          + TO ROOM &rarr;
+                          + TO ROOM →
                         </Button>
                       </div>
                     </div>
@@ -1304,7 +1304,7 @@ export default function SourcingTab({
               description="Add your trusted general contractors, electricians, tile installers, and suppliers."
               action={
                 <Button variant="primary" onClick={() => handleOpenTradeDrawer()}>
-                  + ADD TRADE OR VENDOR &rarr;
+                  + ADD TRADE OR VENDOR →
                 </Button>
               }
             />

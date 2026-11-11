@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Button,
   Card,
@@ -8,8 +8,7 @@ import {
 } from '../ui';
 import PinterestBoardEmbed from './PinterestBoardEmbed.jsx';
 import {
-  isValidPinterestBoardUrl,
-  normalizePinterestBoardUrl,
+  validateAndParsePinterestBoardUrl,
   deriveBoardTitleFromUrl,
   buildPinterestWidgets
 } from '../../utils/pinterest.js';
@@ -35,6 +34,7 @@ export default function InspirationTab() {
   const [formError, setFormError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const inputRef = useRef(null);
 
   // Fetch boards
   const fetchBoards = async (silent = false) => {
@@ -76,33 +76,55 @@ export default function InspirationTab() {
     e?.preventDefault();
     setFormError(null);
 
-    const trimmedUrl = boardUrlInput.trim();
+    const domEl = inputRef.current || (typeof document !== 'undefined' ? document.getElementById('pinterest-board-url-input') : null);
+    const trimmedUrl = (domEl?.value || boardUrlInput || '').trim();
     if (!trimmedUrl) {
       setFormError('Please enter a Pinterest board URL.');
       return;
     }
 
-    if (!isValidPinterestBoardUrl(trimmedUrl)) {
-      setFormError('Please enter a valid Pinterest board URL (e.g. pinterest.com/<user>/<board>/ or a pin.it short link).');
+    const validation = validateAndParsePinterestBoardUrl(trimmedUrl);
+    if (!validation.valid) {
+      setFormError(validation.error || 'Please enter a valid Pinterest board URL.');
       return;
     }
 
-    const normalized = normalizePinterestBoardUrl(trimmedUrl);
-    const finalTitle = titleInput.trim() || deriveBoardTitleFromUrl(normalized);
+    setIsSubmitting(true);
 
     try {
-      setIsSubmitting(true);
+      let finalUrl = validation.normalizedUrl;
+      let kind = validation.kind || 'board';
+
+      // If it's a short link (pin.it), resolve via server-side redirect resolver
+      if (validation.isShortLink) {
+        try {
+          const resolveRes = await fetch(`/api/designer/pinterest-resolve?url=${encodeURIComponent(trimmedUrl)}`);
+          if (!resolveRes.ok) {
+            const resolveData = await resolveRes.json().catch(() => ({}));
+            throw new Error(resolveData.error || 'Could not resolve Pinterest short link.');
+          }
+          const resolveData = await resolveRes.json();
+          finalUrl = resolveData.normalizedUrl;
+          kind = resolveData.kind || 'board';
+        } catch (resolveErr) {
+          throw new Error(resolveErr.message || 'Could not resolve pin.it short link.');
+        }
+      }
+
+      const finalTitle = titleInput.trim() || deriveBoardTitleFromUrl(finalUrl);
+
       const res = await fetch('/api/designer/pinterest-boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          board_url: normalized,
-          title: finalTitle
+          board_url: finalUrl,
+          title: finalTitle,
+          kind
         })
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to save Pinterest board.');
       }
 
@@ -202,7 +224,7 @@ export default function InspirationTab() {
           variant="primary"
           onClick={() => setIsFormOpen(!isFormOpen)}
         >
-          {isFormOpen ? 'Close &times;' : '+ ADD PINTEREST BOARD \u2192'}
+          {isFormOpen ? 'Close ×' : '+ ADD PINTEREST BOARD →'}
         </Button>
       </div>
 
@@ -212,17 +234,20 @@ export default function InspirationTab() {
           style={{
             marginBottom: 'var(--space-32)',
             border: '1px solid var(--border-strong)',
-            backgroundColor: 'var(--white)'
+            backgroundColor: 'var(--white)',
+            padding: 'var(--space-32, 32px)'
           }}
         >
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: 'var(--space-20, 20px)' }}>
             <h3
               style={{
-                margin: '0 0 4px 0',
-                fontFamily: 'var(--font-display)',
-                fontSize: '20px',
-                fontWeight: 600,
-                color: 'var(--espresso)'
+                margin: '0 0 var(--space-8, 8px) 0',
+                fontFamily: "'Instrument Serif', var(--font-display, 'Cormorant Garamond', Georgia, serif)",
+                fontSize: '28px',
+                fontWeight: 400,
+                color: 'var(--espresso)',
+                letterSpacing: '-0.01em',
+                lineHeight: 1.2
               }}
             >
               Add a Pinterest board
@@ -232,14 +257,15 @@ export default function InspirationTab() {
                 margin: 0,
                 fontFamily: 'var(--font-sans)',
                 fontSize: '13px',
-                color: 'var(--muted)'
+                color: 'var(--muted)',
+                lineHeight: 1.5
               }}
             >
-              Paste any public board link (e.g. <code>pinterest.com/username/board-name/</code> or a <code>pin.it</code> link). Secret boards cannot be embedded.
+              Paste any public board or section link (e.g. <code>pinterest.com/username/board-name/</code> or a <code>pin.it</code> link). Secret boards cannot be embedded.
             </p>
           </div>
 
-          <form onSubmit={handleAddBoard}>
+          <form onSubmit={handleAddBoard} noValidate>
             <div
               style={{
                 display: 'grid',
@@ -249,15 +275,24 @@ export default function InspirationTab() {
               }}
             >
               <Field
-                label="Pinterest Board URL"
+                label="Pinterest Board or Section URL"
                 required
-                hint="pinterest.com/<user>/<board>/ or pin.it short link"
+                hint="pinterest.com/<user>/<board>/, section link, or pin.it short link"
               >
                 <input
-                  type="url"
+                  ref={inputRef}
+                  id="pinterest-board-url-input"
+                  name="board_url"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
                   placeholder="https://www.pinterest.com/intentdigital/japandi-kitchens/"
                   value={boardUrlInput}
                   onChange={(e) => {
+                    setBoardUrlInput(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  onInput={(e) => {
                     setBoardUrlInput(e.target.value);
                     if (formError) setFormError(null);
                   }}
@@ -320,8 +355,9 @@ export default function InspirationTab() {
                 type="submit"
                 variant="primary"
                 disabled={isSubmitting}
+                onClick={handleAddBoard}
               >
-                {isSubmitting ? 'Saving...' : 'SAVE BOARD \u2192'}
+                {isSubmitting ? 'Saving...' : 'SAVE BOARD →'}
               </Button>
               <Button
                 type="button"
@@ -377,13 +413,13 @@ export default function InspirationTab() {
       {!loading && boards.length === 0 && (
         <EmptyState
           title="Bring in your Pinterest boards"
-          description="Curate textures, materials, and architectural direction directly alongside your project budgets and specs. In Pinterest, open any board, click Share &rarr; Copy link, and paste the URL above. Note that secret boards cannot be embedded."
+          description="Curate textures, materials, and architectural direction directly alongside your project budgets and specs. In Pinterest, open any board, click Share → Copy link, and paste the URL above. Note that secret boards cannot be embedded."
           action={
             <Button
               variant="primary"
               onClick={() => setIsFormOpen(true)}
             >
-              + ADD YOUR FIRST BOARD \u2192
+              + ADD YOUR FIRST BOARD →
             </Button>
           }
         />
@@ -433,18 +469,38 @@ export default function InspirationTab() {
                 }}
               >
                 <div style={{ flex: '1 1 auto', minWidth: '180px' }}>
-                  <h3
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '22px',
-                      fontWeight: 600,
-                      color: 'var(--espresso)',
-                      margin: '0 0 2px 0',
-                      lineHeight: 1.2
-                    }}
-                  >
-                    {board.title}
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                    <h3
+                      style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '22px',
+                        fontWeight: 600,
+                        color: 'var(--espresso)',
+                        margin: 0,
+                        lineHeight: 1.2
+                      }}
+                    >
+                      {board.title}
+                    </h3>
+                    {board.kind === 'section' && (
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontSize: '10px',
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-pill)',
+                          backgroundColor: 'var(--sand)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--muted)'
+                        }}
+                      >
+                        Section
+                      </span>
+                    )}
+                  </div>
                   <a
                     href={board.board_url}
                     target="_blank"
@@ -460,7 +516,7 @@ export default function InspirationTab() {
                       gap: '4px'
                     }}
                   >
-                    View on Pinterest &rarr;
+                    View on Pinterest →
                   </a>
                 </div>
 
@@ -487,7 +543,7 @@ export default function InspirationTab() {
                       fontSize: '12px'
                     }}
                   >
-                    &larr;
+                    ←
                   </button>
                   <button
                     type="button"
@@ -510,7 +566,7 @@ export default function InspirationTab() {
                       fontSize: '12px'
                     }}
                   >
-                    &rarr;
+                    →
                   </button>
                   <button
                     type="button"
@@ -532,7 +588,7 @@ export default function InspirationTab() {
                       marginLeft: '4px'
                     }}
                   >
-                    &times;
+                    ×
                   </button>
                 </div>
               </div>
@@ -541,6 +597,7 @@ export default function InspirationTab() {
               <PinterestBoardEmbed
                 boardUrl={board.board_url}
                 title={board.title}
+                kind={board.kind}
               />
             </div>
           ))}
