@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import LearningLab from './pages/LearningLab.jsx';
+import DealReportPage from './pages/investor/DealReportPage.jsx';
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -21,6 +22,9 @@ function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
+      if (path.startsWith('/admin/investor/report/')) {
+        return 'deal-report';
+      }
       if (path.startsWith('/news')) {
         return 'news';
       }
@@ -58,6 +62,15 @@ function App() {
     return null;
   });
 
+  const [reportPropertyId, setReportPropertyId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const match = path.match(/^\/admin\/investor\/report\/([^/?#]+)/);
+      return match ? match[1] : '';
+    }
+    return '';
+  });
+
   const navigateTo = (page, targetId, slug = null, token = null) => {
     if (token) {
       setResetToken(token);
@@ -67,6 +80,12 @@ function App() {
       const newPath = slug ? `/news/${slug}` : '/news';
       window.history.pushState({}, '', newPath);
       setNewsSlug(slug);
+    } else if (page === 'deal-report') {
+      const propId = slug || reportPropertyId;
+      const anIdParam = token ? `?analysis=${encodeURIComponent(token)}` : '';
+      const newPath = `/admin/investor/report/${propId}${anIdParam}`;
+      window.history.pushState({}, '', newPath);
+      setReportPropertyId(propId);
     } else if (page === 'home') {
       window.history.pushState({}, '', '/');
     } else if (page === 'reset-password') {
@@ -124,6 +143,10 @@ function App() {
 
   if (currentPage === 'admin') {
     return <AdminDashboard navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'deal-report') {
+    return <DealReportPage propertyId={reportPropertyId} navigateTo={navigateTo} />;
   }
 
   if (currentPage === 'learning-lab') {

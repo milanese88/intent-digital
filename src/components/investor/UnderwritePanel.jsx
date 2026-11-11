@@ -470,6 +470,15 @@ export default function UnderwritePanel({
     fetchSavedAnalyses();
   }, [property?.id]);
 
+  const [selectedReportAnalysisId, setSelectedReportAnalysisId] = useState('');
+  useEffect(() => {
+    if (savedAnalyses.length > 0) {
+      if (!selectedReportAnalysisId || !savedAnalyses.some(a => a.id === selectedReportAnalysisId)) {
+        setSelectedReportAnalysisId(savedAnalyses[0].id);
+      }
+    }
+  }, [savedAnalyses, selectedReportAnalysisId]);
+
   // Input Change Helper
   const handleInputChange = (field, val) => {
     const clean = val === '' ? '' : val;
@@ -690,31 +699,34 @@ export default function UnderwritePanel({
   // Headline number for saved analysis
   const getSavedHeadline = (item) => {
     const res = item.results || {};
+    const inp = item.inputs || {};
     const strat = (item.strategy || '').toLowerCase();
+    const arvPrefix = inp.arv ? `ARV ${formatCurrency(inp.arv)} · ` : '';
+
     if (strat === 'rental') {
       if (res.monthlyCashFlow != null) {
         const sign = res.monthlyCashFlow >= 0 ? '+' : '';
-        return `${sign}${formatCurrency(res.monthlyCashFlow)}/mo`;
+        return `${arvPrefix}${sign}${formatCurrency(res.monthlyCashFlow)}/mo`;
       }
-      return 'Rental analysis';
+      return `${arvPrefix}Rental analysis`;
     }
     if (strat === 'flip') {
       if (res.projectedProfit != null) {
         const sign = res.projectedProfit >= 0 ? '+' : '';
-        return `${sign}${formatCurrency(res.projectedProfit)} profit`;
+        return `${arvPrefix}${sign}${formatCurrency(res.projectedProfit)} profit`;
       }
-      return 'Flip analysis';
+      return `${arvPrefix}Flip analysis`;
     }
     if (strat === 'brrrr') {
       if (res.cashLeftInDeal != null) {
         if (res.cashLeftInDeal <= 0) {
-          return `+${formatCurrency(Math.abs(res.cashLeftInDeal))} cash out`;
+          return `${arvPrefix}+${formatCurrency(Math.abs(res.cashLeftInDeal))} cash out`;
         }
-        return `${formatCurrency(res.cashLeftInDeal)} left`;
+        return `${arvPrefix}${formatCurrency(res.cashLeftInDeal)} left`;
       }
-      return 'BRRRR analysis';
+      return `${arvPrefix}BRRRR analysis`;
     }
-    return 'Analysis';
+    return `${arvPrefix}Analysis`;
   };
 
   // Monthly Details from live calculations
@@ -2569,7 +2581,7 @@ export default function UnderwritePanel({
         {/* ============================================================= */}
         {/* SAVE ANALYSIS BUTTON                                          */}
         {/* ============================================================= */}
-        <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <button
             type="button"
             id="underwrite-save-btn"
@@ -2604,6 +2616,79 @@ export default function UnderwritePanel({
           >
             {isSaving ? 'SAVING...' : 'SAVE ANALYSIS'}
           </button>
+
+          {/* Deal Report Button & Picker */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {savedAnalyses.length > 1 && (
+              <select
+                id="underwrite-deal-report-picker"
+                aria-label="Select saved analysis for deal report"
+                value={selectedReportAnalysisId || savedAnalyses[0]?.id || ''}
+                onChange={(e) => setSelectedReportAnalysisId(e.target.value)}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '50px',
+                  border: '1px solid rgba(52, 41, 42, 0.2)',
+                  backgroundColor: '#FAF8F5',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--espresso, #34292A)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                {savedAnalyses.map(item => {
+                  const strat = (item.strategy || 'Flip').toUpperCase();
+                  const arvText = item.inputs?.arv ? ` · ARV ${formatCurrency(item.inputs.arv)}` : '';
+                  const dateText = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                  return (
+                    <option key={item.id} value={item.id}>
+                      {strat}{arvText} ({dateText})
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+
+            <button
+              type="button"
+              id="underwrite-deal-report-btn"
+              onClick={() => {
+                const targetAnalysisId = selectedReportAnalysisId || (savedAnalyses.length > 0 ? savedAnalyses[0].id : '');
+                const targetUrl = `/admin/investor/report/${property.id}${targetAnalysisId ? `?analysis=${targetAnalysisId}` : ''}`;
+                window.open(targetUrl, '_blank', 'noopener,noreferrer');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'transparent',
+                color: 'var(--secondary-color, #41101B)',
+                border: '1.5px solid var(--secondary-color, #41101B)',
+                borderRadius: '50px',
+                padding: '9px 20px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textDecoration: 'none'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--secondary-color, #41101B)';
+                e.currentTarget.style.color = '#FAF8F5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--secondary-color, #41101B)';
+              }}
+            >
+              Deal report →
+            </button>
+          </div>
 
           {saveSuccessMsg && (
             <span style={{
