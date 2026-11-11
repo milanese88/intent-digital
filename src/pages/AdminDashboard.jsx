@@ -38,7 +38,8 @@ export default function AdminDashboard({ navigateTo }) {
         }
         setLoading(false);
       } catch (err) {
-        navigateTo('login');
+        const currentPath = window.location.pathname + window.location.search;
+        navigateTo('login', null, currentPath);
       }
     };
     verifySession();
@@ -59,10 +60,66 @@ export default function AdminDashboard({ navigateTo }) {
       case 'settings': return <Settings />;
       case 'email-templates': return <EmailTemplates />;
       case 'blogs': return <Blogs />;
-      case 'investor': return <InvestorStudio setActiveDashboardTab={handleTabChange} />;
+      case 'investor': return <InvestorStudio setActiveDashboardTab={handleTabChange} navigateTo={navigateTo} />;
       case 'designer': return <DesignerHub setActiveDashboardTab={handleTabChange} />;
       case 'learning-lab': return <LearningLabTab setActiveDashboardTab={handleTabChange} />;
-      default: return null;
+      default:
+        return (
+          <div style={{
+            padding: '60px 24px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+          }}>
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              padding: '36px 44px',
+              maxWidth: '520px',
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 8px 30px rgba(52, 41, 42, 0.06)',
+              border: '1px solid rgba(52, 41, 42, 0.1)'
+            }}>
+              <h1 style={{
+                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                fontSize: '32px',
+                color: 'var(--espresso, #34292A)',
+                margin: '0 0 4px 0',
+                fontWeight: 400
+              }}>
+                Page Not Found
+                <span style={{ display: 'block', fontStyle: 'italic', fontSize: '20px', color: 'rgba(52, 41, 42, 0.65)', marginTop: '4px' }}>
+                  The requested admin section does not exist.
+                </span>
+              </h1>
+              <p style={{ fontSize: '13.5px', color: 'rgba(52, 41, 42, 0.7)', lineHeight: 1.5, margin: '16px 0 24px 0' }}>
+                We couldn't find the admin page or tab you were looking for.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleTabChange('investor')}
+                style={{
+                  backgroundColor: 'var(--secondary-color, #41101B)',
+                  color: '#FAF8F5',
+                  border: 'none',
+                  borderRadius: '50px',
+                  padding: '11px 26px',
+                  fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(65, 16, 27, 0.25)'
+                }}
+              >
+                Back to Investor Studio →
+              </button>
+            </div>
+          </div>
+        );
     }
   };
 

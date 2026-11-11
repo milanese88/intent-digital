@@ -60,7 +60,12 @@ export default function DealReportPage({ propertyId, navigateTo }) {
           throw new Error('Property not found or unauthorized.');
         }
         if (res.status === 401) {
-          if (navigateTo) navigateTo('login');
+          const currentPath = window.location.pathname + window.location.search;
+          if (navigateTo) {
+            navigateTo('login', null, currentPath);
+          } else {
+            window.location.href = `/?route=login&redirect=${encodeURIComponent(currentPath)}`;
+          }
           return;
         }
         throw new Error(`Failed to load report (HTTP ${res.status}).`);
@@ -349,22 +354,29 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       }}>
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          padding: '32px 40px',
+          borderRadius: '16px',
+          padding: '40px 44px',
           maxWidth: '520px',
+          width: '100%',
           boxShadow: '0 8px 30px rgba(52, 41, 42, 0.08)',
-          textAlign: 'center'
+          textAlign: 'center',
+          border: '1px solid rgba(52, 41, 42, 0.1)'
         }}>
-          <h2 style={{
+          <h1 style={{
             fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
-            fontSize: '28px',
+            fontSize: '34px',
             color: 'var(--espresso, #34292A)',
-            margin: '0 0 12px 0'
+            margin: '0 0 6px 0',
+            fontWeight: 400,
+            lineHeight: 1.15
           }}>
-            Deal Report Unavailable
-          </h2>
-          <p style={{ fontSize: '13.5px', color: 'rgba(52, 41, 42, 0.7)', lineHeight: 1.5, marginBottom: '24px' }}>
-            {error || 'The requested property could not be found or you do not have permission to view it.'}
+            Page Not Found
+            <span style={{ display: 'block', fontStyle: 'italic', fontSize: '20px', color: 'rgba(52, 41, 42, 0.65)', marginTop: '4px' }}>
+              The requested deal report could not be found.
+            </span>
+          </h1>
+          <p style={{ fontSize: '13.5px', color: 'rgba(52, 41, 42, 0.7)', lineHeight: 1.5, margin: '16px 0 28px 0' }}>
+            {error || 'This property report does not exist or you do not have permission to view it.'}
           </p>
           <button
             type="button"
@@ -374,18 +386,19 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             }}
             style={{
               backgroundColor: 'var(--secondary-color, #41101B)',
-              color: '#ffffff',
+              color: '#FAF8F5',
               border: 'none',
               borderRadius: '50px',
-              padding: '10px 24px',
+              padding: '11px 26px',
               fontSize: '11px',
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(65, 16, 27, 0.25)'
             }}
           >
-            ← Return to Investor Studio
+            Back to Investor Studio →
           </button>
         </div>
       </div>

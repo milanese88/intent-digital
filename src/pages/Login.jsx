@@ -125,7 +125,13 @@ export default function Login({ navigateTo }) {
       });
 
       if (res.ok) {
-        navigateTo('admin');
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        if (redirect && redirect.startsWith('/')) {
+          window.location.href = redirect;
+        } else {
+          navigateTo('admin');
+        }
       } else {
         if (res.status === 500) {
           setError('Server configuration error: Authentication is not properly configured.');
