@@ -76,7 +76,7 @@ export default function Field({
         </label>
       )}
 
-      {type === 'custom' ? (
+      {type === 'custom' || (children && type !== 'select') ? (
         children
       ) : type === 'textarea' ? (
         <textarea

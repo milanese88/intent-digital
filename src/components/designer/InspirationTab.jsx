@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Card,
@@ -33,8 +33,8 @@ export default function InspirationTab() {
   const [titleInput, setTitleInput] = useState('');
   const [formError, setFormError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const inputRef = useRef(null);
 
   // Fetch boards
   const fetchBoards = async (silent = false) => {
@@ -72,47 +72,77 @@ export default function InspirationTab() {
   }, [boards]);
 
   // Handle Add Board
+  // Order: trim -> empty check -> if pin.it, resolve via API -> validate resolved -> normalize -> save
   const handleAddBoard = async (e) => {
     e?.preventDefault();
     setFormError(null);
 
-    const domEl = inputRef.current || (typeof document !== 'undefined' ? document.getElementById('pinterest-board-url-input') : null);
-    const trimmedUrl = (domEl?.value || boardUrlInput || '').trim();
-    if (!trimmedUrl) {
+    // 1. Trim & 2. Empty check
+    const raw = (boardUrlInput || '').trim();
+    if (!raw) {
       setFormError('Please enter a Pinterest board URL.');
       return;
     }
 
-    const validation = validateAndParsePinterestBoardUrl(trimmedUrl);
-    if (!validation.valid) {
-      setFormError(validation.error || 'Please enter a valid Pinterest board URL.');
+    // 3. Format validation
+    const initialCheck = validateAndParsePinterestBoardUrl(raw);
+    if (!initialCheck.valid) {
+      setFormError(initialCheck.error);
       return;
     }
 
-    setIsSubmitting(true);
+    let finalUrl = raw;
+    let kind = initialCheck.kind || 'board';
 
-    try {
-      let finalUrl = validation.normalizedUrl;
-      let kind = validation.kind || 'board';
-
-      // If it's a short link (pin.it), resolve via server-side redirect resolver
-      if (validation.isShortLink) {
-        try {
-          const resolveRes = await fetch(`/api/designer/pinterest-resolve?url=${encodeURIComponent(trimmedUrl)}`);
-          if (!resolveRes.ok) {
-            const resolveData = await resolveRes.json().catch(() => ({}));
-            throw new Error(resolveData.error || 'Could not resolve Pinterest short link.');
-          }
-          const resolveData = await resolveRes.json();
-          finalUrl = resolveData.normalizedUrl;
-          kind = resolveData.kind || 'board';
-        } catch (resolveErr) {
-          throw new Error(resolveErr.message || 'Could not resolve pin.it short link.');
+    // If pin.it shortlink: resolve via server
+    if (initialCheck.isShortLink) {
+      setIsResolving(true);
+      try {
+        const resolveRes = await fetch(`/api/designer/pinterest-resolve?url=${encodeURIComponent(raw)}`);
+        const resolveData = await resolveRes.json().catch(() => ({}));
+        if (!resolveRes.ok) {
+          throw new Error(resolveData.error || 'Could not resolve Pinterest short link.');
         }
+
+        const resolvedUrl = resolveData.url || resolveData.resolvedUrl || resolveData.normalizedUrl;
+        if (!resolvedUrl) {
+          throw new Error('Could not resolve destination URL.');
+        }
+
+        // If redirect lands on a pin URL, reject with friendly message
+        if (resolvedUrl.includes('/pin/') || resolveData.isPin) {
+          setFormError("This looks like a single pin — add it to a room's mood board instead.");
+          setIsResolving(false);
+          return;
+        }
+
+        // Validate resolved board or section URL
+        const resolvedParsed = validateAndParsePinterestBoardUrl(resolvedUrl);
+        if (!resolvedParsed.valid) {
+          setFormError(resolvedParsed.error);
+          setIsResolving(false);
+          return;
+        }
+
+        finalUrl = resolvedParsed.normalizedUrl;
+        kind = resolvedParsed.kind || 'board';
+      } catch (err) {
+        setFormError(err.message || 'Could not resolve pin.it short link.');
+        setIsResolving(false);
+        return;
+      } finally {
+        setIsResolving(false);
       }
+    } else {
+      finalUrl = initialCheck.normalizedUrl;
+      kind = initialCheck.kind || 'board';
+    }
 
-      const finalTitle = titleInput.trim() || deriveBoardTitleFromUrl(finalUrl);
+    const finalTitle = titleInput.trim() || deriveBoardTitleFromUrl(finalUrl);
 
+    // 4. Save board
+    setIsSubmitting(true);
+    try {
       const res = await fetch('/api/designer/pinterest-boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,21 +221,23 @@ export default function InspirationTab() {
   };
 
   return (
-    <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 0 var(--space-48) 0' }}>
+    <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Header Toolbar */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '16px',
           marginBottom: 'var(--space-24)',
           borderBottom: '1px solid var(--border)',
-          paddingBottom: 'var(--space-20)'
+          paddingBottom: 'var(--space-20)',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
       >
-        <div>
+        <div style={{ flex: '1 1 auto', minWidth: '240px' }}>
           <Eyebrow>Inspiration Library &middot; Pinterest Boards</Eyebrow>
           <h2
             style={{
@@ -222,7 +254,10 @@ export default function InspirationTab() {
 
         <Button
           variant="primary"
-          onClick={() => setIsFormOpen(!isFormOpen)}
+          onClick={() => {
+            setIsFormOpen(!isFormOpen);
+            setFormError(null);
+          }}
         >
           {isFormOpen ? 'Close ×' : '+ ADD PINTEREST BOARD →'}
         </Button>
@@ -235,7 +270,9 @@ export default function InspirationTab() {
             marginBottom: 'var(--space-32)',
             border: '1px solid var(--border-strong)',
             backgroundColor: 'var(--white)',
-            padding: 'var(--space-32, 32px)'
+            padding: 'var(--space-32, 32px)',
+            width: '100%',
+            boxSizing: 'border-box'
           }}
         >
           <div style={{ marginBottom: 'var(--space-20, 20px)' }}>
@@ -265,22 +302,24 @@ export default function InspirationTab() {
             </p>
           </div>
 
-          <form onSubmit={handleAddBoard} noValidate>
+          <form onSubmit={handleAddBoard} noValidate style={{ width: '100%', boxSizing: 'border-box' }}>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
                 gap: '16px',
-                marginBottom: '16px'
+                marginBottom: '16px',
+                width: '100%',
+                boxSizing: 'border-box'
               }}
             >
               <Field
+                type="custom"
                 label="Pinterest Board or Section URL"
                 required
-                hint="pinterest.com/<user>/<board>/, section link, or pin.it short link"
+                helper="pinterest.com/<user>/<board>/, section link, or pin.it short link"
               >
                 <input
-                  ref={inputRef}
                   id="pinterest-board-url-input"
                   name="board_url"
                   type="text"
@@ -292,42 +331,47 @@ export default function InspirationTab() {
                     setBoardUrlInput(e.target.value);
                     if (formError) setFormError(null);
                   }}
-                  onInput={(e) => {
-                    setBoardUrlInput(e.target.value);
-                    if (formError) setFormError(null);
-                  }}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     padding: '10px 14px',
                     borderRadius: 'var(--radius-input, 14px)',
                     border: '1px solid var(--border-strong)',
                     fontFamily: 'var(--font-sans)',
                     fontSize: '14px',
                     backgroundColor: 'var(--cream)',
-                    color: 'var(--espresso)'
+                    color: 'var(--espresso)',
+                    minHeight: '44px',
+                    outline: 'none'
                   }}
                   required
                 />
               </Field>
 
               <Field
+                type="custom"
                 label="Board Title (Optional)"
-                hint="Auto-derived from URL slug if left blank"
+                helper="Auto-derived from URL slug if left blank"
               >
                 <input
+                  id="pinterest-board-title-input"
+                  name="board_title"
                   type="text"
                   placeholder="e.g. Japandi Kitchens & Warm Wood"
                   value={titleInput}
                   onChange={(e) => setTitleInput(e.target.value)}
                   style={{
                     width: '100%',
+                    boxSizing: 'border-box',
                     padding: '10px 14px',
                     borderRadius: 'var(--radius-input, 14px)',
                     border: '1px solid var(--border-strong)',
                     fontFamily: 'var(--font-sans)',
                     fontSize: '14px',
                     backgroundColor: 'var(--cream)',
-                    color: 'var(--espresso)'
+                    color: 'var(--espresso)',
+                    minHeight: '44px',
+                    outline: 'none'
                   }}
                 />
               </Field>
@@ -335,6 +379,7 @@ export default function InspirationTab() {
 
             {formError && (
               <div
+                id="pinterest-form-error"
                 style={{
                   padding: '10px 14px',
                   backgroundColor: 'var(--negative-bg, #F5E6E3)',
@@ -343,7 +388,8 @@ export default function InspirationTab() {
                   marginBottom: '16px',
                   fontFamily: 'var(--font-sans)',
                   fontSize: '13px',
-                  color: 'var(--negative, #8A2A1E)'
+                  color: 'var(--negative, #8A2A1E)',
+                  lineHeight: 1.4
                 }}
               >
                 {formError}
@@ -354,14 +400,14 @@ export default function InspirationTab() {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={isSubmitting}
-                onClick={handleAddBoard}
+                disabled={isSubmitting || isResolving}
               >
-                {isSubmitting ? 'Saving...' : 'SAVE BOARD →'}
+                {isResolving ? 'Checking link…' : isSubmitting ? 'Saving...' : 'SAVE BOARD →'}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
+                disabled={isSubmitting || isResolving}
                 onClick={() => {
                   setIsFormOpen(false);
                   setFormError(null);
@@ -417,7 +463,10 @@ export default function InspirationTab() {
           action={
             <Button
               variant="primary"
-              onClick={() => setIsFormOpen(true)}
+              onClick={() => {
+                setIsFormOpen(true);
+                setFormError(null);
+              }}
             >
               + ADD YOUR FIRST BOARD →
             </Button>
@@ -432,7 +481,9 @@ export default function InspirationTab() {
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 460px), 1fr))',
             gap: '24px',
-            alignItems: 'start'
+            alignItems: 'start',
+            width: '100%',
+            boxSizing: 'border-box'
           }}
         >
           {boards.map((board, idx) => (
@@ -447,6 +498,8 @@ export default function InspirationTab() {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px',
+                boxSizing: 'border-box',
+                maxWidth: '100%',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease'
               }}
               onMouseEnter={(e) => {
