@@ -956,7 +956,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--beige)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    &larr; Move left
+                    ← Move left
                   </div>
 
                   <div
@@ -972,7 +972,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--beige)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
-                    Move right &rarr;
+                    Move right →
                   </div>
 
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
@@ -1037,7 +1037,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
           description="Create your first room (like Kitchen or Primary Bath) to start assembling mood boards, floor plans, and finishes."
           action={
             <Button variant="primary" onClick={handleOpenAddRoom}>
-              + ADD YOUR FIRST ROOM &rarr;
+              + ADD YOUR FIRST ROOM →
             </Button>
           }
         />
@@ -1187,7 +1187,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                   size="sm"
                   onClick={handleOpenNewItem}
                 >
-                  + Add Item &rarr;
+                  + Add Item →
                 </Button>
               </div>
             </div>
@@ -1263,13 +1263,13 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                           variant="secondary"
                           onClick={() => moodFileInputRef.current?.click()}
                         >
-                          + BROWSE PHOTOS &rarr;
+                          + BROWSE PHOTOS →
                         </Button>
                         <Button
                           variant="primary"
                           onClick={() => setIsAddPinOpen(true)}
                         >
-                          + ADD FROM PINTEREST &rarr;
+                          + ADD FROM PINTEREST →
                         </Button>
                       </div>
                     }
@@ -1317,14 +1317,14 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                           size="sm"
                           onClick={() => moodFileInputRef.current?.click()}
                         >
-                          + Upload Photo &rarr;
+                          + Upload Photo →
                         </Button>
                         <Button
                           variant="primary"
                           size="sm"
                           onClick={() => setIsAddPinOpen(true)}
                         >
-                          + Add from Pinterest &rarr;
+                          + Add from Pinterest →
                         </Button>
                       </div>
                     </div>
@@ -1531,7 +1531,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--beige)'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                  &larr; Move earlier
+                                  ← Move earlier
                                 </div>
 
                                 <div
@@ -1546,7 +1546,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--beige)'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                  Move later &rarr;
+                                  Move later →
                                 </div>
 
                                 <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
@@ -1742,7 +1742,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                             textDecoration: 'underline'
                           }}
                         >
-                          add from Pinterest &rarr;
+                          add from Pinterest →
                         </button>
                       </div>
                     </div>
@@ -1784,7 +1784,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       size="sm"
                       onClick={() => beforeFileInputRef.current?.click()}
                     >
-                      + ADD BEFORE PHOTO &rarr;
+                      + ADD BEFORE PHOTO →
                     </Button>
 
                     <input
@@ -1800,7 +1800,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       size="sm"
                       onClick={() => afterFileInputRef.current?.click()}
                     >
-                      + ADD AFTER PHOTO &rarr;
+                      + ADD AFTER PHOTO →
                     </Button>
                   </div>
 
@@ -1855,7 +1855,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                     action={
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <Button variant="primary" onClick={() => beforeFileInputRef.current?.click()}>
-                          + ADD BEFORE PHOTO &rarr;
+                          + ADD BEFORE PHOTO →
                         </Button>
                       </div>
                     }
@@ -2046,7 +2046,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                               cursor: 'pointer'
                             }}
                           >
-                            + Add &rarr;
+                            + Add →
                           </button>
                         </div>
                         <div style={{ display: 'grid', gap: '16px' }}>
@@ -2115,7 +2115,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                               cursor: 'pointer'
                             }}
                           >
-                            + Add &rarr;
+                            + Add →
                           </button>
                         </div>
                         <div style={{ display: 'grid', gap: '16px' }}>
@@ -2194,7 +2194,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       size="sm"
                       onClick={() => planFileInputRef.current?.click()}
                     >
-                      + ADD FLOOR PLAN &rarr;
+                      + ADD FLOOR PLAN →
                     </Button>
                   </div>
                 </div>
@@ -2205,7 +2205,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                     description="Upload dimensional 2D floor plans, electrical maps, or furniture layout schematics for this room."
                     action={
                       <Button variant="primary" onClick={() => planFileInputRef.current?.click()}>
-                        + UPLOAD FLOOR PLAN &rarr;
+                        + UPLOAD FLOOR PLAN →
                       </Button>
                     }
                   />
@@ -2295,7 +2295,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       size="sm"
                       onClick={() => renderFileInputRef.current?.click()}
                     >
-                      + ADD 3D RENDER &rarr;
+                      + ADD 3D RENDER →
                     </Button>
                   </div>
                 </div>
@@ -2306,7 +2306,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                     description="Upload photorealistic 3D renders, CAD perspectives, and elevation drawings for this room."
                     action={
                       <Button variant="primary" onClick={() => renderFileInputRef.current?.click()}>
-                        + UPLOAD 3D RENDER &rarr;
+                        + UPLOAD 3D RENDER →
                       </Button>
                     }
                   />
@@ -2421,7 +2421,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                 lineHeight: 1
               }}
             >
-              &times;
+              ×
             </button>
 
             <img
@@ -3012,7 +3012,7 @@ export default function DesignStudio({ project, onProjectUpdated }) {
               disabled={isSavingPin}
               onClick={handleSaveRoomPin}
             >
-              {isSavingPin ? 'Saving...' : 'Add Pin \u2192'}
+              {isSavingPin ? 'Saving...' : 'Add Pin →'}
             </Button>
           </div>
         }

@@ -110,7 +110,7 @@ export default function PinterestPinEmbed({ pin, onDelete }) {
             e.currentTarget.style.backgroundColor = 'rgba(30, 21, 9, 0.75)';
           }}
         >
-          &times;
+          ×
         </button>
       )}
 
@@ -206,7 +206,7 @@ export default function PinterestPinEmbed({ pin, onDelete }) {
               letterSpacing: '0.04em'
             }}
           >
-            Open on Pinterest &rarr;
+            Open on Pinterest →
           </a>
         </div>
       )}

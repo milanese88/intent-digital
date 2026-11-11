@@ -1131,7 +1131,7 @@ export default function BudgetTab({
                 variant="primary"
                 onClick={() => setIsSendModalOpen(true)}
               >
-                Send to Underwrite &rarr;
+                Send to Underwrite →
               </Button>
               <div style={{ fontSize: '12px', fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}>
                 {project.investor_property_rehab_budget != null ? (
@@ -1174,7 +1174,7 @@ export default function BudgetTab({
                   textDecoration: 'underline'
                 }}
               >
-                Open in Investor Studio &rarr;
+                Open in Investor Studio →
               </button>
             )}
           </div>
@@ -1501,7 +1501,7 @@ export default function BudgetTab({
                   size="sm"
                   onClick={() => handleOpenItemDrawer(null)}
                 >
-                  + ADD ITEM &rarr;
+                  + ADD ITEM →
                 </Button>
               </div>
             </div>
@@ -1536,7 +1536,7 @@ export default function BudgetTab({
                 description="No costs yet — add selections in Design studio or add a line item here."
                 action={
                   <Button variant="primary" onClick={() => handleOpenItemDrawer(null)}>
-                    + ADD LINE ITEM &rarr;
+                    + ADD LINE ITEM →
                   </Button>
                 }
               />
