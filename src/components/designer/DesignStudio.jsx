@@ -397,8 +397,8 @@ export default function DesignStudio({ project, onProjectUpdated }) {
       });
 
       if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Failed to save pin');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Couldn't save the pin — please try again.");
       }
 
       const data = await res.json();
@@ -408,7 +408,10 @@ export default function DesignStudio({ project, onProjectUpdated }) {
       setIsAddPinOpen(false);
       buildPinterestWidgets();
     } catch (err) {
-      setPinFormError(err.message || 'Error saving pin');
+      const msg = err.message || '';
+      const lower = msg.toLowerCase();
+      const isRawDbError = lower.includes('relation') || lower.includes('table') || lower.includes('column') || lower.includes('postgres') || lower.includes('syntax') || lower.includes('sql') || lower.includes('database');
+      setPinFormError(isRawDbError || !msg ? "Couldn't save the pin — please try again." : msg);
     } finally {
       setIsSavingPin(false);
     }
