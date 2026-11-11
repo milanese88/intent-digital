@@ -380,39 +380,39 @@ export default function Blogs() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{ 
-        fontFamily: '"Atelier Fleur", serif', 
+        fontFamily: 'var(--font-display)', 
         fontSize: '42px', 
         letterSpacing: '-0.02em', 
-        color: '#34292A',
+        color: 'var(--espresso)',
         margin: '0 0 32px 0'
       }}>
         Blogs
       </h1>
 
-      {errorMsg && <p style={{ color: 'red', marginBottom: '16px' }}>{errorMsg}</p>}
-      {statusMessage && <p style={{ color: '#34292A', fontWeight: 500, marginBottom: '16px' }}>{statusMessage}</p>}
+      {errorMsg && <p style={{ color: 'var(--negative)', marginBottom: '16px' }}>{errorMsg}</p>}
+      {statusMessage && <p style={{ color: 'var(--espresso)', fontWeight: 500, marginBottom: '16px' }}>{statusMessage}</p>}
 
       <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
+        backgroundColor: 'var(--white)', 
+        border: '1px solid var(--border)', 
         borderRadius: '8px', 
         padding: '32px',
         marginBottom: '32px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: 0 }}>All Posts</h2>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: 0 }}>All Posts</h2>
             {!isMobile && (
-              <div style={{ display: 'flex', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(52,41,42,0.2)' }}>
+              <div style={{ display: 'flex', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <button 
                   onClick={() => setViewMode('list')} 
-                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', background: viewMode === 'list' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600, color: '#34292A' }}
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', background: viewMode === 'list' ? 'var(--surface)' : 'var(--white)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, color: 'var(--espresso)' }}
                 >
                   LIST
                 </button>
                 <button 
                   onClick={() => setViewMode('calendar')} 
-                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', borderLeft: '1px solid rgba(52,41,42,0.2)', background: viewMode === 'calendar' ? 'rgba(52,41,42,0.1)' : '#fff', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600, color: '#34292A' }}
+                  style={{ padding: '6px 12px', fontSize: '11px', border: 'none', borderLeft: '1px solid var(--border)', background: viewMode === 'calendar' ? 'var(--surface)' : 'var(--white)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, color: 'var(--espresso)' }}
                 >
                   CALENDAR
                 </button>
@@ -428,7 +428,7 @@ export default function Blogs() {
           renderCalendar()
         ) : (
           <div>
-            {posts.length === 0 && <p style={{ color: 'rgba(52, 41, 42, 0.6)' }}>No posts found.</p>}
+            {posts.length === 0 && <p style={{ color: 'var(--muted)' }}>No posts found.</p>}
             {renderListGroup('Scheduled', scheduledPosts, true)}
             {renderListGroup('Drafts', draftPosts)}
             {renderListGroup('Published', publishedPosts)}
@@ -438,12 +438,12 @@ export default function Blogs() {
 
       {editForm && (
         <div style={{ 
-          backgroundColor: '#fff', 
-          border: '1px solid rgba(52, 41, 42, 0.1)', 
+          backgroundColor: 'var(--white)', 
+          border: '1px solid var(--border)', 
           borderRadius: '8px', 
           padding: '32px'
         }}>
-          <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>
             Edit Post
           </h2>
 

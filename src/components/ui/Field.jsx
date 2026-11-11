@@ -43,8 +43,8 @@ export default function Field({
   };
 
   const handleFocus = (e) => {
-    e.currentTarget.style.backgroundColor = '#ffffff';
-    e.currentTarget.style.borderColor = error ? 'var(--negative)' : 'var(--burgundy)';
+    e.currentTarget.style.backgroundColor = 'var(--white, #ffffff)';
+    e.currentTarget.style.borderColor = error ? 'var(--negative)' : 'var(--accent, var(--burgundy))';
     e.currentTarget.style.boxShadow = error 
       ? '0 0 0 2px var(--cream), 0 0 0 4px var(--negative)' 
       : 'var(--focus-ring)';

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PortalThemeProvider } from '../context/PortalThemeContext.jsx';
 import DashboardLayout from './DashboardLayout.jsx';
 import Overview from './dashboard/Overview.jsx';
 import Settings from './dashboard/Settings.jsx';
@@ -66,8 +67,10 @@ export default function AdminDashboard({ navigateTo }) {
   };
 
   return (
-    <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={handleTabChange}>
-      {renderActiveTab()}
-    </DashboardLayout>
+    <PortalThemeProvider>
+      <DashboardLayout navigateTo={navigateTo} activeTab={activeTab} setActiveTab={handleTabChange}>
+        {renderActiveTab()}
+      </DashboardLayout>
+    </PortalThemeProvider>
   );
 }

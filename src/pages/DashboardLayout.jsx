@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { usePortalTheme } from '../context/PortalThemeContext.jsx';
 
 export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { cssVariables, hasUnsavedChanges } = usePortalTheme();
 
   const topTabs = [
     { id: 'overview', label: 'DASHBOARD' },
@@ -18,6 +20,10 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
   ];
 
   const handleLogout = async () => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm('You have unsaved appearance changes. Discard and log out?');
+      if (!confirmLeave) return;
+    }
     await fetch('/api/logout', { method: 'POST' });
     if (navigateTo) {
       navigateTo('login');
@@ -27,37 +33,45 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
   };
 
   const handleTabClick = (tabId) => {
+    if (hasUnsavedChanges && activeTab === 'settings' && tabId !== 'settings') {
+      const confirmLeave = window.confirm('You have unsaved appearance changes. Discard them and switch tabs?');
+      if (!confirmLeave) return;
+    }
     setActiveTab(tabId);
     setMobileMenuOpen(false);
   };
 
-  const renderTab = (tab) => (
-    <button
-      key={tab.id}
-      onClick={() => handleTabClick(tab.id)}
-      style={{
-        background: activeTab === tab.id ? 'rgba(52, 41, 42, 0.05)' : 'transparent',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '12px 16px',
-        textAlign: 'left',
-        fontFamily: 'Montserrat, sans-serif',
-        fontSize: '13px',
-        fontWeight: activeTab === tab.id ? 600 : 400,
-        color: '#34292A',
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        transition: 'background 0.2s ease',
-        width: '100%'
-      }}
-    >
-      {tab.label}
-    </button>
-  );
+  const renderTab = (tab) => {
+    const isSelected = activeTab === tab.id;
+    return (
+      <button
+        key={tab.id}
+        onClick={() => handleTabClick(tab.id)}
+        style={{
+          background: isSelected ? 'var(--surface)' : 'transparent',
+          border: 'none',
+          borderLeft: isSelected ? '3px solid var(--accent)' : '3px solid transparent',
+          borderRadius: '6px',
+          padding: '12px 14px',
+          textAlign: 'left',
+          fontFamily: 'var(--font-label, var(--font-body))',
+          fontSize: '12px',
+          fontWeight: isSelected ? 700 : 500,
+          color: 'var(--sidebar-text)',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          width: '100%'
+        }}
+      >
+        {tab.label}
+      </button>
+    );
+  };
 
   const SidebarContent = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg)' }}>
       <div style={{ padding: '40px 24px', textAlign: 'center' }}>
         <a href="#" onClick={(e) => { e.preventDefault(); navigateTo && navigateTo('home'); }}>
           <img 
@@ -67,12 +81,12 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           />
         </a>
         <h2 style={{ 
-          fontFamily: '"Atelier Fleur", serif', 
-          fontSize: '11px', 
+          fontFamily: 'var(--font-display)', 
+          fontSize: '13px', 
           fontWeight: 'normal', 
           letterSpacing: '0.12em', 
           margin: 0, 
-          color: '#34292A',
+          color: 'var(--sidebar-text)',
           textTransform: 'uppercase'
         }}>
           Intent Digital
@@ -84,7 +98,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
       </nav>
 
       <div style={{ marginTop: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ height: '1px', backgroundColor: 'rgba(52,41,42,0.1)', margin: '16px 8px 8px 8px' }} />
+        <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '16px 8px 8px 8px' }} />
         {bottomTabs.map(renderTab)}
       </div>
 
@@ -94,11 +108,11 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           style={{
             background: 'none',
             border: 'none',
-            fontFamily: 'Montserrat, sans-serif',
-            fontSize: '13px',
-            color: 'rgba(52, 41, 42, 0.7)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '12px',
+            color: 'var(--muted)',
             cursor: 'pointer',
-            padding: '12px 16px',
+            padding: '12px 14px',
             width: '100%',
             textAlign: 'left'
           }}
@@ -110,13 +124,23 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
   );
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#FAF8F5' }}>
-      
+    <div
+      id="portal-root"
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        backgroundColor: 'var(--cream)',
+        color: 'var(--text-2)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 'var(--text-body)',
+        ...cssVariables
+      }}
+    >
       {/* DESKTOP SIDEBAR */}
       <aside className="dashboard-sidebar desktop-only" style={{ 
         width: '280px', 
-        backgroundColor: '#fff', 
-        borderRight: '1px solid rgba(52, 41, 42, 0.1)',
+        backgroundColor: 'var(--sidebar-bg)', 
+        borderRight: '1px solid var(--border)',
         position: 'sticky',
         top: 0,
         height: '100vh',
@@ -127,12 +151,10 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
 
       {/* MOBILE HEADER & DRAWER */}
       <div className="mobile-only" style={{ width: '100%' }}>
-        {/* We need the header inside the main content or absolutely positioned. 
-            Actually, let's just make a mobile header at the top of the screen. */}
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, backgroundColor: 'var(--cream)' }}>
         
         {/* MOBILE HEADER */}
         <header className="mobile-only" style={{
@@ -140,8 +162,8 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '16px 24px',
-          backgroundColor: '#fff',
-          borderBottom: '1px solid rgba(52, 41, 42, 0.1)',
+          backgroundColor: 'var(--sidebar-bg)',
+          borderBottom: '1px solid var(--border)',
           position: 'sticky',
           top: 0,
           zIndex: 40
@@ -149,7 +171,7 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
           <img src="/intent-digital-logo-web.png" alt="Intent Digital Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           <button 
             onClick={() => setMobileMenuOpen(true)}
-            style={{ background: 'none', border: 'none', fontSize: '24px', color: '#34292A', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', fontSize: '24px', color: 'var(--sidebar-text)', cursor: 'pointer' }}
           >
             ☰
           </button>
@@ -177,13 +199,13 @@ export default function DashboardLayout({ navigateTo, activeTab, setActiveTab, c
             left: 0,
             bottom: 0,
             width: '280px',
-            backgroundColor: '#fff',
+            backgroundColor: 'var(--sidebar-bg)',
             boxShadow: '4px 0 24px rgba(0,0,0,0.1)',
             animation: 'slideInLeft 0.3s ease forwards'
           }}>
             <button 
               onClick={() => setMobileMenuOpen(false)}
-              style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', color: '#34292A', cursor: 'pointer' }}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', color: 'var(--sidebar-text)', cursor: 'pointer' }}
             >
               ✕
             </button>
