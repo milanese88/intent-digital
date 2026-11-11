@@ -1489,7 +1489,7 @@ export default function StudioJournal({ setActiveTab, navigateTo }) {
               }}>
                 TODAY IN THE LAB
               </span>
-              <Pill variant="neutral" size="sm">DEAL OF THE DAY</Pill>
+              <Pill variant="neutral" size="sm">{labDeal?.stampLabel ? labDeal.stampLabel.toUpperCase() : 'DEAL OF THE DAY'}</Pill>
             </div>
 
             <h4 style={{

@@ -99,8 +99,10 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
     setDealAnswer(answer);
     try {
       setIsSubmittingDeal(true);
-      const isCorrectFlipperMove = (data.dealOfTheDay.spread <= 0 && answer === 'YES') ||
-                                   (data.dealOfTheDay.spread > 0 && answer === 'NO');
+      const isCorrect = data.dealOfTheDay.isOutlier
+        ? (answer === data.dealOfTheDay.correctAnswer)
+        : ((data.dealOfTheDay.spread <= 0 && answer === 'YES') ||
+           (data.dealOfTheDay.spread > 0 && answer === 'NO'));
 
       await fetch('/api/journal/learning-lab', {
         method: 'POST',
@@ -109,7 +111,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           activity: 'deal',
           item_key: data.dealOfTheDay.saleId,
           answer,
-          correct: isCorrectFlipperMove
+          correct: isCorrect
         })
       });
 
@@ -125,7 +127,10 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           }
         }
       }));
-      showToast('Deal answer recorded in your progress');
+      showToast(data.dealOfTheDay.isOutlier
+        ? (isCorrect ? 'Spot on! Correct valuation insight.' : 'Answer recorded · Review the takeaway below.')
+        : 'Deal answer recorded in your progress'
+      );
     } catch (err) {
       console.error('Failed to record deal answer:', err);
     } finally {
@@ -535,7 +540,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px' }}>
               <Numeral number="01" size="md" color="var(--burgundy)" />
-              <Eyebrow style={{ margin: 0 }}>DEAL OF THE DAY · REAL MARKET SALE</Eyebrow>
+              <Eyebrow style={{ margin: 0 }}>{deal?.eyebrow || 'DEAL OF THE DAY · REAL MARKET SALE'}</Eyebrow>
             </div>
 
             <button
@@ -569,7 +574,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
               {/* Script Stamp in Top-Right */}
               <div style={{ position: 'absolute', top: '24px', right: '32px' }}>
                 <ScriptAccent size="lg" color="var(--burgundy)">
-                  Deal of the day
+                  {deal.stampLabel || 'Deal of the day'}
                 </ScriptAccent>
               </div>
 
@@ -592,7 +597,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                   color: 'var(--text-2, #4A413A)',
                   margin: 0
                 }}>
-                  {deal.city}, FL {deal.zip} · {deal.sqft.toLocaleString()} living sqft · Built {deal.yearBuilt}
+                  {deal.city}, FL {deal.zip} · {deal.sqft.toLocaleString()} living sqft · {deal.lotSqft ? `${deal.lotSqft.toLocaleString()} sqft lot · ` : ''}Built {deal.yearBuilt}
                 </p>
               </div>
 
@@ -624,18 +629,6 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
 
                   <div>
                     <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>
-                      ZIP MEDIAN ($/SF)
-                    </span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--espresso)' }}>
-                      ${deal.zipMedianPps}/sf
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: 'var(--muted)' }}>
-                      In ZIP {deal.zip}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>
                       ESTIMATED ARV
                     </span>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--espresso)' }}>
@@ -648,20 +641,50 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
 
                   <div>
                     <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>
-                      REHAB (ASSUMPTION)
+                      {deal.isOutlier ? 'SALE VS RENOVATED ARV' : 'ZIP MEDIAN ($/SF)'}
                     </span>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--espresso)' }}>
-                      {formatCurrency(deal.rehabTotal)}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: deal.isOutlier ? (deal.pctDiff > 0 ? 'var(--burgundy)' : '#2B6E4E') : 'var(--espresso)' }}>
+                      {deal.isOutlier ? `${deal.pctDiff > 0 ? '+' : ''}${deal.pctDiff}%` : `$${deal.zipMedianPps}/sf`}
                     </div>
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: 'var(--muted)' }}>
-                      ${deal.rehabRate}/sf ({deal.yearBuilt < 1980 ? 'pre-1980' : 'post-1980'})
+                      {deal.isOutlier
+                        ? (deal.dealType === 'land_value' ? 'Premium over renovated ARV' : 'Below renovated comps')
+                        : `In ZIP ${deal.zip}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>
+                      {deal.isOutlier ? 'LOT SIZE VS COMPS MEDIAN' : 'REHAB (ASSUMPTION)'}
+                    </span>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: 'var(--espresso)' }}>
+                      {deal.isOutlier
+                        ? `${deal.lotSqft ? deal.lotSqft.toLocaleString() : '—'} sqft`
+                        : formatCurrency(deal.rehabTotal)}
+                    </div>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: '12px', color: 'var(--muted)' }}>
+                      {deal.isOutlier
+                        ? `Comps median: ${deal.compsMedianLotSqft ? deal.compsMedianLotSqft.toLocaleString() + ' sqft' : '—'}`
+                        : `$${deal.rehabRate}/sf (${deal.yearBuilt < 1980 ? 'pre-1980' : 'post-1980'})`}
                     </span>
                   </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                   <p style={{ fontFamily: 'var(--font-sans)', fontSize: '13.5px', color: 'var(--text-2)', margin: 0 }}>
-                    <strong>70% Rule Max Offer:</strong> {formatCurrency(deal.arv)} × 70% − {formatCurrency(deal.rehabTotal)} = <strong>{formatCurrency(deal.maxOffer)}</strong>.
+                    {!deal.isOutlier ? (
+                      <>
+                        <strong>70% Rule Max Offer:</strong> {formatCurrency(deal.arv)} × 70% − {formatCurrency(deal.rehabTotal)} = <strong>{formatCurrency(deal.maxOffer)}</strong>.
+                      </>
+                    ) : deal.dealType === 'land_value' ? (
+                      <>
+                        <strong>Outlier Breakdown:</strong> Closed {deal.pctDiffAbs}% above renovated comps ({formatCurrency(deal.arv)}). Square foot comp models miss parcel land value, water access, and teardown potential.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Outlier Breakdown:</strong> Closed {deal.pctDiffAbs}% below renovated comps ({formatCurrency(deal.arv)}). Steep discounts usually reflect seller distress, severe condition, or private non-arms-length transfers.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -673,83 +696,219 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                 padding: '24px 28px',
                 border: '1px solid var(--border)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: dealAnswer ? '20px' : 0 }}>
-                  <span style={{
-                    fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                    fontSize: '20px',
-                    color: 'var(--espresso)'
-                  }}>
-                    {deal.question}
-                  </span>
-
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button
-                      type="button"
-                      disabled={isSubmittingDeal}
-                      onClick={() => handleAnswerDeal('YES')}
-                      style={{
-                        padding: '10px 24px',
-                        borderRadius: '50px',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        border: '1.5px solid var(--burgundy)',
-                        backgroundColor: dealAnswer === 'YES' ? 'var(--burgundy)' : 'transparent',
-                        color: dealAnswer === 'YES' ? '#FAF8F5' : 'var(--burgundy)'
-                      }}
-                    >
-                      YES
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isSubmittingDeal}
-                      onClick={() => handleAnswerDeal('NO')}
-                      style={{
-                        padding: '10px 24px',
-                        borderRadius: '50px',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        border: '1.5px solid var(--espresso)',
-                        backgroundColor: dealAnswer === 'NO' ? 'var(--espresso)' : 'transparent',
-                        color: dealAnswer === 'NO' ? '#FAF8F5' : 'var(--espresso)'
-                      }}
-                    >
-                      NO
-                    </button>
-                  </div>
-                </div>
-
-                {/* Post-Answer Reveal */}
-                {dealAnswer && (
-                  <div style={{
-                    borderTop: '1px solid var(--border)',
-                    paddingTop: '20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Pill variant={deal.spread <= 0 ? 'positive' : 'warning'}>
-                        {deal.spread <= 0 ? 'DISCIPLINED FLIPPER PRICE' : 'ABOVE FLIPPER CEILING'}
-                      </Pill>
-                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--espresso)' }}>
-                        70% Max Offer: {formatCurrency(deal.maxOffer)} vs Sale: {formatCurrency(deal.soldPrice)}
+                {!deal.isOutlier ? (
+                  // Normal Flip Question
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: dealAnswer ? '20px' : 0 }}>
+                      <span style={{
+                        fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                        fontSize: '20px',
+                        color: 'var(--espresso)'
+                      }}>
+                        {deal.question}
                       </span>
+
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                          type="button"
+                          disabled={isSubmittingDeal}
+                          onClick={() => handleAnswerDeal('YES')}
+                          style={{
+                            padding: '10px 24px',
+                            borderRadius: '50px',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            border: '1.5px solid var(--burgundy)',
+                            backgroundColor: dealAnswer === 'YES' ? 'var(--burgundy)' : 'transparent',
+                            color: dealAnswer === 'YES' ? '#FAF8F5' : 'var(--burgundy)'
+                          }}
+                        >
+                          YES
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isSubmittingDeal}
+                          onClick={() => handleAnswerDeal('NO')}
+                          style={{
+                            padding: '10px 24px',
+                            borderRadius: '50px',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            border: '1.5px solid var(--espresso)',
+                            backgroundColor: dealAnswer === 'NO' ? 'var(--espresso)' : 'transparent',
+                            color: dealAnswer === 'NO' ? '#FAF8F5' : 'var(--espresso)'
+                          }}
+                        >
+                          NO
+                        </button>
+                      </div>
                     </div>
 
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14.5px', lineHeight: 1.6, color: 'var(--text-2)', margin: 0 }}>
-                      {deal.diagnosis}
-                    </p>
+                    {/* Post-Answer Reveal */}
+                    {dealAnswer && (
+                      <div style={{
+                        borderTop: '1px solid var(--border)',
+                        paddingTop: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <Pill variant={deal.spread <= 0 ? 'positive' : 'warning'}>
+                            {deal.spread <= 0 ? 'DISCIPLINED FLIPPER PRICE' : 'ABOVE FLIPPER CEILING'}
+                          </Pill>
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--espresso)' }}>
+                            70% Max Offer: {formatCurrency(deal.maxOffer)} vs Sale: {formatCurrency(deal.soldPrice)}
+                          </span>
+                        </div>
+
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14.5px', lineHeight: 1.6, color: 'var(--text-2)', margin: 0 }}>
+                          {deal.diagnosis}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Outlier Lesson Question (Land Value / Below Market)
+                  <div>
+                    <span style={{
+                      fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                      fontSize: '20px',
+                      color: 'var(--espresso)',
+                      display: 'block',
+                      marginBottom: '16px'
+                    }}>
+                      {deal.question}
+                    </span>
+
+                    {/* Option Cards */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: dealAnswer ? '20px' : 0 }}>
+                      {(deal.options || []).map(opt => {
+                        const isSelected = dealAnswer === opt.id;
+                        const isCorrectOption = opt.id === deal.correctAnswer;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            disabled={isSubmittingDeal}
+                            onClick={() => handleAnswerDeal(opt.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '14px 20px',
+                              borderRadius: '10px',
+                              border: isSelected
+                                ? '2px solid var(--burgundy)'
+                                : '1px solid rgba(52, 41, 42, 0.15)',
+                              backgroundColor: isSelected
+                                ? 'rgba(65, 16, 27, 0.05)'
+                                : '#FFFFFF',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span style={{
+                              fontFamily: 'var(--font-sans)',
+                              fontSize: '13.5px',
+                              fontWeight: isSelected ? 600 : 500,
+                              color: 'var(--espresso)'
+                            }}>
+                              {opt.label}
+                            </span>
+
+                            {dealAnswer && (
+                              <span style={{
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                color: isCorrectOption ? '#2B6E4E' : (isSelected ? 'var(--burgundy)' : 'var(--muted)')
+                              }}>
+                                {isCorrectOption ? '✓ CORRECT' : (isSelected ? 'YOUR PICK' : '')}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Post-Answer Reveal */}
+                    {dealAnswer && (
+                      <div style={{
+                        borderTop: '1px solid var(--border)',
+                        paddingTop: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <Pill variant={dealAnswer === deal.correctAnswer ? 'positive' : 'warning'}>
+                            {dealAnswer === deal.correctAnswer ? 'CORRECT · VALUATION INSIGHT' : 'CORE LESSON · VALUATION ANATOMY'}
+                          </Pill>
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--espresso)' }}>
+                            {deal.dealType === 'land_value'
+                              ? `Sold for ${formatCurrency(deal.soldPrice)} (+${deal.pctDiff}% above renovated ARV)`
+                              : `Sold for ${formatCurrency(deal.soldPrice)} (${deal.pctDiff}% below renovated ARV)`}
+                          </span>
+                        </div>
+
+                        {/* Lot Size Comparison Box */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: '12px',
+                          backgroundColor: '#FFFFFF',
+                          padding: '16px 20px',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(52, 41, 42, 0.1)'
+                        }}>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-sans)', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                              SUBJECT LOT SIZE
+                            </span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '19px', color: 'var(--espresso)' }}>
+                              {deal.lotSqft ? `${deal.lotSqft.toLocaleString()} sqft` : 'N/A'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-sans)', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                              COMPS MEDIAN LOT
+                            </span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '19px', color: 'var(--espresso)' }}>
+                              {deal.compsMedianLotSqft ? `${deal.compsMedianLotSqft.toLocaleString()} sqft` : 'N/A'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-sans)', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                              PRICE VS ARV
+                            </span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '19px', color: deal.pctDiff > 0 ? 'var(--burgundy)' : '#2B6E4E' }}>
+                              {deal.pctDiff > 0 ? `+${deal.pctDiff}%` : `${deal.pctDiff}%`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14.5px', lineHeight: 1.65, color: 'var(--text-2)', margin: 0 }}>
+                          {deal.diagnosis}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -757,7 +916,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           ) : (
             <Card style={{ padding: '40px', textAlign: 'center' }}>
               <p style={{ fontFamily: 'var(--font-sans)', color: 'var(--muted)' }}>
-                No recent market sales found with 5+ renovated comps in your watched ZIPs.
+                No recent market sales found with 4+ renovated comps in your watched ZIPs.
               </p>
             </Card>
           )}

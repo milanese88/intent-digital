@@ -196,11 +196,11 @@ export default async function handler(req, res) {
         AND p.use_code IN ('001', '01')
         AND p.zip = ANY(${targetZips})
         AND p.living_sqft BETWEEN 800 AND 3800
-        AND s.sale_price BETWEEN 180000 AND 2800000
+        AND s.sale_price BETWEEN 140000 AND 3500000
         AND p.lat IS NOT NULL
         AND p.lng IS NOT NULL
       ORDER BY s.sale_year DESC, s.sale_month DESC, s.id DESC
-      LIMIT 30;
+      LIMIT 60;
     `;
 
     // Date-seeded index
@@ -208,12 +208,19 @@ export default async function handler(req, res) {
     let dealOfTheDay = null;
 
     if (marketSales.length > 0) {
-      // Find candidate that satisfies >= 5 reno comps within 1 mile
+      // Requirement 3: Prefer normal flip questions (within ±40% of ARV) 3 out of 4 times.
+      // 1 out of 4 times (dealOffset % 4 === 3), prefer an outlier (>40% above or below ARV).
+      const wantOutlier = (dealOffset % 4 === 3);
+
       let chosenSale = null;
       let chosenComps = [];
-      let zipMedianPps = 450;
+      let chosenPctDiff = 0;
+      let chosenArv = 0;
+      let chosenRenoMedianPps = 0;
+      let firstQualified = null;
 
-      for (let i = 0; i < marketSales.length; i++) {
+      const maxScans = Math.min(marketSales.length, 30);
+      for (let i = 0; i < maxScans; i++) {
         const candidateIdx = (dateSeed + dealOffset + i) % marketSales.length;
         const candidate = marketSales[candidateIdx];
         const cLat = Number(candidate.lat);
@@ -223,6 +230,7 @@ export default async function handler(req, res) {
           SELECT 
             s.sale_price,
             p.living_sqft,
+            p.land_sqft,
             p.year_built,
             p.eff_year_built,
             p.lat,
@@ -238,7 +246,7 @@ export default async function handler(req, res) {
           WHERE s.qual_code IN ('01', '02')
             AND p.use_code IN ('001', '01')
             AND p.parcel_id != ${candidate.parcel_id}
-            AND p.lat BETWEEN ${cLat - 0.016} AND ${cLat + 0.016}
+            AND p.lat BETWEEN ${cLat - 0.018} AND ${cLat + 0.018}
             AND p.lng BETWEEN ${cLng - 0.018} AND ${cLng + 0.018}
             AND p.eff_year_built IS NOT NULL
             AND p.year_built IS NOT NULL
@@ -251,15 +259,57 @@ export default async function handler(req, res) {
         `;
 
         const within1Mi = nearbyComps.filter(c => Number(c.distance_mi) <= 1.0);
-        if (within1Mi.length >= 5 || i === marketSales.length - 1) {
-          chosenSale = candidate;
-          chosenComps = within1Mi.length >= 5 ? within1Mi : nearbyComps;
-          break;
+        if (within1Mi.length >= 4) {
+          const sqft = Number(candidate.living_sqft) || 1500;
+          const price = Number(candidate.sale_price) || 0;
+          const compPpsList = within1Mi.map(c => Math.round(Number(c.sale_price) / (Number(c.living_sqft) || 1)));
+          const renoMedianPps = calculateMedian(compPpsList);
+          const arv = Math.round(renoMedianPps * sqft);
+          const pctDiff = arv > 0 ? (price - arv) / arv : 0;
+          const isOutlier = Math.abs(pctDiff) > 0.40;
+
+          const candidateRecord = {
+            candidate,
+            comps: within1Mi,
+            pctDiff,
+            arv,
+            renoMedianPps,
+            isOutlier
+          };
+
+          if (!firstQualified) {
+            firstQualified = candidateRecord;
+          }
+
+          if (wantOutlier && isOutlier) {
+            chosenSale = candidate;
+            chosenComps = within1Mi;
+            chosenPctDiff = pctDiff;
+            chosenArv = arv;
+            chosenRenoMedianPps = renoMedianPps;
+            break;
+          } else if (!wantOutlier && !isOutlier) {
+            chosenSale = candidate;
+            chosenComps = within1Mi;
+            chosenPctDiff = pctDiff;
+            chosenArv = arv;
+            chosenRenoMedianPps = renoMedianPps;
+            break;
+          }
         }
+      }
+
+      if (!chosenSale && firstQualified) {
+        chosenSale = firstQualified.candidate;
+        chosenComps = firstQualified.comps;
+        chosenPctDiff = firstQualified.pctDiff;
+        chosenArv = firstQualified.arv;
+        chosenRenoMedianPps = firstQualified.renoMedianPps;
       }
 
       if (chosenSale) {
         const sqft = Number(chosenSale.living_sqft) || 1500;
+        const lotSqft = Number(chosenSale.land_sqft) || null;
         const price = Number(chosenSale.sale_price) || 0;
         const pps = Math.round(price / sqft);
 
@@ -272,21 +322,68 @@ export default async function handler(req, res) {
           LIMIT 40;
         `;
         const zipPpsList = zipSales.map(z => Math.round(Number(z.sale_price) / (Number(z.living_sqft) || 1)));
-        zipMedianPps = calculateMedian(zipPpsList) || pps;
+        const zipMedianPps = calculateMedian(zipPpsList) || pps;
 
         // Comps median $/sf
-        const compPpsList = chosenComps.map(c => Math.round(Number(c.sale_price) / (Number(c.living_sqft) || 1)));
-        const renoMedianPps = calculateMedian(compPpsList) || Math.round(zipMedianPps * 1.15);
-
-        const arv = Math.round(renoMedianPps * sqft);
+        const renoMedianPps = chosenRenoMedianPps || pps;
+        const arv = chosenArv || Math.round(renoMedianPps * sqft);
         const yb = Number(chosenSale.year_built) || 1975;
         const rehabRate = yb < 1980 ? 45 : 35;
         const rehabTotal = Math.round(rehabRate * sqft);
         const maxOffer = Math.round(arv * 0.70 - rehabTotal);
         const spread = price - maxOffer;
 
+        // Comps median lot size (from county_parcels.land_sqft)
+        const compLots = chosenComps.map(c => Number(c.land_sqft)).filter(Boolean);
+        const compsMedianLotSqft = calculateMedian(compLots) || 0;
+
+        // Outlier checks: >40% above ARV or >40% below ARV
+        const pctDiff = chosenPctDiff;
+        const pctDiffPercent = Math.round(pctDiff * 100);
+        const pctDiffAbs = Math.abs(pctDiffPercent);
+
+        const isLandValue = pctDiff > 0.40;
+        const isBelowMarket = pctDiff < -0.40;
+        const isOutlier = isLandValue || isBelowMarket;
+        const dealType = isLandValue ? 'land_value' : (isBelowMarket ? 'below_market' : 'normal');
+
         const isAnswered = Boolean(todayAnswers[chosenSale.sale_id]);
         const userAnswer = todayAnswers[chosenSale.sale_id]?.answer;
+
+        let stampLabel = 'Deal of the day';
+        let eyebrow = 'DEAL OF THE DAY · REAL MARKET SALE';
+        let question = `If you were a flipper, would you have bought it at $${price.toLocaleString()}?`;
+        let options = [
+          { id: 'YES', label: 'YES' },
+          { id: 'NO', label: 'NO' }
+        ];
+        let correctAnswer = spread <= 0 ? 'YES' : 'NO';
+        let flipperVerdict = spread <= 0 ? 'YES' : 'NO';
+        let diagnosis = spread <= 0
+          ? `Purchased for $${Math.abs(spread).toLocaleString()} under the 70% rule ceiling ($${maxOffer.toLocaleString()}). Likely acquired by a disciplined investor or cash flipper.`
+          : `Purchased for $${spread.toLocaleString()} over the 70% rule ceiling ($${maxOffer.toLocaleString()}). Likely bought by an end-user or retail buyer willing to pay full market value.`;
+
+        if (isLandValue) {
+          stampLabel = 'Lesson: land value';
+          eyebrow = 'LESSON: LAND VALUE · OUTLIER ANALYSIS';
+          question = `This sold for ${pctDiffAbs}% above what renovated homes nearby sell for. What was the buyer most likely paying for?`;
+          options = [
+            { id: 'house', label: 'The house' },
+            { id: 'land', label: 'The land or location (waterfront, big lot, teardown)' }
+          ];
+          correctAnswer = 'land';
+          diagnosis = `Comps by square foot don't capture waterfront, lot size, or teardown value. The subject property sits on a lot of ${lotSqft ? lotSqft.toLocaleString() + ' sqft' : 'significant size'} compared to nearby renovated comps' median of ${compsMedianLotSqft ? compsMedianLotSqft.toLocaleString() + ' sqft' : 'typical lots'}. When buyers pay well above renovated replacement pricing, they are purchasing prime land, deep water frontage, or redevelopment rights rather than existing improvements.`;
+        } else if (isBelowMarket) {
+          stampLabel = 'Lesson: below-market sale';
+          eyebrow = 'LESSON: BELOW-MARKET SALE · OUTLIER ANALYSIS';
+          question = `This sold for ${pctDiffAbs}% below what renovated homes nearby sell for. What was the buyer most likely taking advantage of?`;
+          options = [
+            { id: 'retail', label: 'A typical retail open-market purchase' },
+            { id: 'distress', label: 'Distressed seller, condition, family sale, or off-market deal' }
+          ];
+          correctAnswer = 'distress';
+          diagnosis = `Sales closing more than 40% below renovated comp levels typically reflect distressed sellers facing foreclosure, severe deferred maintenance/structural condition issues, non-arm's length family transfers, or direct off-market wholesaler assignments. County qualification codes (like Florida code 01 arms-length vs code 02 or disqualified transfers) help investors filter true open-market transactions from distress or estate sales.`;
+        }
 
         dealOfTheDay = {
           saleId: chosenSale.sale_id,
@@ -295,6 +392,8 @@ export default async function handler(req, res) {
           city: formatAddress(chosenSale.city),
           zip: chosenSale.zip,
           sqft,
+          lotSqft,
+          compsMedianLotSqft,
           yearBuilt: yb,
           soldPrice: price,
           soldMonth: chosenSale.sale_month,
@@ -310,10 +409,17 @@ export default async function handler(req, res) {
           spread,
           isAnswered,
           userAnswer,
-          question: `If you were a flipper, would you have bought it at $${price.toLocaleString()}?`,
-          diagnosis: spread <= 0
-            ? `Purchased for $${Math.abs(spread).toLocaleString()} under the 70% rule ceiling ($${maxOffer.toLocaleString()}). Likely acquired by a disciplined investor or cash flipper.`
-            : `Purchased for $${spread.toLocaleString()} over the 70% rule ceiling ($${maxOffer.toLocaleString()}). Likely bought by an end-user or retail buyer willing to pay full market value.`
+          dealType,
+          isOutlier,
+          pctDiff: pctDiffPercent,
+          pctDiffAbs,
+          stampLabel,
+          eyebrow,
+          question,
+          options,
+          correctAnswer,
+          flipperVerdict,
+          diagnosis
         };
       }
     }
