@@ -51,7 +51,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // Validate the resolved URL
+    // If destination is a single pin, reject with friendly message
+    if (resolvedUrl.includes('/pin/')) {
+      return res.status(400).json({
+        error: "This looks like a single pin — add it to a room's mood board instead.",
+        resolvedUrl,
+        isPin: true
+      });
+    }
+
+    // Validate the resolved URL as a board or board section
     const parsed = validateAndParsePinterestBoardUrl(resolvedUrl);
     if (!parsed.valid) {
       return res.status(400).json({
@@ -62,6 +71,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
+      url: parsed.normalizedUrl,
       originalUrl: trimmed,
       resolvedUrl,
       normalizedUrl: parsed.normalizedUrl,

@@ -20,7 +20,7 @@ export default function Card({
   const [isHovered, setIsHovered] = React.useState(false);
 
   const baseStyle = {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'var(--white, #ffffff)',
     border: featured ? '1.5px solid var(--burgundy)' : '1px solid var(--border)',
     borderRadius: 'var(--radius-card)',
     boxShadow: isHovered && hoverable 

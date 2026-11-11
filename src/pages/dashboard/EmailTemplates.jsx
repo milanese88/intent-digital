@@ -111,46 +111,46 @@ export default function EmailTemplates() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{ 
-        fontFamily: '"Atelier Fleur", serif', 
+        fontFamily: 'var(--font-display)', 
         fontSize: '42px', 
         letterSpacing: '-0.02em', 
-        color: '#34292A',
+        color: 'var(--espresso)',
         margin: '0 0 32px 0'
       }}>
         Email Templates
       </h1>
 
-      {errorMsg && <p style={{ color: 'red', marginBottom: '16px' }}>{errorMsg}</p>}
-      {statusMessage && <p style={{ color: '#34292A', fontWeight: 500, marginBottom: '16px' }}>{statusMessage}</p>}
+      {errorMsg && <p style={{ color: 'var(--negative)', marginBottom: '16px' }}>{errorMsg}</p>}
+      {statusMessage && <p style={{ color: 'var(--espresso)', fontWeight: 500, marginBottom: '16px' }}>{statusMessage}</p>}
 
       <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
+        backgroundColor: 'var(--white)', 
+        border: '1px solid var(--border)', 
         borderRadius: '8px', 
         padding: '32px',
         marginBottom: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Available Templates</h2>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>Available Templates</h2>
         
         <div style={{ display: 'grid', gap: '16px' }}>
           {templates.map(t => (
             <div 
               key={t.id} 
               style={{
-                border: '1px solid rgba(52, 41, 42, 0.2)',
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 padding: '16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: activeTemplate === t.id ? 'rgba(52, 41, 42, 0.03)' : 'transparent',
+                backgroundColor: activeTemplate === t.id ? 'var(--surface)' : 'transparent',
                 cursor: 'pointer'
               }}
               onClick={() => handleEditClick(t)}
             >
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#34292A' }}>{t.name}</h3>
-                <span style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)', textTransform: 'uppercase' }}>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: 'var(--espresso)' }}>{t.name}</h3>
+                <span style={{ fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>
                   Category: {t.category}
                 </span>
               </div>
@@ -179,12 +179,12 @@ export default function EmailTemplates() {
 
       {editForm && (
         <div style={{ 
-          backgroundColor: '#fff', 
-          border: '1px solid rgba(52, 41, 42, 0.1)', 
+          backgroundColor: 'var(--white)', 
+          border: '1px solid var(--border)', 
           borderRadius: '8px', 
           padding: '32px'
         }}>
-          <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>
             Edit: {editForm.name}
           </h2>
 
@@ -224,11 +224,11 @@ export default function EmailTemplates() {
                   resize: 'vertical',
                   borderRadius: '12px',
                   padding: '16px',
-                  fontFamily: 'Montserrat, sans-serif'
+                  fontFamily: 'var(--font-body)'
                 }}
                 required
               />
-              <p style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)', marginTop: '8px', fontFamily: 'Montserrat' }}>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px', fontFamily: 'var(--font-body)' }}>
                 Available placeholders: {'{{name}}'}, {'{{email}}'}, {'{{message}}'}
               </p>
             </div>
@@ -239,23 +239,23 @@ export default function EmailTemplates() {
           </form>
 
           {/* Live Preview */}
-          <div style={{ marginTop: '48px', borderTop: '1px solid rgba(52, 41, 42, 0.1)', paddingTop: '32px' }}>
-            <h3 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '20px', color: '#34292A', marginBottom: '16px' }}>Live Preview</h3>
+          <div style={{ marginTop: '48px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--espresso)', marginBottom: '16px' }}>Live Preview</h3>
             <div style={{ 
-              backgroundColor: '#FAF8F5', 
+              backgroundColor: 'var(--cream)', 
               padding: '24px', 
               borderRadius: '8px',
-              border: '1px solid rgba(52, 41, 42, 0.1)',
-              fontFamily: 'Montserrat, sans-serif'
+              border: '1px solid var(--border)',
+              fontFamily: 'var(--font-body)'
             }}>
-              <p style={{ margin: '0 0 16px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.1)', paddingBottom: '16px' }}>
+              <p style={{ margin: '0 0 16px 0', borderBottom: '1px solid var(--border)', paddingBottom: '16px', color: 'var(--espresso)' }}>
                 <strong>Subject:</strong> {editForm.subject 
                   ? editForm.subject.replace(/\{\{name\}\}/g, 'Jane Doe')
                                     .replace(/\{\{email\}\}/g, 'jane@example.com')
                                     .replace(/\{\{message\}\}/g, 'I love your work!')
                   : ''}
               </p>
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '14px', color: '#34292A' }}>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '14px', color: 'var(--espresso)' }}>
                 {editForm.body 
                   ? editForm.body.replace(/\{\{name\}\}/g, 'Jane Doe')
                                  .replace(/\{\{email\}\}/g, 'jane@example.com')

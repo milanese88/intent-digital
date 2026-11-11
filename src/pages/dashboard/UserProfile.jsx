@@ -222,34 +222,34 @@ export default function UserProfile() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <h1 style={{
-        fontFamily: '"Atelier Fleur", serif',
+        fontFamily: 'var(--font-display)',
         fontSize: '42px',
         letterSpacing: '-0.02em',
-        color: '#34292A',
+        color: 'var(--espresso)',
         margin: '0 0 32px 0'
       }}>
         User Profile
       </h1>
 
       <div style={{
-        backgroundColor: '#fff',
-        border: '1px solid rgba(52, 41, 42, 0.1)',
+        backgroundColor: 'var(--white)',
+        border: '1px solid var(--border)',
         borderRadius: '8px',
         padding: '32px',
         marginBottom: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Profile Information</h2>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>Profile Information</h2>
 
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{
             width: '80px',
             height: '80px',
             borderRadius: '50%',
-            backgroundColor: '#FAF8F5',
+            backgroundColor: 'var(--cream)',
             backgroundImage: profile.profile_image_url ? `url(${profile.profile_image_url})` : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            border: '1px solid rgba(52, 41, 42, 0.1)',
+            border: '1px solid var(--border)',
             marginRight: '24px',
             display: 'flex',
             alignItems: 'center',
@@ -310,8 +310,8 @@ export default function UserProfile() {
             />
           </div>
 
-          {profileError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{profileError}</p>}
-          {profileSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
+          {profileError && <p style={{ color: 'var(--negative)', fontSize: '14px', margin: 0 }}>{profileError}</p>}
+          {profileSuccess && <p style={{ color: 'var(--espresso)', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
 
           <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
             {saving ? 'Saving...' : 'Save Profile'}
@@ -320,12 +320,12 @@ export default function UserProfile() {
       </div>
 
       <div style={{
-        backgroundColor: '#fff',
-        border: '1px solid rgba(52, 41, 42, 0.1)',
+        backgroundColor: 'var(--white)',
+        border: '1px solid var(--border)',
         borderRadius: '8px',
         padding: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Change Password</h2>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>Change Password</h2>
 
         <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
           <div style={{ position: 'relative' }}>

@@ -60,14 +60,14 @@ export default function Button({
   if (variant === 'primary') {
     variantStyle = {
       backgroundColor: 'var(--burgundy)',
-      color: 'var(--cream)',
+      color: 'var(--button-text, #ffffff)',
       boxShadow: disabled ? 'none' : '0 4px 14px rgba(65, 16, 27, 0.25)',
       border: '1px solid var(--burgundy)'
     };
   } else if (variant === 'secondary') {
     variantStyle = {
-      backgroundColor: '#ffffff',
-      border: '1px solid var(--border-strong)',
+      backgroundColor: 'var(--white, #ffffff)',
+      border: '1px solid var(--border)',
       color: 'var(--espresso)',
       boxShadow: '0 2px 8px rgba(30, 21, 9, 0.03)'
     };

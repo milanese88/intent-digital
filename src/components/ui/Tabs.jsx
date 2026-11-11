@@ -92,7 +92,7 @@ export default function Tabs({
             style={{
               background: 'none',
               border: 'none',
-              borderBottom: isSelected ? '2px solid var(--burgundy)' : '2px solid transparent',
+              borderBottom: isSelected ? '2px solid var(--accent, var(--burgundy))' : '2px solid transparent',
               padding: '12px 16px',
               fontFamily: 'var(--font-sans)',
               fontSize: '13px',

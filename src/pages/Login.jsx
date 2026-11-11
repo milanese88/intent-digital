@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import { computeThemeCssVariables, loadGoogleFont } from '../utils/themeFonts.js';
 
 export default function Login({ navigateTo }) {
   const [email, setEmail] = useState('');
@@ -13,6 +14,22 @@ export default function Login({ navigateTo }) {
   const [resetLinkSent, setResetLinkSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [eyeHover, setEyeHover] = useState(false);
+  const [publicThemeVars, setPublicThemeVars] = useState({});
+
+  // Public theme check: if apply_to_login is enabled, style login with owner theme
+  useEffect(() => {
+    fetch('/api/settings/theme-public')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.apply_to_login && data?.colors) {
+          const vars = computeThemeCssVariables(data);
+          setPublicThemeVars(vars);
+          if (data.fonts?.headingFont) loadGoogleFont(data.fonts.headingFont);
+          if (data.fonts?.bodyFont) loadGoogleFont(data.fonts.bodyFont);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Check for URL errors (e.g. from verify-magic-link redirect)
   useEffect(() => {
@@ -163,16 +180,16 @@ export default function Login({ navigateTo }) {
       </nav>
 
       {/* LOGIN FORM SECTION */}
-      <section className="contact-form-section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center' }}>
+      <section className="contact-form-section" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', ...publicThemeVars }}>
         <div className="contact-form-container" style={{ maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-          <h1 className="unified-hero-title" style={{ fontSize: '32px', marginBottom: '24px' }}>
+          <h1 className="unified-hero-title" style={{ fontSize: '32px', marginBottom: '24px', fontFamily: 'var(--font-display)', color: 'var(--espresso)' }}>
             {loginMode === 'forgot' ? 'Reset Password' : 'Owner Login'}
           </h1>
           
-          <div className="contact-pill-form" style={{ padding: '32px' }}>
+          <div className="contact-pill-form" style={{ padding: '32px', backgroundColor: 'var(--white)', borderColor: 'var(--border)' }}>
             {magicLinkSent ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <h3 style={{ color: '#34292A', fontFamily: 'Montserrat, sans-serif', fontSize: '18px', marginBottom: '16px' }}>
+                <h3 style={{ color: 'var(--espresso)', fontFamily: 'var(--font-body)', fontSize: '18px', marginBottom: '16px' }}>
                   Check your inbox
                 </h3>
                 <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5' }}>

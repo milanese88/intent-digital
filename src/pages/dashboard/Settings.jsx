@@ -1,8 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
+import AppearanceSettings from '../../components/settings/AppearanceSettings.jsx';
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Subtab navigation: 'profile' | 'appearance'
+  const [activeSubtab, setActiveSubtab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('subtab') || 'profile';
+    }
+    return 'profile';
+  });
+
+  const handleSubtabChange = (newSubtab) => {
+    setActiveSubtab(newSubtab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('subtab', newSubtab);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
   
   // Profile state
   const [profile, setProfile] = useState({
@@ -119,23 +138,26 @@ export default function Settings() {
     setPasswordError('');
     setPasswordSuccess('');
 
-    if (passwords.newPassword.length < 10) {
-      setPasswordError('New password must be at least 10 characters.');
-      setSaving(false);
-      return;
-    }
-    
     if (passwords.newPassword !== passwords.confirmPassword) {
       setPasswordError('New passwords do not match.');
       setSaving(false);
       return;
     }
 
+    if (passwords.newPassword.length < 10) {
+      setPasswordError('Password must be at least 10 characters long.');
+      setSaving(false);
+      return;
+    }
+
     try {
-      const res = await fetch('/api/update-settings', {
+      const res = await fetch('/api/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'password', data: passwords })
+        body: JSON.stringify({
+          currentPassword: passwords.currentPassword,
+          newPassword: passwords.newPassword
+        })
       });
       const data = await res.json();
       
@@ -173,7 +195,7 @@ export default function Settings() {
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'color 0.2s ease',
-          color: hover ? '#3A342B' : 'rgba(58, 52, 43, 0.4)'
+          color: hover ? 'var(--espresso)' : 'var(--muted)'
         }}
       >
         {show ? (
@@ -191,177 +213,239 @@ export default function Settings() {
     );
   };
 
-  if (loading) return <div style={{ padding: '24px' }}>Loading settings...</div>;
+  if (loading) return <div style={{ padding: '24px', fontFamily: 'var(--font-body)', color: 'var(--espresso)' }}>Loading settings...</div>;
 
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div style={{ maxWidth: activeSubtab === 'appearance' ? '1280px' : '800px', margin: '0 auto', transition: 'max-width 0.2s ease' }}>
+      {/* Title */}
       <h1 style={{ 
-        fontFamily: '"Atelier Fleur", serif', 
+        fontFamily: 'var(--font-display)', 
         fontSize: '42px', 
         letterSpacing: '-0.02em', 
-        color: '#34292A',
-        margin: '0 0 32px 0'
+        color: 'var(--espresso)',
+        margin: '0 0 20px 0'
       }}>
         Settings
       </h1>
 
-      <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
-        borderRadius: '8px', 
-        padding: '32px',
+      {/* Subtab Segmented Control */}
+      <div style={{
+        display: 'inline-flex',
+        backgroundColor: 'var(--surface)',
+        padding: '4px',
+        borderRadius: '999px',
+        border: '1px solid var(--border)',
         marginBottom: '32px'
       }}>
-        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Profile Information</h2>
-        
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            backgroundColor: '#FAF8F5',
-            backgroundImage: profile.profile_image_url ? `url(${profile.profile_image_url})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            border: '1px solid rgba(52, 41, 42, 0.1)',
-            marginRight: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
+        <button
+          type="button"
+          onClick={() => handleSubtabChange('profile')}
+          style={{
+            padding: '8px 20px',
+            borderRadius: '999px',
+            border: 'none',
+            backgroundColor: activeSubtab === 'profile' ? 'var(--white)' : 'transparent',
+            color: activeSubtab === 'profile' ? 'var(--espresso)' : 'var(--muted)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            cursor: 'pointer',
+            boxShadow: activeSubtab === 'profile' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          Profile &amp; Security
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSubtabChange('appearance')}
+          style={{
+            padding: '8px 20px',
+            borderRadius: '999px',
+            border: 'none',
+            backgroundColor: activeSubtab === 'appearance' ? 'var(--white)' : 'transparent',
+            color: activeSubtab === 'appearance' ? 'var(--espresso)' : 'var(--muted)',
+            fontFamily: 'var(--font-body)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            cursor: 'pointer',
+            boxShadow: activeSubtab === 'appearance' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          Appearance
+        </button>
+      </div>
+
+      {/* SUBTAB: APPEARANCE */}
+      {activeSubtab === 'appearance' && (
+        <AppearanceSettings />
+      )}
+
+      {/* SUBTAB: PROFILE & SECURITY */}
+      {activeSubtab === 'profile' && (
+        <>
+          <div style={{ 
+            backgroundColor: 'var(--white)', 
+            border: '1px solid var(--border)', 
+            borderRadius: '8px', 
+            padding: '32px',
+            marginBottom: '32px'
           }}>
-            {!profile.profile_image_url && <span style={{ color: 'rgba(52, 41, 42, 0.4)' }}>No Image</span>}
-          </div>
-          <div>
-            <input 
-              type="file" 
-              accept="image/jpeg, image/png, image/webp"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              onChange={uploadImage}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="btn-cherry-outline"
-              disabled={saving}
-            >
-              Upload New Picture
-            </button>
-            <p style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.6)', marginTop: '8px', fontFamily: 'Montserrat' }}>JPG, PNG, WebP up to 5MB.</p>
-          </div>
-        </div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>Profile Information</h2>
+            
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--cream)',
+                backgroundImage: profile.profile_image_url ? `url(${profile.profile_image_url})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                border: '1px solid var(--border)',
+                marginRight: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}>
+                {!profile.profile_image_url && <span style={{ color: 'var(--muted)' }}>No Image</span>}
+              </div>
+              <div>
+                <input 
+                  type="file" 
+                  accept="image/jpeg, image/png, image/webp"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={uploadImage}
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn-cherry-outline"
+                  disabled={saving}
+                >
+                  Upload New Picture
+                </button>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px', fontFamily: 'var(--font-body)' }}>JPG, PNG, WebP up to 5MB.</p>
+              </div>
+            </div>
 
-        <form onSubmit={saveProfile} style={{ display: 'grid', gap: '16px' }}>
-          <div>
-            <label className="form-pill-label" htmlFor="full_name">Full Name</label>
-            <input 
-              className="form-pill-input" 
-              id="full_name" 
-              name="full_name" 
-              value={profile.full_name} 
-              onChange={handleProfileChange} 
-            />
-          </div>
-          <div>
-            <label className="form-pill-label" htmlFor="username">Username</label>
-            <input 
-              className="form-pill-input" 
-              id="username" 
-              name="username" 
-              value={profile.username} 
-              onChange={handleProfileChange} 
-            />
-          </div>
-          <div>
-            <label className="form-pill-label" htmlFor="email">Email Address</label>
-            <input 
-              className="form-pill-input" 
-              type="email" 
-              id="email" 
-              name="email" 
-              value={profile.email} 
-              onChange={handleProfileChange} 
-            />
-          </div>
-          
-          {profileError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{profileError}</p>}
-          {profileSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
+            <form onSubmit={saveProfile} style={{ display: 'grid', gap: '16px' }}>
+              <div>
+                <label className="form-pill-label" htmlFor="full_name">Full Name</label>
+                <input 
+                  className="form-pill-input" 
+                  id="full_name" 
+                  name="full_name" 
+                  value={profile.full_name} 
+                  onChange={handleProfileChange} 
+                />
+              </div>
+              <div>
+                <label className="form-pill-label" htmlFor="username">Username</label>
+                <input 
+                  className="form-pill-input" 
+                  id="username" 
+                  name="username" 
+                  value={profile.username} 
+                  onChange={handleProfileChange} 
+                />
+              </div>
+              <div>
+                <label className="form-pill-label" htmlFor="email">Email Address</label>
+                <input 
+                  className="form-pill-input" 
+                  type="email" 
+                  id="email" 
+                  name="email" 
+                  value={profile.email} 
+                  onChange={handleProfileChange} 
+                />
+              </div>
+              
+              {profileError && <p style={{ color: 'var(--negative)', fontSize: '14px', margin: 0 }}>{profileError}</p>}
+              {profileSuccess && <p style={{ color: 'var(--espresso)', fontSize: '14px', margin: 0, fontWeight: 500 }}>{profileSuccess}</p>}
 
-          <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Profile'}
-          </button>
-        </form>
-      </div>
-
-      <div style={{ 
-        backgroundColor: '#fff', 
-        border: '1px solid rgba(52, 41, 42, 0.1)', 
-        borderRadius: '8px', 
-        padding: '32px'
-      }}>
-        <h2 style={{ fontFamily: '"Atelier Fleur", serif', fontSize: '28px', color: '#34292A', margin: '0 0 24px 0' }}>Change Password</h2>
-        
-        <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
-          <div style={{ position: 'relative' }}>
-            <label className="form-pill-label" htmlFor="currentPassword">Current Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showCurrent ? "text" : "password"} 
-              id="currentPassword" 
-              name="currentPassword" 
-              value={passwords.currentPassword} 
-              onChange={handlePasswordChange} 
-              required
-              style={{ paddingRight: '40px' }}
-            />
-            <EyeButton show={showCurrent} toggle={() => setShowCurrent(!showCurrent)} />
+              <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </form>
           </div>
 
-          <div style={{ position: 'relative' }}>
-            <label className="form-pill-label" htmlFor="newPassword">New Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showNew ? "text" : "password"} 
-              id="newPassword" 
-              name="newPassword" 
-              value={passwords.newPassword} 
-              onChange={handlePasswordChange} 
-              required
-              minLength={10}
-              style={{ paddingRight: '40px' }}
-            />
-            <EyeButton show={showNew} toggle={() => setShowNew(!showNew)} />
-            {passwords.newPassword.length > 0 && passwords.newPassword.length < 10 && (
-              <p style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>Password must be at least 10 characters.</p>
-            )}
-            {passwords.newPassword.length >= 10 && (
-              <p style={{ color: 'green', fontSize: '12px', marginTop: '4px' }}>Password strength: Looks good!</p>
-            )}
-          </div>
+          <div style={{ 
+            backgroundColor: 'var(--white)', 
+            border: '1px solid var(--border)', 
+            borderRadius: '8px', 
+            padding: '32px'
+          }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', color: 'var(--espresso)', margin: '0 0 24px 0' }}>Change Password</h2>
+            
+            <form onSubmit={savePassword} style={{ display: 'grid', gap: '16px' }}>
+              <div style={{ position: 'relative' }}>
+                <label className="form-pill-label" htmlFor="currentPassword">Current Password</label>
+                <input 
+                  className="form-pill-input" 
+                  type={showCurrent ? "text" : "password"} 
+                  id="currentPassword" 
+                  name="currentPassword" 
+                  value={passwords.currentPassword} 
+                  onChange={handlePasswordChange} 
+                  required
+                  style={{ paddingRight: '40px' }}
+                />
+                <EyeButton show={showCurrent} toggle={() => setShowCurrent(!showCurrent)} />
+              </div>
 
-          <div style={{ position: 'relative' }}>
-            <label className="form-pill-label" htmlFor="confirmPassword">Confirm New Password</label>
-            <input 
-              className="form-pill-input" 
-              type={showConfirm ? "text" : "password"} 
-              id="confirmPassword" 
-              name="confirmPassword" 
-              value={passwords.confirmPassword} 
-              onChange={handlePasswordChange} 
-              required
-              style={{ paddingRight: '40px' }}
-            />
-            <EyeButton show={showConfirm} toggle={() => setShowConfirm(!showConfirm)} />
-          </div>
-          
-          {passwordError && <p style={{ color: 'red', fontSize: '14px', margin: 0 }}>{passwordError}</p>}
-          {passwordSuccess && <p style={{ color: '#34292A', fontSize: '14px', margin: 0, fontWeight: 500 }}>{passwordSuccess}</p>}
+              <div style={{ position: 'relative' }}>
+                <label className="form-pill-label" htmlFor="newPassword">New Password</label>
+                <input 
+                  className="form-pill-input" 
+                  type={showNew ? "text" : "password"} 
+                  id="newPassword" 
+                  name="newPassword" 
+                  value={passwords.newPassword} 
+                  onChange={handlePasswordChange} 
+                  required
+                  minLength={10}
+                  style={{ paddingRight: '40px' }}
+                />
+                <EyeButton show={showNew} toggle={() => setShowNew(!showNew)} />
+                {passwords.newPassword.length > 0 && passwords.newPassword.length < 10 && (
+                  <p style={{ color: 'var(--negative)', fontSize: '12px', marginTop: '4px' }}>Password must be at least 10 characters.</p>
+                )}
+                {passwords.newPassword.length >= 10 && (
+                  <p style={{ color: 'var(--positive)', fontSize: '12px', marginTop: '4px' }}>Password strength: Looks good!</p>
+                )}
+              </div>
 
-          <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
-            {saving ? 'Updating...' : 'Update Password'}
-          </button>
-        </form>
-      </div>
+              <div style={{ position: 'relative' }}>
+                <label className="form-pill-label" htmlFor="confirmPassword">Confirm New Password</label>
+                <input 
+                  className="form-pill-input" 
+                  type={showConfirm ? "text" : "password"} 
+                  id="confirmPassword" 
+                  name="confirmPassword" 
+                  value={passwords.confirmPassword} 
+                  onChange={handlePasswordChange} 
+                  required
+                  style={{ paddingRight: '40px' }}
+                />
+                <EyeButton show={showConfirm} toggle={() => setShowConfirm(!showConfirm)} />
+              </div>
+              
+              {passwordError && <p style={{ color: 'var(--negative)', fontSize: '14px', margin: 0 }}>{passwordError}</p>}
+              {passwordSuccess && <p style={{ color: 'var(--espresso)', fontSize: '14px', margin: 0, fontWeight: 500 }}>{passwordSuccess}</p>}
+
+              <button type="submit" className="btn-cherry" style={{ width: 'fit-content' }} disabled={saving}>
+                {saving ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
     </div>
   );
 }
