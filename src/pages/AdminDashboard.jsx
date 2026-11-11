@@ -7,6 +7,7 @@ import EmailTemplates from './dashboard/EmailTemplates.jsx';
 import Blogs from './dashboard/Blogs.jsx';
 import InvestorStudio from '../components/investor/InvestorStudio.jsx';
 import DesignerHub from '../components/designer/DesignerHub.jsx';
+import LearningLabTab from '../components/learning/LearningLabTab.jsx';
 
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,7 @@ export default function AdminDashboard({ navigateTo }) {
       case 'blogs': return <Blogs />;
       case 'investor': return <InvestorStudio setActiveDashboardTab={handleTabChange} />;
       case 'designer': return <DesignerHub setActiveDashboardTab={handleTabChange} />;
+      case 'learning-lab': return <LearningLabTab setActiveDashboardTab={handleTabChange} />;
       default: return null;
     }
   };

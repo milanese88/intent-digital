@@ -1,7 +1,26 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button, Card, Eyebrow, Pill } from '../components/ui/index.js';
 
 export default function LearningLab({ navigateTo }) {
+  useEffect(() => {
+    // If user has active session, automatically go straight to the protected dashboard tab
+    fetch('/api/verify')
+      .then(res => {
+        if (res.ok) {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/admin?tab=learning-lab';
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleEnterLab = () => {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/admin?tab=learning-lab';
+    }
+  };
+
   return (
     <div style={{
       backgroundColor: 'var(--cream, #FAF8F5)',
@@ -56,7 +75,7 @@ export default function LearningLab({ navigateTo }) {
             cursor: 'pointer'
           }}
         >
-          ← Return to Journal
+          ← Return to Dashboard
         </button>
       </header>
 
@@ -83,13 +102,13 @@ export default function LearningLab({ navigateTo }) {
             display: 'inline-block',
             transform: 'rotate(-2deg)'
           }}>
-            Coming Soon
+            Private Division
           </span>
         </div>
 
         {/* Eyebrow */}
         <Eyebrow style={{ marginBottom: '16px' }}>
-          EXPERIMENTAL DESIGN DIVISION
+          THE LEARNING LAB
         </Eyebrow>
 
         {/* Editorial Serif H1 */}
@@ -102,7 +121,8 @@ export default function LearningLab({ navigateTo }) {
           color: 'var(--espresso, #1E1509)',
           margin: '0 0 16px 0'
         }}>
-          The Learning Lab
+          Sharpen your eye.<br />
+          <span style={{ fontStyle: 'italic' }}>Know the numbers.</span>
         </h1>
 
         {/* Italic Serif Subtitle */}
@@ -116,7 +136,7 @@ export default function LearningLab({ navigateTo }) {
           margin: '0 auto 36px auto',
           opacity: 0.9
         }}>
-          Interactive experiments in spatial light, material acoustics & real-time layout economics.
+          Daily single-family market deals, 70% rule diagnostics, investing glossary, and architectural principles.
         </p>
 
         {/* Informative Card */}
@@ -134,7 +154,7 @@ export default function LearningLab({ navigateTo }) {
             margin: '0 0 12px 0',
             color: 'var(--espresso)'
           }}>
-            Under Construction
+            Owner & Investor Workspace
           </h3>
           <p style={{
             fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -143,29 +163,24 @@ export default function LearningLab({ navigateTo }) {
             color: 'var(--text-2, #4A413A)',
             margin: '0 0 20px 0'
           }}>
-            The Learning Lab is Intent Digital’s private playground for testing architectural moves before they reach client rooms. Modules currently in assembly include our Florida Sun-Angle Daylight Simulator, Stone & Timber Reflectance Benchmarks, and ADU Micro-Floorplan Generator.
+            The Learning Lab is Intent Digital’s private analytical suite. Evaluate Broward single-family sales against 1-mile comps, test your valuation instincts with real-time ARV diagnostics, and master design principles you can apply directly to client rooms.
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <Pill variant="neutral">DAYLIGHT SIMULATION</Pill>
-            <Pill variant="neutral">MATERIAL TACTILITY</Pill>
-            <Pill variant="neutral">ADU ECONOMICS</Pill>
+            <Pill variant="neutral">DEAL OF THE DAY</Pill>
+            <Pill variant="neutral">INVESTING TERMS</Pill>
+            <Pill variant="neutral">DESIGN PRINCIPLES</Pill>
+            <Pill variant="neutral">GUESS THE VALUE</Pill>
           </div>
         </Card>
 
-        {/* Return Button */}
+        {/* Launch Button */}
         <div>
           <Button
             variant="primary"
             size="lg"
-            onClick={() => {
-              if (navigateTo) {
-                navigateTo('admin');
-              } else {
-                window.location.href = '/admin';
-              }
-            }}
+            onClick={handleEnterLab}
           >
-            RETURN TO JOURNAL →
+            ENTER THE LEARNING LAB →
           </Button>
         </div>
       </main>
