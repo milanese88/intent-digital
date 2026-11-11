@@ -260,7 +260,16 @@ export default async function handler(req, res) {
         console.warn('Could not query design_room_images before deleting room:', imgQueryErr.message);
       }
 
-      // 2. Delete room from DB
+      // 2. Delete pins and room from DB
+      try {
+        await sql`
+          DELETE FROM room_pins
+          WHERE room_id = ${id} AND lower(owner_email) = ${cleanEmail};
+        `;
+      } catch (pinErr) {
+        // Safe if table not yet migrated
+      }
+
       await sql`
         DELETE FROM design_rooms
         WHERE id = ${id} AND lower(owner_email) = ${cleanEmail};

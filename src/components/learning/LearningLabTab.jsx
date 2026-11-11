@@ -23,8 +23,18 @@ function formatDate(date = new Date()) {
 }
 
 export default function LearningLabTab({ setActiveDashboardTab }) {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => {
+    if (typeof window !== 'undefined' && window.__cachedLearningLabData) {
+      return window.__cachedLearningLabData;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && window.__cachedLearningLabData) {
+      return false;
+    }
+    return true;
+  });
   const [dealOffset, setDealOffset] = useState(0);
   const [guessOffset, setGuessOffset] = useState(0);
   const [termIndex, setTermIndex] = useState(0);
@@ -50,12 +60,17 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
   const showToast = (msg) => setToastMessage(msg);
 
   // Fetch Lab Data
-  const loadLabData = async (dOffset = dealOffset, gOffset = guessOffset) => {
+  const loadLabData = async (dOffset = dealOffset, gOffset = guessOffset, showLoading = !window.__cachedLearningLabData) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const res = await fetch(`/api/journal/learning-lab?deal_offset=${dOffset}&guess_offset=${gOffset}`);
       if (res.ok) {
         const json = await res.json();
+        if (typeof window !== 'undefined') {
+          window.__cachedLearningLabData = json;
+        }
         setData(json);
 
         // Pre-fill if already answered
@@ -90,7 +105,18 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
   };
 
   useEffect(() => {
-    loadLabData(0, 0);
+    const hasCache = typeof window !== 'undefined' && Boolean(window.__cachedLearningLabData);
+    if (hasCache && window.__cachedLearningLabData) {
+      const cached = window.__cachedLearningLabData;
+      if (cached.dealOfTheDay?.isAnswered) {
+        setDealAnswer(cached.dealOfTheDay.userAnswer);
+      }
+      if (cached.guessProperty?.isAnswered) {
+        setGuessAnswered(true);
+        setSelectedGuessOption(cached.guessProperty.userAnswer);
+      }
+    }
+    loadLabData(0, 0, !hasCache);
   }, []);
 
   // Handle Deal Answer

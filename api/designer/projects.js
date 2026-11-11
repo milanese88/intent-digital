@@ -131,15 +131,24 @@ export default async function handler(req, res) {
             ip.rehab_budget as investor_property_rehab_budget,
             ip.rehab_budget_source as investor_property_rehab_budget_source,
             ip.rehab_budget_updated_at as investor_property_rehab_budget_updated_at,
-            COUNT(DISTINCT r.id) AS room_count,
-            COUNT(DISTINCT i.id) AS item_count,
-            COALESCE(SUM(i.total), 0) AS total_item_cost
+            COALESCE(rc.room_count, 0)::int AS room_count,
+            COALESCE(ic.item_count, 0)::int AS item_count,
+            COALESCE(ic.total_item_cost, 0)::numeric AS total_item_cost
           FROM design_projects p
           LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
-          LEFT JOIN design_rooms r ON r.project_id = p.id
-          LEFT JOIN design_items i ON i.project_id = p.id
+          LEFT JOIN (
+            SELECT project_id, COUNT(id) AS room_count
+            FROM design_rooms
+            WHERE lower(owner_email) = ${cleanEmail}
+            GROUP BY project_id
+          ) rc ON rc.project_id = p.id
+          LEFT JOIN (
+            SELECT project_id, COUNT(id) AS item_count, SUM(total) AS total_item_cost
+            FROM design_items
+            WHERE lower(owner_email) = ${cleanEmail}
+            GROUP BY project_id
+          ) ic ON ic.project_id = p.id
           WHERE lower(p.owner_email) = ${cleanEmail}
-          GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng, ip.rehab_budget, ip.rehab_budget_source, ip.rehab_budget_updated_at
           ORDER BY p.updated_at DESC, p.created_at DESC
         `;
       } catch (colErr) {
@@ -166,15 +175,24 @@ export default async function handler(req, res) {
             NULL::numeric as investor_property_rehab_budget,
             NULL::text as investor_property_rehab_budget_source,
             NULL::timestamptz as investor_property_rehab_budget_updated_at,
-            COUNT(DISTINCT r.id) AS room_count,
-            COUNT(DISTINCT i.id) AS item_count,
-            COALESCE(SUM(i.total), 0) AS total_item_cost
+            COALESCE(rc.room_count, 0)::int AS room_count,
+            COALESCE(ic.item_count, 0)::int AS item_count,
+            COALESCE(ic.total_item_cost, 0)::numeric AS total_item_cost
           FROM design_projects p
           LEFT JOIN investor_properties ip ON ip.id = p.investor_property_id
-          LEFT JOIN design_rooms r ON r.project_id = p.id
-          LEFT JOIN design_items i ON i.project_id = p.id
+          LEFT JOIN (
+            SELECT project_id, COUNT(id) AS room_count
+            FROM design_rooms
+            WHERE lower(owner_email) = ${cleanEmail}
+            GROUP BY project_id
+          ) rc ON rc.project_id = p.id
+          LEFT JOIN (
+            SELECT project_id, COUNT(id) AS item_count, SUM(total) AS total_item_cost
+            FROM design_items
+            WHERE lower(owner_email) = ${cleanEmail}
+            GROUP BY project_id
+          ) ic ON ic.project_id = p.id
           WHERE lower(p.owner_email) = ${cleanEmail}
-          GROUP BY p.id, ip.address, ip.city, ip.lat, ip.lng
           ORDER BY p.updated_at DESC, p.created_at DESC
         `;
       }

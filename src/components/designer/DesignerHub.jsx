@@ -19,6 +19,8 @@ import {
 import DesignStudio from './DesignStudio.jsx';
 import BudgetTab from './BudgetTab.jsx';
 import SourcingTab from './SourcingTab.jsx';
+import InspirationTab from './InspirationTab.jsx';
+import { loadPinterestScript } from '../../utils/pinterest.js';
 
 const PROJECT_TYPES = [
   { value: 'client', label: 'Client' },
@@ -75,6 +77,7 @@ const QUICK_ROOMS = [
 const DESIGNER_TABS = [
   { id: 'projects', label: 'Projects' },
   { id: 'studio', label: 'Design studio' },
+  { id: 'inspiration', label: 'Inspiration' },
   { id: 'budget', label: 'Budget & costs' },
   { id: 'sourcing', label: 'Sourcing library' },
   { id: 'portfolio', label: 'Portfolio' }
@@ -82,6 +85,7 @@ const DESIGNER_TABS = [
 
 const normalizeDesignerTab = (tab) => {
   if (tab === 'budget-costs' || tab === 'budget_costs' || tab === 'budget') return 'budget';
+  if (tab === 'inspiration' || tab === 'pinterest') return 'inspiration';
   return tab || 'projects';
 };
 
@@ -138,9 +142,24 @@ class TabErrorBoundary extends React.Component {
 }
 
 export default function DesignerHub({ setActiveDashboardTab }) {
-  const [projects, setProjects] = useState([]);
-  const [investorProperties, setInvestorProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects)) {
+      return window.__cachedDesignerProjects;
+    }
+    return [];
+  });
+  const [investorProperties, setInvestorProperties] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedInvestorProperties)) {
+      return window.__cachedInvestorProperties;
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects) && window.__cachedDesignerProjects.length > 0) {
+      return false;
+    }
+    return true;
+  });
   const [error, setError] = useState(null);
 
   // Tab & selected project from URL
@@ -230,8 +249,10 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   }, []);
 
   // Fetch projects and investor properties on load
-  const fetchProjects = async () => {
-    setLoading(true);
+  const fetchProjects = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const res = await fetch('/api/designer/projects');
@@ -243,6 +264,9 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       }
       const data = await res.json();
       const list = data.projects || [];
+      if (typeof window !== 'undefined') {
+        window.__cachedDesignerProjects = list;
+      }
       setProjects(list);
 
       // Auto-select project: check investor_property_id param first, then project_id, then prev, then list[0]
@@ -260,18 +284,28 @@ export default function DesignerHub({ setActiveDashboardTab }) {
       });
     } catch (err) {
       console.error('fetchProjects error:', err);
-      setError(err.message || 'Failed to load projects');
+      if (!silent) {
+        setError(err.message || 'Failed to load projects');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchInvestorProperties = async () => {
+    if (typeof window !== 'undefined' && Array.isArray(window.__cachedInvestorProperties) && window.__cachedInvestorProperties.length > 0) {
+      setInvestorProperties(window.__cachedInvestorProperties);
+      return;
+    }
     try {
       const res = await fetch('/api/investor/properties');
       if (res.ok) {
         const data = await res.json();
-        setInvestorProperties(data.properties || []);
+        const list = data.properties || [];
+        if (typeof window !== 'undefined') {
+          window.__cachedInvestorProperties = list;
+        }
+        setInvestorProperties(list);
       }
     } catch (err) {
       console.warn('Could not load investor properties for linking:', err);
@@ -279,9 +313,25 @@ export default function DesignerHub({ setActiveDashboardTab }) {
   };
 
   useEffect(() => {
-    fetchProjects();
-    fetchInvestorProperties();
+    loadPinterestScript();
+
+    const hasCache = typeof window !== 'undefined' && Array.isArray(window.__cachedDesignerProjects) && window.__cachedDesignerProjects.length > 0;
+    fetchProjects(hasCache);
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new_project_property_id')) {
+        fetchInvestorProperties();
+      }
+    }
   }, []);
+
+  // Lazily fetch investor properties when opening the create/edit modal panel
+  useEffect(() => {
+    if (isPanelOpen) {
+      fetchInvestorProperties();
+    }
+  }, [isPanelOpen]);
 
   // Listen to popstate for URL updates (e.g. navigation from Investor Studio)
   useEffect(() => {
@@ -1225,7 +1275,14 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* ======================================================================= */}
-        {/* 5. TAB 3: BUDGET & COSTS TAB                                            */}
+        {/* TAB 3: INSPIRATION (PINTEREST BOARDS)                                   */}
+        {/* ======================================================================= */}
+        {!loading && activeTab === 'inspiration' && (
+          <InspirationTab />
+        )}
+
+        {/* ======================================================================= */}
+        {/* 5. TAB 4: BUDGET & COSTS TAB                                            */}
         {/* ======================================================================= */}
         {!loading && activeTab === 'budget' && (
           currentProject ? (
@@ -1248,7 +1305,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* ======================================================================= */}
-        {/* 6. TAB 4: SOURCING LIBRARY TAB                                         */}
+        {/* 6. TAB 5: SOURCING LIBRARY TAB                                         */}
         {/* ======================================================================= */}
         {!loading && activeTab === 'sourcing' && (
           <SourcingTab
@@ -1259,7 +1316,7 @@ export default function DesignerHub({ setActiveDashboardTab }) {
         )}
 
         {/* Placeholder for Portfolio (No Emojis) */}
-        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'budget' && activeTab !== 'sourcing' && (
+        {!loading && activeTab !== 'projects' && activeTab !== 'studio' && activeTab !== 'inspiration' && activeTab !== 'budget' && activeTab !== 'sourcing' && (
           <EmptyState
             title={DESIGNER_TABS.find(t => t.id === activeTab)?.label}
             description="Coming in the next stage."

@@ -8,6 +8,8 @@ import {
   SidePanel,
   Field
 } from '../ui';
+import PinterestPinEmbed from './PinterestPinEmbed.jsx';
+import { parsePinterestPinUrl, buildPinterestWidgets } from '../../utils/pinterest.js';
 
 const ROOM_TYPES = [
   { value: 'kitchen', label: 'Kitchen' },
@@ -162,6 +164,15 @@ export default function DesignStudio({ project, onProjectUpdated }) {
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [itemDrawerError, setItemDrawerError] = useState(null);
   const [itemSuccessToast, setItemSuccessToast] = useState(null);
+
+  // Room pins from Pinterest
+  const [roomPins, setRoomPins] = useState([]);
+  const [loadingPins, setLoadingPins] = useState(false);
+  const [isAddPinOpen, setIsAddPinOpen] = useState(false);
+  const [pinUrlInput, setPinUrlInput] = useState('');
+  const [pinNoteInput, setPinNoteInput] = useState('');
+  const [pinFormError, setPinFormError] = useState(null);
+  const [isSavingPin, setIsSavingPin] = useState(false);
 
   // File input refs
   const moodFileInputRef = useRef(null);
@@ -330,6 +341,90 @@ export default function DesignStudio({ project, onProjectUpdated }) {
   useEffect(() => {
     fetchImages();
   }, [selectedRoomId]);
+
+  // Fetch pins for selected room
+  const fetchRoomPins = async () => {
+    if (!selectedRoomId) {
+      setRoomPins([]);
+      return;
+    }
+    setLoadingPins(true);
+    try {
+      const res = await fetch(`/api/designer/room-pins?room_id=${selectedRoomId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRoomPins(data.pins || []);
+      }
+    } catch (err) {
+      console.warn('fetchRoomPins error:', err);
+    } finally {
+      setLoadingPins(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRoomPins();
+  }, [selectedRoomId]);
+
+  useEffect(() => {
+    if (roomPins.length > 0) {
+      buildPinterestWidgets();
+    }
+  }, [roomPins]);
+
+  const handleSaveRoomPin = async (e) => {
+    e?.preventDefault();
+    if (!selectedRoomId) return;
+
+    const trimmed = pinUrlInput.trim();
+    const parsed = parsePinterestPinUrl(trimmed);
+    if (!parsed || !parsed.valid) {
+      setPinFormError('Please enter a valid Pinterest pin URL (e.g. pinterest.com/pin/<id>/ or pin.it short link).');
+      return;
+    }
+
+    try {
+      setIsSavingPin(true);
+      setPinFormError(null);
+      const res = await fetch('/api/designer/room-pins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_id: selectedRoomId,
+          pin_url: parsed.pin_url,
+          note: pinNoteInput.trim() || null
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Failed to save pin');
+      }
+
+      const data = await res.json();
+      setRoomPins(prev => [...prev, data.pin]);
+      setPinUrlInput('');
+      setPinNoteInput('');
+      setIsAddPinOpen(false);
+      buildPinterestWidgets();
+    } catch (err) {
+      setPinFormError(err.message || 'Error saving pin');
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  const handleDeletePin = async (pin) => {
+    if (!window.confirm('Remove this Pinterest pin from the mood board?')) return;
+    try {
+      const res = await fetch(`/api/designer/room-pins?id=${pin.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRoomPins(prev => prev.filter(p => p.id !== pin.id));
+      }
+    } catch (err) {
+      console.error('Failed to remove pin:', err);
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Room Actions: Add Room
@@ -1150,12 +1245,12 @@ export default function DesignStudio({ project, onProjectUpdated }) {
             {/* =============================================================== */}
             {studioView === 'mood' && (
               <div>
-                {moodImages.length === 0 ? (
+                {moodImages.length === 0 && roomPins.length === 0 ? (
                   <EmptyState
                     title="Mood board is empty"
-                    description="Curate textures, materials, lighting, palettes, and furniture inspirations for this room. Drop images or click below to start."
+                    description="Curate textures, materials, lighting, palettes, and furniture inspirations for this room. Drop images or add inspiration from Pinterest."
                     action={
-                      <div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         <input
                           type="file"
                           ref={moodFileInputRef}
@@ -1165,23 +1260,83 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                           onChange={(e) => handleUploadImageFiles(e.target.files, 'mood')}
                         />
                         <Button
-                          variant="primary"
+                          variant="secondary"
                           onClick={() => moodFileInputRef.current?.click()}
                         >
                           + BROWSE PHOTOS &rarr;
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => setIsAddPinOpen(true)}
+                        >
+                          + ADD FROM PINTEREST &rarr;
                         </Button>
                       </div>
                     }
                   />
                 ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
-                      gridAutoRows: '120px',
-                      gap: '16px'
-                    }}
-                  >
+                  <div>
+                    {/* Mood Board Action Header */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '16px',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: 'var(--muted)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em'
+                        }}>
+                          {moodImages.length + roomPins.length} {moodImages.length + roomPins.length === 1 ? 'Inspiration' : 'Inspirations'}
+                        </span>
+                        {roomPins.length > 0 && (
+                          <span style={{
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '11px',
+                            color: 'var(--burgundy)',
+                            backgroundColor: 'rgba(65, 16, 27, 0.06)',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-pill)',
+                            fontWeight: 600
+                          }}>
+                            {roomPins.length} Pinterest {roomPins.length === 1 ? 'pin' : 'pins'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => moodFileInputRef.current?.click()}
+                        >
+                          + Upload Photo &rarr;
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setIsAddPinOpen(true)}
+                        >
+                          + Add from Pinterest &rarr;
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
+                        gridAutoRows: '120px',
+                        gap: '16px'
+                      }}
+                    >
                     {moodImages.map((img) => {
                       const size = img.size || 'small';
                       const colSpan = size === 'wide' || size === 'large' ? 2 : 1;
@@ -1502,6 +1657,15 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       );
                     })}
 
+                    {/* Pinterest Pins */}
+                    {roomPins.map((pin) => (
+                      <PinterestPinEmbed
+                        key={pin.id}
+                        pin={pin}
+                        onDelete={handleDeletePin}
+                      />
+                    ))}
+
                     {/* Drop Zone at the end */}
                     <div
                       onDragOver={(e) => e.preventDefault()}
@@ -1558,11 +1722,35 @@ export default function DesignStudio({ project, onProjectUpdated }) {
                       }}>
                         Drop images or browse
                       </span>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '4px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'var(--font-sans)' }}>or</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsAddPinOpen(true);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--burgundy)',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: 0,
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          add from Pinterest &rarr;
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+          )}
 
             {/* =============================================================== */}
             {/* VIEW 2: BEFORE / AFTER                                          */}
@@ -2795,6 +2983,107 @@ export default function DesignStudio({ project, onProjectUpdated }) {
               <option value="installed">Installed</option>
             </select>
           </div>
+        </form>
+      </SidePanel>
+
+      {/* ========================================================================= */}
+      {/* ADD PINTEREST PIN DRAWER                                                  */}
+      {/* ========================================================================= */}
+      <SidePanel
+        isOpen={isAddPinOpen}
+        onClose={() => {
+          setIsAddPinOpen(false);
+          setPinFormError(null);
+        }}
+        title={`Add Pin to ${currentRoom?.name || 'Room'}`}
+        footer={
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsAddPinOpen(false);
+                setPinFormError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={isSavingPin}
+              onClick={handleSaveRoomPin}
+            >
+              {isSavingPin ? 'Saving...' : 'Add Pin \u2192'}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveRoomPin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+            Paste a Pinterest pin link to embed directly into your room mood board. No image files are downloaded or stored.
+          </p>
+
+          <Field
+            label="Pinterest Pin URL"
+            required
+            hint="pinterest.com/pin/<id>/ or pin.it short link"
+          >
+            <input
+              type="url"
+              placeholder="https://www.pinterest.com/pin/99220005531980838/"
+              value={pinUrlInput}
+              onChange={(e) => {
+                setPinUrlInput(e.target.value);
+                if (pinFormError) setPinFormError(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-input, 14px)',
+                border: '1px solid var(--border-strong)',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '14px',
+                backgroundColor: 'var(--cream)',
+                color: 'var(--espresso)'
+              }}
+              required
+            />
+          </Field>
+
+          <Field
+            label="Note (Optional)"
+            hint="Displayed at the bottom of the pin tile"
+          >
+            <input
+              type="text"
+              placeholder="e.g. Fluted white oak island reference"
+              value={pinNoteInput}
+              onChange={(e) => setPinNoteInput(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-input, 14px)',
+                border: '1px solid var(--border-strong)',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '14px',
+                backgroundColor: 'var(--cream)',
+                color: 'var(--espresso)'
+              }}
+            />
+          </Field>
+
+          {pinFormError && (
+            <div style={{
+              padding: '10px 14px',
+              backgroundColor: 'var(--negative-bg, #F5E6E3)',
+              border: '1px solid var(--negative, #8A2A1E)',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '13px',
+              color: 'var(--negative, #8A2A1E)'
+            }}>
+              {pinFormError}
+            </div>
+          )}
         </form>
       </SidePanel>
     </div>
