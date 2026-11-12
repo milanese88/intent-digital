@@ -98,12 +98,23 @@ function validateComp(body, isUpdate = false) {
   const beds = parseNumField(body.beds, false);
   const baths = parseNumField(body.baths, false);
   const year_built = parseNumField(body.year_built, true);
+  const lot_sqft = parseNumField(body.lot_sqft, true);
   const city = body.city != null && String(body.city).trim() !== '' ? String(body.city).trim() : null;
   const zip = body.zip != null && String(body.zip).trim() !== '' ? String(body.zip).trim() : null;
   const source = body.source != null && String(body.source).trim() !== '' ? String(body.source).trim() : null;
   const included = body.included !== undefined ? Boolean(body.included) : true;
   const parcel_id = body.parcel_id != null && String(body.parcel_id).trim() !== '' ? String(body.parcel_id).trim() : null;
   const parcel_county = body.parcel_county != null && String(body.parcel_county).trim() !== '' ? String(body.parcel_county).trim() : null;
+
+  // Valuation attributes
+  const validConditions = ['as_is', 'updated', 'fully_renovated', 'unknown'];
+  const rawCond = body.condition != null ? String(body.condition).trim().toLowerCase() : 'unknown';
+  const condition = validConditions.includes(rawCond) ? rawCond : 'unknown';
+  const pool = Boolean(body.pool);
+  const garage = Boolean(body.garage);
+  const waterfront = Boolean(body.waterfront);
+  const notes = body.notes != null && String(body.notes).trim() !== '' ? String(body.notes).trim() : null;
+  const adjustments = typeof body.adjustments === 'object' && body.adjustments !== null ? body.adjustments : {};
 
   return {
     errors,
@@ -119,6 +130,13 @@ function validateComp(body, isUpdate = false) {
       beds,
       baths,
       year_built,
+      lot_sqft,
+      condition,
+      pool,
+      garage,
+      waterfront,
+      notes,
+      adjustments,
       included,
       source,
       parcel_id,
@@ -176,6 +194,13 @@ export default async function handler(req, res) {
               source,
               parcel_id,
               parcel_county,
+              COALESCE(condition, 'unknown') AS condition,
+              COALESCE(pool, false) AS pool,
+              COALESCE(garage, false) AS garage,
+              COALESCE(waterfront, false) AS waterfront,
+              lot_sqft,
+              notes,
+              COALESCE(adjustments, '{}'::jsonb) AS adjustments,
               created_at
             FROM investor_comps
             WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
@@ -183,7 +208,7 @@ export default async function handler(req, res) {
           `;
         } catch (colErr) {
           if (colErr.code === '42703') {
-            comps = await sql`
+            const rawComps = await sql`
               SELECT
                 id,
                 owner_email,
@@ -203,13 +228,23 @@ export default async function handler(req, res) {
                 distance_mi,
                 included,
                 source,
-                NULL::text AS parcel_id,
-                NULL::text AS parcel_county,
                 created_at
               FROM investor_comps
               WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
               ORDER BY sold_date DESC NULLS LAST, created_at DESC
             `;
+            comps = rawComps.map(r => ({
+              ...r,
+              parcel_id: null,
+              parcel_county: null,
+              condition: 'unknown',
+              pool: false,
+              garage: false,
+              waterfront: false,
+              lot_sqft: null,
+              notes: null,
+              adjustments: {}
+            }));
           } else {
             throw colErr;
           }
@@ -243,6 +278,13 @@ export default async function handler(req, res) {
             source,
             parcel_id,
             parcel_county,
+            COALESCE(condition, 'unknown') AS condition,
+            COALESCE(pool, false) AS pool,
+            COALESCE(garage, false) AS garage,
+            COALESCE(waterfront, false) AS waterfront,
+            lot_sqft,
+            notes,
+            COALESCE(adjustments, '{}'::jsonb) AS adjustments,
             created_at
           FROM investor_comps
           WHERE lower(owner_email) = ${cleanEmail}
@@ -250,7 +292,7 @@ export default async function handler(req, res) {
         `;
       } catch (colErr) {
         if (colErr.code === '42703') {
-          allComps = await sql`
+          const rawComps = await sql`
             SELECT
               id,
               owner_email,
@@ -270,13 +312,23 @@ export default async function handler(req, res) {
               distance_mi,
               included,
               source,
-              NULL::text AS parcel_id,
-              NULL::text AS parcel_county,
               created_at
             FROM investor_comps
             WHERE lower(owner_email) = ${cleanEmail}
             ORDER BY sold_date DESC NULLS LAST, created_at DESC
           `;
+          allComps = rawComps.map(r => ({
+            ...r,
+            parcel_id: null,
+            parcel_county: null,
+            condition: 'unknown',
+            pool: false,
+            garage: false,
+            waterfront: false,
+            lot_sqft: null,
+            notes: null,
+            adjustments: {}
+          }));
         } else {
           throw colErr;
         }
@@ -334,7 +386,14 @@ export default async function handler(req, res) {
             included,
             source,
             parcel_id,
-            parcel_county
+            parcel_county,
+            condition,
+            pool,
+            garage,
+            waterfront,
+            lot_sqft,
+            notes,
+            adjustments
           ) VALUES (
             ${cleanEmail},
             ${propertyId},
@@ -353,7 +412,14 @@ export default async function handler(req, res) {
             ${data.included},
             ${data.source},
             ${data.parcel_id},
-            ${data.parcel_county}
+            ${data.parcel_county},
+            ${data.condition},
+            ${data.pool},
+            ${data.garage},
+            ${data.waterfront},
+            ${data.lot_sqft},
+            ${data.notes},
+            ${JSON.stringify(data.adjustments)}::jsonb
           )
           RETURNING *
         `;
@@ -399,6 +465,13 @@ export default async function handler(req, res) {
           `;
           rows[0].parcel_id = data.parcel_id;
           rows[0].parcel_county = data.parcel_county;
+          rows[0].condition = data.condition;
+          rows[0].pool = data.pool;
+          rows[0].garage = data.garage;
+          rows[0].waterfront = data.waterfront;
+          rows[0].lot_sqft = data.lot_sqft;
+          rows[0].notes = data.notes;
+          rows[0].adjustments = data.adjustments;
         } else {
           throw colErr;
         }
@@ -471,7 +544,13 @@ export default async function handler(req, res) {
       const finalIncluded = data.included !== undefined ? data.included : currentComp.included;
       const finalSource = data.source !== undefined ? data.source : currentComp.source;
       const finalParcelId = data.parcel_id !== undefined ? data.parcel_id : (currentComp.parcel_id || null);
-      const finalParcelCounty = data.parcel_county !== undefined ? data.parcel_county : (currentComp.parcel_county || null);
+      const finalCondition = data.condition !== undefined ? data.condition : (currentComp.condition || 'unknown');
+      const finalPool = data.pool !== undefined ? data.pool : Boolean(currentComp.pool);
+      const finalGarage = data.garage !== undefined ? data.garage : Boolean(currentComp.garage);
+      const finalWaterfront = data.waterfront !== undefined ? data.waterfront : Boolean(currentComp.waterfront);
+      const finalLotSqft = data.lot_sqft !== undefined ? data.lot_sqft : (currentComp.lot_sqft || null);
+      const finalNotes = data.notes !== undefined ? data.notes : (currentComp.notes || null);
+      const finalAdjustments = data.adjustments !== undefined ? data.adjustments : (currentComp.adjustments || {});
 
       // Calculate distance_mi if both property and comp have lat/lng
       let finalDistance = null;
@@ -499,7 +578,14 @@ export default async function handler(req, res) {
             included = ${finalIncluded},
             source = ${finalSource},
             parcel_id = ${finalParcelId},
-            parcel_county = ${finalParcelCounty}
+            parcel_county = ${finalParcelCounty},
+            condition = ${finalCondition},
+            pool = ${finalPool},
+            garage = ${finalGarage},
+            waterfront = ${finalWaterfront},
+            lot_sqft = ${finalLotSqft},
+            notes = ${finalNotes},
+            adjustments = ${JSON.stringify(finalAdjustments)}::jsonb
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
@@ -528,6 +614,13 @@ export default async function handler(req, res) {
           if (rows[0]) {
             rows[0].parcel_id = finalParcelId;
             rows[0].parcel_county = finalParcelCounty;
+            rows[0].condition = finalCondition;
+            rows[0].pool = finalPool;
+            rows[0].garage = finalGarage;
+            rows[0].waterfront = finalWaterfront;
+            rows[0].lot_sqft = finalLotSqft;
+            rows[0].notes = finalNotes;
+            rows[0].adjustments = finalAdjustments;
           }
         } else {
           throw colErr;

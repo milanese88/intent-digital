@@ -112,6 +112,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
     console.error('Error in /api/designer/room-pins:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    const friendlyMessage = req.method === 'POST'
+      ? "Couldn't save the pin — please try again."
+      : req.method === 'DELETE'
+      ? "Couldn't remove the pin — please try again."
+      : "Couldn't load pins — please try again.";
+    return res.status(500).json({ error: friendlyMessage });
   }
 }

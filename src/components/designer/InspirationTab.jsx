@@ -155,7 +155,7 @@ export default function InspirationTab() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to save Pinterest board.');
+        throw new Error(data.error || "Couldn't save the board — please try again.");
       }
 
       const data = await res.json();
@@ -170,7 +170,10 @@ export default function InspirationTab() {
       setTitleInput('');
       setIsFormOpen(false);
     } catch (err) {
-      setFormError(err.message || 'Error saving board.');
+      const msg = err.message || '';
+      const lower = msg.toLowerCase();
+      const isRawDbError = lower.includes('relation') || lower.includes('table') || lower.includes('column') || lower.includes('postgres') || lower.includes('syntax') || lower.includes('sql') || lower.includes('database');
+      setFormError(isRawDbError || !msg ? "Couldn't save the board — please try again." : msg);
     } finally {
       setIsSubmitting(false);
     }

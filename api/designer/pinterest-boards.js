@@ -184,6 +184,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
     console.error('Error in /api/designer/pinterest-boards:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    const friendlyMessage = req.method === 'POST'
+      ? "Couldn't save the board — please try again."
+      : req.method === 'DELETE'
+      ? "Couldn't remove the board — please try again."
+      : req.method === 'PUT'
+      ? "Couldn't reorder boards — please try again."
+      : "Couldn't load boards — please try again.";
+    return res.status(500).json({ error: friendlyMessage });
   }
 }
