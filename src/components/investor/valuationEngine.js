@@ -255,12 +255,28 @@ function hasNewerRoofOrImpact(entity, mode = 'as_is', isSubject = false) {
   };
 }
 
-function computeMonthsSinceSale(soldDateStr) {
+export function computeMonthsSinceSale(soldDateStr, effectiveDate = new Date()) {
   if (!soldDateStr) return 0;
-  const saleD = new Date(soldDateStr);
+  const raw = String(soldDateStr).trim();
+  const effYear = effectiveDate.getFullYear();
+  const effMonth = effectiveDate.getMonth() + 1;
+
+  // Parse ISO YYYY-MM(-DD) directly to avoid UTC midnight -> local timezone month shift
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if (isoMatch) {
+    const saleYear = Number(isoMatch[1]);
+    const saleMonth = Number(isoMatch[2]);
+    if (saleYear > 1900 && saleMonth >= 1 && saleMonth <= 12) {
+      return Math.max(0, (effYear - saleYear) * 12 + (effMonth - saleMonth));
+    }
+  }
+
+  const saleD = new Date(raw);
   if (isNaN(saleD.getTime())) return 0;
-  const now = new Date();
-  return Math.max(0, (now.getFullYear() - saleD.getFullYear()) * 12 + (now.getMonth() - saleD.getMonth()));
+  return Math.max(
+    0,
+    (effYear - saleD.getUTCFullYear()) * 12 + (effMonth - (saleD.getUTCMonth() + 1))
+  );
 }
 
 /**
@@ -276,7 +292,9 @@ export function computeAppraisalGrid({
   library: rawLibrary = {},
   customWeights = null,    // optional { [compId]: number (percentage 0..100) }
   zipTrendMonthlyPct = null,
-  zipRatioStats = null
+  zipTrendSource = null,
+  zipRatioStats = null,
+  effectiveDate = new Date()
 } = {}) {
   const library = mergeAdjustmentLibrary(rawLibrary);
 
@@ -329,9 +347,11 @@ export function computeAppraisalGrid({
     waterfront: scaleAmt(library.waterfrontAdjustment),
     lotSqftRate: Number(library.lotSqftRate) || 5,
     lotMinThreshold: Number(library.lotMinThreshold) || 500,
-    monthlyTrendPct: zipTrendMonthlyPct != null
-      ? Number(zipTrendMonthlyPct) * 100
-      : (Number(library.monthlyMarketTrendPct) || 0.25)
+    monthlyTrendPct: zipTrendMonthlyPct != null && !isNaN(Number(zipTrendMonthlyPct))
+      ? Math.round(Number(zipTrendMonthlyPct) * 10000) / 100
+      : (library.monthlyMarketTrendPct != null && !isNaN(Number(library.monthlyMarketTrendPct))
+          ? Number(library.monthlyMarketTrendPct)
+          : 0.25)
   };
 
   // Subject normalized attributes
@@ -357,7 +377,8 @@ export function computeAppraisalGrid({
     const soldPrice = Number(comp.sold_price) || 0;
     const compSqft = Number(comp.sqft) || 0;
     const compPpsf = soldPrice > 0 && compSqft > 0 ? Math.round(soldPrice / compSqft) : null;
-    const monthsSinceSale = computeMonthsSinceSale(comp.sold_date);
+    const monthsSinceSale = computeMonthsSinceSale(comp.sold_date, effectiveDate);
+    const isOlderThan6Months = Boolean(comp.sold_date && monthsSinceSale > 6);
     const condMeta = getConditionMeta(comp.condition);
     const overrides = (comp.adjustments && typeof comp.adjustments === 'object' && comp.adjustments.overrides)
       ? comp.adjustments.overrides
@@ -377,15 +398,22 @@ export function computeAppraisalGrid({
       };
     };
 
-    // 1. Time / Market Conditions
+    // 1. Time / Market Conditions (monthly ZIP trend applies to every comp)
     const monthlyDecimal = effectiveRates.monthlyTrendPct / 100;
-    const rawTimeAdj = soldPrice > 0 && monthsSinceSale > 0
-      ? Math.round((soldPrice * monthlyDecimal * monthsSinceSale) / 100) * 100
+    const exactTimeAdj = soldPrice > 0 && monthsSinceSale > 0
+      ? soldPrice * monthlyDecimal * monthsSinceSale
       : 0;
+    const rawTimeAdj = Math.abs(exactTimeAdj) >= 100
+      ? Math.round(exactTimeAdj / 100) * 100
+      : Math.round(exactTimeAdj);
+    const trendSign = effectiveRates.monthlyTrendPct > 0 ? '+' : '';
     const timeCell = resolveCell(
       'time',
       rawTimeAdj,
-      comp.sold_date ? `${monthsSinceSale} mo ago` : 'Date n/a'
+      comp.sold_date ? (monthsSinceSale === 0 ? 'this mo' : `${monthsSinceSale} mo ago`) : 'Date n/a',
+      comp.sold_date && monthsSinceSale > 0 && effectiveRates.monthlyTrendPct !== 0
+        ? `${trendSign}${effectiveRates.monthlyTrendPct}%/mo`
+        : ''
     );
 
     // 2. Gross Living Area (GLA) with South Florida minimum threshold
@@ -489,9 +517,10 @@ export function computeAppraisalGrid({
     const isHighNet = netAdjustmentPct > 15;
     const isHighGross = grossAdjustmentPct > 25;
 
-    // Auto-weight score (higher for closer, more recent, lower gross %, and condition match)
+    // Auto-weight score (higher for closer, more recent, lower gross %, and condition match;
+    // comps older than 6 months have reduced reconciliation weight)
     const distMi = comp.distance_mi != null && !isNaN(Number(comp.distance_mi)) ? Number(comp.distance_mi) : 0.5;
-    const wRecency = 1 / (1 + monthsSinceSale / 6);
+    const wRecency = (1 / (1 + monthsSinceSale / 6)) * (isOlderThan6Months ? 0.55 : 1.0);
     const wDistance = 1 / (1 + distMi / 0.5);
     const wGross = 1 / (1 + grossAdjustmentPct / 12);
     const modeMatchesCondition = mode === 'arv' ? condMeta.isRenovated : !condMeta.isRenovated;
@@ -505,6 +534,7 @@ export function computeAppraisalGrid({
       compSqft,
       compPpsf,
       monthsSinceSale,
+      isOlderThan6Months,
       distanceMi: distMi,
       conditionMeta: condMeta,
       cells,
@@ -694,11 +724,17 @@ export function computeAppraisalGrid({
       id: 'recency_proximity',
       status: usedEvaluated.length === 0
         ? 'warn'
-        : ((avgDist ?? 0) <= 1.0 && (avgMonths ?? 0) <= 12 ? 'pass' : 'warn'),
+        : ((avgDist ?? 0) <= 1.0 && usedEvaluated.every((c) => !c.isOlderThan6Months) ? 'pass' : 'warn'),
       label: 'Proximity & Sale Recency',
       detail: usedEvaluated.length === 0
         ? 'No active comps selected'
-        : `Avg ${(avgDist ?? 0).toFixed(2)} mi distance · ${(avgMonths ?? 0).toFixed(1)} mo since sale`
+        : (() => {
+            const olderCount = usedEvaluated.filter((c) => c.isOlderThan6Months).length;
+            const base = `Avg ${(avgDist ?? 0).toFixed(2)} mi distance · ${(avgMonths ?? 0).toFixed(1)} mo since sale`;
+            return olderCount > 0
+              ? `${base} · ${olderCount} ${olderCount === 1 ? 'comp' : 'comps'} >6 mo (weight reduced)`
+              : base;
+          })()
     },
     ...(mode === 'arv'
       ? [{
@@ -731,6 +767,7 @@ export function computeAppraisalGrid({
     tier,
     library,
     effectiveRates,
+    zipTrendSource,
     medianUnadjustedPrice,
     localMedianPpsf: localMedianPpsf ? Math.round(localMedianPpsf) : null,
     subjectSummary: {

@@ -24,7 +24,7 @@ function formatShortSoldDate(dStr) {
 const CONDITION_CYCLE = ['as_is', 'updated', 'fully_renovated'];
 
 const GRID_ROWS = [
-  { key: 'time', label: 'Sale Date / Time', sub: 'Market trend' },
+  { key: 'time', label: 'Sale Date / Time', sub: 'Monthly ZIP trend' },
   { key: 'gla', label: 'Living Area (GLA)', sub: 'Size differential' },
   { key: 'bed_bath', label: 'Beds & Baths', sub: 'Room & bath count' },
   { key: 'condition', label: 'Condition (UAD)', sub: 'Kitchen & baths' },
@@ -212,8 +212,21 @@ export default function AppraisalGridSection({
 
   const renderSubjectRowValue = (rowKey) => {
     switch (rowKey) {
-      case 'time':
-        return <span style={{ opacity: 0.9 }}>Current ({effectiveRates.monthlyTrendPct}%/mo)</span>;
+      case 'time': {
+        const trendSign = effectiveRates.monthlyTrendPct > 0 ? '+' : '';
+        return (
+          <span>
+            <span style={{ opacity: 0.9 }}>
+              Current ({trendSign}{effectiveRates.monthlyTrendPct}%/mo)
+            </span>
+            {grid.zipTrendSource && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                {grid.zipTrendSource}
+              </span>
+            )}
+          </span>
+        );
+      }
       case 'gla':
         return (
           <span>
@@ -788,7 +801,7 @@ export default function AppraisalGridSection({
                           </button>
                         </div>
 
-                        <div style={{ marginTop: '8px' }}>
+                        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                           <button
                             type="button"
                             title="Click to cycle comp condition (As-is → Updated → Fully renovated)"
@@ -812,6 +825,24 @@ export default function AppraisalGridSection({
                           >
                             {(COMP_CONDITIONS[condKey] || COMP_CONDITIONS.unknown).label} &#8635;
                           </button>
+
+                          {/* Amber-free warning chip in burgundy outline when comp is > 6 months old */}
+                          {comp.isOlderThan6Months && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title={`Sold ${comp.monthsSinceSale} months ago — reconciliation weight reduced`}
+                              style={{
+                                backgroundColor: 'transparent',
+                                color: 'var(--burgundy, #41101B)',
+                                border: '1px solid var(--burgundy, #41101B)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              Older than 6 months
+                            </Pill>
+                          )}
                         </div>
                       </th>
                     );
@@ -1509,8 +1540,15 @@ export default function AppraisalGridSection({
                         </div>
                       </div>
 
-                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px' }}>
-                        {comp.distanceMi} mi · {comp.monthsSinceSale} mo · {comp.grossAdjustmentPct.toFixed(1)}% gross
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>
+                          {comp.distanceMi} mi · {comp.monthsSinceSale} mo · {comp.grossAdjustmentPct.toFixed(1)}% gross
+                        </span>
+                        {comp.isOlderThan6Months && (
+                          <span style={{ color: 'var(--burgundy, #41101B)', fontWeight: 600 }}>
+                            Weight reduced (&gt;6 mo)
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

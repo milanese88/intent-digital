@@ -285,3 +285,77 @@ test('computeAppraisalGrid: enforces GLA minimum threshold, 35% local $/sf vs li
   assert.strictEqual(validateWeightsSum(norm).valid, true);
 });
 
+test('computeAppraisalGrid: flags comps >6 months old, reduces their weight, and applies monthly ZIP trend to every comp', () => {
+  const effectiveDate = new Date(2026, 10, 12); // Nov 12, 2026
+  const subject = { sqft: 1800, condition: 'as_is' };
+  const comps = [
+    {
+      id: 'recent_2mo',
+      address: '101 Palm Ave',
+      sold_price: 500000,
+      sqft: 1800,
+      sold_date: '2026-09-01', // 2 months ago
+      distance_mi: 0.3,
+      condition: 'as_is',
+      included: true
+    },
+    {
+      id: 'boundary_6mo',
+      address: '102 Palm Ave',
+      sold_price: 500000,
+      sqft: 1800,
+      sold_date: '2026-05-01', // exactly 6 months ago (NOT older than 6 months)
+      distance_mi: 0.3,
+      condition: 'as_is',
+      included: true
+    },
+    {
+      id: 'stale_9mo',
+      address: '103 Palm Ave',
+      sold_price: 500000,
+      sqft: 1800,
+      sold_date: '2026-02-01', // 9 months ago (>6 months)
+      distance_mi: 0.3,
+      condition: 'as_is',
+      included: true
+    }
+  ];
+
+  // +0.30%/mo ZIP trend -> zipTrendMonthlyPct = 0.003
+  const grid = computeAppraisalGrid({
+    comps,
+    subject,
+    mode: 'as_is',
+    zipTrendMonthlyPct: 0.003,
+    zipTrendSource: 'ZIP 33308',
+    effectiveDate
+  });
+
+  const [cRecent, cSix, cStale] = grid.comps;
+
+  // Age & >6 months flag
+  assert.strictEqual(cRecent.monthsSinceSale, 2);
+  assert.strictEqual(cRecent.isOlderThan6Months, false);
+
+  assert.strictEqual(cSix.monthsSinceSale, 6);
+  assert.strictEqual(cSix.isOlderThan6Months, false);
+
+  assert.strictEqual(cStale.monthsSinceSale, 9);
+  assert.strictEqual(cStale.isOlderThan6Months, true);
+
+  // Time adjustment (monthly ZIP trend) applies to EVERY comp:
+  // 2 mo: 500,000 * 0.003 * 2 = +$3,000
+  // 6 mo: 500,000 * 0.003 * 6 = +$9,000
+  // 9 mo: 500,000 * 0.003 * 9 = +$13,500
+  assert.strictEqual(cRecent.cells.time.amount, 3000);
+  assert.strictEqual(cSix.cells.time.amount, 9000);
+  assert.strictEqual(cStale.cells.time.amount, 13500);
+
+  // Stale comp (>6 months) gets significantly reduced reconciliation weight
+  assert.ok(cRecent.weightPct > cSix.weightPct);
+  assert.ok(cSix.weightPct > cStale.weightPct * 1.8);
+  assert.strictEqual(grid.weightValidation.valid, true);
+  assert.strictEqual(grid.zipTrendSource, 'ZIP 33308');
+});
+
+

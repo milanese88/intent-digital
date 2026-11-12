@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import UnderwritePanel from './UnderwritePanel.jsx';
 import FormattedNumberInput from './FormattedNumberInput.jsx';
@@ -924,6 +924,73 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
   }, [activePropertyId, Boolean(buyingProfile?.valuation_defaults?.saved_appraisals?.[activePropertyId])]);
 
+  // Fetch monthly ZIP market trend for the active property so APPRAISAL time adjustment uses live county ZIP trend
+  const [zipMarketSummary, setZipMarketSummary] = useState(null);
+  const activeSubjectZip = String(activeProperty?.zip || countyData?.zip || '').trim();
+  const activeSubjectCounty = activeProperty?.parcel_county || activeProperty?.county || countyData?.county || 'Broward';
+  const activeSubjectType = activeProperty?.property_type || 'single_family';
+
+  useEffect(() => {
+    if (!/^\d{5}$/.test(activeSubjectZip)) {
+      setZipMarketSummary(null);
+      return;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams({
+      county: activeSubjectCounty,
+      zip: activeSubjectZip,
+      type: activeSubjectType
+    });
+    fetch(`/api/county/market?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((mData) => {
+        if (!cancelled) {
+          setZipMarketSummary(mData?.summary || null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setZipMarketSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubjectZip, activeSubjectCounty, activeSubjectType]);
+
+  // Persist user's last comp search filter choices in their investor profile
+  const handleSaveCompFilters = useCallback(async (nextFilters) => {
+    setBuyingProfile((prev) => {
+      const base = prev || {};
+      const prevDefaults = base.valuation_defaults || {};
+      return {
+        ...base,
+        valuation_defaults: {
+          ...prevDefaults,
+          comp_search_filters: nextFilters
+        }
+      };
+    });
+
+    try {
+      const prevDefaults = buyingProfile?.valuation_defaults || {};
+      const res = await fetch('/api/investor/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valuation_defaults: {
+            ...prevDefaults,
+            comp_search_filters: nextFilters
+          }
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setBuyingProfile(updated);
+      }
+    } catch {
+      // ignore transient network error; local profile state already updated
+    }
+  }, [buyingProfile?.valuation_defaults]);
+
   // Subject object merged with County Roll & Subject Appraisal Overrides
   const subjectForAppraisal = useMemo(() => {
     if (!activeProperty) return {};
@@ -939,15 +1006,35 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
   // Compute South Florida Sales Comparison Grid
   const appraisalGrid = useMemo(() => {
+    const zipMonthlyPct =
+      zipMarketSummary?.monthly_trend_pct != null && !isNaN(Number(zipMarketSummary.monthly_trend_pct))
+        ? Number(zipMarketSummary.monthly_trend_pct) / 100
+        : null;
+    const zipTrendSource =
+      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+        ? `ZIP ${activeSubjectZip}`
+        : null;
+
     return computeAppraisalGrid({
       comps,
       subject: subjectForAppraisal,
       mode: appraisalMode,
       sizeMethod,
       library: buyingProfile?.valuation_defaults?.library || {},
-      customWeights
+      customWeights,
+      zipTrendMonthlyPct: zipMonthlyPct,
+      zipTrendSource
     });
-  }, [comps, subjectForAppraisal, appraisalMode, sizeMethod, buyingProfile?.valuation_defaults?.library, customWeights]);
+  }, [
+    comps,
+    subjectForAppraisal,
+    appraisalMode,
+    sizeMethod,
+    buyingProfile?.valuation_defaults?.library,
+    customWeights,
+    zipMarketSummary?.monthly_trend_pct,
+    activeSubjectZip
+  ]);
 
   const handleSubjectOverrideChange = (key, value) => {
     setSubjectAppraisalOverrides((prev) => ({
@@ -3136,8 +3223,17 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
                     {/* Suggested Comps from County Records */}
                     <SuggestedCompsPanel
-                      property={activeProperty}
+                      property={
+                        activeProperty
+                          ? {
+                              ...activeProperty,
+                              sqft: activeProperty.sqft || countyData?.living_sqft || null
+                            }
+                          : activeProperty
+                      }
                       comps={comps}
+                      savedFilters={buyingProfile?.valuation_defaults?.comp_search_filters || null}
+                      onSaveFilters={handleSaveCompFilters}
                       onCompAdded={(newComp) => {
                         setComps(prev => [newComp, ...prev]);
                       }}

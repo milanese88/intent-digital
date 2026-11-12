@@ -1,5 +1,9 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
+import {
+  DEFAULT_COMP_FILTERS,
+  sanitizeProfileCompFilters
+} from '../../src/components/investor/compSearchLogic.js';
 
 export const ALLOWED_CREDIT_TIERS = [
   '760+',
@@ -94,7 +98,8 @@ export const DEFAULT_VALUATION_DEFAULTS = {
   waterfrontAdjustment: 50000,
   lotSqftAdjustment: 5,
   ageAdjustmentPerYear: 1000,
-  timeTrendMonthlyPct: 0.003
+  timeTrendMonthlyPct: 0.003,
+  comp_search_filters: { ...DEFAULT_COMP_FILTERS }
 };
 
 export function getDefaultProfile(email = '') {
@@ -169,7 +174,10 @@ export default async function handler(req, res) {
         };
         const mergedValuationDefaults = {
           ...DEFAULT_VALUATION_DEFAULTS,
-          ...(profile.valuation_defaults || {})
+          ...(profile.valuation_defaults || {}),
+          comp_search_filters: sanitizeProfileCompFilters(
+            profile.valuation_defaults?.comp_search_filters
+          )
         };
 
         return res.status(200).json({
@@ -187,25 +195,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // PUT: Update buying profile
+    // PUT: Update buying profile (supports full or partial updates)
     if (req.method === 'PUT') {
       const body = req.body || {};
-      const creditTier = body.credit_tier && ALLOWED_CREDIT_TIERS.includes(body.credit_tier)
-        ? body.credit_tier
-        : '740-759';
-
-      const liquidCash = body.liquid_cash != null && !isNaN(Number(body.liquid_cash))
-        ? Math.max(0, Number(body.liquid_cash))
-        : 0;
-
-      const reserveMonths = body.reserve_months != null && !isNaN(Number(body.reserve_months))
-        ? Math.max(0, Math.round(Number(body.reserve_months)))
-        : 6;
 
       let existingRow = null;
       try {
         const existingRows = await sql`
-          SELECT rate_sheet, valuation_defaults
+          SELECT credit_tier, liquid_cash, reserve_months, rate_sheet, valuation_defaults
           FROM investor_profile
           WHERE lower(owner_email) = ${cleanEmail}
           LIMIT 1
@@ -215,11 +212,29 @@ export default async function handler(req, res) {
         // column or table may not exist yet; handled below
       }
 
+      const creditTier = body.credit_tier && ALLOWED_CREDIT_TIERS.includes(body.credit_tier)
+        ? body.credit_tier
+        : (existingRow?.credit_tier && ALLOWED_CREDIT_TIERS.includes(existingRow.credit_tier)
+            ? existingRow.credit_tier
+            : '740-759');
+
+      const liquidCash = body.liquid_cash != null && !isNaN(Number(body.liquid_cash))
+        ? Math.max(0, Number(body.liquid_cash))
+        : (existingRow?.liquid_cash != null && !isNaN(Number(existingRow.liquid_cash))
+            ? Math.max(0, Number(existingRow.liquid_cash))
+            : 100000);
+
+      const reserveMonths = body.reserve_months != null && !isNaN(Number(body.reserve_months))
+        ? Math.max(0, Math.round(Number(body.reserve_months)))
+        : (existingRow?.reserve_months != null && !isNaN(Number(existingRow.reserve_months))
+            ? Math.max(0, Math.round(Number(existingRow.reserve_months)))
+            : 6);
+
       const rateSheet = typeof body.rate_sheet === 'object' && body.rate_sheet !== null
-        ? { ...DEFAULT_RATE_SHEET, ...body.rate_sheet }
+        ? { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}), ...body.rate_sheet }
         : { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}) };
 
-      const valuationDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
+      const mergedRawValDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
         ? {
             ...DEFAULT_VALUATION_DEFAULTS,
             ...(existingRow?.valuation_defaults || {}),
@@ -229,6 +244,11 @@ export default async function handler(req, res) {
             ...DEFAULT_VALUATION_DEFAULTS,
             ...(existingRow?.valuation_defaults || {})
           };
+
+      const valuationDefaults = {
+        ...mergedRawValDefaults,
+        comp_search_filters: sanitizeProfileCompFilters(mergedRawValDefaults.comp_search_filters)
+      };
 
       try {
         let rows;
