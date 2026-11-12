@@ -47,6 +47,7 @@ export default function AppraisalGridSection({
   onOverrideCompCell,
   onOpenEditComp,
   onOpenAddComp,
+  onGoToCompsTab,
   customWeights,
   onWeightChange,
   onAutoWeights,
@@ -547,11 +548,18 @@ export default function AppraisalGridSection({
                 margin: '0 0 18px 0'
               }}
             >
-              Pull verified Palm Beach &amp; Broward sales from Suggested County Comps below or add an MLS sale manually.
+              Pick verified Palm Beach &amp; Broward sales in the Value &amp; Comps tab, or add an MLS sale manually.
             </p>
-            <Button variant="primary" size="sm" onClick={onOpenAddComp}>
-              + Add comparable sale
-            </Button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {onGoToCompsTab && (
+                <Button variant="primary" size="sm" onClick={onGoToCompsTab}>
+                  Pick comps in Value &amp; Comps &rarr;
+                </Button>
+              )}
+              <Button variant={onGoToCompsTab ? 'secondary' : 'primary'} size="sm" onClick={onOpenAddComp}>
+                + Add comparable sale
+              </Button>
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>

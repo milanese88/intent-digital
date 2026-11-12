@@ -40,6 +40,14 @@ function calculateMedian(numbers) {
   return (valid[mid - 1] + valid[mid]) / 2;
 }
 
+const VALID_PROPERTY_TABS = ['overview', 'comps', 'appraisal', 'site', 'deal', 'photos'];
+
+function resolvePropertyTabFromSearch(searchStr) {
+  const params = new URLSearchParams(searchStr);
+  const raw = (params.get('investor_tab') || params.get('tab') || '').toLowerCase();
+  return VALID_PROPERTY_TABS.includes(raw) ? raw : 'overview';
+}
+
 export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,11 +65,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [detailPhotoView, setDetailPhotoView] = useState('photos'); // 'photos' | 'aerial'
   const [activePropertyCover, setActivePropertyCover] = useState(null);
 
-  // Active Tab for Property Detail View: 'overview' | 'comps' | 'site' | 'deal' | 'photos'
+  // Active Tab for Property Detail View: 'overview' | 'comps' | 'appraisal' | 'site' | 'deal' | 'photos'
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('tab') || 'overview';
+      return resolvePropertyTabFromSearch(window.location.search);
     }
     return 'overview';
   });
@@ -206,11 +213,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const prop = params.get('property') || null;
-      const tab = params.get('tab') || 'overview';
       setActivePropertyId(prop);
-      if (tab) {
-        setActiveTab(tab);
-      }
+      setActiveTab(resolvePropertyTabFromSearch(window.location.search));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -302,7 +306,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     setCountyData(null);
     const url = new URL(window.location);
     url.searchParams.set('property', propId);
-    const currentTab = url.searchParams.get('tab') || 'overview';
+    const currentTab = resolvePropertyTabFromSearch(window.location.search);
     url.searchParams.set('tab', currentTab);
     setActiveTab(currentTab);
     window.history.pushState({}, '', url);
@@ -317,7 +321,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     setCountyData(null);
     const url = new URL(window.location);
     url.searchParams.delete('property');
-    url.searchParams.delete('tab');
+    url.searchParams.delete('investor_tab');
+    url.searchParams.set('tab', 'investor');
     window.history.pushState({}, '', url);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1996,29 +2001,31 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 const listP = Number(activeProperty.list_price);
                 const compVal = Number(rawCompValue);
                 const diffPct = ((listP - compVal) / compVal) * 100;
+                const valTab = appraisalGrid?.reconciledValue ? 'appraisal' : 'comps';
+                const valTabLabel = appraisalGrid?.reconciledValue ? 'APPRAISAL →' : 'VALUE & COMPS →';
                 if (Math.abs(diffPct) <= 5) {
                   checklistItems.push({
                     status: 'green',
                     title: 'Asking Price In Line With Comps',
                     text: `List price (${formatPrice(listP)}) is within ±5% of comp valuation (${compValueFormatted}, ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%).`,
-                    tab: 'comps',
-                    tabLabel: 'VALUE & COMPS →'
+                    tab: valTab,
+                    tabLabel: valTabLabel
                   });
                 } else if (diffPct > 5) {
                   checklistItems.push({
                     status: 'amber',
                     title: 'Asking Price Above Comps',
                     text: `List price (${formatPrice(listP)}) is ${diffPct.toFixed(1)}% above comp estimate (${compValueFormatted}). May require negotiation.`,
-                    tab: 'comps',
-                    tabLabel: 'VALUE & COMPS →'
+                    tab: valTab,
+                    tabLabel: valTabLabel
                   });
                 } else {
                   checklistItems.push({
                     status: 'green',
                     title: 'Asking Price Below Comps',
                     text: `List price (${formatPrice(listP)}) is ${Math.abs(diffPct).toFixed(1)}% below comp estimate (${compValueFormatted}) — potential built-in equity.`,
-                    tab: 'comps',
-                    tabLabel: 'VALUE & COMPS →'
+                    tab: valTab,
+                    tabLabel: valTabLabel
                   });
                 }
               } else if (!hasComps) {
@@ -2191,6 +2198,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
               // Tab Badge Counts
               const overviewBadgeCount = checklistItems.filter(i => i.status === 'red' || i.status === 'amber').length;
               const compsBadgeCount = includedComps.length < 3 ? 1 : 0;
+              const appraisalBadgeCount = includedComps.length > 0
+                ? ((!appraisalGrid?.weightValidation?.valid ? 1 : 0) + (appraisalMode === 'arv' && (appraisalGrid?.renovatedUsedCount || 0) === 0 ? 1 : 0))
+                : 0;
               const siteBadgeCount = (!hasZoningCode ? 1 : 0) + (siteData?.zoningData?.historic_district ? 1 : 0) + (mismatches.length > 0 ? 1 : 0);
               const dealBadgeCount = (hasRentOrArv ? 0 : 1) + (hasInsurance ? 0 : 1) + (hasRate ? 0 : 1) + (profileCash != null && cashNeeded > profileCash ? 1 : 0);
 
@@ -2770,11 +2780,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     }}
                   >
                     {[
-                      { id: 'overview', label: 'Overview', badge: overviewBadgeCount },
-                      { id: 'comps', label: 'Value & comps', badge: compsBadgeCount },
-                      { id: 'site', label: 'Site & zoning', badge: siteBadgeCount },
-                      { id: 'deal', label: 'Deal', badge: dealBadgeCount },
-                      { id: 'photos', label: 'Photos & notes', badge: 0 }
+                      { id: 'overview', label: 'OVERVIEW', badge: overviewBadgeCount },
+                      { id: 'comps', label: 'VALUE & COMPS', badge: compsBadgeCount },
+                      { id: 'appraisal', label: 'APPRAISAL', badge: appraisalBadgeCount },
+                      { id: 'site', label: 'SITE & ZONING', badge: siteBadgeCount },
+                      { id: 'deal', label: 'DEAL', badge: dealBadgeCount },
+                      { id: 'photos', label: 'PHOTOS & NOTES', badge: 0 }
                     ].map((tab) => {
                       const isSelected = activeTab === tab.id;
                       return (
@@ -2791,8 +2802,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             borderBottom: isSelected ? '2px solid var(--secondary-color, #41101B)' : '2px solid transparent',
                             padding: '12px 18px',
                             fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                            fontSize: '13px',
-                            fontWeight: isSelected ? 600 : 500,
+                            fontSize: '11.5px',
+                            fontWeight: isSelected ? 700 : 600,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
                             color: isSelected ? 'var(--espresso, #1B130D)' : 'rgba(52, 41, 42, 0.65)',
                             cursor: 'pointer',
                             display: 'inline-flex',
@@ -3079,31 +3092,47 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     aria-labelledby="tab-comps"
                     style={{ display: activeTab === 'comps' ? 'block' : 'none' }}
                   >
-                    {/* Rigorous Sales Comparison & Appraisal Reconciliation Section */}
-                    <AppraisalGridSection
-                      grid={appraisalGrid}
-                      mode={appraisalMode}
-                      onModeChange={(nextMode) => setAppraisalMode(nextMode)}
-                      sizeMethod={sizeMethod}
-                      onSizeMethodChange={(nextMethod) => setSizeMethod(nextMethod)}
-                      subjectOverrides={subjectAppraisalOverrides}
-                      onSubjectOverrideChange={handleSubjectOverrideChange}
-                      onToggleCompUsed={handleToggleInclude}
-                      onChangeCompCondition={handleChangeCompCondition}
-                      onOverrideCompCell={handleOverrideCompCell}
-                      onOpenEditComp={handleOpenEditComp}
-                      onOpenAddComp={handleOpenAddComp}
-                      customWeights={customWeights}
-                      onWeightChange={handleWeightChange}
-                      onAutoWeights={handleAutoWeights}
-                      onNormalizeWeights={handleNormalizeWeights}
-                      onUseInDeal={handleUseInDeal}
-                      onSaveAppraisal={handleSaveAppraisal}
-                      isSavingAppraisal={isSavingAppraisal}
-                      lastSavedAt={lastAppraisalSavedAt}
-                      onOpenLibraryModal={() => setIsAdjustmentLibraryOpen(true)}
-                      onOpenLearningLabLesson={handleOpenLearningLabLesson}
-                    />
+                    {/* Sold Comps Header */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      marginBottom: '18px'
+                    }}>
+                      <h2 style={{
+                        fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                        fontSize: '28px',
+                        fontWeight: 400,
+                        color: 'var(--espresso, #1B130D)',
+                        margin: 0
+                      }}>
+                        Sold comps
+                      </h2>
+
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        {comps.length > 0 && (
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleSelectTab('appraisal')}
+                          >
+                            Open in Appraisal &rarr;
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleOpenAddComp}
+                          className="investor-search-btn"
+                          style={{
+                            padding: '10px 20px',
+                            fontSize: '11px'
+                          }}
+                        >
+                          + ADD COMP
+                        </button>
+                      </div>
+                    </div>
 
                     {/* Suggested Comps from County Records */}
                     <SuggestedCompsPanel
@@ -3114,36 +3143,6 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       }}
                       showToast={showToast}
                     />
-
-                    {/* Sold Comps Roster Header */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '18px'
-                    }}>
-                      <h2 style={{
-                        fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                        fontSize: '26px',
-                        fontWeight: 400,
-                        color: 'var(--espresso, #1B130D)',
-                        margin: 0
-                      }}>
-                        Comparable sales roster
-                      </h2>
-
-                      <button
-                        type="button"
-                        onClick={handleOpenAddComp}
-                        className="investor-search-btn"
-                        style={{
-                          padding: '10px 20px',
-                          fontSize: '11px'
-                        }}
-                      >
-                        + ADD COMP
-                      </button>
-                    </div>
 
                     {/* Loading / Error States */}
                     {compsLoading && (
@@ -3345,7 +3344,41 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     />
                   </div>
 
-                  {/* TAB 3: SITE & ZONING */}
+                  {/* TAB 3: APPRAISAL */}
+                  <div
+                    role="tabpanel"
+                    id="panel-appraisal"
+                    aria-labelledby="tab-appraisal"
+                    style={{ display: activeTab === 'appraisal' ? 'block' : 'none' }}
+                  >
+                    <AppraisalGridSection
+                      grid={appraisalGrid}
+                      mode={appraisalMode}
+                      onModeChange={(nextMode) => setAppraisalMode(nextMode)}
+                      sizeMethod={sizeMethod}
+                      onSizeMethodChange={(nextMethod) => setSizeMethod(nextMethod)}
+                      subjectOverrides={subjectAppraisalOverrides}
+                      onSubjectOverrideChange={handleSubjectOverrideChange}
+                      onToggleCompUsed={handleToggleInclude}
+                      onChangeCompCondition={handleChangeCompCondition}
+                      onOverrideCompCell={handleOverrideCompCell}
+                      onOpenEditComp={handleOpenEditComp}
+                      onOpenAddComp={handleOpenAddComp}
+                      onGoToCompsTab={() => handleSelectTab('comps')}
+                      customWeights={customWeights}
+                      onWeightChange={handleWeightChange}
+                      onAutoWeights={handleAutoWeights}
+                      onNormalizeWeights={handleNormalizeWeights}
+                      onUseInDeal={handleUseInDeal}
+                      onSaveAppraisal={handleSaveAppraisal}
+                      isSavingAppraisal={isSavingAppraisal}
+                      lastSavedAt={lastAppraisalSavedAt}
+                      onOpenLibraryModal={() => setIsAdjustmentLibraryOpen(true)}
+                      onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                    />
+                  </div>
+
+                  {/* TAB 4: SITE & ZONING */}
                   <div
                     role="tabpanel"
                     id="panel-site"
