@@ -17,7 +17,7 @@ import {
 
 describe('Brand Font Registry (src/config/fonts.js)', () => {
   test('MY_FONTS entries expose complete schema and /fonts/brand/ webfont paths', () => {
-    assert.strictEqual(MY_FONTS.length, 3);
+    assert.strictEqual(MY_FONTS.length, 4);
     const validCategories = new Set(['serif', 'sans', 'script', 'display']);
 
     for (const font of MY_FONTS) {
@@ -43,15 +43,15 @@ describe('Brand Font Registry (src/config/fonts.js)', () => {
     const labelsGroup = getFontGroupsForSlot('labels');
     const accentGroup = getFontGroupsForSlot('accent');
 
-    // Headings gets all 3 My fonts at the top
+    // Headings gets all 4 My fonts at the top
     assert.deepStrictEqual(
       headingsGroup.myFonts.map((f) => f.id),
-      ['atelier-fleur', 'atelier-fleur-script', 'dreams-on-paper']
+      ['atelier-fleur', 'atelier-fleur-script', 'dreams-on-paper', 'poppins']
     );
 
-    // Body and Labels get serif/sans My fonts at top, never script/display
-    assert.deepStrictEqual(bodyGroup.myFonts.map((f) => f.id), ['atelier-fleur']);
-    assert.deepStrictEqual(labelsGroup.myFonts.map((f) => f.id), ['atelier-fleur']);
+    // Body and Labels get serif/sans My fonts at top (Atelier Fleur + Poppins), never script/display
+    assert.deepStrictEqual(bodyGroup.myFonts.map((f) => f.id), ['atelier-fleur', 'poppins']);
+    assert.deepStrictEqual(labelsGroup.myFonts.map((f) => f.id), ['atelier-fleur', 'poppins']);
 
     for (const font of [...ALLOWED_BODY_FONTS, ...ALLOWED_LABEL_FONTS]) {
       assert.notStrictEqual(font.category, 'script');
@@ -68,6 +68,8 @@ describe('Brand Font Registry (src/config/fonts.js)', () => {
 
   test('matchFontInList matches by id or family name case-insensitively and rejects unknown fonts', () => {
     assert.strictEqual(matchFontInList(ALLOWED_HEADING_FONTS, 'atelier-fleur')?.family, 'Atelier Fleur');
+    assert.strictEqual(matchFontInList(ALLOWED_BODY_FONTS, 'Poppins')?.id, 'poppins');
+    assert.strictEqual(matchFontInList(ALLOWED_LABEL_FONTS, 'poppins')?.family, 'Poppins');
     assert.strictEqual(matchFontInList(ALLOWED_HEADING_FONTS, 'Dreams on Paper')?.id, 'dreams-on-paper');
     assert.strictEqual(matchFontInList(ALLOWED_BODY_FONTS, 'dreams-on-paper'), null);
     assert.strictEqual(matchFontInList(ALLOWED_HEADING_FONTS, 'Evil Unlicensed Font'), null);
@@ -79,14 +81,15 @@ describe('Brand Font Registry (src/config/fonts.js)', () => {
       fonts: {
         ...DEFAULT_THEME_FONTS,
         headingFont: 'atelier-fleur',
-        bodyFont: 'atelier-fleur',
-        labelFont: 'Montserrat',
+        bodyFont: 'poppins',
+        labelFont: 'poppins',
         accentFont: 'dreams-on-paper'
       }
     });
 
     assert.strictEqual(vars['--font-display'], "'Atelier Fleur', Georgia, 'Times New Roman', serif");
-    assert.strictEqual(vars['--font-body'], "'Atelier Fleur', Georgia, 'Times New Roman', serif");
+    assert.strictEqual(vars['--font-body'], "'Poppins', system-ui, -apple-system, sans-serif");
+    assert.strictEqual(vars['--font-label'], "'Poppins', system-ui, -apple-system, sans-serif");
     assert.strictEqual(vars['--font-accent'], "'Dreams on Paper', cursive");
     assert.strictEqual(vars['--font-script'], "'Dreams on Paper', cursive");
   });

@@ -106,6 +106,78 @@ export const MY_FONTS = [
         style: 'normal'
       }
     ]
+  }),
+  buildFontEntry({
+    id: 'poppins',
+    label: 'Poppins',
+    family: 'Poppins',
+    weights: [300, 400, 500, 600, 700],
+    italic: true,
+    category: 'sans',
+    fallback: 'system-ui, -apple-system, sans-serif',
+    source: 'brand',
+    files: [
+      {
+        url: '/fonts/brand/poppins-latin-300-normal.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-300-normal.woff',
+        weight: 300,
+        style: 'normal'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-300-italic.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-300-italic.woff',
+        weight: 300,
+        style: 'italic'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-400-normal.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-400-normal.woff',
+        weight: 400,
+        style: 'normal'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-400-italic.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-400-italic.woff',
+        weight: 400,
+        style: 'italic'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-500-normal.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-500-normal.woff',
+        weight: 500,
+        style: 'normal'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-500-italic.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-500-italic.woff',
+        weight: 500,
+        style: 'italic'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-600-normal.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-600-normal.woff',
+        weight: 600,
+        style: 'normal'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-600-italic.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-600-italic.woff',
+        weight: 600,
+        style: 'italic'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-700-normal.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-700-normal.woff',
+        weight: 700,
+        style: 'normal'
+      },
+      {
+        url: '/fonts/brand/poppins-latin-700-italic.woff2',
+        fallbackUrl: '/fonts/brand/poppins-latin-700-italic.woff',
+        weight: 700,
+        style: 'italic'
+      }
+    ]
   })
 ];
 
