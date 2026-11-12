@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
-import { computeThemeCssVariables, loadGoogleFont } from '../utils/themeFonts.js';
+import { computeThemeCssVariables, loadSelectedThemeFonts } from '../utils/themeFonts.js';
 
 export default function Login({ navigateTo }) {
   const [email, setEmail] = useState('');
@@ -24,8 +24,7 @@ export default function Login({ navigateTo }) {
         if (data?.apply_to_login && data?.colors) {
           const vars = computeThemeCssVariables(data);
           setPublicThemeVars(vars);
-          if (data.fonts?.headingFont) loadGoogleFont(data.fonts.headingFont);
-          if (data.fonts?.bodyFont) loadGoogleFont(data.fonts.bodyFont);
+          if (data.fonts) loadSelectedThemeFonts(data.fonts);
         }
       })
       .catch(() => {});

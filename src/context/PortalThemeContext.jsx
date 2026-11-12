@@ -4,8 +4,10 @@ import {
   DEFAULT_THEME_COLORS,
   DEFAULT_THEME_FONTS,
   computeThemeCssVariables,
-  loadGoogleFont,
-  loadAllPreviewFonts
+  loadSelectedThemeFonts,
+  loadAllPreviewFonts,
+  getFontLoadErrors,
+  subscribeFontLoadErrors
 } from '../utils/themeFonts.js';
 
 const PortalThemeContext = createContext(null);
@@ -45,17 +47,18 @@ export function PortalThemeProvider({ children }) {
   const [workingTheme, setWorkingTheme] = useState(getCachedTheme);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fontLoadErrors, setFontLoadErrors] = useState(() => getFontLoadErrors());
 
-  // Sync fonts on theme changes
   useEffect(() => {
-    if (workingTheme?.fonts?.headingFont) {
-      loadGoogleFont(workingTheme.fonts.headingFont);
-    }
-    if (workingTheme?.fonts?.bodyFont) {
-      loadGoogleFont(workingTheme.fonts.bodyFont);
-    }
-    if (workingTheme?.fonts?.labelFont) {
-      loadGoogleFont(workingTheme.fonts.labelFont);
+    return subscribeFontLoadErrors((nextErrors) => {
+      setFontLoadErrors(nextErrors);
+    });
+  }, []);
+
+  // Load ONLY the currently selected fonts on theme changes
+  useEffect(() => {
+    if (workingTheme?.fonts) {
+      loadSelectedThemeFonts(workingTheme.fonts);
     }
   }, [workingTheme?.fonts]);
 
@@ -145,6 +148,7 @@ export function PortalThemeProvider({ children }) {
         hasUnsavedChanges,
         loading,
         error,
+        fontLoadErrors,
         cssVariables,
         refreshTheme: fetchTheme,
         loadAllPreviewFonts

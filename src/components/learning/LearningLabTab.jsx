@@ -88,10 +88,17 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           setSelectedGuessOption(null);
         }
 
-        // Set initial term/principle index by day of year
+        // Set initial term/principle index by focused lesson query/global or day of year
         const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
         if (json.terms?.length > 0) {
-          setTermIndex(dayOfYear % json.terms.length);
+          const requestedLesson = (typeof window !== 'undefined' && (
+            window.__learningLabFocusTerm ||
+            new URLSearchParams(window.location.search).get('lesson')
+          )) || null;
+          const matchedIdx = requestedLesson
+            ? json.terms.findIndex((t) => t.id === requestedLesson)
+            : -1;
+          setTermIndex(matchedIdx >= 0 ? matchedIdx : (dayOfYear % json.terms.length));
         }
         if (json.principles?.length > 0) {
           setPrincipleIndex(dayOfYear % json.principles.length);
@@ -115,8 +122,27 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
         setGuessAnswered(true);
         setSelectedGuessOption(cached.guessProperty.userAnswer);
       }
+      const requestedLesson = (typeof window !== 'undefined' && (
+        window.__learningLabFocusTerm ||
+        new URLSearchParams(window.location.search).get('lesson')
+      )) || null;
+      if (requestedLesson && cached.terms?.length > 0) {
+        const matchedIdx = cached.terms.findIndex((t) => t.id === requestedLesson);
+        if (matchedIdx >= 0) setTermIndex(matchedIdx);
+      }
     }
     loadLabData(0, 0, !hasCache);
+
+    if (typeof window !== 'undefined') {
+      const requestedLesson = window.__learningLabFocusTerm || new URLSearchParams(window.location.search).get('lesson');
+      if (requestedLesson) {
+        window.__learningLabFocusTerm = null;
+        setTimeout(() => {
+          const el = document.getElementById('learning-lab-term-section');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 180);
+      }
+    }
   }, []);
 
   // Handle Deal Answer
@@ -960,7 +986,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           {/* -----------------------------------------------------------------
               TERM OF THE DAY
               ----------------------------------------------------------------- */}
-          <section>
+          <section id="learning-lab-term-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px' }}>
                 <Numeral number="02" size="md" color="var(--burgundy)" />

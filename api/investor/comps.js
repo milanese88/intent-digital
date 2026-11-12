@@ -489,7 +489,7 @@ export default async function handler(req, res) {
 
       // Check comp exists and belongs to logged-in user
       const existing = await sql`
-        SELECT id, property_id, lat, lng, address, city, zip, sold_date, sold_price, sqft, beds, baths, year_built, distance_mi, included, source
+        SELECT *
         FROM investor_comps
         WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
         LIMIT 1
@@ -525,32 +525,34 @@ export default async function handler(req, res) {
         return res.status(200).json(rows[0]);
       }
 
-      const { errors, data } = validateComp(req.body || {}, true);
+      const body = req.body || {};
+      const { errors, data } = validateComp(body, true);
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
-      const finalAddress = data.address || currentComp.address;
-      const finalCity = data.city !== undefined ? data.city : currentComp.city;
-      const finalZip = data.zip !== undefined ? data.zip : currentComp.zip;
-      const finalLat = data.lat !== undefined ? data.lat : currentComp.lat;
-      const finalLng = data.lng !== undefined ? data.lng : currentComp.lng;
-      const finalSoldDate = data.sold_date !== undefined ? data.sold_date : currentComp.sold_date;
-      const finalSoldPrice = data.sold_price !== undefined ? data.sold_price : currentComp.sold_price;
-      const finalSqft = data.sqft !== undefined ? data.sqft : currentComp.sqft;
-      const finalBeds = data.beds !== undefined ? data.beds : currentComp.beds;
-      const finalBaths = data.baths !== undefined ? data.baths : currentComp.baths;
-      const finalYearBuilt = data.year_built !== undefined ? data.year_built : currentComp.year_built;
-      const finalIncluded = data.included !== undefined ? data.included : currentComp.included;
-      const finalSource = data.source !== undefined ? data.source : currentComp.source;
-      const finalParcelId = data.parcel_id !== undefined ? data.parcel_id : (currentComp.parcel_id || null);
-      const finalCondition = data.condition !== undefined ? data.condition : (currentComp.condition || 'unknown');
-      const finalPool = data.pool !== undefined ? data.pool : Boolean(currentComp.pool);
-      const finalGarage = data.garage !== undefined ? data.garage : Boolean(currentComp.garage);
-      const finalWaterfront = data.waterfront !== undefined ? data.waterfront : Boolean(currentComp.waterfront);
-      const finalLotSqft = data.lot_sqft !== undefined ? data.lot_sqft : (currentComp.lot_sqft || null);
-      const finalNotes = data.notes !== undefined ? data.notes : (currentComp.notes || null);
-      const finalAdjustments = data.adjustments !== undefined ? data.adjustments : (currentComp.adjustments || {});
+      const finalAddress = body.address !== undefined ? (data.address || currentComp.address) : currentComp.address;
+      const finalCity = body.city !== undefined ? data.city : currentComp.city;
+      const finalZip = body.zip !== undefined ? data.zip : currentComp.zip;
+      const finalLat = body.lat !== undefined ? data.lat : currentComp.lat;
+      const finalLng = body.lng !== undefined ? data.lng : currentComp.lng;
+      const finalSoldDate = body.sold_date !== undefined ? data.sold_date : currentComp.sold_date;
+      const finalSoldPrice = body.sold_price !== undefined ? data.sold_price : currentComp.sold_price;
+      const finalSqft = body.sqft !== undefined ? data.sqft : currentComp.sqft;
+      const finalBeds = body.beds !== undefined ? data.beds : currentComp.beds;
+      const finalBaths = body.baths !== undefined ? data.baths : currentComp.baths;
+      const finalYearBuilt = body.year_built !== undefined ? data.year_built : currentComp.year_built;
+      const finalIncluded = body.included !== undefined ? data.included : currentComp.included;
+      const finalSource = body.source !== undefined ? data.source : currentComp.source;
+      const finalParcelId = body.parcel_id !== undefined ? data.parcel_id : (currentComp.parcel_id || null);
+      const finalParcelCounty = body.parcel_county !== undefined ? data.parcel_county : (currentComp.parcel_county || null);
+      const finalCondition = body.condition !== undefined ? data.condition : (currentComp.condition || 'unknown');
+      const finalPool = body.pool !== undefined ? data.pool : Boolean(currentComp.pool);
+      const finalGarage = body.garage !== undefined ? data.garage : Boolean(currentComp.garage);
+      const finalWaterfront = body.waterfront !== undefined ? data.waterfront : Boolean(currentComp.waterfront);
+      const finalLotSqft = body.lot_sqft !== undefined ? data.lot_sqft : (currentComp.lot_sqft || null);
+      const finalNotes = body.notes !== undefined ? data.notes : (currentComp.notes || null);
+      const finalAdjustments = body.adjustments !== undefined ? data.adjustments : (currentComp.adjustments || {});
 
       // Calculate distance_mi if both property and comp have lat/lng
       let finalDistance = null;

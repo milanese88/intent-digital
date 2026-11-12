@@ -1,6 +1,14 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
-import { DEFAULT_THEME_COLORS, DEFAULT_THEME_FONTS, ALLOWED_HEADING_FONTS, ALLOWED_BODY_FONTS } from '../../src/utils/themeFonts.js';
+import {
+  DEFAULT_THEME_COLORS,
+  DEFAULT_THEME_FONTS,
+  ALLOWED_HEADING_FONTS,
+  ALLOWED_BODY_FONTS,
+  ALLOWED_LABEL_FONTS,
+  ALLOWED_ACCENT_FONTS
+} from '../../src/utils/themeFonts.js';
+import { matchFontInList } from '../../src/config/fonts.js';
 import { isValidHex, normalizeHex } from '../../src/utils/themeContrast.js';
 
 export default async function handler(req, res) {
@@ -54,20 +62,18 @@ export default async function handler(req, res) {
       }
 
       // Sanitize fonts
-      const headingMatch = ALLOWED_HEADING_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.headingFont || '').trim().toLowerCase()
-      );
-      const bodyMatch = ALLOWED_BODY_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.bodyFont || '').trim().toLowerCase()
-      );
-      const labelMatch = ALLOWED_BODY_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.labelFont || '').trim().toLowerCase()
-      );
+      const headingMatch = matchFontInList(ALLOWED_HEADING_FONTS, rawFonts.headingFont);
+      const bodyMatch = matchFontInList(ALLOWED_BODY_FONTS, rawFonts.bodyFont);
+      const labelMatch = matchFontInList(ALLOWED_LABEL_FONTS, rawFonts.labelFont);
+      const accentMatch = rawFonts.accentFont
+        ? matchFontInList(ALLOWED_ACCENT_FONTS, rawFonts.accentFont)
+        : null;
 
       const sanitizedFonts = {
         headingFont: headingMatch ? headingMatch.id : DEFAULT_THEME_FONTS.headingFont,
         bodyFont: bodyMatch ? bodyMatch.id : DEFAULT_THEME_FONTS.bodyFont,
         labelFont: labelMatch ? labelMatch.id : DEFAULT_THEME_FONTS.labelFont,
+        accentFont: accentMatch ? accentMatch.id : '',
         baseTextSize: ['small', 'default', 'large'].includes(rawFonts.baseTextSize) ? rawFonts.baseTextSize : 'default',
         italicSecondLine: rawFonts.italicSecondLine !== undefined ? Boolean(rawFonts.italicSecondLine) : true
       };

@@ -1,18 +1,292 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePortalTheme } from '../../context/PortalThemeContext.jsx';
 import {
-  ALLOWED_HEADING_FONTS,
-  ALLOWED_BODY_FONTS,
-  ALLOWED_LABEL_FONTS,
   DEFAULT_THEME_COLORS,
   DEFAULT_THEME_FONTS,
-  DEFAULT_THEME
+  getFontGroupsForSlot,
+  getHeadingFontDef,
+  getBodyFontDef,
+  getLabelFontDef,
+  getAccentFontDef,
+  loadThemeFont,
+  loadDropdownPreviewFonts
 } from '../../utils/themeFonts.js';
 import {
   isValidHex,
   normalizeHex,
   getContrastEvaluation
 } from '../../utils/themeContrast.js';
+
+function FontDropdown({
+  id,
+  label,
+  slot,
+  value,
+  selectedDef,
+  sampleText,
+  sampleFontSize = '15px',
+  uppercaseSample = false,
+  allowEmpty = false,
+  emptyLabel = 'None (Portal default)',
+  onChange
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const { myFonts, googleFonts } = getFontGroupsForSlot(slot);
+
+  useEffect(() => {
+    if (!open) return;
+    loadDropdownPreviewFonts([...myFonts, ...googleFonts]);
+
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, myFonts, googleFonts]);
+
+  const handleSelect = (nextId) => {
+    setOpen(false);
+    if (nextId) {
+      loadThemeFont(nextId, { forceRetry: true });
+    }
+    onChange(nextId);
+  };
+
+  const isEmptySelected = allowEmpty && (!value || !selectedDef);
+
+  const renderOptionRow = (f) => {
+    const isSelected = Boolean(selectedDef && selectedDef.id === f.id && !isEmptySelected);
+    return (
+      <button
+        key={f.id}
+        type="button"
+        role="option"
+        aria-selected={isSelected}
+        onClick={() => handleSelect(f.id)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: '12px',
+          padding: '10px 14px',
+          border: 'none',
+          backgroundColor: isSelected ? 'rgba(58, 20, 24, 0.08)' : 'transparent',
+          color: '#34292A',
+          cursor: 'pointer',
+          textAlign: 'left',
+          borderRadius: '6px',
+          transition: 'background-color 0.12s ease'
+        }}
+        onMouseEnter={(e) => {
+          if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(52, 41, 42, 0.05)';
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        <span
+          style={{
+            fontFamily: f.cssFamily,
+            fontSize: sampleFontSize,
+            letterSpacing: uppercaseSample ? '0.1em' : 'normal',
+            textTransform: uppercaseSample ? 'uppercase' : 'none',
+            lineHeight: 1.35,
+            fontWeight: isSelected ? 600 : 400
+          }}
+        >
+          {f.label} &mdash; {sampleText}
+        </span>
+        <span
+          style={{
+            fontFamily: 'Montserrat, sans-serif',
+            fontSize: '10px',
+            color: 'rgba(52, 41, 42, 0.5)',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
+          }}
+        >
+          {f.category}{f.italic ? ' · ital' : ''}
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <label
+        htmlFor={id}
+        style={{
+          display: 'block',
+          fontFamily: 'Montserrat, sans-serif',
+          fontSize: '12px',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.12em',
+          color: '#34292A',
+          marginBottom: '8px'
+        }}
+      >
+        {label}
+      </label>
+
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          padding: '12px 14px',
+          borderRadius: '8px',
+          border: open ? '1px solid #3A1418' : '1px solid rgba(52, 41, 42, 0.2)',
+          backgroundColor: '#FAF8F5',
+          color: '#34292A',
+          fontSize: sampleFontSize,
+          fontFamily: isEmptySelected ? 'Montserrat, sans-serif' : selectedDef?.cssFamily,
+          outline: 'none',
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            letterSpacing: !isEmptySelected && uppercaseSample ? '0.08em' : 'normal'
+          }}
+        >
+          {isEmptySelected ? emptyLabel : `${selectedDef.label} — ${sampleText}`}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            fontFamily: 'Montserrat, sans-serif',
+            fontSize: '11px',
+            color: 'rgba(52, 41, 42, 0.55)',
+            transform: open ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.15s ease',
+            flexShrink: 0
+          }}
+        >
+          &#9662;
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            maxHeight: '320px',
+            overflowY: 'auto',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid rgba(52, 41, 42, 0.18)',
+            borderRadius: '10px',
+            padding: '6px',
+            boxShadow: '0 12px 32px rgba(30, 21, 9, 0.14)'
+          }}
+        >
+          {allowEmpty && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={isEmptySelected}
+              onClick={() => handleSelect('')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '9px 14px',
+                border: 'none',
+                backgroundColor: isEmptySelected ? 'rgba(58, 20, 24, 0.08)' : 'transparent',
+                color: 'rgba(52, 41, 42, 0.75)',
+                fontFamily: 'Montserrat, sans-serif',
+                fontSize: '13px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                borderRadius: '6px',
+                marginBottom: '4px'
+              }}
+            >
+              <span>{emptyLabel}</span>
+            </button>
+          )}
+
+          {myFonts.length > 0 && (
+            <div role="group" aria-label="My fonts">
+              <div
+                style={{
+                  padding: '6px 12px 4px',
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: '#3A1418'
+                }}
+              >
+                My fonts
+              </div>
+              {myFonts.map(renderOptionRow)}
+            </div>
+          )}
+
+          {googleFonts.length > 0 && (
+            <div
+              role="group"
+              aria-label="Google Fonts"
+              style={{
+                marginTop: myFonts.length > 0 ? '6px' : 0,
+                paddingTop: myFonts.length > 0 ? '6px' : 0,
+                borderTop: myFonts.length > 0 ? '1px solid rgba(52, 41, 42, 0.08)' : 'none'
+              }}
+            >
+              <div
+                style={{
+                  padding: '6px 12px 4px',
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(52, 41, 42, 0.5)'
+                }}
+              >
+                Google Fonts
+              </div>
+              {googleFonts.map(renderOptionRow)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 14 Color Role Definitions
 const COLOR_ROLES = [
@@ -44,15 +318,33 @@ const CONTRAST_PAIRS = {
 
 export default function AppearanceSettings() {
   const {
-    savedTheme,
     workingTheme,
     setWorkingTheme,
     saveTheme,
     discardChanges,
     resetToBrandDefault,
     hasUnsavedChanges,
-    loadAllPreviewFonts
+    fontLoadErrors = {}
   } = usePortalTheme();
+
+  const headingFontDef = getHeadingFontDef(workingTheme?.fonts?.headingFont);
+  const bodyFontDef = getBodyFontDef(workingTheme?.fonts?.bodyFont);
+  const labelFontDef = getLabelFontDef(workingTheme?.fonts?.labelFont);
+  const accentFontDef = getAccentFontDef(workingTheme?.fonts?.accentFont);
+
+  const selectedFontIds = Array.from(
+    new Set(
+      [
+        headingFontDef?.id,
+        bodyFontDef?.id,
+        labelFontDef?.id,
+        accentFontDef?.id
+      ].filter(Boolean)
+    )
+  );
+  const activeFontErrors = selectedFontIds
+    .map((id) => fontLoadErrors[id])
+    .filter(Boolean);
 
   // Local state for hex text inputs to allow typing before normalization
   const [hexInputs, setHexInputs] = useState(() => ({ ...(workingTheme?.colors || DEFAULT_THEME_COLORS) }));
@@ -68,11 +360,6 @@ export default function AppearanceSettings() {
   // Action status
   const [saveStatus, setSaveStatus] = useState({ loading: false, success: '', error: '' });
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  // Preload all Google Fonts for preview options
-  useEffect(() => {
-    loadAllPreviewFonts();
-  }, [loadAllPreviewFonts]);
 
   // Sync local hexInputs when workingTheme changes externally
   useEffect(() => {
@@ -337,7 +624,7 @@ export default function AppearanceSettings() {
           }}>
             <div style={{ marginBottom: '24px' }}>
               <h2 style={{
-                fontFamily: '"Atelier Fleur", serif',
+                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
                 fontSize: '28px',
                 color: '#34292A',
                 margin: '0 0 8px 0'
@@ -505,7 +792,7 @@ export default function AppearanceSettings() {
           }}>
             <div style={{ marginBottom: '24px' }}>
               <h2 style={{
-                fontFamily: '"Atelier Fleur", serif',
+                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
                 fontSize: '28px',
                 color: '#34292A',
                 margin: '0 0 8px 0'
@@ -519,121 +806,112 @@ export default function AppearanceSettings() {
                 lineHeight: 1.5,
                 margin: 0
               }}>
-                Select allowlisted editorial fonts. Each dropdown displays options previewed in its own typeface.
+                Choose from your self-hosted brand fonts or allowlisted Google Fonts. Custom fonts load on demand only when selected.
               </p>
             </div>
 
+            {activeFontErrors.length > 0 && (
+              <div
+                role="status"
+                style={{
+                  marginBottom: '20px',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: '#F7EEDC',
+                  border: '1px solid rgba(122, 82, 18, 0.35)',
+                  color: '#7A5212',
+                  fontFamily: 'Montserrat, sans-serif',
+                  fontSize: '12px',
+                  lineHeight: 1.5
+                }}
+              >
+                {activeFontErrors.map((err) => (
+                  <div
+                    key={err.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <span>
+                      <strong>{err.label}</strong> failed to load &mdash; using fallback stack (<code>{err.fallback}</code>).
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadThemeFont(err.id, { forceRetry: true })}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#7A5212',
+                        textDecoration: 'underline',
+                        fontFamily: 'Montserrat, sans-serif',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'grid', gap: '20px' }}>
               {/* Headings Font */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontFamily: 'Montserrat, sans-serif',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  color: '#34292A',
-                  marginBottom: '8px'
-                }}>
-                  Headings & Display Serif
-                </label>
-                <select
-                  value={workingTheme.fonts.headingFont}
-                  onChange={(e) => handleFontChange('headingFont', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(52, 41, 42, 0.2)',
-                    backgroundColor: '#FAF8F5',
-                    color: '#34292A',
-                    fontSize: '15px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {ALLOWED_HEADING_FONTS.map(f => (
-                    <option key={f.id} value={f.id} style={{ fontFamily: f.family, fontSize: '16px' }}>
-                      {f.label} — Ag &quot;Intent Digital&quot;
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FontDropdown
+                id="typography-headings-font"
+                label="Headings & Display"
+                slot="headings"
+                value={workingTheme.fonts.headingFont}
+                selectedDef={headingFontDef}
+                sampleText='Ag "Intent Digital"'
+                sampleFontSize="16px"
+                onChange={(val) => handleFontChange('headingFont', val)}
+              />
 
               {/* Body Font */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontFamily: 'Montserrat, sans-serif',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  color: '#34292A',
-                  marginBottom: '8px'
-                }}>
-                  Body Paragraphs
-                </label>
-                <select
-                  value={workingTheme.fonts.bodyFont}
-                  onChange={(e) => handleFontChange('bodyFont', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(52, 41, 42, 0.2)',
-                    backgroundColor: '#FAF8F5',
-                    color: '#34292A',
-                    fontSize: '14px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {ALLOWED_BODY_FONTS.map(f => (
-                    <option key={f.id} value={f.id} style={{ fontFamily: f.family, fontSize: '14px' }}>
-                      {f.label} — Sample body typography
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FontDropdown
+                id="typography-body-font"
+                label="Body Paragraphs"
+                slot="body"
+                value={workingTheme.fonts.bodyFont}
+                selectedDef={bodyFontDef}
+                sampleText="Sample body typography"
+                sampleFontSize="14px"
+                onChange={(val) => handleFontChange('bodyFont', val)}
+              />
 
               {/* Labels Font */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontFamily: 'Montserrat, sans-serif',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  color: '#34292A',
-                  marginBottom: '8px'
-                }}>
-                  Labels & Navigation (Uppercase)
-                </label>
-                <select
-                  value={workingTheme.fonts.labelFont}
-                  onChange={(e) => handleFontChange('labelFont', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(52, 41, 42, 0.2)',
-                    backgroundColor: '#FAF8F5',
-                    color: '#34292A',
-                    fontSize: '14px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {ALLOWED_LABEL_FONTS.map(f => (
-                    <option key={f.id} value={f.id} style={{ fontFamily: f.family, fontSize: '13px' }}>
-                      {f.label} — LABEL PREVIEW
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FontDropdown
+                id="typography-labels-font"
+                label="Labels & Navigation (Uppercase)"
+                slot="labels"
+                value={workingTheme.fonts.labelFont}
+                selectedDef={labelFontDef}
+                sampleText="LABEL PREVIEW"
+                sampleFontSize="13px"
+                uppercaseSample={true}
+                onChange={(val) => handleFontChange('labelFont', val)}
+              />
+
+              {/* Optional Accent / Script Slot */}
+              <FontDropdown
+                id="typography-accent-font"
+                label="Accent / Script (Optional — Small Stamps)"
+                slot="accent"
+                value={workingTheme.fonts.accentFont || ''}
+                selectedDef={accentFontDef}
+                sampleText="Curated"
+                sampleFontSize="17px"
+                allowEmpty={true}
+                emptyLabel="None (Portal default)"
+                onChange={(val) => handleFontChange('accentFont', val)}
+              />
 
               {/* Base Text Size Scale */}
               <div>
@@ -1029,7 +1307,7 @@ export default function AppearanceSettings() {
                     style={{ width: '22px', height: '22px', objectFit: 'contain' }}
                   />
                   <div style={{
-                    fontFamily: workingTheme.fonts.headingFont,
+                    fontFamily: headingFontDef.cssFamily,
                     fontSize: '9px',
                     color: workingTheme.colors.sidebarText,
                     textTransform: 'uppercase',
@@ -1046,7 +1324,7 @@ export default function AppearanceSettings() {
                   borderRadius: '4px',
                   backgroundColor: `${workingTheme.colors.accent}25`,
                   borderLeft: `2px solid ${workingTheme.colors.accent}`,
-                  fontFamily: workingTheme.fonts.labelFont,
+                  fontFamily: labelFontDef.cssFamily,
                   fontSize: '8px',
                   fontWeight: 700,
                   letterSpacing: '0.08em',
@@ -1057,7 +1335,7 @@ export default function AppearanceSettings() {
                 </div>
                 <div style={{
                   padding: '4px 6px',
-                  fontFamily: workingTheme.fonts.labelFont,
+                  fontFamily: labelFontDef.cssFamily,
                   fontSize: '8px',
                   fontWeight: 500,
                   letterSpacing: '0.08em',
@@ -1069,7 +1347,7 @@ export default function AppearanceSettings() {
                 </div>
                 <div style={{
                   padding: '4px 6px',
-                  fontFamily: workingTheme.fonts.labelFont,
+                  fontFamily: labelFontDef.cssFamily,
                   fontSize: '8px',
                   fontWeight: 500,
                   letterSpacing: '0.08em',
@@ -1092,22 +1370,45 @@ export default function AppearanceSettings() {
                   boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
                   transition: 'all 0.2s ease'
                 }}>
-                  {/* Uppercase Label */}
+                  {/* Uppercase Label + Optional Accent/Script Stamp */}
                   <div style={{
-                    fontFamily: workingTheme.fonts.labelFont,
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color: workingTheme.colors.accent,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
                     marginBottom: '6px'
                   }}>
-                    Studio Direction
+                    <div style={{
+                      fontFamily: labelFontDef.cssFamily,
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: workingTheme.colors.accent
+                    }}>
+                      Studio Direction
+                    </div>
+                    {accentFontDef && (
+                      <span style={{
+                        fontFamily: accentFontDef.cssFamily,
+                        fontSize: '14px',
+                        lineHeight: 1,
+                        color: workingTheme.colors.primaryButton,
+                        padding: '2px 7px',
+                        borderRadius: '999px',
+                        border: `1px dashed ${workingTheme.colors.borders}`,
+                        backgroundColor: workingTheme.colors.surface,
+                        transform: 'rotate(-3deg)',
+                        display: 'inline-block'
+                      }}>
+                        Curated
+                      </span>
+                    )}
                   </div>
 
                   {/* Heading with Optional Italic Second Line */}
                   <h4 style={{
-                    fontFamily: workingTheme.fonts.headingFont,
+                    fontFamily: headingFontDef.cssFamily,
                     fontSize: workingTheme.fonts.baseTextSize === 'small' ? '18px' : workingTheme.fonts.baseTextSize === 'large' ? '24px' : '21px',
                     color: workingTheme.colors.headingText,
                     margin: '0 0 8px 0',
@@ -1122,7 +1423,7 @@ export default function AppearanceSettings() {
 
                   {/* Body Text */}
                   <p style={{
-                    fontFamily: workingTheme.fonts.bodyFont,
+                    fontFamily: bodyFontDef.cssFamily,
                     fontSize: workingTheme.fonts.baseTextSize === 'small' ? '11px' : workingTheme.fonts.baseTextSize === 'large' ? '13px' : '12px',
                     color: workingTheme.colors.bodyText,
                     lineHeight: 1.4,
@@ -1145,7 +1446,7 @@ export default function AppearanceSettings() {
                         border: `1px solid ${workingTheme.colors.borders}`,
                         backgroundColor: workingTheme.colors.surface,
                         color: workingTheme.colors.bodyText,
-                        fontFamily: workingTheme.fonts.bodyFont,
+                        fontFamily: bodyFontDef.cssFamily,
                         fontSize: '11px',
                         outline: 'none'
                       }}
@@ -1163,7 +1464,7 @@ export default function AppearanceSettings() {
                         border: 'none',
                         borderRadius: '999px',
                         padding: '6px 14px',
-                        fontFamily: workingTheme.fonts.labelFont,
+                        fontFamily: labelFontDef.cssFamily,
                         fontSize: '10px',
                         fontWeight: 600,
                         letterSpacing: '0.08em',
@@ -1187,7 +1488,7 @@ export default function AppearanceSettings() {
                         border: `1px solid ${workingTheme.colors.borders}`,
                         borderRadius: '999px',
                         padding: '5px 12px',
-                        fontFamily: workingTheme.fonts.labelFont,
+                        fontFamily: labelFontDef.cssFamily,
                         fontSize: '10px',
                         fontWeight: 600,
                         letterSpacing: '0.08em',
@@ -1206,7 +1507,7 @@ export default function AppearanceSettings() {
                   alignItems: 'center',
                   gap: '8px',
                   fontSize: '9px',
-                  fontFamily: workingTheme.fonts.labelFont,
+                  fontFamily: labelFontDef.cssFamily,
                   fontWeight: 600
                 }}>
                   <span style={{
@@ -1268,7 +1569,7 @@ export default function AppearanceSettings() {
             boxShadow: '0 16px 40px rgba(0,0,0,0.2)'
           }}>
             <h3 style={{
-              fontFamily: '"Atelier Fleur", serif',
+              fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
               fontSize: '24px',
               color: '#34292A',
               margin: '0 0 8px 0'
@@ -1365,7 +1666,7 @@ export default function AppearanceSettings() {
             boxShadow: '0 16px 40px rgba(0,0,0,0.2)'
           }}>
             <h3 style={{
-              fontFamily: '"Atelier Fleur", serif',
+              fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
               fontSize: '24px',
               color: '#34292A',
               margin: '0 0 8px 0'

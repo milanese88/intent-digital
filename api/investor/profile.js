@@ -202,9 +202,33 @@ export default async function handler(req, res) {
         ? Math.max(0, Math.round(Number(body.reserve_months)))
         : 6;
 
+      let existingRow = null;
+      try {
+        const existingRows = await sql`
+          SELECT rate_sheet, valuation_defaults
+          FROM investor_profile
+          WHERE lower(owner_email) = ${cleanEmail}
+          LIMIT 1
+        `;
+        if (existingRows.length > 0) existingRow = existingRows[0];
+      } catch {
+        // column or table may not exist yet; handled below
+      }
+
+      const rateSheet = typeof body.rate_sheet === 'object' && body.rate_sheet !== null
+        ? { ...DEFAULT_RATE_SHEET, ...body.rate_sheet }
+        : { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}) };
+
       const valuationDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
-        ? body.valuation_defaults
-        : DEFAULT_VALUATION_DEFAULTS;
+        ? {
+            ...DEFAULT_VALUATION_DEFAULTS,
+            ...(existingRow?.valuation_defaults || {}),
+            ...body.valuation_defaults
+          }
+        : {
+            ...DEFAULT_VALUATION_DEFAULTS,
+            ...(existingRow?.valuation_defaults || {})
+          };
 
       try {
         let rows;

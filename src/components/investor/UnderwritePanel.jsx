@@ -257,6 +257,7 @@ export default function UnderwritePanel({
   property,
   compValueRaw,
   compValueFormatted,
+  appliedAppraisal,
   profile: initialProfile,
   onOpenProfileModal,
   onUnderwriteChange,
@@ -442,6 +443,21 @@ export default function UnderwritePanel({
     setFlipInputs(buildDefaultInputs('flip', property, profile));
     setBrrrrInputs(buildDefaultInputs('brrrr', property, profile));
   }, [property?.id]);
+
+  // Apply reconciled appraisal value from Value & Comps ("Use in Deal →")
+  useEffect(() => {
+    if (!appliedAppraisal?.nonce || !(Number(appliedAppraisal.value) > 0)) return;
+    const rounded = Math.round(Number(appliedAppraisal.value));
+    if (appliedAppraisal.mode === 'arv') {
+      setFlipInputs((prev) => ({ ...prev, arv: rounded }));
+      setBrrrrInputs((prev) => ({ ...prev, arv: rounded }));
+      setStrategy((prev) => (prev === 'rental' ? 'flip' : prev));
+    } else {
+      setRentalInputs((prev) => ({ ...prev, purchasePrice: rounded }));
+      setFlipInputs((prev) => ({ ...prev, purchasePrice: rounded }));
+      setBrrrrInputs((prev) => ({ ...prev, purchasePrice: rounded }));
+    }
+  }, [appliedAppraisal?.nonce]);
 
   // Saved Analyses State
   const [savedAnalyses, setSavedAnalyses] = useState([]);

@@ -73,7 +73,8 @@ export default function BuyingProfileModal({ isOpen, onClose, onProfileSaved, cu
         credit_tier: creditTier,
         liquid_cash: Number(liquidCash) || 0,
         reserve_months: Number(reserveMonths) || 6,
-        rate_sheet: rateSheet
+        rate_sheet: rateSheet,
+        ...(currentProfile?.valuation_defaults ? { valuation_defaults: currentProfile.valuation_defaults } : {})
       };
 
       const res = await fetch('/api/investor/profile', {
