@@ -91,3 +91,4 @@ describe('Brand Font Registry (src/config/fonts.js)', () => {
     assert.strictEqual(vars['--font-script'], "'Dreams on Paper', cursive");
   });
 });
+

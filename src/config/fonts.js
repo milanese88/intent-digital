@@ -328,3 +328,4 @@ export function matchFontInList(list, nameOrId) {
 export function findFontInRegistry(nameOrId) {
   return matchFontInList(ALL_FONTS, nameOrId);
 }
+
