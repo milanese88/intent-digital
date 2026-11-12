@@ -1,6 +1,14 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
-import { DEFAULT_THEME_COLORS, DEFAULT_THEME_FONTS, ALLOWED_HEADING_FONTS, ALLOWED_BODY_FONTS } from '../../src/utils/themeFonts.js';
+import {
+  DEFAULT_THEME_COLORS,
+  DEFAULT_THEME_FONTS,
+  ALLOWED_HEADING_FONTS,
+  ALLOWED_BODY_FONTS,
+  ALLOWED_LABEL_FONTS,
+  ALLOWED_ACCENT_FONTS
+} from '../../src/utils/themeFonts.js';
+import { matchFontInList } from '../../src/config/fonts.js';
 import { isValidHex, normalizeHex } from '../../src/utils/themeContrast.js';
 
 export default async function handler(req, res) {
@@ -84,20 +92,18 @@ export default async function handler(req, res) {
       }
 
       // Sanitize and validate fonts against allowlist
-      const headingFontMatch = ALLOWED_HEADING_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.headingFont || '').trim().toLowerCase()
-      );
-      const bodyFontMatch = ALLOWED_BODY_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.bodyFont || '').trim().toLowerCase()
-      );
-      const labelFontMatch = ALLOWED_BODY_FONTS.find(
-        f => f.id.toLowerCase() === (rawFonts.labelFont || '').trim().toLowerCase()
-      );
+      const headingFontMatch = matchFontInList(ALLOWED_HEADING_FONTS, rawFonts.headingFont);
+      const bodyFontMatch = matchFontInList(ALLOWED_BODY_FONTS, rawFonts.bodyFont);
+      const labelFontMatch = matchFontInList(ALLOWED_LABEL_FONTS, rawFonts.labelFont);
+      const accentFontMatch = rawFonts.accentFont
+        ? matchFontInList(ALLOWED_ACCENT_FONTS, rawFonts.accentFont)
+        : null;
 
       const sanitizedFonts = {
         headingFont: headingFontMatch ? headingFontMatch.id : DEFAULT_THEME_FONTS.headingFont,
         bodyFont: bodyFontMatch ? bodyFontMatch.id : DEFAULT_THEME_FONTS.bodyFont,
         labelFont: labelFontMatch ? labelFontMatch.id : DEFAULT_THEME_FONTS.labelFont,
+        accentFont: accentFontMatch ? accentFontMatch.id : '',
         baseTextSize: ['small', 'default', 'large'].includes(rawFonts.baseTextSize) ? rawFonts.baseTextSize : 'default',
         italicSecondLine: rawFonts.italicSecondLine !== undefined ? Boolean(rawFonts.italicSecondLine) : true
       };

@@ -1,0 +1,72 @@
+/* ==============================================================================
+   INTENT DIGITAL — SELF-HOSTED BRAND WEBFONTS
+   Served strictly from /fonts/brand/ (.woff2 + .woff web formats only).
+   Browsers download a @font-face file lazily only when an active DOM element
+   references its font-family or when explicitly loaded via FontFace API.
+   ============================================================================== */
+
+/* 1. Atelier Fleur (Nostalgic Editorial Serif — 400/700, normal & italic) */
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/fonts/brand/atelier-fleur-regular-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-regular-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/fonts/brand/atelier-fleur-italic-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-italic-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/fonts/brand/atelier-fleur-bold-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-bold-webfont.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur';
+  src: url('/fonts/brand/atelier-fleur-bold-italic-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-bold-italic-webfont.woff') format('woff');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* 2. Atelier Fleur Script (Calligraphic Script — 400/700, normal) */
+@font-face {
+  font-family: 'Atelier Fleur Script';
+  src: url('/fonts/brand/atelier-fleur-script-regular-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-script-regular-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atelier Fleur Script';
+  src: url('/fonts/brand/atelier-fleur-script-bold-webfont.woff2') format('woff2'),
+       url('/fonts/brand/atelier-fleur-script-bold-webfont.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 3. Dreams on Paper (Handwritten Pencil Script — 400, normal) */
+@font-face {
+  font-family: 'Dreams on Paper';
+  src: url('/fonts/brand/dreamsonpaper-regular-webfont.woff2') format('woff2'),
+       url('/fonts/brand/dreamsonpaper-regular-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

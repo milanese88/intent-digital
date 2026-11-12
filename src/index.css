@@ -1,47 +1,4 @@
-@font-face {
-  font-family: 'Dreams on Paper';
-  src: url('/Fonts/dreamsonpaper-regular-webfont.woff2') format('woff2'),
-       url('/Fonts/dreamsonpaper-regular-webfont.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Atelier Fleur';
-  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-regular-webfont.woff2') format('woff2'),
-       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-regular-webfont.woff') format('woff');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Atelier Fleur';
-  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-italic-webfont.woff2') format('woff2'),
-       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-italic-webfont.woff') format('woff');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Atelier Fleur';
-  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-webfont.woff2') format('woff2'),
-       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-webfont.woff') format('woff');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Atelier Fleur';
-  src: url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-italic-webfont.woff2') format('woff2'),
-       url('/Fonts/Atelier-Fleur-Nostalgic-Serif/Web Fonts/atelier-fleur-bold-italic-webfont.woff') format('woff');
-  font-weight: 700;
-  font-style: italic;
-  font-display: swap;
-}
+@import './styles/brand-fonts.css';
 
 :root {
   /* Intent Digital Brand Palette Tokens — Terrane Dark Brown System */

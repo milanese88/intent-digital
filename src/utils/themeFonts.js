@@ -1,107 +1,31 @@
 /**
- * Allowlisted Google Fonts & Theme Constants for Intent Digital Owner Portal
- *
- * Security: Strict allowlist only. Arbitrary URLs or font names are rejected.
+ * Theme Constants, On-Demand Font Loader & CSS Variable Resolver
+ * Backed by the single font registry in src/config/fonts.js.
  */
 
-export const ALLOWED_HEADING_FONTS = [
-  {
-    id: 'Instrument Serif',
-    label: 'Instrument Serif (Default)',
-    family: "'Instrument Serif', Georgia, serif",
-    googleParam: 'family=Instrument+Serif:ital@0;1',
-    category: 'serif'
-  },
-  {
-    id: 'Cormorant Garamond',
-    label: 'Cormorant Garamond',
-    family: "'Cormorant Garamond', Georgia, serif",
-    googleParam: 'family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600',
-    category: 'serif'
-  },
-  {
-    id: 'Playfair Display',
-    label: 'Playfair Display',
-    family: "'Playfair Display', Georgia, serif",
-    googleParam: 'family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600',
-    category: 'serif'
-  },
-  {
-    id: 'EB Garamond',
-    label: 'EB Garamond',
-    family: "'EB Garamond', Georgia, serif",
-    googleParam: 'family=EB+Garamond:ital,wght@0,400;0,600;1,400;1,600',
-    category: 'serif'
-  },
-  {
-    id: 'Fraunces',
-    label: 'Fraunces',
-    family: "'Fraunces', Georgia, serif",
-    googleParam: 'family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600',
-    category: 'serif'
-  },
-  {
-    id: 'Libre Caslon Display',
-    label: 'Libre Caslon Display',
-    family: "'Libre Caslon Display', Georgia, serif",
-    googleParam: 'family=Libre+Caslon+Display',
-    category: 'serif'
-  },
-  {
-    id: 'DM Serif Display',
-    label: 'DM Serif Display',
-    family: "'DM Serif Display', Georgia, serif",
-    googleParam: 'family=DM+Serif+Display:ital@0;1',
-    category: 'serif'
-  }
-];
+import {
+  MY_FONTS,
+  GOOGLE_HEADING_FONTS,
+  GOOGLE_BODY_FONTS,
+  ALLOWED_HEADING_FONTS,
+  ALLOWED_BODY_FONTS,
+  ALLOWED_LABEL_FONTS,
+  ALLOWED_ACCENT_FONTS,
+  getFontGroupsForSlot,
+  matchFontInList,
+  findFontInRegistry
+} from '../config/fonts.js';
 
-export const ALLOWED_BODY_FONTS = [
-  {
-    id: 'Montserrat',
-    label: 'Montserrat (Default)',
-    family: "'Montserrat', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400',
-    category: 'sans-serif'
-  },
-  {
-    id: 'Inter',
-    label: 'Inter',
-    family: "'Inter', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=Inter:wght@400;500;600;700',
-    category: 'sans-serif'
-  },
-  {
-    id: 'DM Sans',
-    label: 'DM Sans',
-    family: "'DM Sans', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400',
-    category: 'sans-serif'
-  },
-  {
-    id: 'Jost',
-    label: 'Jost',
-    family: "'Jost', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=Jost:ital,wght@0,400;0,500;0,600;0,700;1,400',
-    category: 'sans-serif'
-  },
-  {
-    id: 'Lato',
-    label: 'Lato',
-    family: "'Lato', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=Lato:ital,wght@0,400;0,700;1,400',
-    category: 'sans-serif'
-  },
-  {
-    id: 'Nunito Sans',
-    label: 'Nunito Sans',
-    family: "'Nunito Sans', system-ui, -apple-system, sans-serif",
-    googleParam: 'family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400',
-    category: 'sans-serif'
-  }
-];
-
-export const ALLOWED_LABEL_FONTS = ALLOWED_BODY_FONTS;
+export {
+  MY_FONTS,
+  GOOGLE_HEADING_FONTS,
+  GOOGLE_BODY_FONTS,
+  ALLOWED_HEADING_FONTS,
+  ALLOWED_BODY_FONTS,
+  ALLOWED_LABEL_FONTS,
+  ALLOWED_ACCENT_FONTS,
+  getFontGroupsForSlot
+};
 
 export const DEFAULT_THEME_COLORS = {
   background: '#FAF8F4',
@@ -124,6 +48,7 @@ export const DEFAULT_THEME_FONTS = {
   headingFont: 'Instrument Serif',
   bodyFont: 'Montserrat',
   labelFont: 'Montserrat',
+  accentFont: '',
   baseTextSize: 'default', // 'small' | 'default' | 'large'
   italicSecondLine: true
 };
@@ -134,70 +59,225 @@ export const DEFAULT_THEME = {
   apply_to_login: false
 };
 
-/**
- * Checks if font name is in allowlist and returns its entry
- */
 export function getHeadingFontDef(name) {
-  return ALLOWED_HEADING_FONTS.find(f => f.id.toLowerCase() === (name || '').trim().toLowerCase()) || ALLOWED_HEADING_FONTS[0];
+  return matchFontInList(ALLOWED_HEADING_FONTS, name) || GOOGLE_HEADING_FONTS[0];
 }
 
 export function getBodyFontDef(name) {
-  return ALLOWED_BODY_FONTS.find(f => f.id.toLowerCase() === (name || '').trim().toLowerCase()) || ALLOWED_BODY_FONTS[0];
+  return matchFontInList(ALLOWED_BODY_FONTS, name) || GOOGLE_BODY_FONTS[0];
 }
 
 export function getLabelFontDef(name) {
-  return ALLOWED_LABEL_FONTS.find(f => f.id.toLowerCase() === (name || '').trim().toLowerCase()) || ALLOWED_LABEL_FONTS[0];
+  return matchFontInList(ALLOWED_LABEL_FONTS, name) || GOOGLE_BODY_FONTS[0];
 }
 
-/**
- * Injects Google Fonts <link> tags safely using strictly allowlisted queries.
- * Never constructs arbitrary URLs.
- */
+export function getAccentFontDef(name) {
+  if (!name || !String(name).trim()) return null;
+  return matchFontInList(ALLOWED_ACCENT_FONTS, name) || null;
+}
+
+// ============================================================================
+// On-Demand Font Loading & Load-Error Tracking
+// ============================================================================
 const loadedFontIds = new Set();
+const inFlightLoads = new Map();
+const fontLoadErrors = new Map(); // fontId -> { id, label, family, fallback, reason }
+const errorListeners = new Set();
 
-export function loadGoogleFont(fontName) {
-  if (typeof document === 'undefined') return;
-  const headingMatch = ALLOWED_HEADING_FONTS.find(f => f.id.toLowerCase() === (fontName || '').trim().toLowerCase());
-  const bodyMatch = ALLOWED_BODY_FONTS.find(f => f.id.toLowerCase() === (fontName || '').trim().toLowerCase());
-  const match = headingMatch || bodyMatch;
-  if (!match || loadedFontIds.has(match.id)) return;
+function notifyFontErrorListeners() {
+  const snapshot = getFontLoadErrors();
+  errorListeners.forEach((fn) => {
+    try {
+      fn(snapshot);
+    } catch {
+      // ignore listener errors
+    }
+  });
+}
 
-  const linkId = `google-font-${match.id.replace(/\s+/g, '-').toLowerCase()}`;
-  if (document.getElementById(linkId)) {
-    loadedFontIds.add(match.id);
-    return;
+export function getFontLoadErrors() {
+  return Object.fromEntries(fontLoadErrors.entries());
+}
+
+export function subscribeFontLoadErrors(listener) {
+  errorListeners.add(listener);
+  return () => {
+    errorListeners.delete(listener);
+  };
+}
+
+function recordFontSuccess(fontDef) {
+  loadedFontIds.add(fontDef.id);
+  if (fontLoadErrors.has(fontDef.id)) {
+    fontLoadErrors.delete(fontDef.id);
+    notifyFontErrorListeners();
+  }
+}
+
+function recordFontFailure(fontDef, reason = 'Font file failed to load') {
+  loadedFontIds.delete(fontDef.id);
+  fontLoadErrors.set(fontDef.id, {
+    id: fontDef.id,
+    label: fontDef.label,
+    family: fontDef.family,
+    fallback: fontDef.fallback,
+    reason
+  });
+  notifyFontErrorListeners();
+}
+
+async function loadBrandFontFaces(fontDef) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { ok: true };
   }
 
-  const link = document.createElement('link');
-  link.id = linkId;
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?${match.googleParam}&display=swap`;
-  document.head.appendChild(link);
-  loadedFontIds.add(match.id);
+  const files = Array.isArray(fontDef.files) ? fontDef.files : [];
+  if (files.length === 0) {
+    return { ok: true };
+  }
+
+  const normalizeFamily = (name) =>
+    String(name || '')
+      .replace(/^['"]+|['"]+$/g, '')
+      .trim()
+      .toLowerCase();
+
+  const targetFamily = normalizeFamily(fontDef.family);
+
+  try {
+    // Use existing CSS @font-face declarations in document.fonts when present,
+    // or construct FontFace instances on demand if not yet parsed.
+    const existingFaces = document.fonts
+      ? Array.from(document.fonts).filter((f) => normalizeFamily(f.family) === targetFamily)
+      : [];
+
+    if (existingFaces.length > 0) {
+      await Promise.all(existingFaces.map((face) => face.load()));
+    } else if (typeof FontFace !== 'undefined' && document.fonts) {
+      const created = files.map(
+        (file) =>
+          new FontFace(
+            fontDef.family,
+            `url("${file.url}") format("woff2"), url("${file.fallbackUrl}") format("woff")`,
+            {
+              weight: String(file.weight || 400),
+              style: file.style || 'normal',
+              display: 'swap'
+            }
+          )
+      );
+      const loadedFaces = await Promise.all(created.map((ff) => ff.load()));
+      loadedFaces.forEach((ff) => document.fonts.add(ff));
+    }
+
+    recordFontSuccess(fontDef);
+    return { ok: true };
+  } catch (err) {
+    recordFontFailure(fontDef, err?.message || 'Unable to load webfont file');
+    return { ok: false, error: err };
+  }
+}
+
+function loadGoogleFontStylesheet(fontDef) {
+  if (typeof document === 'undefined') {
+    return Promise.resolve({ ok: true });
+  }
+
+  const linkId = `google-font-${fontDef.id.replace(/\s+/g, '-').toLowerCase()}`;
+  const existing = document.getElementById(linkId);
+  if (existing) {
+    recordFontSuccess(fontDef);
+    return Promise.resolve({ ok: true });
+  }
+
+  return new Promise((resolve) => {
+    const link = document.createElement('link');
+    link.id = linkId;
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?${fontDef.googleParam}&display=swap`;
+    link.onload = () => {
+      recordFontSuccess(fontDef);
+      resolve({ ok: true });
+    };
+    link.onerror = () => {
+      link.remove();
+      recordFontFailure(fontDef, 'Unable to load Google Font stylesheet');
+      resolve({ ok: false });
+    };
+    document.head.appendChild(link);
+  });
 }
 
 /**
- * Preloads all allowlisted fonts so that dropdown options are rendered in their respective typeface.
+ * Loads a single allowlisted font (Google or self-hosted brand font) ON DEMAND.
+ * Never loads unselected fonts on normal pages.
  */
-export function loadAllPreviewFonts() {
-  if (typeof document === 'undefined') return;
-  const allParams = [
-    ...ALLOWED_HEADING_FONTS.map(f => f.googleParam),
-    ...ALLOWED_BODY_FONTS.map(f => f.googleParam)
-  ];
-  const uniqueParams = Array.from(new Set(allParams));
-  const linkId = 'portal-all-preview-fonts';
-  if (document.getElementById(linkId)) return;
+export function loadThemeFont(fontNameOrId, { forceRetry = false } = {}) {
+  if (typeof document === 'undefined' || !fontNameOrId) {
+    return Promise.resolve({ ok: true, skipped: true });
+  }
 
-  const link = document.createElement('link');
-  link.id = linkId;
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?${uniqueParams.join('&')}&display=swap`;
-  document.head.appendChild(link);
+  const match = findFontInRegistry(fontNameOrId);
+  if (!match) {
+    return Promise.resolve({ ok: false, skipped: true });
+  }
+
+  if (loadedFontIds.has(match.id) && !forceRetry) {
+    return Promise.resolve({ ok: true });
+  }
+
+  if (inFlightLoads.has(match.id)) {
+    return inFlightLoads.get(match.id);
+  }
+
+  const promise = (
+    match.source === 'brand'
+      ? loadBrandFontFaces(match)
+      : loadGoogleFontStylesheet(match)
+  ).finally(() => {
+    inFlightLoads.delete(match.id);
+  });
+
+  inFlightLoads.set(match.id, promise);
+  return promise;
+}
+
+// Backwards-compatible alias for existing callers
+export function loadGoogleFont(fontName) {
+  return loadThemeFont(fontName);
 }
 
 /**
- * Returns the CSS custom property dictionary for a given theme to inject into the DashboardLayout root.
+ * Loads ONLY the fonts currently selected in a theme object.
+ */
+export function loadSelectedThemeFonts(fonts = {}) {
+  const selected = [
+    fonts.headingFont,
+    fonts.bodyFont,
+    fonts.labelFont,
+    fonts.accentFont
+  ].filter(Boolean);
+
+  const unique = Array.from(new Set(selected));
+  return Promise.all(unique.map((id) => loadThemeFont(id)));
+}
+
+/**
+ * Loads preview fonts ONLY when the user opens a Typography dropdown in Settings.
+ */
+export function loadDropdownPreviewFonts(options = []) {
+  if (typeof document === 'undefined') return Promise.resolve([]);
+  return Promise.all(options.map((opt) => loadThemeFont(opt.id)));
+}
+
+// Legacy helper kept as a no-op / targeted Google preview loader if called directly
+export function loadAllPreviewFonts() {
+  // Intentionally lazy: individual dropdowns in AppearanceSettings load their options when opened
+  // so visiting pages never eagerly downloads every font.
+}
+
+/**
+ * Computes CSS custom properties for DashboardLayout / Login theme scopes.
  */
 export function computeThemeCssVariables(theme) {
   const colors = { ...DEFAULT_THEME_COLORS, ...(theme?.colors || {}) };
@@ -206,8 +286,8 @@ export function computeThemeCssVariables(theme) {
   const headingDef = getHeadingFontDef(fonts.headingFont);
   const bodyDef = getBodyFontDef(fonts.bodyFont);
   const labelDef = getLabelFontDef(fonts.labelFont);
+  const accentDef = getAccentFontDef(fonts.accentFont);
 
-  // Text scale calculation
   let bodyPx = '15px';
   let bodySmPx = '14px';
   let h1Clamp = 'clamp(36px, 4.5vw, 56px)';
@@ -228,7 +308,7 @@ export function computeThemeCssVariables(theme) {
     h3Px = '28px';
   }
 
-  return {
+  const vars = {
     '--cream': colors.background,
     '--portal-bg': colors.background,
     '--surface': colors.surface,
@@ -251,15 +331,23 @@ export function computeThemeCssVariables(theme) {
     '--accent': colors.accent,
     '--negative': colors.error,
     '--positive': colors.success,
-    '--font-display': headingDef.family,
-    '--font-serif': headingDef.family,
-    '--font-body': bodyDef.family,
-    '--font-sans': bodyDef.family,
-    '--font-label': labelDef.family,
+    '--font-display': headingDef.cssFamily,
+    '--font-serif': headingDef.cssFamily,
+    '--font-heading': headingDef.cssFamily,
+    '--font-body': bodyDef.cssFamily,
+    '--font-sans': bodyDef.cssFamily,
+    '--font-label': labelDef.cssFamily,
     '--text-body': bodyPx,
     '--text-body-sm': bodySmPx,
     '--text-h1': h1Clamp,
     '--text-h2': h2Px,
     '--text-h3': h3Px
   };
+
+  if (accentDef) {
+    vars['--font-script'] = accentDef.cssFamily;
+    vars['--font-accent'] = accentDef.cssFamily;
+  }
+
+  return vars;
 }

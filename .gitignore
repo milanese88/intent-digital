@@ -28,3 +28,7 @@ dist-ssr
 # Local county data
 /data/
 
+# Original desktop font sources (never published or committed)
+/fonts-source/
+
+
