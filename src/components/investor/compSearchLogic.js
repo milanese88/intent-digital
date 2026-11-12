@@ -411,3 +411,4 @@ export function getNextRadiusExpansion(currentRadius) {
   if (idx === -1 || idx >= ALLOWED_COMP_RADII.length - 1) return null;
   return ALLOWED_COMP_RADII[idx + 1];
 }
+
