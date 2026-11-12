@@ -85,6 +85,18 @@ export const DEFAULT_RATE_SHEET = {
   }
 };
 
+export const DEFAULT_VALUATION_DEFAULTS = {
+  sizeFactor: 0.5,
+  bedAdjustment: 10000,
+  bathAdjustment: 7500,
+  poolAdjustment: 25000,
+  garageAdjustment: 10000,
+  waterfrontAdjustment: 50000,
+  lotSqftAdjustment: 5,
+  ageAdjustmentPerYear: 1000,
+  timeTrendMonthlyPct: 0.003
+};
+
 export function getDefaultProfile(email = '') {
   return {
     owner_email: email,
@@ -92,6 +104,7 @@ export function getDefaultProfile(email = '') {
     liquid_cash: 100000,
     reserve_months: 6,
     rate_sheet: DEFAULT_RATE_SHEET,
+    valuation_defaults: DEFAULT_VALUATION_DEFAULTS,
     is_default: true
   };
 }
@@ -109,28 +122,54 @@ export default async function handler(req, res) {
     // GET: Retrieve buying profile
     if (req.method === 'GET') {
       try {
-        const rows = await sql`
-          SELECT
-            owner_email,
-            credit_tier,
-            liquid_cash,
-            reserve_months,
-            rate_sheet,
-            updated_at
-          FROM investor_profile
-          WHERE lower(owner_email) = ${cleanEmail}
-          LIMIT 1
-        `;
+        let profile;
+        try {
+          const rows = await sql`
+            SELECT
+              owner_email,
+              credit_tier,
+              liquid_cash,
+              reserve_months,
+              rate_sheet,
+              valuation_defaults,
+              updated_at
+            FROM investor_profile
+            WHERE lower(owner_email) = ${cleanEmail}
+            LIMIT 1
+          `;
+          if (rows.length > 0) profile = rows[0];
+        } catch (colErr) {
+          if (colErr.code === '42703') {
+            const rows = await sql`
+              SELECT
+                owner_email,
+                credit_tier,
+                liquid_cash,
+                reserve_months,
+                rate_sheet,
+                updated_at
+              FROM investor_profile
+              WHERE lower(owner_email) = ${cleanEmail}
+              LIMIT 1
+            `;
+            if (rows.length > 0) profile = rows[0];
+          } else {
+            throw colErr;
+          }
+        }
 
-        if (rows.length === 0) {
+        if (!profile) {
           return res.status(200).json(getDefaultProfile(cleanEmail));
         }
 
-        const profile = rows[0];
-        // Ensure rate_sheet has all loan types populated
+        // Ensure rate_sheet and valuation_defaults have all defaults populated
         const mergedRateSheet = {
           ...DEFAULT_RATE_SHEET,
           ...(profile.rate_sheet || {})
+        };
+        const mergedValuationDefaults = {
+          ...DEFAULT_VALUATION_DEFAULTS,
+          ...(profile.valuation_defaults || {})
         };
 
         return res.status(200).json({
@@ -139,6 +178,7 @@ export default async function handler(req, res) {
           liquid_cash: Number(profile.liquid_cash) || 0,
           reserve_months: Number(profile.reserve_months) || 6,
           rate_sheet: mergedRateSheet,
+          valuation_defaults: mergedValuationDefaults,
           updated_at: profile.updated_at
         });
       } catch (dbErr) {
@@ -162,41 +202,84 @@ export default async function handler(req, res) {
         ? Math.max(0, Math.round(Number(body.reserve_months)))
         : 6;
 
-      const rateSheet = typeof body.rate_sheet === 'object' && body.rate_sheet !== null
-        ? body.rate_sheet
-        : DEFAULT_RATE_SHEET;
+      const valuationDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
+        ? body.valuation_defaults
+        : DEFAULT_VALUATION_DEFAULTS;
 
       try {
-        const rows = await sql`
-          INSERT INTO investor_profile (
-            owner_email,
-            credit_tier,
-            liquid_cash,
-            reserve_months,
-            rate_sheet,
-            updated_at
-          ) VALUES (
-            ${cleanEmail},
-            ${creditTier},
-            ${liquidCash},
-            ${reserveMonths},
-            ${JSON.stringify(rateSheet)}::jsonb,
-            CURRENT_TIMESTAMP
-          )
-          ON CONFLICT (owner_email) DO UPDATE SET
-            credit_tier = EXCLUDED.credit_tier,
-            liquid_cash = EXCLUDED.liquid_cash,
-            reserve_months = EXCLUDED.reserve_months,
-            rate_sheet = EXCLUDED.rate_sheet,
-            updated_at = CURRENT_TIMESTAMP
-          RETURNING
-            owner_email,
-            credit_tier,
-            liquid_cash,
-            reserve_months,
-            rate_sheet,
-            updated_at
-        `;
+        let rows;
+        try {
+          rows = await sql`
+            INSERT INTO investor_profile (
+              owner_email,
+              credit_tier,
+              liquid_cash,
+              reserve_months,
+              rate_sheet,
+              valuation_defaults,
+              updated_at
+            ) VALUES (
+              ${cleanEmail},
+              ${creditTier},
+              ${liquidCash},
+              ${reserveMonths},
+              ${JSON.stringify(rateSheet)}::jsonb,
+              ${JSON.stringify(valuationDefaults)}::jsonb,
+              CURRENT_TIMESTAMP
+            )
+            ON CONFLICT (owner_email) DO UPDATE SET
+              credit_tier = EXCLUDED.credit_tier,
+              liquid_cash = EXCLUDED.liquid_cash,
+              reserve_months = EXCLUDED.reserve_months,
+              rate_sheet = EXCLUDED.rate_sheet,
+              valuation_defaults = EXCLUDED.valuation_defaults,
+              updated_at = CURRENT_TIMESTAMP
+            RETURNING
+              owner_email,
+              credit_tier,
+              liquid_cash,
+              reserve_months,
+              rate_sheet,
+              valuation_defaults,
+              updated_at
+          `;
+        } catch (colErr) {
+          if (colErr.code === '42703') {
+            rows = await sql`
+              INSERT INTO investor_profile (
+                owner_email,
+                credit_tier,
+                liquid_cash,
+                reserve_months,
+                rate_sheet,
+                updated_at
+              ) VALUES (
+                ${cleanEmail},
+                ${creditTier},
+                ${liquidCash},
+                ${reserveMonths},
+                ${JSON.stringify(rateSheet)}::jsonb,
+                CURRENT_TIMESTAMP
+              )
+              ON CONFLICT (owner_email) DO UPDATE SET
+                credit_tier = EXCLUDED.credit_tier,
+                liquid_cash = EXCLUDED.liquid_cash,
+                reserve_months = EXCLUDED.reserve_months,
+                rate_sheet = EXCLUDED.rate_sheet,
+                updated_at = CURRENT_TIMESTAMP
+              RETURNING
+                owner_email,
+                credit_tier,
+                liquid_cash,
+                reserve_months,
+                rate_sheet,
+                updated_at
+            `;
+            if (rows[0]) rows[0].valuation_defaults = valuationDefaults;
+          } else {
+            throw colErr;
+          }
+        }
 
         return res.status(200).json({
           owner_email: rows[0].owner_email,
@@ -204,6 +287,7 @@ export default async function handler(req, res) {
           liquid_cash: Number(rows[0].liquid_cash) || 0,
           reserve_months: Number(rows[0].reserve_months) || 6,
           rate_sheet: rows[0].rate_sheet,
+          valuation_defaults: rows[0].valuation_defaults || valuationDefaults,
           updated_at: rows[0].updated_at
         });
       } catch (dbErr) {
@@ -215,6 +299,7 @@ export default async function handler(req, res) {
           liquid_cash: liquidCash,
           reserve_months: reserveMonths,
           rate_sheet: rateSheet,
+          valuation_defaults: valuationDefaults,
           updated_at: new Date().toISOString(),
           table_pending: true
         });
