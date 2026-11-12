@@ -319,6 +319,14 @@
       "definition": "The planned method for monetizing or refinancing a real estate acquisition (retail flip, long-term rental hold, or cash-out refi).",
       "example": "Underwriting both a retail flip exit and a rental fallback ensures you never buy a property with only one narrow path to profit.",
       "appPointer": "Investor Studio strategy selector (Flip, Rental, BRRRR)."
+    },
+    {
+      "id": "cia_cbs_appraisal",
+      "title": "CIA / CBS & 15/25 Rule",
+      "fullName": "Sales Comparison Contributory Adjustments & Fannie Mae Guidelines",
+      "definition": "Appraisers adjust Comparable Sales—never the Subject—using market contributory value (30%–45% marginal GLA $/sf in South Florida, scaled by tier). CIA (Comp Inferior) adds value (+); CBS (Comp Better) subtracts value (−). Fannie Mae flags comps exceeding 15% Net or 25% Gross adjustments.",
+      "example": "Against a 2,200 sf subject with a pool, a 2,000 sf comp sold at $460K without a pool receives +$17K GLA and +$25K pool (+$42K / 9.1% Net), indicating $502K Adjusted Sale Price.",
+      "appPointer": "Investor Studio → Value & Comps Appraisal Grid, Reconciliation Weights, and Checks card."
     }
   ],
   "principles": [
