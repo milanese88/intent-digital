@@ -1291,7 +1291,14 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
   const valueAfterReno =
     Number.isFinite(valueAfterRenoInput) && valueAfterRenoInput > 0
       ? valueAfterRenoInput
-      : purchasePrice + rehabBudget;
+      : rehabBudget > 0
+      ? purchasePrice + rehabBudget
+      : purchasePrice;
+
+  const valuePctAbovePurchase =
+    purchasePrice > 0 ? ((valueAfterReno - purchasePrice) / purchasePrice) * 100 : 0;
+  const over15PctZeroRehabWarning =
+    rehabBudget <= 0 && purchasePrice > 0 && valueAfterReno > purchasePrice * 1.15;
 
   const currentRentMo =
     inputs.currentRentMo != null && inputs.currentRentMo !== ''
@@ -1311,7 +1318,12 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
       ? Number(inputs.rentGrowthPctYr)
       : cfg.defaults.rentGrowthPctYr;
 
-  const marketRentMo = Math.max(0, Number(inputs.marketRentMo) || 0);
+  const hasMarketRent =
+    inputs.marketRentMo !== '' &&
+    inputs.marketRentMo != null &&
+    Number.isFinite(Number(inputs.marketRentMo)) &&
+    Number(inputs.marketRentMo) > 0;
+  const marketRentMo = hasMarketRent ? Math.max(0, Number(inputs.marketRentMo)) : 0;
   const vacancyPct =
     inputs.vacancyPct != null && inputs.vacancyPct !== ''
       ? Math.max(0, Number(inputs.vacancyPct))
@@ -1517,6 +1529,8 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
     financedRehabAmount: is203k ? Math.round(rehabBudget * (1 - downPaymentPct / 100)) : 0,
     cashRehabAmount: is203k ? Math.round(rehabBudget * (downPaymentPct / 100)) : rehabBudget,
     valueAfterReno,
+    valuePctAbovePurchase,
+    over15PctZeroRehabWarning,
     valueAdded,
     netForcedEquity,
     equityAfterRenoDay1,
@@ -1599,20 +1613,25 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
   const activeRefiApplied = useConvRefi && convRefiEligible;
 
   const exitARent = {
-    marketRentTodayMo: marketRentMo,
-    exitGrossRentMo,
+    hasMarketRent,
+    marketRentTodayMo: hasMarketRent ? marketRentMo : null,
+    exitGrossRentMo: hasMarketRent ? exitGrossRentMo : null,
     exitReassessedTaxYr,
-    rentalNoiYr,
+    rentalNoiYr: hasMarketRent ? rentalNoiYr : null,
     activeMode: activeRefiApplied ? 'conv_refi' : 'keep_fha',
-    monthlyCashFlow: activeRefiApplied ? convMonthlyCashFlow : fhaMonthlyCashFlow,
-    cashOnCash: activeRefiApplied ? convCashOnCash : fhaCashOnCash,
-    isInfiniteCoC: activeRefiApplied ? convIsInfiniteCoC : false,
-    dscr: activeRefiApplied ? convDscr : fhaDscr,
+    monthlyCashFlow: hasMarketRent
+      ? activeRefiApplied
+        ? convMonthlyCashFlow
+        : fhaMonthlyCashFlow
+      : null,
+    cashOnCash: hasMarketRent ? (activeRefiApplied ? convCashOnCash : fhaCashOnCash) : null,
+    isInfiniteCoC: hasMarketRent ? (activeRefiApplied ? convIsInfiniteCoC : false) : false,
+    dscr: hasMarketRent ? (activeRefiApplied ? convDscr : fhaDscr) : null,
     fhaPath: {
       monthlyDebtService: fhaDebtServiceMo,
-      monthlyCashFlow: fhaMonthlyCashFlow,
-      cashOnCash: fhaCashOnCash,
-      dscr: fhaDscr
+      monthlyCashFlow: hasMarketRent ? fhaMonthlyCashFlow : null,
+      cashOnCash: hasMarketRent ? fhaCashOnCash : null,
+      dscr: hasMarketRent ? fhaDscr : null
     },
     convRefi: {
       eligible: convRefiEligible,
@@ -1625,10 +1644,10 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
       newMonthlyPaymentPi: convNewPiMo,
       monthlyMipDropped: monthlyMip,
       cashOut: convCashOut,
-      monthlyCashFlow: convMonthlyCashFlow,
-      cashOnCash: convCashOnCash,
-      isInfiniteCoC: convIsInfiniteCoC,
-      dscr: convDscr
+      monthlyCashFlow: hasMarketRent ? convMonthlyCashFlow : null,
+      cashOnCash: hasMarketRent ? convCashOnCash : null,
+      isInfiniteCoC: hasMarketRent ? convIsInfiniteCoC : false,
+      dscr: hasMarketRent ? convDscr : null
     }
   };
 
@@ -1793,20 +1812,27 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
 
   const wealthSeries = horizons.map((year) => ({
     year,
-    rentNetWorth: computeScenarioANetWorthAtYear(year),
+    rentNetWorth: hasMarketRent ? computeScenarioANetWorthAtYear(year) : null,
     sellNetWorth: computeScenarioBNetWorthAtYear(year),
-    keepAndBuyNextNetWorth: computeScenarioCNetWorthAtYear(year)
+    keepAndBuyNextNetWorth: hasMarketRent ? computeScenarioCNetWorthAtYear(year) : null
   }));
 
   // Verdict summary for header / saved analyses
-  const verdict = `${formatCurrency(netLiveInMonthlyCost)}/mo while living · ${formatCurrency(
-    exitARent.monthlyCashFlow
-  )}/mo exit cash flow`;
+  const exitCfSign =
+    hasMarketRent && exitARent.monthlyCashFlow >= 0 ? '+' : '';
+  const verdict = hasMarketRent
+    ? `${formatCurrency(netLiveInMonthlyCost)}/mo while living · ${exitCfSign}${formatCurrency(
+        exitARent.monthlyCashFlow
+      )}/mo exit cash flow`
+    : `${formatCurrency(netLiveInMonthlyCost)}/mo while living · Exit cash flow: Add market rent`;
 
   return {
     isComplete: true,
     hint: null,
     verdict,
+    hasMarketRent,
+    over15PctZeroRehabWarning,
+    valuePctAbovePurchase,
     disclaimer: cfg.disclaimer,
     asOfDisplay: cfg.asOfDisplay,
     taxComparison,

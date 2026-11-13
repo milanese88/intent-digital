@@ -262,8 +262,10 @@ function InputRow({
 
 export default function UnderwritePanel({
   property,
+  countyData,
   compValueRaw,
   compValueFormatted,
+  appraisalAsIs,
   appraisalArv,
   appliedAppraisal,
   profile: initialProfile,
@@ -436,7 +438,49 @@ export default function UnderwritePanel({
     };
   };
 
-  const buildDefaultLiveInInputs = (prop, userProfile, defaultArv) => {
+  const resolveDefaultLiveInValueAfterReno = ({
+    rehabVal,
+    asIsVal,
+    arvVal,
+    purchaseVal
+  }) => {
+    const hasRehab = Number(rehabVal) > 0;
+    if (hasRehab) {
+      if (Number(arvVal) > 0) {
+        return { value: Math.round(Number(arvVal)), source: 'from Appraisal · ARV' };
+      }
+      if (Number(purchaseVal) > 0) {
+        return {
+          value: Math.round(Number(purchaseVal) + Number(rehabVal)),
+          source: 'purchase price + renovation'
+        };
+      }
+      return { value: '', source: '' };
+    }
+    if (Number(asIsVal) > 0) {
+      return { value: Math.round(Number(asIsVal)), source: 'from Appraisal · as-is' };
+    }
+    if (Number(purchaseVal) > 0) {
+      return { value: Math.round(Number(purchaseVal)), source: 'purchase price (no appraisal yet)' };
+    }
+    return { value: '', source: '' };
+  };
+
+  const resolveDefaultMarketRentFromData = (prop, cData) => {
+    const raw =
+      prop?.market_rent ??
+      prop?.estimated_rent ??
+      prop?.monthly_rent ??
+      cData?.market_rent ??
+      cData?.estimated_rent ??
+      null;
+    if (raw != null && raw !== '' && Number(raw) > 0) {
+      return { value: Math.round(Number(raw)), source: 'from county/rent data' };
+    }
+    return { value: '', source: '' };
+  };
+
+  const buildDefaultLiveInInputs = (prop, userProfile, defaultAsIs, defaultArv, cData) => {
     const merged = getMergedFinancingConfig(userProfile);
     const listPrice = prop?.list_price != null ? Number(prop.list_price) : '';
     const defaultRehab =
@@ -444,17 +488,13 @@ export default function UnderwritePanel({
         ? Math.round(Number(prop.rehab_budget))
         : 0;
     const unitsCount = Math.min(4, Math.max(1, Math.round(Number(prop?.units) || 1)));
-    const resolvedArv =
-      Number(defaultArv) > 0
-        ? Math.round(Number(defaultArv))
-        : Number(compValueRaw) > 0
-        ? Math.round(Number(compValueRaw))
-        : listPrice
-        ? Math.round(Number(listPrice) + defaultRehab)
-        : '';
-    const estMarketRent = listPrice
-      ? Math.max(1800, Math.round((Number(listPrice) * 0.0075) / 50) * 50)
-      : 3200;
+    const resolvedPostReno = resolveDefaultLiveInValueAfterReno({
+      rehabVal: defaultRehab,
+      asIsVal: defaultAsIs,
+      arvVal: defaultArv,
+      purchaseVal: listPrice
+    });
+    const resolvedRent = resolveDefaultMarketRentFromData(prop, cData);
     const countyKey = prop?.county || prop?.parcel_county || 'Broward';
 
     return {
@@ -467,14 +507,17 @@ export default function UnderwritePanel({
       sellerCredits: 0,
       rehabBudget: defaultRehab,
       rehabPaidBy: 'cash',
-      valueAfterReno: resolvedArv,
+      valueAfterReno: resolvedPostReno.value,
+      valueAfterRenoSource: resolvedPostReno.source,
       valueAfterRenoTouched: false,
       currentRentMo: merged.defaults.currentRentMo,
-      otherUnitsRentMo: unitsCount >= 2 ? Math.round(estMarketRent * 0.5) : 0,
+      otherUnitsRentMo: '',
       liveInYears: merged.defaults.liveInYears,
       appreciationPctYr: merged.defaults.appreciationPctYr,
       rentGrowthPctYr: merged.defaults.rentGrowthPctYr,
-      marketRentMo: estMarketRent,
+      marketRentMo: resolvedRent.value,
+      marketRentSource: resolvedRent.source,
+      marketRentTouched: false,
       vacancyPct: merged.defaults.vacancyPct,
       repairsPct: merged.defaults.repairsPct,
       capexPct: merged.defaults.capexPct,
@@ -500,7 +543,7 @@ export default function UnderwritePanel({
   const [flipInputs, setFlipInputs] = useState(() => buildDefaultInputs('flip', property, profile));
   const [brrrrInputs, setBrrrrInputs] = useState(() => buildDefaultInputs('brrrr', property, profile));
   const [liveInInputs, setLiveInInputs] = useState(() =>
-    buildDefaultLiveInInputs(property, profile, appraisalArv)
+    buildDefaultLiveInInputs(property, profile, appraisalAsIs, appraisalArv, countyData)
   );
 
   // Toggle for detailed cash to close breakdown
@@ -514,32 +557,81 @@ export default function UnderwritePanel({
     setRentalInputs(buildDefaultInputs('rental', property, profile));
     setFlipInputs(buildDefaultInputs('flip', property, profile));
     setBrrrrInputs(buildDefaultInputs('brrrr', property, profile));
-    setLiveInInputs(buildDefaultLiveInInputs(property, profile, appraisalArv));
+    setLiveInInputs(
+      buildDefaultLiveInInputs(property, profile, appraisalAsIs, appraisalArv, countyData)
+    );
   }, [property?.id]);
 
-  // Keep Live-in valueAfterReno synced to Appraisal ARV until user manually edits it
+  // Keep Live-in valueAfterReno synced to Appraisal As-Is ($0 reno) or Appraisal ARV (>$0 reno) until manually edited
   useEffect(() => {
-    if (!(Number(appraisalArv) > 0)) return;
-    const roundedArv = Math.round(Number(appraisalArv));
-    setLiveInInputs((prev) =>
-      prev.valueAfterRenoTouched ? prev : { ...prev, valueAfterReno: roundedArv }
-    );
-  }, [appraisalArv]);
+    setLiveInInputs((prev) => {
+      if (prev.valueAfterRenoTouched) return prev;
+      const next = resolveDefaultLiveInValueAfterReno({
+        rehabVal: prev.rehabBudget,
+        asIsVal: appraisalAsIs,
+        arvVal: appraisalArv,
+        purchaseVal: prev.purchasePrice
+      });
+      if (prev.valueAfterReno === next.value && prev.valueAfterRenoSource === next.source) {
+        return prev;
+      }
+      return {
+        ...prev,
+        valueAfterReno: next.value,
+        valueAfterRenoSource: next.source
+      };
+    });
+  }, [appraisalAsIs, appraisalArv, liveInInputs.rehabBudget, liveInInputs.purchasePrice]);
 
-  // Apply reconciled appraisal value from Value & Comps ("Use in Deal →")
+  // Populate marketRentMo if county/property rent data arrives asynchronously and user hasn't edited it
+  useEffect(() => {
+    const resolvedRent = resolveDefaultMarketRentFromData(property, countyData);
+    if (!resolvedRent.value) return;
+    setLiveInInputs((prev) => {
+      if (prev.marketRentTouched || prev.marketRentMo !== '') return prev;
+      return {
+        ...prev,
+        marketRentMo: resolvedRent.value,
+        marketRentSource: resolvedRent.source
+      };
+    });
+  }, [
+    property?.market_rent,
+    property?.estimated_rent,
+    property?.monthly_rent,
+    countyData?.market_rent,
+    countyData?.estimated_rent
+  ]);
+
+  // Apply reconciled appraisal value from Value & Comps / Appraisal ("Use in Deal →")
   useEffect(() => {
     if (!appliedAppraisal?.nonce || !(Number(appliedAppraisal.value) > 0)) return;
     const rounded = Math.round(Number(appliedAppraisal.value));
     if (appliedAppraisal.mode === 'arv') {
       setFlipInputs((prev) => ({ ...prev, arv: rounded }));
       setBrrrrInputs((prev) => ({ ...prev, arv: rounded }));
-      setLiveInInputs((prev) => ({ ...prev, valueAfterReno: rounded, valueAfterRenoTouched: true }));
+      setLiveInInputs((prev) => ({
+        ...prev,
+        valueAfterReno: rounded,
+        valueAfterRenoSource: 'from Appraisal · ARV',
+        valueAfterRenoTouched: true
+      }));
       setStrategy((prev) => (prev === 'rental' ? 'flip' : prev));
     } else {
       setRentalInputs((prev) => ({ ...prev, purchasePrice: rounded }));
       setFlipInputs((prev) => ({ ...prev, purchasePrice: rounded }));
       setBrrrrInputs((prev) => ({ ...prev, purchasePrice: rounded }));
-      setLiveInInputs((prev) => ({ ...prev, purchasePrice: rounded }));
+      setLiveInInputs((prev) => ({
+        ...prev,
+        purchasePrice: rounded,
+        ...(!(Number(prev.rehabBudget) > 0)
+          ? {
+              valueAfterReno: rounded,
+              valueAfterRenoSource: 'from Appraisal · as-is',
+              valueAfterRenoTouched: false
+            }
+          : {})
+      }));
     }
   }, [appliedAppraisal?.nonce]);
 
@@ -592,7 +684,12 @@ export default function UnderwritePanel({
       setLiveInInputs(prev => ({
         ...prev,
         [field]: clean,
-        ...(field === 'valueAfterReno' ? { valueAfterRenoTouched: true } : {})
+        ...(field === 'valueAfterReno'
+          ? { valueAfterRenoTouched: true, valueAfterRenoSource: 'custom override' }
+          : {}),
+        ...(field === 'marketRentMo'
+          ? { marketRentTouched: true, marketRentSource: clean !== '' ? 'custom entry' : '' }
+          : {})
       }));
     } else {
       setBrrrrInputs(prev => ({ ...prev, [field]: clean }));
@@ -603,8 +700,9 @@ export default function UnderwritePanel({
     setLiveInInputs((prev) => ({
       ...prev,
       ...patch,
-      ...(Object.prototype.hasOwnProperty.call(patch, 'valueAfterReno')
-        ? { valueAfterRenoTouched: true }
+      ...(Object.prototype.hasOwnProperty.call(patch, 'valueAfterReno') &&
+      !Object.prototype.hasOwnProperty.call(patch, 'valueAfterRenoTouched')
+        ? { valueAfterRenoTouched: true, valueAfterRenoSource: 'custom override' }
         : {})
     }));
   };
@@ -854,6 +952,9 @@ export default function UnderwritePanel({
         const sign = exitCf >= 0 ? '+' : '';
         return `${arvPrefix}${formatCurrency(liveCost)}/mo live · ${sign}${formatCurrency(exitCf)}/mo exit`;
       }
+      if (liveCost != null) {
+        return `${arvPrefix}${formatCurrency(liveCost)}/mo live · Add market rent`;
+      }
       return `${arvPrefix}Live-in (FHA) plan`;
     }
 
@@ -987,6 +1088,7 @@ export default function UnderwritePanel({
             onChangeInput={handleInputChange}
             onBatchChange={handleLiveInBatchChange}
             results={results}
+            appraisalAsIs={appraisalAsIs}
             appraisalArv={appraisalArv}
             onOpenBuyingProfile={onOpenProfileModal}
             onNavigateToLesson={onNavigateToLesson}

@@ -1062,7 +1062,41 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     activeSubjectZip
   ]);
 
-  // Always compute Appraisal ARV so Live-in plan defaults valueAfterReno to reconciled ARV
+  // Always compute both Appraisal As-Is and ARV so Live-in plan defaults valueAfterReno
+  // to As-Is when renovation is $0, and to ARV when renovation > $0
+  const appraisalAsIsGrid = useMemo(() => {
+    if (appraisalMode === 'as_is') return appraisalGrid;
+    const zipMonthlyPct =
+      zipMarketSummary?.monthly_trend_pct != null && !isNaN(Number(zipMarketSummary.monthly_trend_pct))
+        ? Number(zipMarketSummary.monthly_trend_pct) / 100
+        : null;
+    const zipTrendSource =
+      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+        ? `ZIP ${activeSubjectZip}`
+        : null;
+
+    return computeAppraisalGrid({
+      comps,
+      subject: subjectForAppraisal,
+      mode: 'as_is',
+      sizeMethod,
+      library: buyingProfile?.valuation_defaults?.library || {},
+      customWeights,
+      zipTrendMonthlyPct: zipMonthlyPct,
+      zipTrendSource
+    });
+  }, [
+    appraisalMode,
+    appraisalGrid,
+    comps,
+    subjectForAppraisal,
+    sizeMethod,
+    buyingProfile?.valuation_defaults?.library,
+    customWeights,
+    zipMarketSummary?.monthly_trend_pct,
+    activeSubjectZip
+  ]);
+
   const appraisalArvGrid = useMemo(() => {
     if (appraisalMode === 'arv') return appraisalGrid;
     const zipMonthlyPct =
@@ -2123,6 +2157,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   } else {
                     verdictSentence = 'Enter rehab budget, ARV, and market rent in the Deal tab to analyze BRRRR capital recycling.';
                   }
+                } else if (activeStrategy === 'live_in') {
+                  verdictSentence = 'Open the Deal tab to model your FHA live-in cost and add market rent after move-out.';
                 } else {
                   // rental
                   if (underwriteSummary?.results?.cashFlowMo != null) {
@@ -3633,8 +3669,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   >
                     <UnderwritePanel
                       property={activeProperty}
+                      countyData={countyData}
                       compValueRaw={rawCompValue}
                       compValueFormatted={compValueFormatted}
+                      appraisalAsIs={appraisalAsIsGrid?.reconciledValue || null}
                       appraisalArv={appraisalArvGrid?.reconciledValue || null}
                       appliedAppraisal={appliedAppraisal}
                       profile={buyingProfile}
