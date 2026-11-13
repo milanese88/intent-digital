@@ -8,6 +8,9 @@ import {
   underwriteFlip,
   underwriteBrrrr,
   underwriteLiveInPlan,
+  evaluateLiveInFit,
+  formatStrategyDisplayLabel,
+  formatLiveInChosenExitHeadline,
   LOAN_TYPES,
   ESTIMATED_CLOSING_DEFAULTS
 } from './underwriting.js';
@@ -535,7 +538,8 @@ export default function UnderwritePanel({
       propertyTaxNonHomesteadOverride: false,
       propertyTaxNonHomesteadYr: '',
       useConvRefi: true,
-      filingStatus: 'single'
+      filingStatus: 'single',
+      preferredExit: 'rent'
     };
   };
 
@@ -747,14 +751,27 @@ export default function UnderwritePanel({
   // Compute Results Live via underwriting.js
   const results = useMemo(() => {
     if (strategy === 'live_in') {
-      return underwriteLiveInPlan(
+      const countyName = property?.county || property?.parcel_county || 'Broward';
+      const baseRes = underwriteLiveInPlan(
         {
           ...liveInInputs,
-          county: property?.county || property?.parcel_county || 'Broward',
+          county: countyName,
           mySavings: profile?.liquid_cash != null ? Number(profile.liquid_cash) : null
         },
         profile
       );
+      const liveFitSnapshot = {
+        ...(property || {}),
+        county: countyName,
+        asking_price: Number(liveInInputs.purchasePrice) || property?.list_price || 0,
+        units: Number(liveInInputs.units) || property?.units || 1,
+        hoa_monthly: Number(liveInInputs.hoaMonthly) || property?.hoa_monthly || 0,
+        has_hoa: Number(liveInInputs.hoaMonthly) > 0 ? true : property?.has_hoa
+      };
+      return {
+        ...baseRes,
+        liveInFit: evaluateLiveInFit(liveFitSnapshot, profile)
+      };
     }
 
     const sharedInputs = {
@@ -860,13 +877,25 @@ export default function UnderwritePanel({
     setSaveSuccessMsg('');
     setSaveErrorMsg('');
     try {
+      const inputsToSave =
+        strategy === 'live_in'
+          ? {
+              ...liveInInputs,
+              preferredExit: ['rent', 'sell', 'keep'].includes(liveInInputs.preferredExit)
+                ? liveInInputs.preferredExit
+                : 'rent',
+              county: property?.county || property?.parcel_county || 'Broward',
+              mySavings: profile?.liquid_cash != null ? Number(profile.liquid_cash) : null
+            }
+          : currentInputs;
+
       const res = await fetch('/api/investor/analyses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           property_id: property.id,
           strategy,
-          inputs: currentInputs,
+          inputs: inputsToSave,
           results
         })
       });
@@ -877,6 +906,9 @@ export default function UnderwritePanel({
       }
 
       setSavedAnalyses(prev => [body, ...prev]);
+      if (body?.id) {
+        setSelectedReportAnalysisId(body.id);
+      }
       setSaveSuccessMsg('Analysis saved');
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     } catch (err) {
@@ -946,16 +978,11 @@ export default function UnderwritePanel({
     const arvPrefix = arvVal ? `ARV ${formatCurrency(arvVal)} · ` : '';
 
     if (strat === 'live_in') {
-      const liveCost = res.live?.netLiveInMonthlyCost;
-      const exitCf = res.exit?.rent?.monthlyCashFlow ?? res.monthlyCashFlow;
-      if (liveCost != null && exitCf != null) {
-        const sign = exitCf >= 0 ? '+' : '';
-        return `${arvPrefix}${formatCurrency(liveCost)}/mo live · ${sign}${formatCurrency(exitCf)}/mo exit`;
-      }
-      if (liveCost != null) {
-        return `${arvPrefix}${formatCurrency(liveCost)}/mo live · Add market rent`;
-      }
-      return `${arvPrefix}Live-in (FHA) plan`;
+      const chosenHeadline = formatLiveInChosenExitHeadline(item);
+      const valPrefix = inp.valueAfterReno
+        ? `Val ${formatCurrency(inp.valueAfterReno)} · `
+        : '';
+      return `${valPrefix}${chosenHeadline}`;
     }
 
     if (strat === 'rental') {
@@ -1094,6 +1121,8 @@ export default function UnderwritePanel({
             onNavigateToLesson={onNavigateToLesson}
             onSaveAnalysis={handleSaveAnalysis}
             savingAnalysis={isSaving}
+            saveSuccessMsg={saveSuccessMsg}
+            saveErrorMsg={saveErrorMsg}
           />
         ) : (
         <>
@@ -2866,7 +2895,9 @@ export default function UnderwritePanel({
             disabled={isSaving || isSaveDisabled}
             title={
               isSaveDisabled
-                ? (strategy === 'flip'
+                ? (strategy === 'live_in'
+                    ? 'Enter purchase price to save'
+                    : strategy === 'flip'
                     ? 'Enter ARV to save'
                     : strategy === 'rental'
                     ? 'Enter Rent and Insurance to save'
@@ -2916,12 +2947,17 @@ export default function UnderwritePanel({
                 }}
               >
                 {savedAnalyses.map(item => {
-                  const strat = (item.strategy || 'Flip').toUpperCase();
-                  const arvText = item.inputs?.arv ? ` · ARV ${formatCurrency(item.inputs.arv)}` : '';
+                  const strat = formatStrategyDisplayLabel(item.strategy || 'flip');
+                  const detailText =
+                    String(item.strategy || '').toLowerCase() === 'live_in'
+                      ? ` · ${formatLiveInChosenExitHeadline(item)}`
+                      : item.inputs?.arv
+                      ? ` · ARV ${formatCurrency(item.inputs.arv)}`
+                      : '';
                   const dateText = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
                   return (
                     <option key={item.id} value={item.id}>
-                      {strat}{arvText} ({dateText})
+                      {strat}{detailText} ({dateText})
                     </option>
                   );
                 })}
@@ -3038,7 +3074,7 @@ export default function UnderwritePanel({
                 ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 : '';
               const headline = getSavedHeadline(item);
-              const strat = (item.strategy || '').toUpperCase();
+              const strat = formatStrategyDisplayLabel(item.strategy || '');
               const isConfirming = confirmDeleteId === item.id;
               const isDeleting = deletingId === item.id;
 

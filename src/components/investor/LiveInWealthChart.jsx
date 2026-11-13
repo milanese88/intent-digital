@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatCurrency } from './underwriting.js';
+import { loadThemeFont } from '../../utils/themeFonts.js';
 
 // Heading token strictly resolves to Instrument Serif (portal default) — zero other serifs
 const HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
@@ -46,20 +47,28 @@ function formatCompactDollar(val) {
 }
 
 /**
- * Line chart in strict Intent Digital brand colors (zero orange) plotting
+ * Vector SVG line chart in strict Intent Digital brand colors (zero orange) plotting
  * Net Worth created from this property at 3 / 5 / 10 years across Exits A, B, and C.
+ * Uses pure inline SVG (not canvas) so it prints crisply in Deal Reports.
  */
 export default function LiveInWealthChart({
   wealthSeries = [],
   liveInYears = 2,
   hasMarketRent = true,
-  onFocusMarketRent = null
+  onFocusMarketRent = null,
+  printMode = false
 }) {
   const [selectedYear, setSelectedYear] = useState(10);
+
+  useEffect(() => {
+    loadThemeFont('Instrument Serif');
+  }, []);
 
   if (!Array.isArray(wealthSeries) || wealthSeries.length === 0) {
     return null;
   }
+
+  const resolvedExitYears = Number(liveInYears) === 1 ? 1 : 2;
 
   const plottableSeries = SERIES_META.filter((s) =>
     wealthSeries.every((pt) => pt[s.key] != null && Number.isFinite(pt[s.key]))
@@ -104,11 +113,12 @@ export default function LiveInWealthChart({
 
   return (
     <div
+      className={printMode ? 'avoid-break' : undefined}
       style={{
         background: '#FFFFFF',
         border: '1px solid rgba(52, 41, 42, 0.12)',
         borderRadius: '14px',
-        padding: '20px 22px',
+        padding: printMode ? '18px 20px' : '20px 22px',
         fontFamily: BODY_FONT
       }}
     >
@@ -131,7 +141,8 @@ export default function LiveInWealthChart({
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: 'rgba(52, 41, 42, 0.58)',
-              marginBottom: '4px'
+              marginBottom: '4px',
+              fontFamily: BODY_FONT
             }}
           >
             3 / 5 / 10-YEAR WEALTH TRAJECTORY
@@ -140,13 +151,26 @@ export default function LiveInWealthChart({
             style={{
               margin: 0,
               fontFamily: HEADING_FONT,
-              fontSize: '25px',
+              fontSize: 'var(--text-h3, 26px)',
               fontWeight: 400,
-              lineHeight: 1.15,
-              color: '#34292A'
+              lineHeight: 1.14,
+              letterSpacing: 'var(--letter-spacing-tight, -0.02em)',
+              color: 'var(--espresso, #34292A)'
             }}
           >
-            Net Worth From This Property (After Year {liveInYears} Exit)
+            <span style={{ display: 'block', fontFamily: HEADING_FONT, fontWeight: 400 }}>
+              Net worth from this property
+            </span>
+            <span
+              style={{
+                display: 'block',
+                fontFamily: HEADING_FONT,
+                fontStyle: 'italic',
+                fontWeight: 400
+              }}
+            >
+              after a year-{resolvedExitYears} exit
+            </span>
           </h4>
         </div>
 
@@ -163,7 +187,8 @@ export default function LiveInWealthChart({
                   fontSize: '11px',
                   fontWeight: 600,
                   color: '#34292A',
-                  opacity: isMuted ? 0.52 : 1
+                  opacity: isMuted ? 0.52 : 1,
+                  fontFamily: BODY_FONT
                 }}
               >
                 <span
@@ -204,14 +229,23 @@ export default function LiveInWealthChart({
           }}
         >
           <span>
-            Add <strong>Market rent after move-out ($/mo)</strong> above to plot{' '}
-            <strong>A · Rent</strong> and <strong>C · Keep &amp; buy next</strong> alongside{' '}
-            <strong>B · Sell</strong>.
+            {printMode ? (
+              <>
+                Market rent after move-out was not entered — <strong>B · Sell</strong> is plotted below; add market rent in the Deal tab to include <strong>A · Rent</strong> and <strong>C · Keep &amp; buy next</strong>.
+              </>
+            ) : (
+              <>
+                Add <strong>Market rent after move-out ($/mo)</strong> above to plot{' '}
+                <strong>A · Rent</strong> and <strong>C · Keep &amp; buy next</strong> alongside{' '}
+                <strong>B · Sell</strong>.
+              </>
+            )}
           </span>
-          {typeof onFocusMarketRent === 'function' && (
+          {!printMode && typeof onFocusMarketRent === 'function' && (
             <button
               type="button"
               onClick={onFocusMarketRent}
+              className="no-print"
               style={{
                 border: '1px solid rgba(52, 41, 42, 0.22)',
                 background: '#FFFFFF',
@@ -230,13 +264,13 @@ export default function LiveInWealthChart({
         </div>
       )}
 
-      {/* SVG Line Chart */}
-      <div style={{ width: '100%', overflowX: 'auto' }}>
+      {/* Vector SVG Line Chart (Print-Ready) */}
+      <div style={{ width: '100%', overflowX: printMode ? 'visible' : 'auto' }}>
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          style={{ width: '100%', height: 'auto', minWidth: '340px', display: 'block' }}
+          style={{ width: '100%', height: 'auto', minWidth: printMode ? 0 : '340px', display: 'block' }}
           role="img"
-          aria-label="Net worth at 3, 5, and 10 years for Rent, Sell, and Keep and Buy Next scenarios"
+          aria-label={`Net worth from this property after a year-${resolvedExitYears} exit at 3, 5, and 10 years`}
         >
           {/* Horizontal grid lines */}
           {yTicks.map((tickVal, idx) => {
@@ -277,10 +311,10 @@ export default function LiveInWealthChart({
             />
           )}
 
-          {/* Vertical highlight guide for selected year */}
+          {/* Vertical guides & Year labels */}
           {wealthSeries.map((pt, idx) => {
             const x = xPositions[idx];
-            const isSelected = pt.year === activePoint?.year;
+            const isSelected = !printMode && pt.year === activePoint?.year;
             return (
               <g key={pt.year}>
                 <line
@@ -288,7 +322,7 @@ export default function LiveInWealthChart({
                   y1={padTop}
                   x2={x}
                   y2={padTop + plotH}
-                  stroke={isSelected ? 'rgba(133, 157, 206, 0.55)' : 'rgba(52, 41, 42, 0.05)'}
+                  stroke={isSelected ? 'rgba(133, 157, 206, 0.55)' : 'rgba(52, 41, 42, 0.07)'}
                   strokeWidth={isSelected ? '1.5' : '1'}
                 />
                 <text
@@ -296,11 +330,11 @@ export default function LiveInWealthChart({
                   y={svgHeight - 10}
                   textAnchor="middle"
                   fontSize="11"
-                  fontWeight={isSelected ? '700' : '500'}
+                  fontWeight={isSelected ? '700' : '600'}
                   fontFamily="'Montserrat', sans-serif"
-                  fill={isSelected ? '#34292A' : 'rgba(52, 41, 42, 0.65)'}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setSelectedYear(pt.year)}
+                  fill={isSelected ? '#34292A' : 'rgba(52, 41, 42, 0.72)'}
+                  style={{ cursor: printMode ? 'default' : 'pointer' }}
+                  onClick={printMode ? undefined : () => setSelectedYear(pt.year)}
                 >
                   Year {pt.year}
                 </text>
@@ -328,19 +362,19 @@ export default function LiveInWealthChart({
                 {wealthSeries.map((pt, idx) => {
                   const cx = xPositions[idx];
                   const cy = yForVal(pt[s.key]);
-                  const isSelected = pt.year === activePoint?.year;
+                  const isSelected = !printMode && pt.year === activePoint?.year;
                   return (
                     <circle
                       key={`${s.key}-${pt.year}`}
                       cx={cx}
                       cy={cy}
-                      r={isSelected ? 5.5 : 4}
+                      r={isSelected ? 5.5 : 4.25}
                       fill="#FAF8F5"
                       stroke={s.color}
                       strokeWidth="2.5"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setSelectedYear(pt.year)}
-                      onClick={() => setSelectedYear(pt.year)}
+                      style={{ cursor: printMode ? 'default' : 'pointer' }}
+                      onMouseEnter={printMode ? undefined : () => setSelectedYear(pt.year)}
+                      onClick={printMode ? undefined : () => setSelectedYear(pt.year)}
                     >
                       <title>{`${s.label} · Year ${pt.year}: ${formatCurrency(pt[s.key])}`}</title>
                     </circle>
@@ -352,31 +386,33 @@ export default function LiveInWealthChart({
         </svg>
       </div>
 
-      {/* Interactive Year Comparison Table */}
+      {/* Year 3 / Year 5 / Year 10 Net Worth Summary Row */}
       <div
         style={{
           marginTop: '14px',
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
+          gridTemplateColumns: printMode
+            ? 'repeat(3, minmax(0, 1fr))'
+            : 'repeat(auto-fit, minmax(185px, 1fr))',
           gap: '10px'
         }}
       >
         {wealthSeries.map((pt) => {
-          const isSelected = pt.year === activePoint?.year;
+          const isSelected = !printMode && pt.year === activePoint?.year;
+          const CardTag = printMode ? 'div' : 'button';
           return (
-            <button
-              type="button"
+            <CardTag
+              {...(printMode ? {} : { type: 'button', onClick: () => setSelectedYear(pt.year) })}
               key={pt.year}
-              onClick={() => setSelectedYear(pt.year)}
               style={{
                 textAlign: 'left',
-                background: isSelected ? '#FAF8F5' : '#FFFFFF',
+                background: isSelected || printMode ? '#FAF8F5' : '#FFFFFF',
                 border: isSelected
                   ? '1px solid rgba(133, 157, 206, 0.7)'
                   : '1px solid rgba(52, 41, 42, 0.10)',
                 borderRadius: '10px',
                 padding: '10px 12px',
-                cursor: 'pointer',
+                cursor: printMode ? 'default' : 'pointer',
                 fontFamily: BODY_FONT
               }}
             >
@@ -407,7 +443,14 @@ export default function LiveInWealthChart({
                         fontSize: '11.5px'
                       }}
                     >
-                      <span style={{ color: 'rgba(52, 41, 42, 0.75)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span
+                        style={{
+                          color: 'rgba(52, 41, 42, 0.75)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}
+                      >
                         <span
                           style={{
                             width: '7px',
@@ -432,7 +475,7 @@ export default function LiveInWealthChart({
                   );
                 })}
               </div>
-            </button>
+            </CardTag>
           );
         })}
       </div>

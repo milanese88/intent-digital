@@ -13,7 +13,9 @@ import {
   calculateRemainingLoanBalance,
   calculateFloridaHomesteadTaxComparison,
   underwriteLiveInPlan,
-  evaluateLiveInFit
+  evaluateLiveInFit,
+  formatStrategyDisplayLabel,
+  formatLiveInChosenExitHeadline
 } from './underwriting.js';
 
 test('FINANCING_CONFIG holds exact FHA, county limit, 203(k), and occupancy defaults', () => {
@@ -284,4 +286,57 @@ test('underwriteLiveInPlan flags >15% valueAfterReno above purchase price when r
   });
   assert.equal(highWithRehab.over15PctZeroRehabWarning, false);
 });
+
+test('formatStrategyDisplayLabel and formatLiveInChosenExitHeadline render LIVE-IN (FHA) and chosen exit key numbers', () => {
+  assert.equal(formatStrategyDisplayLabel('live_in'), 'LIVE-IN (FHA)');
+  assert.equal(formatStrategyDisplayLabel('rental'), 'RENTAL');
+  assert.equal(formatStrategyDisplayLabel('flip'), 'FLIP');
+  assert.equal(formatStrategyDisplayLabel('brrrr'), 'BRRRR');
+
+  const baseInputs = {
+    county: 'Broward',
+    purchasePrice: 500000,
+    units: 1,
+    rehabBudget: 35000,
+    rehabPaidBy: 'cash',
+    valueAfterReno: 640000,
+    liveInYears: 2,
+    marketRentMo: 4200,
+    mySavings: 95000
+  };
+
+  const resA = underwriteLiveInPlan({ ...baseInputs, preferredExit: 'rent' });
+  const headlineA = formatLiveInChosenExitHeadline({
+    inputs: { ...baseInputs, preferredExit: 'rent' },
+    results: resA
+  });
+  assert.match(headlineA, /^Exit A \(Rent\) · [+-]?\$[\d,]+\/mo cash flow$/);
+  assert.equal(resA.chosenExitSummary, headlineA);
+
+  const resB = underwriteLiveInPlan({ ...baseInputs, preferredExit: 'sell' });
+  const headlineB = formatLiveInChosenExitHeadline({
+    inputs: { ...baseInputs, preferredExit: 'sell' },
+    results: resB
+  });
+  assert.match(headlineB, /^Exit B \(Sell Yr 2\) · [+-]?\$[\d,]+ profit$/);
+  assert.equal(resB.chosenExitSummary, headlineB);
+
+  const resC = underwriteLiveInPlan({ ...baseInputs, preferredExit: 'keep' });
+  const headlineC = formatLiveInChosenExitHeadline({
+    inputs: { ...baseInputs, preferredExit: 'keep' },
+    results: resC
+  });
+  assert.match(headlineC, /^Exit C \(Keep & buy #2\) · \$[\d,]+ for #2$/);
+  assert.equal(resC.chosenExitSummary, headlineC);
+
+  const resEmptyRent = underwriteLiveInPlan({ ...baseInputs, marketRentMo: '', preferredExit: 'rent' });
+  assert.equal(
+    formatLiveInChosenExitHeadline({
+      inputs: { ...baseInputs, marketRentMo: '', preferredExit: 'rent' },
+      results: resEmptyRent
+    }),
+    'Exit A (Rent) · Add market rent'
+  );
+});
+
 

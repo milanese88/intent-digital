@@ -39,6 +39,12 @@ const FILING_STATUS_OPTIONS = [
   { id: 'married', label: 'Married ($500k)' }
 ];
 
+const PREFERRED_EXIT_OPTIONS = [
+  { id: 'rent', label: 'A · Rent' },
+  { id: 'sell', label: 'B · Sell' },
+  { id: 'keep', label: 'C · Keep & buy #2' }
+];
+
 const LESSON_LINKS = [
   { key: 'fha_plain_words', title: 'FHA in plain words' },
   { key: 'live_in_flip_vs_house_hack', title: 'Live-in flip vs. house hack' },
@@ -244,7 +250,9 @@ export default function LiveInPlanView({
   onOpenBuyingProfile,
   onNavigateToLesson,
   onSaveAnalysis,
-  savingAnalysis = false
+  savingAnalysis = false,
+  saveSuccessMsg = '',
+  saveErrorMsg = ''
 }) {
   useEffect(() => {
     loadThemeFont('Instrument Serif');
@@ -397,15 +405,15 @@ export default function LiveInPlanView({
               </span>
             </div>
 
-            {/* Heading Token (Instrument Serif) with italic second line — no other serif */}
+            {/* Heading Token (Instrument Serif) — sentence case + italic second line */}
             <h3
               style={{
                 margin: '4px 0 8px',
                 fontFamily: HEADING_FONT,
-                fontSize: 'var(--text-h3, 28px)',
+                fontSize: 'var(--text-h2, 30px)',
                 fontWeight: 400,
-                lineHeight: 1.15,
-                letterSpacing: '-0.01em',
+                lineHeight: 1.12,
+                letterSpacing: 'var(--letter-spacing-tight, -0.02em)',
                 color: 'var(--espresso, #34292A)'
               }}
             >
@@ -498,6 +506,42 @@ export default function LiveInPlanView({
         >
           {LIVE_IN_PLAN_DISCLAIMER}
         </div>
+
+        {(saveSuccessMsg || saveErrorMsg) && (
+          <div style={{ marginTop: '10px' }}>
+            {saveSuccessMsg && (
+              <div
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(63, 90, 58, 0.08)',
+                  border: '1px solid rgba(63, 90, 58, 0.28)',
+                  color: '#3F5A3A',
+                  fontSize: '11.5px',
+                  fontWeight: 600
+                }}
+              >
+                ✓ {saveSuccessMsg}
+              </div>
+            )}
+            {saveErrorMsg && (
+              <div
+                role="alert"
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(65, 16, 27, 0.07)',
+                  border: '1px solid rgba(65, 16, 27, 0.26)',
+                  color: '#41101B',
+                  fontSize: '11.5px',
+                  fontWeight: 500
+                }}
+              >
+                {saveErrorMsg}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Live-in Fit Screening Card */}
@@ -1365,9 +1409,9 @@ export default function LiveInPlanView({
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'flex-end',
                 flexWrap: 'wrap',
-                gap: '10px',
+                gap: '14px',
                 marginBottom: '16px'
               }}
             >
@@ -1387,14 +1431,57 @@ export default function LiveInPlanView({
                   style={{
                     margin: '4px 0 0',
                     fontFamily: HEADING_FONT,
-                    fontSize: '25px',
+                    fontSize: 'var(--text-h3, 26px)',
                     fontWeight: 400,
-                    lineHeight: 1.15,
-                    color: '#34292A'
+                    lineHeight: 1.14,
+                    letterSpacing: 'var(--letter-spacing-tight, -0.02em)',
+                    color: 'var(--espresso, #34292A)'
                   }}
                 >
-                  Compare Rent, Sell, or Keep &amp; Buy Property #2
+                  <span style={{ display: 'block', fontFamily: HEADING_FONT, fontWeight: 400 }}>
+                    Compare your exit paths
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontFamily: HEADING_FONT,
+                      fontStyle: 'italic',
+                      fontWeight: 400
+                    }}
+                  >
+                    rent, sell, or keep &amp; buy property #2
+                  </span>
                 </h4>
+              </div>
+
+              <div style={{ minWidth: '280px', maxWidth: '380px', flex: '0 1 auto' }}>
+                <div
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(52, 41, 42, 0.62)',
+                    marginBottom: '5px'
+                  }}
+                >
+                  Chosen exit (shown in Saved Analyses)
+                </div>
+                <SegmentedControl
+                  size="sm"
+                  options={PREFERRED_EXIT_OPTIONS}
+                  value={
+                    ['rent', 'sell', 'keep'].includes(inputs.preferredExit)
+                      ? inputs.preferredExit
+                      : 'rent'
+                  }
+                  onChange={(val) => onChangeInput('preferredExit', val)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    width: '100%'
+                  }}
+                />
               </div>
             </div>
 
@@ -1406,10 +1493,17 @@ export default function LiveInPlanView({
               }}
             >
               {/* EXIT A: RENT */}
+              {(() => {
+                const isChosenRent =
+                  !inputs.preferredExit ||
+                  !['sell', 'keep'].includes(String(inputs.preferredExit).toLowerCase());
+                return (
               <div
                 style={{
                   background: '#FAF8F5',
-                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  border: isChosenRent
+                    ? '1.5px solid #41101B'
+                    : '1px solid rgba(52, 41, 42, 0.12)',
                   borderRadius: '12px',
                   padding: '16px'
                 }}
@@ -1420,6 +1514,7 @@ export default function LiveInPlanView({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: '6px',
+                    flexWrap: 'wrap',
                     marginBottom: '6px'
                   }}
                 >
@@ -1434,25 +1529,61 @@ export default function LiveInPlanView({
                   >
                     A · RENT IT OUT
                   </span>
-                  {!results.exit.rent.hasMarketRent && (
-                    <button
-                      type="button"
-                      onClick={focusMarketRentInput}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        padding: 0,
-                        fontSize: '10.5px',
-                        fontWeight: 600,
-                        color: '#5C75A8',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontFamily: BODY_FONT
-                      }}
-                    >
-                      Enter rent ↑
-                    </button>
-                  )}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    {!results.exit.rent.hasMarketRent && (
+                      <button
+                        type="button"
+                        onClick={focusMarketRentInput}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          padding: 0,
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          color: '#5C75A8',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontFamily: BODY_FONT
+                        }}
+                      >
+                        Enter rent ↑
+                      </button>
+                    )}
+                    {isChosenRent ? (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          background: '#41101B',
+                          color: '#FAF8F5'
+                        }}
+                      >
+                        Chosen exit
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onChangeInput('preferredExit', 'rent')}
+                        style={{
+                          border: '1px solid rgba(52, 41, 42, 0.2)',
+                          background: '#FFFFFF',
+                          color: '#34292A',
+                          borderRadius: '999px',
+                          padding: '2px 8px',
+                          fontSize: '9.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: BODY_FONT
+                        }}
+                      >
+                        Choose A
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {results.exit.rent.hasMarketRent ? (
@@ -1586,12 +1717,19 @@ export default function LiveInPlanView({
                   )}
                 </div>
               </div>
+                );
+              })()}
 
               {/* EXIT B: SELL (1 YR VS 2 YRS + SECTION 121) */}
+              {(() => {
+                const isChosenSell = String(inputs.preferredExit || '').toLowerCase() === 'sell';
+                return (
               <div
                 style={{
                   background: '#FAF8F5',
-                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  border: isChosenSell
+                    ? '1.5px solid #41101B'
+                    : '1px solid rgba(52, 41, 42, 0.12)',
                   borderRadius: '12px',
                   padding: '16px'
                 }}
@@ -1617,18 +1755,54 @@ export default function LiveInPlanView({
                   >
                     B · SELL (1 YR VS. 2 YRS)
                   </span>
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      fontWeight: 600,
-                      padding: '2px 7px',
-                      borderRadius: '999px',
-                      background: 'rgba(189, 211, 226, 0.4)',
-                      color: '#34292A'
-                    }}
-                  >
-                    {LIVE_IN_TAX_DISCLAIMER}
-                  </span>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        padding: '2px 7px',
+                        borderRadius: '999px',
+                        background: 'rgba(189, 211, 226, 0.4)',
+                        color: '#34292A'
+                      }}
+                    >
+                      {LIVE_IN_TAX_DISCLAIMER}
+                    </span>
+                    {isChosenSell ? (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          background: '#41101B',
+                          color: '#FAF8F5'
+                        }}
+                      >
+                        Chosen exit
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onChangeInput('preferredExit', 'sell')}
+                        style={{
+                          border: '1px solid rgba(52, 41, 42, 0.2)',
+                          background: '#FFFFFF',
+                          color: '#34292A',
+                          borderRadius: '999px',
+                          padding: '2px 8px',
+                          fontSize: '9.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: BODY_FONT
+                        }}
+                      >
+                        Choose B
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: '10px' }}>
@@ -1721,27 +1895,78 @@ export default function LiveInPlanView({
                   ).
                 </div>
               </div>
+                );
+              })()}
 
               {/* EXIT C: KEEP & BUY NEXT */}
+              {(() => {
+                const isChosenKeep = String(inputs.preferredExit || '').toLowerCase() === 'keep';
+                return (
               <div
                 style={{
                   background: '#FAF8F5',
-                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  border: isChosenKeep
+                    ? '1.5px solid #41101B'
+                    : '1px solid rgba(52, 41, 42, 0.12)',
                   borderRadius: '12px',
                   padding: '16px'
                 }}
               >
                 <div
                   style={{
-                    fontSize: '10.5px',
-                    fontWeight: 700,
-                    letterSpacing: '0.09em',
-                    textTransform: 'uppercase',
-                    color: '#3F5A3A',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexWrap: 'wrap',
                     marginBottom: '6px'
                   }}
                 >
-                  C · KEEP &amp; BUY PROPERTY #2
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      letterSpacing: '0.09em',
+                      textTransform: 'uppercase',
+                      color: '#3F5A3A'
+                    }}
+                  >
+                    C · KEEP &amp; BUY PROPERTY #2
+                  </span>
+                  {isChosenKeep ? (
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        padding: '2px 7px',
+                        borderRadius: '999px',
+                        background: '#41101B',
+                        color: '#FAF8F5'
+                      }}
+                    >
+                      Chosen exit
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onChangeInput('preferredExit', 'keep')}
+                      style={{
+                        border: '1px solid rgba(52, 41, 42, 0.2)',
+                        background: '#FFFFFF',
+                        color: '#34292A',
+                        borderRadius: '999px',
+                        padding: '2px 8px',
+                        fontSize: '9.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: BODY_FONT
+                      }}
+                    >
+                      Choose C
+                    </button>
+                  )}
                 </div>
 
                 <div
@@ -1797,6 +2022,8 @@ export default function LiveInPlanView({
                   <strong>FHA rule note:</strong> {results.exit.keepAndBuyNext.oneFhaRuleNote}
                 </div>
               </div>
+                );
+              })()}
             </div>
           </div>
 

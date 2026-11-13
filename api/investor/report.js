@@ -125,7 +125,7 @@ export default async function handler(req, res) {
     };
     try {
       const profiles = await sql`
-        SELECT owner_email, credit_tier, liquid_cash, reserve_months, rate_sheet, updated_at
+        SELECT *
         FROM investor_profile
         WHERE lower(owner_email) = ${cleanEmail}
         LIMIT 1;

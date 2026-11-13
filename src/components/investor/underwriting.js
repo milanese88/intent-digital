@@ -1160,6 +1160,60 @@ export function underwriteBrrrr(inputs = {}) {
 // ============================================================================
 
 /**
+ * Canonical display badge label for saved analyses and Deal Report headers.
+ */
+export function formatStrategyDisplayLabel(strategy) {
+  const s = String(strategy || '').trim().toLowerCase();
+  if (s === 'live_in') return 'LIVE-IN (FHA)';
+  if (s === 'rental') return 'RENTAL';
+  if (s === 'flip') return 'FLIP';
+  if (s === 'brrrr') return 'BRRRR';
+  return s ? s.toUpperCase() : 'ANALYSIS';
+}
+
+/**
+ * Formats the chosen exit's key number for Saved Analyses & Deal Report pickers.
+ * Supports preferredExit = 'rent' (Exit A) | 'sell' (Exit B) | 'keep' (Exit C).
+ */
+export function formatLiveInChosenExitHeadline(item = {}) {
+  const inp = item?.inputs || {};
+  const res = item?.results || item || {};
+  const rawExit = String(inp.preferredExit || res.preferredExit || 'rent').toLowerCase();
+  const preferredExit = ['rent', 'sell', 'keep'].includes(rawExit) ? rawExit : 'rent';
+  const liveInYears = Number(inp.liveInYears ?? res.live?.liveInYears) === 1 ? 1 : 2;
+
+  if (preferredExit === 'sell') {
+    const sellYr = liveInYears === 1 ? res.exit?.sell?.year1 : res.exit?.sell?.year2;
+    const profit = sellYr?.profitAfterEstTax;
+    if (profit != null && Number.isFinite(Number(profit))) {
+      const sign = Number(profit) >= 0 ? '+' : '';
+      return `Exit B (Sell Yr ${liveInYears}) · ${sign}${formatCurrency(profit)} profit`;
+    }
+    return `Exit B (Sell Yr ${liveInYears})`;
+  }
+
+  if (preferredExit === 'keep') {
+    const cap = res.exit?.keepAndBuyNext?.deployableCapitalForNext;
+    if (cap != null && Number.isFinite(Number(cap))) {
+      return `Exit C (Keep & buy #2) · ${formatCurrency(cap)} for #2`;
+    }
+    return 'Exit C (Keep & buy #2)';
+  }
+
+  // Default: 'rent' (Exit A)
+  const hasMarketRent =
+    res.exit?.rent?.hasMarketRent ??
+    res.hasMarketRent ??
+    (res.exit?.rent?.monthlyCashFlow != null);
+  const cf = res.exit?.rent?.monthlyCashFlow ?? res.monthlyCashFlow;
+  if (hasMarketRent && cf != null && Number.isFinite(Number(cf))) {
+    const sign = Number(cf) >= 0 ? '+' : '';
+    return `Exit A (Rent) · ${sign}${formatCurrency(cf)}/mo cash flow`;
+  }
+  return 'Exit A (Rent) · Add market rent';
+}
+
+/**
  * Remaining principal balance on a standard amortizing loan after `monthsPaid` payments.
  */
 export function calculateRemainingLoanBalance(principal, annualRateDecimal, termYears = 30, monthsPaid = 0) {
@@ -1817,19 +1871,37 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
     keepAndBuyNextNetWorth: hasMarketRent ? computeScenarioCNetWorthAtYear(year) : null
   }));
 
+  const preferredExit = ['rent', 'sell', 'keep'].includes(
+    String(inputs.preferredExit || '').toLowerCase()
+  )
+    ? String(inputs.preferredExit).toLowerCase()
+    : 'rent';
+
+  const exitBundle = {
+    rent: exitARent,
+    sell: exitBSell,
+    keepAndBuyNext: exitCKeepAndBuyNext
+  };
+
+  const chosenExitSummary = formatLiveInChosenExitHeadline({
+    inputs: { ...inputs, preferredExit, liveInYears },
+    results: {
+      preferredExit,
+      hasMarketRent,
+      live: phase02Live,
+      exit: exitBundle
+    }
+  });
+
   // Verdict summary for header / saved analyses
-  const exitCfSign =
-    hasMarketRent && exitARent.monthlyCashFlow >= 0 ? '+' : '';
-  const verdict = hasMarketRent
-    ? `${formatCurrency(netLiveInMonthlyCost)}/mo while living · ${exitCfSign}${formatCurrency(
-        exitARent.monthlyCashFlow
-      )}/mo exit cash flow`
-    : `${formatCurrency(netLiveInMonthlyCost)}/mo while living · Exit cash flow: Add market rent`;
+  const verdict = `${formatCurrency(netLiveInMonthlyCost)}/mo while living · ${chosenExitSummary}`;
 
   return {
     isComplete: true,
     hint: null,
     verdict,
+    preferredExit,
+    chosenExitSummary,
     hasMarketRent,
     over15PctZeroRehabWarning,
     valuePctAbovePurchase,
@@ -1839,11 +1911,7 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
     buy: phase01Buy,
     live: phase02Live,
     improve: phase03Improve,
-    exit: {
-      rent: exitARent,
-      sell: exitBSell,
-      keepAndBuyNext: exitCKeepAndBuyNext
-    },
+    exit: exitBundle,
     wealthSeries,
     // Compatibility fields for InvestorStudio Deal Snapshot Band
     cashToClose: {

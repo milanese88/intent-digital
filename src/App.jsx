@@ -9,6 +9,7 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import LearningLab from './pages/LearningLab.jsx';
 import DealReportPage from './pages/investor/DealReportPage.jsx';
+import { PortalThemeProvider } from './context/PortalThemeContext.jsx';
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -159,7 +160,11 @@ function App() {
   }
 
   if (currentPage === 'deal-report') {
-    return <DealReportPage propertyId={reportPropertyId} navigateTo={navigateTo} />;
+    return (
+      <PortalThemeProvider>
+        <DealReportPage propertyId={reportPropertyId} navigateTo={navigateTo} />
+      </PortalThemeProvider>
+    );
   }
 
   if (currentPage === 'admin-not-found') {

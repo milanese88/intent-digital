@@ -3,8 +3,8 @@
 -- Description: Support "Live-in plan (FHA)" ('live_in') strategy in Investor Studio,
 --              optional HOA fields on investor_properties for Live-in fit checks,
 --              and editable FHA/financing overrides on investor_profile.
---              Strictly schema-only (NO test rows).
--- Target: Neon PostgreSQL (idempotent)
+--              Strictly schema-only (NO test rows). 100% idempotent (IF NOT EXISTS).
+-- Target: Neon PostgreSQL
 -- ==============================================================================
 
 -- 1. Expand investor_properties.strategy CHECK constraint to include 'live_in'
@@ -19,14 +19,23 @@ BEGIN
     WHERE t.relname = 'investor_properties'
       AND c.contype = 'c'
       AND pg_get_constraintdef(c.oid) ILIKE '%strategy%'
+      AND pg_get_constraintdef(c.oid) NOT ILIKE '%live_in%'
   LOOP
     EXECUTE format('ALTER TABLE investor_properties DROP CONSTRAINT IF EXISTS %I', r.conname);
   END LOOP;
-END $$;
 
-ALTER TABLE investor_properties
-  ADD CONSTRAINT investor_properties_strategy_check
-  CHECK (strategy IS NULL OR strategy IN ('rental', 'flip', 'brrrr', 'live_in'));
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE t.relname = 'investor_properties'
+      AND c.conname = 'investor_properties_strategy_check'
+  ) THEN
+    ALTER TABLE investor_properties
+      ADD CONSTRAINT investor_properties_strategy_check
+      CHECK (strategy IS NULL OR strategy IN ('rental', 'flip', 'brrrr', 'live_in'));
+  END IF;
+END $$;
 
 -- 2. Expand investor_analyses.strategy CHECK constraint to include 'live_in'
 DO $$
@@ -40,14 +49,23 @@ BEGIN
     WHERE t.relname = 'investor_analyses'
       AND c.contype = 'c'
       AND pg_get_constraintdef(c.oid) ILIKE '%strategy%'
+      AND pg_get_constraintdef(c.oid) NOT ILIKE '%live_in%'
   LOOP
     EXECUTE format('ALTER TABLE investor_analyses DROP CONSTRAINT IF EXISTS %I', r.conname);
   END LOOP;
-END $$;
 
-ALTER TABLE investor_analyses
-  ADD CONSTRAINT investor_analyses_strategy_check
-  CHECK (strategy IN ('rental', 'flip', 'brrrr', 'live_in'));
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE t.relname = 'investor_analyses'
+      AND c.conname = 'investor_analyses_strategy_check'
+  ) THEN
+    ALTER TABLE investor_analyses
+      ADD CONSTRAINT investor_analyses_strategy_check
+      CHECK (strategy IN ('rental', 'flip', 'brrrr', 'live_in'));
+  END IF;
+END $$;
 
 -- 3. Add optional HOA columns on investor_properties for "Live-in fit" HOA rental checks
 ALTER TABLE investor_properties
@@ -57,4 +75,3 @@ ALTER TABLE investor_properties
 -- 4. Add financing_overrides JSONB column on investor_profile for user-editable FHA limits & rates
 ALTER TABLE investor_profile
   ADD COLUMN IF NOT EXISTS financing_overrides jsonb NOT NULL DEFAULT '{}'::jsonb;
-

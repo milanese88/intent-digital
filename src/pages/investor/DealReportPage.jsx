@@ -1,18 +1,44 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { formatCurrency, underwriteFlip, underwriteRental, underwriteBrrrr, underwriteLiveInPlan } from '../../components/investor/underwriting.js';
-import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
+import {
+  formatCurrency,
+  underwriteFlip,
+  underwriteRental,
+  underwriteBrrrr,
+  underwriteLiveInPlan,
+  formatStrategyDisplayLabel,
+  formatLiveInChosenExitHeadline
+} from '../../components/investor/underwriting.js';
+import { LIVE_IN_PLAN_DISCLAIMER, LIVE_IN_TAX_DISCLAIMER } from '../../config/financing.js';
+import LiveInFitBadge from '../../components/investor/LiveInFitBadge.jsx';
+import LiveInWealthChart from '../../components/investor/LiveInWealthChart.jsx';
+import { usePortalTheme } from '../../context/PortalThemeContext.jsx';
+import { loadThemeFont } from '../../utils/themeFonts.js';
 import { getCmaStaticMapUrl, getMapboxAerialUrl } from '../../components/investor/mapboxAerial.js';
 import { getUseCodeLabel, toTitleCase, formatNiceAddress } from '../../components/investor/AddressAutocomplete.jsx';
 import { getFloodPillStyle } from '../../components/investor/SiteZoningCard.jsx';
 import { BRAND_NAME, DEAL_REPORT_FOOTER } from '../../config/legal.js';
 
+const REPORT_HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
+const REPORT_BODY_FONT = 'var(--font-sans, "Montserrat", sans-serif)';
+
+function fmtReportPct(decOrNum, digits = 1, isAlreadyPercent = false) {
+  if (decOrNum == null || !Number.isFinite(Number(decOrNum))) return '—';
+  const val = isAlreadyPercent ? Number(decOrNum) : Number(decOrNum) * 100;
+  return `${val.toFixed(digits)}%`;
+}
+
 export default function DealReportPage({ propertyId, navigateTo }) {
+  const { cssVariables } = usePortalTheme();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savingDoc, setSavingDoc] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    loadThemeFont('Instrument Serif');
+  }, []);
 
   // Selected Analysis ID (from query param or default to latest)
   const [selectedAnalysisId, setSelectedAnalysisId] = useState(() => {
@@ -29,6 +55,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       cover: true,
       property: true,
       deal: true,
+      liveInPlan: true,
       cash: true,
       financing: true,
       comps: true,
@@ -111,10 +138,46 @@ export default function DealReportPage({ propertyId, navigateTo }) {
   const profile = data?.profile || {};
   const marketStats = data?.marketStats || {};
 
-  // Compute live deal results if needed, or use stored results
+  // Compute live deal results if needed, or use stored results from the selected saved analysis
   const dealCalculations = useMemo(() => {
     const inputs = selectedAnalysis.inputs || {};
     const strat = (selectedAnalysis.strategy || property.strategy || 'flip').toLowerCase();
+
+    if (strat === 'live_in') {
+      const savedRes = selectedAnalysis.results || {};
+      const hasFullSavedLiveIn =
+        savedRes.buy &&
+        savedRes.live &&
+        savedRes.improve &&
+        savedRes.exit &&
+        Array.isArray(savedRes.wealthSeries);
+
+      if (hasFullSavedLiveIn) {
+        return {
+          strategy: strat,
+          inputs,
+          results: savedRes
+        };
+      }
+
+      const fallbackInputs = {
+        ...inputs,
+        purchasePrice: inputs.purchasePrice || property.list_price || 0,
+        county: inputs.county || property.county || property.parcel_county || 'Broward',
+        mySavings:
+          inputs.mySavings != null
+            ? inputs.mySavings
+            : profile?.liquid_cash != null
+            ? Number(profile.liquid_cash)
+            : null
+      };
+      const computed = underwriteLiveInPlan(fallbackInputs, profile);
+      return {
+        strategy: strat,
+        inputs: fallbackInputs,
+        results: { ...computed, ...savedRes }
+      };
+    }
 
     if (selectedAnalysis.results && Object.keys(selectedAnalysis.results).length > 0) {
       return {
@@ -126,9 +189,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
 
     // Baseline calculation if no saved results
     let results = {};
-    if (strat === 'live_in') {
-      results = underwriteLiveInPlan(inputs, profile);
-    } else if (strat === 'rental') {
+    if (strat === 'rental') {
       results = underwriteRental(inputs);
     } else if (strat === 'brrrr') {
       results = underwriteBrrrr(inputs);
@@ -141,7 +202,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       inputs,
       results
     };
-  }, [selectedAnalysis, property.strategy]);
+  }, [selectedAnalysis, property.strategy, property.list_price, property.county, property.parcel_county, profile]);
 
   const { strategy, inputs, results } = dealCalculations;
   const closingDetails = results.closingDetails || {};
@@ -408,13 +469,31 @@ export default function DealReportPage({ propertyId, navigateTo }) {
     );
   }
 
+  const reportFontVars = {
+    '--font-heading': cssVariables?.['--font-heading'] || "'Instrument Serif', Georgia, serif",
+    '--font-display': cssVariables?.['--font-display'] || "'Instrument Serif', Georgia, serif",
+    '--font-serif': cssVariables?.['--font-serif'] || "'Instrument Serif', Georgia, serif",
+    '--font-body': cssVariables?.['--font-body'] || "'Montserrat', sans-serif",
+    '--font-sans': cssVariables?.['--font-sans'] || "'Montserrat', sans-serif"
+  };
+
   return (
-    <div style={{ backgroundColor: '#FAF8F5', minHeight: '100vh', color: 'var(--espresso, #34292A)' }}>
+    <div style={{ backgroundColor: '#FAF8F5', minHeight: '100vh', color: 'var(--espresso, #34292A)', ...reportFontVars }}>
       {/* Print Stylesheet */}
       <style>{`
         @page {
           size: letter;
           margin: 0.6in;
+        }
+        .live-in-report-3col {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+        @media (max-width: 820px) {
+          .live-in-report-3col {
+            grid-template-columns: 1fr;
+          }
         }
         @media print {
           html, body {
@@ -431,6 +510,11 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
+          }
+          .live-in-report-3col {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 12px !important;
           }
           .page-break {
             page-break-before: always;
@@ -500,13 +584,14 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               ← Back to Studio
             </button>
 
-            {analyses.length > 1 && (
+            {analyses.length >= 1 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.6)', fontWeight: 600 }}>
                   Analysis:
                 </span>
                 <select
-                  value={selectedAnalysisId}
+                  aria-label="Select saved analysis for report"
+                  value={selectedAnalysisId || selectedAnalysis.id || ''}
                   onChange={(e) => handleAnalysisChange(e.target.value)}
                   style={{
                     padding: '6px 10px',
@@ -520,12 +605,17 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   }}
                 >
                   {analyses.map(a => {
-                    const strat = (a.strategy || '').toUpperCase();
+                    const strat = formatStrategyDisplayLabel(a.strategy || '');
                     const dStr = a.created_at ? new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                    const arv = a.inputs?.arv ? ` · ARV $${Math.round(Number(a.inputs.arv)).toLocaleString()}` : '';
+                    const summary =
+                      String(a.strategy || '').toLowerCase() === 'live_in'
+                        ? ` · ${formatLiveInChosenExitHeadline(a)}`
+                        : a.inputs?.arv
+                        ? ` · ARV $${Math.round(Number(a.inputs.arv)).toLocaleString()}`
+                        : '';
                     return (
                       <option key={a.id} value={a.id}>
-                        {strat} ({dStr}{arv})
+                        {strat}{summary}{dStr ? ` (${dStr})` : ''}
                       </option>
                     );
                   })}
@@ -633,6 +723,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             { id: 'cover', label: '01 Cover' },
             { id: 'property', label: '02 Property' },
             { id: 'deal', label: '03 The Deal' },
+            ...(strategy === 'live_in' ? [{ id: 'liveInPlan', label: 'Live-in Plan' }] : []),
             { id: 'cash', label: '04 Cash to Close' },
             { id: 'financing', label: '05 Financing' },
             { id: 'comps', label: '06 Comps & CMA' },
@@ -764,23 +855,27 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 display: 'block',
                 marginBottom: '6px'
               }}>
-                {strategy.toUpperCase()} ACQUISITION REPORT
+                {formatStrategyDisplayLabel(strategy)} ACQUISITION REPORT
               </span>
               <h1 style={{
-                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                fontFamily: REPORT_HEADING_FONT,
                 fontSize: '40px',
                 fontWeight: 400,
                 color: 'var(--espresso, #34292A)',
                 margin: 0,
                 lineHeight: 1.15
               }}>
-                {formatNiceAddress(property.address || 'Property Address')}
+                <span style={{ display: 'block', fontFamily: REPORT_HEADING_FONT, fontWeight: 400 }}>
+                  {formatNiceAddress(property.address || 'Property Address')}
+                </span>
                 <span style={{
                   display: 'block',
+                  fontFamily: REPORT_HEADING_FONT,
                   fontStyle: 'italic',
                   fontSize: '26px',
                   color: 'rgba(52, 41, 42, 0.75)',
-                  marginTop: '4px'
+                  marginTop: '4px',
+                  fontWeight: 400
                 }}>
                   {property.city ? `${toTitleCase(property.city)}, FL ${property.zip || ''}` : 'Florida'}
                 </span>
@@ -1006,7 +1101,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 03 · THE DEAL & UNDERWRITING
               </span>
               <h2 style={{
-                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                fontFamily: REPORT_HEADING_FONT,
                 fontSize: '26px',
                 fontWeight: 400,
                 color: 'var(--espresso, #34292A)',
@@ -1027,7 +1122,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
                   PURCHASE PRICE
                 </span>
-                <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
+                <span style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '26px', fontWeight: 400, color: 'var(--espresso, #34292A)' }}>
                   {formatCurrency(inputs.purchasePrice || property.list_price || 0)}
                 </span>
               </div>
@@ -1036,7 +1131,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
                   REHAB BUDGET
                 </span>
-                <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
+                <span style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '26px', fontWeight: 400, color: 'var(--espresso, #34292A)' }}>
                   {formatCurrency(inputs.rehabBudget || 0)}
                 </span>
               </div>
@@ -1045,20 +1140,18 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
                   {strategy === 'live_in' ? 'VALUE AFTER RENO' : 'TARGET ARV'}
                 </span>
-                <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--secondary-color, #41101B)' }}>
+                <span style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '26px', fontWeight: 400, color: 'var(--secondary-color, #41101B)' }}>
                   {formatCurrency(inputs.arv || inputs.valueAfterReno || results.improve?.valueAfterReno || 0)}
                 </span>
               </div>
 
               <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.08)' }}>
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
-                  {strategy === 'live_in' ? 'EXIT CASH FLOW' : 'TOTAL PROJECT COST'}
+                  {strategy === 'live_in' ? 'CHOSEN EXIT' : 'TOTAL PROJECT COST'}
                 </span>
-                <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
+                <span style={{ fontFamily: REPORT_HEADING_FONT, fontSize: strategy === 'live_in' ? '20px' : '26px', fontWeight: 400, color: 'var(--espresso, #34292A)' }}>
                   {strategy === 'live_in'
-                    ? (results.exit?.rent?.hasMarketRent && results.exit?.rent?.monthlyCashFlow != null
-                        ? `${results.exit.rent.monthlyCashFlow >= 0 ? '+' : ''}${formatCurrency(results.exit.rent.monthlyCashFlow)}/mo`
-                        : 'Add market rent')
+                    ? formatLiveInChosenExitHeadline({ inputs, results })
                     : formatCurrency(results.totalCost || 0)}
                 </span>
               </div>
@@ -1073,39 +1166,522 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               marginBottom: '16px'
             }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Purchase Price</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inputs.purchasePrice || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Rehab & Construction Budget</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inputs.rehabBudget || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Acquisition Closing Costs</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.buyClosingCosts || closingDetails.totalClosingCosts || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Holding & Financing Carry ({inputs.holdingMonths || 6} mos)</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.totalHoldingCost || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Disposition Selling Costs ({inputs.sellingCostsPct || 8}%)</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.sellingCosts || 0)}</td>
-                  </tr>
-                  <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
-                    <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>Net Projected Profit</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '15px' }}>
-                      {formatCurrency(results.projectedProfit || 0)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>70% Rule Max Allowable Offer (MAO)</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.maxOffer || 0)}</td>
-                  </tr>
-                </tbody>
+                {strategy === 'live_in' ? (
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Purchase Price ({results.buy?.units || inputs.units || 1} {Number(results.buy?.units || inputs.units || 1) === 1 ? 'unit' : 'units'})
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy?.purchasePrice || inputs.purchasePrice || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        FHA Down Payment ({results.buy?.downPaymentPct ?? inputs.downPaymentPct ?? 3.5}%)
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy?.downPayment || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Total FHA Loan (incl. {results.buy?.ufmipPct ?? 1.75}% Financed UFMIP of {formatCurrency(results.buy?.ufmipAmount || 0)})
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy?.totalFhaLoan || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Renovation Budget ({results.improve?.rehabPaidBy === 'limited_203k'
+                          ? 'Financed · Limited 203(k)'
+                          : results.improve?.rehabPaidBy === 'standard_203k'
+                          ? 'Financed · Standard 203(k)'
+                          : 'Paid in Cash'})
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.improve?.rehabBudget || inputs.rehabBudget || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Live-in Period &amp; Net Monthly Housing Cost
+                      </td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {results.live?.liveInYears || inputs.liveInYears || 2} {(results.live?.liveInYears || inputs.liveInYears || 2) === 1 ? 'yr' : 'yrs'} · {formatCurrency(results.live?.netLiveInMonthlyCost || 0)}/mo
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
+                      <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>
+                        Selected Exit Plan
+                      </td>
+                      <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '14px' }}>
+                        {formatLiveInChosenExitHeadline({ inputs, results })}
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Purchase Price</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inputs.purchasePrice || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Rehab & Construction Budget</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inputs.rehabBudget || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Acquisition Closing Costs</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.buyClosingCosts || closingDetails.totalClosingCosts || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Holding & Financing Carry ({inputs.holdingMonths || 6} mos)</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.totalHoldingCost || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Disposition Selling Costs ({inputs.sellingCostsPct || 8}%)</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.sellingCosts || 0)}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
+                      <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>Net Projected Profit</td>
+                      <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '15px' }}>
+                        {formatCurrency(results.projectedProfit || 0)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '12px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>70% Rule Max Allowable Offer (MAO)</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(results.maxOffer || 0)}</td>
+                    </tr>
+                  </tbody>
+                )}
               </table>
+            </div>
+          </section>
+        )}
+
+        {/* ================================================================= */}
+        {/* LIVE-IN PLAN (FHA) — AFTER THE DEAL                               */}
+        {/* ================================================================= */}
+        {strategy === 'live_in' && options.sections.liveInPlan && results?.buy && results?.live && results?.improve && results?.exit && (
+          <section id="report-live-in-plan-section" className="page-break" style={{ marginBottom: '44px', fontFamily: REPORT_BODY_FONT }}>
+            <div style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.15)', paddingBottom: '10px', marginBottom: '18px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--secondary-color, #41101B)' }}>
+                LIVE-IN PLAN · PRIMARY RESIDENCE FHA ROADMAP
+              </span>
+              <h2 style={{
+                fontFamily: REPORT_HEADING_FONT,
+                fontSize: '28px',
+                fontWeight: 400,
+                lineHeight: 1.14,
+                letterSpacing: 'var(--letter-spacing-tight, -0.02em)',
+                color: 'var(--espresso, #34292A)',
+                margin: '4px 0 0 0'
+              }}>
+                <span style={{ display: 'block', fontFamily: REPORT_HEADING_FONT, fontWeight: 400 }}>
+                  Buy with FHA, live 1–2 years,
+                </span>
+                <span style={{ display: 'block', fontFamily: REPORT_HEADING_FONT, fontStyle: 'italic', fontWeight: 400 }}>
+                  renovate, then rent or sell.
+                </span>
+              </h2>
+            </div>
+
+            {/* FHA Fit Checks */}
+            <div className="avoid-break" style={{ marginBottom: '16px' }}>
+              <LiveInFitBadge
+                property={{
+                  ...property,
+                  asking_price: Number(inputs.purchasePrice) || property.list_price || 0,
+                  units: Number(inputs.units) || property.units || 1,
+                  hoa_monthly: Number(inputs.hoaMonthly) || property.hoa_monthly || 0,
+                  has_hoa: Number(inputs.hoaMonthly) > 0 ? true : property.has_hoa
+                }}
+                profile={profile}
+                showReasons
+              />
+            </div>
+
+            {/* Phases 01 Buy · 02 Live · 03 Improve */}
+            <div className="live-in-report-3col avoid-break" style={{ marginBottom: '18px' }}>
+              {/* 01 BUY */}
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.12)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#41101B' }}>
+                    01 · BUY
+                  </span>
+                  <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '999px', backgroundColor: 'rgba(189, 211, 226, 0.35)', color: '#34292A' }}>
+                    {results.buy.downPaymentPct}% Down FHA
+                  </span>
+                </div>
+                <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '28px', fontWeight: 400, lineHeight: 1.1, color: '#34292A', marginBottom: '2px' }}>
+                  {formatCurrency(results.buy.totalOutOfPocketCash)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '10px' }}>
+                  Total out-of-pocket cash to close &amp; renovate
+                </div>
+
+                {[
+                  ['Down payment', formatCurrency(results.buy.downPayment)],
+                  ['Base loan', formatCurrency(results.buy.baseLoan)],
+                  [`Financed UFMIP (${results.buy.ufmipPct}%)`, formatCurrency(results.buy.ufmipAmount)],
+                  ['Total FHA loan', formatCurrency(results.buy.totalFhaLoan)],
+                  [`Closing costs (${results.buy.closingCostsPct}%)`, formatCurrency(results.buy.closingCosts)],
+                  ...(results.buy.appliedSellerCredits > 0
+                    ? [['Seller credits', `−${formatCurrency(results.buy.appliedSellerCredits)}`]]
+                    : []),
+                  ...(results.buy.rehabCashOutOfPocket > 0
+                    ? [['Out-of-pocket reno cash', formatCurrency(results.buy.rehabCashOutOfPocket)]]
+                    : [])
+                ].map(([lbl, val]) => (
+                  <div key={lbl} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', padding: '4px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)', fontSize: '11.5px' }}>
+                    <span style={{ color: 'rgba(52, 41, 42, 0.72)' }}>{lbl}</span>
+                    <strong style={{ color: '#34292A' }}>{val}</strong>
+                  </div>
+                ))}
+
+                {options.includeFinances && results.buy.mySavings != null && (
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: results.buy.cashBufferVsSavings >= 0 ? 'rgba(63, 90, 58, 0.09)' : 'rgba(65, 16, 27, 0.08)',
+                    border: results.buy.cashBufferVsSavings >= 0 ? '1px solid rgba(63, 90, 58, 0.28)' : '1px solid rgba(65, 16, 27, 0.26)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: results.buy.cashBufferVsSavings >= 0 ? '#3F5A3A' : '#41101B'
+                  }}>
+                    <div>My savings: {formatCurrency(results.buy.mySavings)}</div>
+                    <div>
+                      {results.buy.cashBufferVsSavings >= 0
+                        ? `✓ +${formatCurrency(results.buy.cashBufferVsSavings)} cushion remaining`
+                        : `${formatCurrency(Math.abs(results.buy.cashBufferVsSavings))} short of savings`}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 02 LIVE */}
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.12)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#41101B' }}>
+                    02 · LIVE ({results.live.liveInYears} {results.live.liveInYears === 1 ? 'YR' : 'YRS'})
+                  </span>
+                  <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '999px', backgroundColor: 'rgba(189, 211, 226, 0.35)', color: '#34292A' }}>
+                    Primary Residence
+                  </span>
+                </div>
+                <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '28px', fontWeight: 400, lineHeight: 1.1, color: '#34292A', marginBottom: '2px' }}>
+                  {formatCurrency(results.live.netLiveInMonthlyCost)}/mo
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '8px' }}>
+                  Net monthly cost while living there
+                </div>
+
+                <div style={{
+                  marginBottom: '8px',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  backgroundColor: results.live.monthlyDeltaVsCurrentRent <= 0 ? 'rgba(63, 90, 58, 0.09)' : 'rgba(189, 211, 226, 0.28)',
+                  border: results.live.monthlyDeltaVsCurrentRent <= 0 ? '1px solid rgba(63, 90, 58, 0.26)' : '1px solid rgba(133, 157, 206, 0.45)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: results.live.monthlyDeltaVsCurrentRent <= 0 ? '#3F5A3A' : '#34292A'
+                }}>
+                  {results.live.currentRentComparisonLabel} (vs. {formatCurrency(results.live.currentRentMo)}/mo current rent)
+                </div>
+
+                {[
+                  ['Principal & interest', `${formatCurrency(results.live.monthlyPi)}/mo`],
+                  [`Annual MIP (${results.buy.annualMipPct}%)`, `${formatCurrency(results.live.monthlyMip)}/mo`],
+                  [
+                    'Homestead tax + Ins. + HOA',
+                    `${formatCurrency(results.live.homesteadTaxMo + results.live.liveInInsuranceMo + results.live.hoaMonthly)}/mo`
+                  ],
+                  ...(results.live.units >= 2
+                    ? [['75% of other-unit rent', `−${formatCurrency(results.live.creditedOtherUnitsRentMo)}/mo`]]
+                    : [])
+                ].map(([lbl, val]) => (
+                  <div key={lbl} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', padding: '4px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)', fontSize: '11.5px' }}>
+                    <span style={{ color: 'rgba(52, 41, 42, 0.72)' }}>{lbl}</span>
+                    <strong style={{ color: '#34292A' }}>{val}</strong>
+                  </div>
+                ))}
+
+                <div style={{ marginTop: '8px', padding: '8px 10px', borderRadius: '8px', backgroundColor: '#FAF8F5', border: '1px solid rgba(52, 41, 42, 0.09)', fontSize: '11px' }}>
+                  <div style={{ fontWeight: 700, color: '#34292A' }}>
+                    Equity built while living: +{formatCurrency(results.live.equityBuiltWhileLiving)}
+                  </div>
+                  <div style={{ color: 'rgba(52, 41, 42, 0.7)' }}>
+                    {formatCurrency(results.live.principalPaidDown)} paydown + {formatCurrency(results.live.appreciationWhileLiving)} appreciation
+                  </div>
+                  {results.taxComparison && (
+                    <div style={{ marginTop: '4px', color: '#41101B', fontWeight: 600 }}>
+                      Rental tax reset: +{formatCurrency(results.taxComparison.monthlyDiff)}/mo without Homestead
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 03 IMPROVE */}
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.12)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#41101B' }}>
+                    03 · IMPROVE
+                  </span>
+                  <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '999px', backgroundColor: 'rgba(189, 211, 226, 0.35)', color: '#34292A' }}>
+                    {results.improve.rehabPaidBy === 'limited_203k'
+                      ? 'Limited 203(k)'
+                      : results.improve.rehabPaidBy === 'standard_203k'
+                      ? 'Standard 203(k)'
+                      : 'Cash'}
+                  </span>
+                </div>
+                <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '28px', fontWeight: 400, lineHeight: 1.1, color: '#34292A', marginBottom: '2px' }}>
+                  {formatCurrency(results.improve.equityAtExit)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '10px' }}>
+                  Total equity at Year {results.live.liveInYears} ({fmtReportPct(results.improve.equityPctAtExit)})
+                </div>
+
+                {[
+                  ['Renovation cost', formatCurrency(results.improve.rehabBudget)],
+                  [
+                    results.improve.rehabBudget > 0 ? 'Value after renovation' : 'Property value (as-is)',
+                    formatCurrency(results.improve.valueAfterReno)
+                  ],
+                  [
+                    'Gross value added',
+                    `${results.improve.valueAdded >= 0 ? '+' : ''}${formatCurrency(results.improve.valueAdded)}`
+                  ],
+                  ...(results.improve.rehabBudget > 0
+                    ? [['Net forced equity', `${results.improve.netForcedEquity >= 0 ? '+' : ''}${formatCurrency(results.improve.netForcedEquity)}`]]
+                    : []),
+                  [
+                    'Day-1 equity after reno',
+                    `${formatCurrency(results.improve.equityAfterRenoDay1)} (${fmtReportPct(results.improve.equityPctAfterRenoDay1)})`
+                  ]
+                ].map(([lbl, val]) => (
+                  <div key={lbl} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', padding: '4px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)', fontSize: '11.5px' }}>
+                    <span style={{ color: 'rgba(52, 41, 42, 0.72)' }}>{lbl}</span>
+                    <strong style={{ color: '#34292A' }}>{val}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Phase 04 Exit: A / B / C Side by Side */}
+            <div className="avoid-break" style={{ backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.12)', borderRadius: '14px', padding: '18px 20px', marginBottom: '18px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#41101B' }}>
+                  04 · EXIT SCENARIOS (A / B / C SIDE BY SIDE)
+                </span>
+                <h3 style={{
+                  margin: '4px 0 0',
+                  fontFamily: REPORT_HEADING_FONT,
+                  fontSize: '24px',
+                  fontWeight: 400,
+                  lineHeight: 1.15,
+                  color: '#34292A'
+                }}>
+                  <span style={{ fontFamily: REPORT_HEADING_FONT, fontWeight: 400 }}>Compare exit paths </span>
+                  <span style={{ fontFamily: REPORT_HEADING_FONT, fontStyle: 'italic', fontWeight: 400 }}>after year {results.live.liveInYears}</span>
+                </h3>
+              </div>
+
+              {(() => {
+                const chosenExit = ['rent', 'sell', 'keep'].includes(
+                  String(inputs.preferredExit || results.preferredExit || '').toLowerCase()
+                )
+                  ? String(inputs.preferredExit || results.preferredExit).toLowerCase()
+                  : 'rent';
+
+                return (
+                  <div className="live-in-report-3col">
+                    {/* EXIT A: RENT */}
+                    <div style={{
+                      backgroundColor: '#FAF8F5',
+                      border: chosenExit === 'rent' ? '1.5px solid #41101B' : '1px solid rgba(52, 41, 42, 0.12)',
+                      borderRadius: '10px',
+                      padding: '14px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#41101B' }}>
+                          A · RENT
+                        </span>
+                        {chosenExit === 'rent' && (
+                          <span style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '999px', backgroundColor: '#41101B', color: '#FAF8F5' }}>
+                            Chosen exit
+                          </span>
+                        )}
+                      </div>
+
+                      {results.exit.rent.hasMarketRent ? (
+                        <>
+                          <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '26px', fontWeight: 400, lineHeight: 1.1, color: results.exit.rent.monthlyCashFlow >= 0 ? '#3F5A3A' : '#41101B', marginBottom: '4px' }}>
+                            {results.exit.rent.monthlyCashFlow >= 0 ? '+' : ''}{formatCurrency(results.exit.rent.monthlyCashFlow)}/mo
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '8px' }}>
+                            Monthly cash flow (reassessed non-homestead tax)
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                            <span>Projected rent (Yr {results.live.liveInYears})</span>
+                            <strong>{formatCurrency(results.exit.rent.exitGrossRentMo)}/mo</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                            <span>Cash-on-Cash</span>
+                            <strong>{results.exit.rent.isInfiniteCoC ? '∞ (All cash out)' : fmtReportPct(results.exit.rent.cashOnCash)}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                            <span>DSCR</span>
+                            <strong>{results.exit.rent.dscr != null ? `${results.exit.rent.dscr.toFixed(2)}x` : '—'}</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.7)', marginBottom: '8px' }}>
+                          <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '24px', color: '#34292A', marginBottom: '4px' }}>
+                            Add market rent
+                          </div>
+                          Enter market rent after move-out to model rental cash flow, CoC, and DSCR.
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '8px', padding: '8px 9px', borderRadius: '8px', backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.1)', fontSize: '10.5px', lineHeight: 1.45 }}>
+                        {results.exit.rent.convRefi?.eligible ? (
+                          <>
+                            <div style={{ fontWeight: 700, color: '#34292A' }}>
+                              Conv. refi eligible (≥20% equity){inputs.useConvRefi ? ' · Active' : ''}
+                            </div>
+                            <div>Drops MIP ({formatCurrency(results.exit.rent.convRefi.monthlyMipDropped)}/mo) · New P&amp;I {formatCurrency(results.exit.rent.convRefi.newMonthlyPaymentPi)}/mo</div>
+                            <div>80% LTV cash out: <strong style={{ color: '#3F5A3A' }}>{formatCurrency(results.exit.rent.convRefi.cashOut)}</strong></div>
+                          </>
+                        ) : (
+                          <div>
+                            At {fmtReportPct(results.exit.rent.convRefi?.equityPctAtExit)} equity — needs {formatCurrency(results.exit.rent.convRefi?.equityNeededForRefi || 0)} more for 20% Conv. refi (drops MIP).
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* EXIT B: SELL */}
+                    <div style={{
+                      backgroundColor: '#FAF8F5',
+                      border: chosenExit === 'sell' ? '1.5px solid #41101B' : '1px solid rgba(52, 41, 42, 0.12)',
+                      borderRadius: '10px',
+                      padding: '14px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#5C75A8' }}>
+                          B · SELL (1 YR VS. 2 YRS)
+                        </span>
+                        {chosenExit === 'sell' && (
+                          <span style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '999px', backgroundColor: '#41101B', color: '#FAF8F5' }}>
+                            Chosen exit
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+                        {[results.exit.sell.year1, results.exit.sell.year2].filter(Boolean).map((yrData) => (
+                          <div key={yrData.years} style={{
+                            backgroundColor: '#ffffff',
+                            border: yrData.years === 2 ? '1px solid rgba(63, 90, 58, 0.35)' : '1px solid rgba(52, 41, 42, 0.1)',
+                            borderRadius: '8px',
+                            padding: '8px'
+                          }}>
+                            <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: yrData.years === 2 ? '#3F5A3A' : '#34292A', marginBottom: '3px' }}>
+                              After {yrData.years} {yrData.years === 1 ? 'yr' : 'yrs'}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.75)' }}>
+                              Sale: <strong>{formatCurrency(yrData.salePrice)}</strong>
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.75)' }}>
+                              Costs: −{formatCurrency(yrData.sellingCosts)}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.75)' }}>
+                              Est. tax: −{formatCurrency(yrData.estimatedCapGainsTax)}
+                            </div>
+                            <div style={{ marginTop: '3px', paddingTop: '3px', borderTop: '1px solid rgba(52, 41, 42, 0.08)', fontSize: '11px', fontWeight: 700, color: yrData.profitAfterEstTax >= 0 ? '#3F5A3A' : '#41101B' }}>
+                              Profit: {formatCurrency(yrData.profitAfterEstTax)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ padding: '7px 9px', borderRadius: '8px', backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.09)', fontSize: '10.5px', lineHeight: 1.45 }}>
+                        <strong>Section 121 (2-of-5-yr rule):</strong> Up to $250k single / $500k married primary-residence exclusion when lived ≥ 2 years (<em>{LIVE_IN_TAX_DISCLAIMER}</em>).
+                      </div>
+                    </div>
+
+                    {/* EXIT C: KEEP & BUY NEXT */}
+                    <div style={{
+                      backgroundColor: '#FAF8F5',
+                      border: chosenExit === 'keep' ? '1.5px solid #41101B' : '1px solid rgba(52, 41, 42, 0.12)',
+                      borderRadius: '10px',
+                      padding: '14px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#3F5A3A' }}>
+                          C · KEEP &amp; BUY #2
+                        </span>
+                        {chosenExit === 'keep' && (
+                          <span style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: '999px', backgroundColor: '#41101B', color: '#FAF8F5' }}>
+                            Chosen exit
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontFamily: REPORT_HEADING_FONT, fontSize: '26px', fontWeight: 400, lineHeight: 1.1, color: '#34292A', marginBottom: '4px' }}>
+                        {formatCurrency(results.exit.keepAndBuyNext.deployableCapitalForNext)}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '8px' }}>
+                        Equity + savings available for Property #2
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                        <span>Property #1 equity kept</span>
+                        <strong>{formatCurrency(results.exit.keepAndBuyNext.property1EquityAtExit)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                        <span>Tappable 80% LTV cash-out</span>
+                        <strong>{formatCurrency(results.exit.keepAndBuyNext.tappableEquityCashOut)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '3px 0', borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                        <span>Est. #2 purchasing power</span>
+                        <strong>{formatCurrency(results.exit.keepAndBuyNext.estimatedNextPurchasingPower)}</strong>
+                      </div>
+
+                      <div style={{ marginTop: '8px', padding: '7px 9px', borderRadius: '8px', backgroundColor: '#ffffff', border: '1px solid rgba(52, 41, 42, 0.09)', fontSize: '10.5px', lineHeight: 1.45 }}>
+                        <strong>One FHA loan rule:</strong> {results.exit.keepAndBuyNext.oneFhaRuleNote}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Print-Ready Vector SVG Wealth Chart (3 / 5 / 10 Yrs) */}
+            <div className="avoid-break" style={{ marginBottom: '14px' }}>
+              <LiveInWealthChart
+                wealthSeries={results.wealthSeries || []}
+                liveInYears={results.live.liveInYears || 2}
+                hasMarketRent={Boolean(results.hasMarketRent)}
+                printMode
+              />
+            </div>
+
+            {/* Mandatory Planning Disclaimer Line */}
+            <div style={{
+              padding: '9px 14px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(189, 211, 226, 0.25)',
+              border: '1px solid rgba(133, 157, 206, 0.42)',
+              fontSize: '11.5px',
+              fontWeight: 500,
+              color: '#34292A',
+              textAlign: 'center'
+            }}>
+              {LIVE_IN_PLAN_DISCLAIMER}
             </div>
           </section>
         )}
@@ -1120,7 +1696,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 04 · CASH TO CLOSE & CAPITAL REQUIREMENTS
               </span>
               <h2 style={{
-                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                fontFamily: REPORT_HEADING_FONT,
                 fontSize: '26px',
                 fontWeight: 400,
                 color: 'var(--espresso, #34292A)',
@@ -1138,78 +1714,151 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               marginBottom: '16px'
             }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Down Payment ({inputs.downPaymentPct || 20}%)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.downPayment || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Lender Fees (Points, Underwriting, Appraisal)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.lenderFees?.totalLenderFees || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Florida Loan Taxes (Doc Stamps & Intangibles)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.floridaLoanTaxes?.totalFlLoanTaxes || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Title, Settlement & Recording Fees</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.titleFees?.totalTitleFees || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Prepaids & Escrow Reserves (Insurance & Taxes)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.prepaidsEscrow?.totalPrepaidsEscrow || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Property Inspections (General, 4-Point, Wind, Survey)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.inspections?.totalInspectionFees || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Earnest Money Deposit (Credit)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: '#15803d' }}>-{formatCurrency(closingDetails.earnestMoney || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Seller Credits (Credit)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: '#15803d' }}>
-                      {closingDetails.sellerCredit ? `-${formatCurrency(closingDetails.sellerCredit)}` : '-$0'}
-                    </td>
-                  </tr>
-                  <tr style={{ backgroundColor: 'rgba(52, 41, 42, 0.02)', fontWeight: 700, borderBottom: '1px solid rgba(52, 41, 42, 0.1)' }}>
-                    <td style={{ padding: '12px 18px' }}>Balance Due at Closing Table</td>
-                    <td style={{ padding: '12px 18px', textAlign: 'right' }}>{formatCurrency(closingDetails.balanceDueAtClosing || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Out-of-Pocket Rehab Cash</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(liquidDetails.rehabCash || inputs.rehabBudget || 0)}</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
-                    <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Operating Holding Reserves ({inputs.reserveMonths || 6} mos)</td>
-                    <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(liquidDetails.reserveCash || 0)}</td>
-                  </tr>
-                  <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
-                    <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>Total Project Capital Required</td>
-                    <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '15px' }}>
-                      {formatCurrency(liquidDetails.totalLiquidCashNeeded || 0)}
-                    </td>
-                  </tr>
-                  {options.includeFinances && (
-                    <tr style={{ borderTop: '2px solid rgba(52, 41, 42, 0.12)' }}>
-                      <td style={{ padding: '12px 18px', fontWeight: 600 }}>Available Liquid Cash (Profile)</td>
-                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
-                        {formatCurrency(profile.liquid_cash || 100000)}
+                {strategy === 'live_in' && results.buy ? (
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        FHA Down Payment ({results.buy.downPaymentPct}%)
+                      </td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy.downPayment || 0)}
                       </td>
                     </tr>
-                  )}
-                  {options.includeFinances && (
-                    <tr style={{ backgroundColor: liquidDetails.isCovered ? 'rgba(21, 128, 61, 0.06)' : 'rgba(185, 28, 28, 0.06)' }}>
-                      <td style={{ padding: '12px 18px', fontWeight: 700, color: liquidDetails.isCovered ? '#15803d' : '#b91c1c' }}>
-                        {liquidDetails.isCovered ? 'Liquidity Surplus' : 'Liquidity Shortfall'}
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Estimated Buyer Closing Costs ({results.buy.closingCostsPct}%)
                       </td>
-                      <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: liquidDetails.isCovered ? '#15803d' : '#b91c1c' }}>
-                        {liquidDetails.isCovered ? `+${formatCurrency(liquidDetails.diff)}` : `-${formatCurrency(liquidDetails.diff)}`}
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy.closingCosts || 0)}
                       </td>
                     </tr>
-                  )}
-                </tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>
+                        Upfront FHA MIP ({results.buy.ufmipPct}% — Financed into Loan)
+                      </td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: 'rgba(52, 41, 42, 0.6)' }}>
+                        $0 at table ({formatCurrency(results.buy.ufmipAmount || 0)} financed)
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Seller Credits</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: '#3F5A3A' }}>
+                        −{formatCurrency(results.buy.appliedSellerCredits || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(52, 41, 42, 0.02)', fontWeight: 700, borderBottom: '1px solid rgba(52, 41, 42, 0.1)' }}>
+                      <td style={{ padding: '12px 18px' }}>Cash Due at Closing Table</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                        {formatCurrency(results.buy.cashToCloseAtTable || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Out-of-Pocket Renovation Cash</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(results.buy.rehabCashOutOfPocket || 0)}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
+                      <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>Total Out-of-Pocket Capital Required</td>
+                      <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '15px' }}>
+                        {formatCurrency(results.buy.totalOutOfPocketCash || 0)}
+                      </td>
+                    </tr>
+                    {options.includeFinances && results.buy.mySavings != null && (
+                      <>
+                        <tr style={{ borderTop: '2px solid rgba(52, 41, 42, 0.12)' }}>
+                          <td style={{ padding: '12px 18px', fontWeight: 600 }}>Available Liquid Cash (Profile)</td>
+                          <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                            {formatCurrency(results.buy.mySavings)}
+                          </td>
+                        </tr>
+                        <tr style={{ backgroundColor: results.buy.cashBufferVsSavings >= 0 ? 'rgba(63, 90, 58, 0.08)' : 'rgba(65, 16, 27, 0.07)' }}>
+                          <td style={{ padding: '12px 18px', fontWeight: 700, color: results.buy.cashBufferVsSavings >= 0 ? '#3F5A3A' : '#41101B' }}>
+                            {results.buy.cashBufferVsSavings >= 0 ? 'Liquidity Surplus' : 'Liquidity Shortfall'}
+                          </td>
+                          <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: results.buy.cashBufferVsSavings >= 0 ? '#3F5A3A' : '#41101B' }}>
+                            {results.buy.cashBufferVsSavings >= 0
+                              ? `+${formatCurrency(results.buy.cashBufferVsSavings)}`
+                              : `−${formatCurrency(Math.abs(results.buy.cashBufferVsSavings))}`}
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                ) : (
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Down Payment ({inputs.downPaymentPct || 20}%)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.downPayment || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Lender Fees (Points, Underwriting, Appraisal)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.lenderFees?.totalLenderFees || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Florida Loan Taxes (Doc Stamps & Intangibles)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.floridaLoanTaxes?.totalFlLoanTaxes || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Title, Settlement & Recording Fees</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.titleFees?.totalTitleFees || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Prepaids & Escrow Reserves (Insurance & Taxes)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.prepaidsEscrow?.totalPrepaidsEscrow || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Property Inspections (General, 4-Point, Wind, Survey)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(closingDetails.inspections?.totalInspectionFees || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Earnest Money Deposit (Credit)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: '#15803d' }}>-{formatCurrency(closingDetails.earnestMoney || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Seller Credits (Credit)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600, color: '#15803d' }}>
+                        {closingDetails.sellerCredit ? `-${formatCurrency(closingDetails.sellerCredit)}` : '-$0'}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(52, 41, 42, 0.02)', fontWeight: 700, borderBottom: '1px solid rgba(52, 41, 42, 0.1)' }}>
+                      <td style={{ padding: '12px 18px' }}>Balance Due at Closing Table</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right' }}>{formatCurrency(closingDetails.balanceDueAtClosing || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Out-of-Pocket Rehab Cash</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(liquidDetails.rehabCash || inputs.rehabBudget || 0)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
+                      <td style={{ padding: '11px 18px', color: 'rgba(52, 41, 42, 0.7)' }}>Operating Holding Reserves ({inputs.reserveMonths || 6} mos)</td>
+                      <td style={{ padding: '11px 18px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(liquidDetails.reserveCash || 0)}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: 'rgba(65, 16, 27, 0.03)', fontWeight: 700 }}>
+                      <td style={{ padding: '14px 18px', color: 'var(--secondary-color, #41101B)' }}>Total Project Capital Required</td>
+                      <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--secondary-color, #41101B)', fontSize: '15px' }}>
+                        {formatCurrency(liquidDetails.totalLiquidCashNeeded || 0)}
+                      </td>
+                    </tr>
+                    {options.includeFinances && (
+                      <tr style={{ borderTop: '2px solid rgba(52, 41, 42, 0.12)' }}>
+                        <td style={{ padding: '12px 18px', fontWeight: 600 }}>Available Liquid Cash (Profile)</td>
+                        <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 600 }}>
+                          {formatCurrency(profile.liquid_cash || 100000)}
+                        </td>
+                      </tr>
+                    )}
+                    {options.includeFinances && (
+                      <tr style={{ backgroundColor: liquidDetails.isCovered ? 'rgba(21, 128, 61, 0.06)' : 'rgba(185, 28, 28, 0.06)' }}>
+                        <td style={{ padding: '12px 18px', fontWeight: 700, color: liquidDetails.isCovered ? '#15803d' : '#b91c1c' }}>
+                          {liquidDetails.isCovered ? 'Liquidity Surplus' : 'Liquidity Shortfall'}
+                        </td>
+                        <td style={{ padding: '12px 18px', textAlign: 'right', fontWeight: 700, color: liquidDetails.isCovered ? '#15803d' : '#b91c1c' }}>
+                          {liquidDetails.isCovered ? `+${formatCurrency(liquidDetails.diff)}` : `-${formatCurrency(liquidDetails.diff)}`}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                )}
               </table>
             </div>
           </section>
@@ -1225,7 +1874,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 05 · FINANCING STRUCTURE
               </span>
               <h2 style={{
-                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                fontFamily: REPORT_HEADING_FONT,
                 fontSize: '26px',
                 fontWeight: 400,
                 color: 'var(--espresso, #34292A)',
@@ -1246,7 +1895,13 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   LOAN PROGRAM
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 600 }}>
-                  {toTitleCase((inputs.loanType || 'conventional_investment').replace('_', ' '))}
+                  {strategy === 'live_in'
+                    ? (results.improve?.rehabPaidBy === 'limited_203k'
+                        ? 'FHA Limited 203(k)'
+                        : results.improve?.rehabPaidBy === 'standard_203k'
+                        ? 'FHA Standard 203(k)'
+                        : 'FHA 30-Year Fixed')
+                    : toTitleCase((inputs.loanType || 'conventional_investment').replace('_', ' '))}
                 </span>
               </div>
 
@@ -1255,7 +1910,9 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   LOAN AMOUNT (LTV)
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 600 }}>
-                  {formatCurrency(results.loan || 0)} ({100 - (Number(inputs.downPaymentPct) || 20)}% LTV)
+                  {strategy === 'live_in' && results.buy
+                    ? `${formatCurrency(results.buy.totalFhaLoan)} (${(100 - (Number(results.buy.downPaymentPct) || 3.5)).toFixed(1)}% base LTV)`
+                    : `${formatCurrency(results.loan || 0)} (${100 - (Number(inputs.downPaymentPct) || 20)}% LTV)`}
                 </span>
               </div>
 
@@ -1264,7 +1921,9 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   INTEREST RATE & TERM
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 600 }}>
-                  {inputs.interestRatePct || 6.25}% · {inputs.loanTermYears || 30} Yrs
+                  {strategy === 'live_in' && results.buy
+                    ? `${results.buy.interestRatePct}% · 30 Yrs (+${results.buy.annualMipPct}% MIP)`
+                    : `${inputs.interestRatePct || 6.25}% · ${inputs.loanTermYears || 30} Yrs`}
                 </span>
               </div>
 
@@ -1273,7 +1932,9 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   TOTAL MONTHLY CARRY
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--secondary-color, #41101B)' }}>
-                  {formatCurrency(monthlyDetails.totalMonthlyPayment || 0)} / mo
+                  {strategy === 'live_in' && results.live
+                    ? `${formatCurrency(results.live.grossMonthlyHousing || 0)} / mo`
+                    : `${formatCurrency(monthlyDetails.totalMonthlyPayment || 0)} / mo`}
                 </span>
               </div>
             </div>
@@ -1293,19 +1954,37 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             }}>
               <div>
                 <span style={{ color: 'rgba(52, 41, 42, 0.6)' }}>Principal & Interest: </span>
-                <span style={{ fontWeight: 600 }}>{formatCurrency(monthlyDetails.monthlyPI || 0)}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatCurrency(strategy === 'live_in' ? (results.live?.monthlyPi || 0) : (monthlyDetails.monthlyPI || 0))}
+                </span>
               </div>
+              {strategy === 'live_in' && (
+                <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '14px' }}>
+                  <span style={{ color: 'rgba(52, 41, 42, 0.6)' }}>FHA MIP: </span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(results.live?.monthlyMip || 0)}</span>
+                </div>
+              )}
               <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '14px' }}>
                 <span style={{ color: 'rgba(52, 41, 42, 0.6)' }}>Taxes: </span>
-                <span style={{ fontWeight: 600 }}>{formatCurrency(monthlyDetails.taxesMo || 0)}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatCurrency(strategy === 'live_in' ? (results.live?.homesteadTaxMo || 0) : (monthlyDetails.taxesMo || 0))}
+                </span>
               </div>
               <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '14px' }}>
                 <span style={{ color: 'rgba(52, 41, 42, 0.6)' }}>Insurance: </span>
-                <span style={{ fontWeight: 600 }}>{formatCurrency(monthlyDetails.insuranceMo || 0)}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatCurrency(strategy === 'live_in' ? (results.live?.liveInInsuranceMo || 0) : (monthlyDetails.insuranceMo || 0))}
+                </span>
               </div>
               <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '14px' }}>
                 <span style={{ color: 'rgba(52, 41, 42, 0.6)' }}>HOA / Special: </span>
-                <span style={{ fontWeight: 600 }}>{formatCurrency((monthlyDetails.hoaMonthly || 0) + (monthlyDetails.specialAssessmentsMonthly || 0))}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {formatCurrency(
+                    strategy === 'live_in'
+                      ? (results.live?.hoaMonthly || 0)
+                      : (monthlyDetails.hoaMonthly || 0) + (monthlyDetails.specialAssessmentsMonthly || 0)
+                  )}
+                </span>
               </div>
             </div>
           </section>
