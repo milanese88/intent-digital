@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { evaluateLiveInFit } from './underwriting.js';
+import LiveInFitBadge from './LiveInFitBadge.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
@@ -180,6 +182,7 @@ export default function AddressAutocomplete({
 
   const containerRef = useRef(null);
   const justSelectedRef = useRef(false);
+  const [onlyFitsLiveIn, setOnlyFitsLiveIn] = useState(false);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -192,13 +195,18 @@ export default function AddressAutocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const visibleCountySuggestions = useMemo(() => {
+    if (!onlyFitsLiveIn) return countySuggestions;
+    return countySuggestions.filter((c) => evaluateLiveInFit(c).fits);
+  }, [countySuggestions, onlyFitsLiveIn]);
+
   // Combined flat list of items for unified keyboard navigation
   const flatItems = useMemo(() => {
     const items = [];
-    countySuggestions.forEach(c => items.push({ type: 'county', data: c }));
+    visibleCountySuggestions.forEach(c => items.push({ type: 'county', data: c }));
     mapboxSuggestions.forEach(m => items.push({ type: 'mapbox', data: m }));
     return items;
-  }, [countySuggestions, mapboxSuggestions]);
+  }, [visibleCountySuggestions, mapboxSuggestions]);
 
   // Debounced search for County records and Mapbox suggestions
   useEffect(() => {
@@ -449,13 +457,13 @@ export default function AddressAutocomplete({
         className={`investor-form-input ${error ? 'has-error' : ''}`}
       />
 
-      {isDropdownOpen && flatItems.length > 0 && (
+      {isDropdownOpen && (flatItems.length > 0 || countySuggestions.length > 0) && (
         <ul
           id={listboxId}
           role="listbox"
           className="investor-autocomplete-dropdown"
           style={{
-            maxHeight: '340px',
+            maxHeight: '360px',
             overflowY: 'auto'
           }}
         >
@@ -466,7 +474,7 @@ export default function AddressAutocomplete({
                 className="investor-autocomplete-section-label"
                 role="presentation"
                 style={{
-                  padding: '8px 14px 4px',
+                  padding: '8px 14px 6px',
                   fontSize: '9.5px',
                   fontWeight: 700,
                   letterSpacing: '0.12em',
@@ -474,12 +482,54 @@ export default function AddressAutocomplete({
                   color: 'rgba(52, 41, 42, 0.55)',
                   backgroundColor: 'rgba(250, 248, 245, 0.95)',
                   borderBottom: '1px solid rgba(52, 41, 42, 0.06)',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
                 }}
               >
-                COUNTY RECORDS
+                <span>COUNTY RECORDS</span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOnlyFitsLiveIn((v) => !v);
+                  }}
+                  style={{
+                    border: onlyFitsLiveIn
+                      ? '1px solid #41101B'
+                      : '1px solid rgba(52, 41, 42, 0.2)',
+                    background: onlyFitsLiveIn ? '#41101B' : '#FFFFFF',
+                    color: onlyFitsLiveIn ? '#FAF8F5' : '#34292A',
+                    borderRadius: '999px',
+                    padding: '2px 8px',
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    fontFamily: "'Montserrat', sans-serif"
+                  }}
+                >
+                  Fits live-in plan
+                </button>
               </li>
-              {countySuggestions.map((item, idx) => {
+              {visibleCountySuggestions.length === 0 ? (
+                <li
+                  role="presentation"
+                  style={{
+                    padding: '10px 14px',
+                    fontSize: '11.5px',
+                    color: 'rgba(52, 41, 42, 0.65)',
+                    fontFamily: "'Montserrat', sans-serif"
+                  }}
+                >
+                  No matching county parcels fit the FHA live-in limits.
+                </li>
+              ) : (
+              visibleCountySuggestions.map((item, idx) => {
                 const globalIndex = idx;
                 const isSelected = selectedIndex === globalIndex;
                 const formattedAddr = formatNiceAddress(item.address);
@@ -529,9 +579,13 @@ export default function AddressAutocomplete({
                     <div className="investor-autocomplete-subtitle">
                       {subtitle}
                     </div>
+                    <div style={{ marginTop: '4px' }}>
+                      <LiveInFitBadge property={item} compact />
+                    </div>
                   </li>
                 );
-              })}
+              })
+              )}
             </>
           )}
 
@@ -557,7 +611,7 @@ export default function AddressAutocomplete({
                 OTHER ADDRESSES
               </li>
               {mapboxSuggestions.map((item, idx) => {
-                const globalIndex = countySuggestions.length + idx;
+                const globalIndex = visibleCountySuggestions.length + idx;
                 const isSelected = selectedIndex === globalIndex;
 
                 return (

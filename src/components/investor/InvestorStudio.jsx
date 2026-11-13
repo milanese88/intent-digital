@@ -19,7 +19,9 @@ import {
   normalizeReconciliationWeights,
   COMP_CONDITIONS
 } from './valuationEngine.js';
-import { formatCurrency } from './underwriting.js';
+import { formatCurrency, evaluateLiveInFit } from './underwriting.js';
+import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
+import LiveInFitBadge from './LiveInFitBadge.jsx';
 import {
   Button,
   Pill,
@@ -100,10 +102,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [locationInput, setLocationInput] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [strategyFilter, setStrategyFilter] = useState('all');
+  const [fitsLiveInFilter, setFitsLiveInFilter] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState({
     location: '',
     type: 'all',
-    strategy: 'all'
+    strategy: 'all',
+    fitsLiveIn: false
   });
 
   // Slide-in Property Form Panel state
@@ -429,7 +433,16 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     setAppliedFilters({
       location: locationInput.trim().toLowerCase(),
       type: typeFilter,
-      strategy: strategyFilter
+      strategy: strategyFilter,
+      fitsLiveIn: fitsLiveInFilter
+    });
+  };
+
+  const handleToggleFitsLiveIn = () => {
+    setFitsLiveInFilter((prev) => {
+      const next = !prev;
+      setAppliedFilters((af) => ({ ...af, fitsLiveIn: next }));
+      return next;
     });
   };
 
@@ -437,7 +450,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     setLocationInput('');
     setTypeFilter('all');
     setStrategyFilter('all');
-    setAppliedFilters({ location: '', type: 'all', strategy: 'all' });
+    setFitsLiveInFilter(false);
+    setAppliedFilters({ location: '', type: 'all', strategy: 'all', fitsLiveIn: false });
   };
 
   // Open property panel in Add mode
@@ -466,6 +480,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       notes: '',
       parcel_id: null,
       parcel_county: null,
+      has_hoa: null,
+      hoa_monthly: '',
       is_studying: false
     });
     setPropFormErrors({});
@@ -499,6 +515,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       notes: p.notes || '',
       parcel_id: p.parcel_id || null,
       parcel_county: p.parcel_county || null,
+      has_hoa: p.has_hoa ?? null,
+      hoa_monthly: p.hoa_monthly != null ? p.hoa_monthly : '',
       is_studying: Boolean(p.is_studying)
     });
     setPropFormErrors({});
@@ -533,7 +551,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lat: propFormData.lat != null ? Number(propFormData.lat) : null,
       lng: propFormData.lng != null ? Number(propFormData.lng) : null,
       property_type: propFormData.property_type || null,
-      units: propFormData.property_type === 'multifamily_2_9' ? (Number(String(propFormData.units).replace(/[^\d]/g, '')) || 1) : 1,
+      units:
+        propFormData.property_type === 'multifamily_2_9' || propFormData.strategy === 'live_in'
+          ? Number(String(propFormData.units).replace(/[^\d]/g, '')) || 1
+          : 1,
       beds: propFormData.beds !== '' && propFormData.beds != null ? Number(String(propFormData.beds).replace(/[^\d.]/g, '')) : null,
       baths: propFormData.baths !== '' && propFormData.baths != null ? Number(String(propFormData.baths).replace(/[^\d.]/g, '')) : null,
       sqft: propFormData.sqft !== '' && propFormData.sqft != null ? Number(String(propFormData.sqft).replace(/[^\d]/g, '')) : null,
@@ -548,6 +569,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       notes: propFormData.notes.trim() || null,
       parcel_id: propFormData.parcel_id || null,
       parcel_county: propFormData.parcel_county || null,
+      has_hoa: propFormData.has_hoa === true ? true : propFormData.has_hoa === false ? false : null,
+      hoa_monthly:
+        propFormData.hoa_monthly !== '' && propFormData.hoa_monthly != null
+          ? Number(String(propFormData.hoa_monthly).replace(/[^\d.]/g, ''))
+          : null,
       is_studying: propFormData.is_studying !== undefined ? Boolean(propFormData.is_studying) : (editingProperty ? Boolean(editingProperty.is_studying) : false)
     };
 
@@ -1036,6 +1062,40 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     activeSubjectZip
   ]);
 
+  // Always compute Appraisal ARV so Live-in plan defaults valueAfterReno to reconciled ARV
+  const appraisalArvGrid = useMemo(() => {
+    if (appraisalMode === 'arv') return appraisalGrid;
+    const zipMonthlyPct =
+      zipMarketSummary?.monthly_trend_pct != null && !isNaN(Number(zipMarketSummary.monthly_trend_pct))
+        ? Number(zipMarketSummary.monthly_trend_pct) / 100
+        : null;
+    const zipTrendSource =
+      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+        ? `ZIP ${activeSubjectZip}`
+        : null;
+
+    return computeAppraisalGrid({
+      comps,
+      subject: subjectForAppraisal,
+      mode: 'arv',
+      sizeMethod,
+      library: buyingProfile?.valuation_defaults?.library || {},
+      customWeights,
+      zipTrendMonthlyPct: zipMonthlyPct,
+      zipTrendSource
+    });
+  }, [
+    appraisalMode,
+    appraisalGrid,
+    comps,
+    subjectForAppraisal,
+    sizeMethod,
+    buyingProfile?.valuation_defaults?.library,
+    customWeights,
+    zipMarketSummary?.monthly_trend_pct,
+    activeSubjectZip
+  ]);
+
   const handleSubjectOverrideChange = (key, value) => {
     setSubjectAppraisalOverrides((prev) => ({
       ...prev,
@@ -1128,20 +1188,24 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
   };
 
-  const handleOpenLearningLabLesson = () => {
+  const handleOpenLearningLabLesson = (lessonKey = 'cia_cbs_appraisal') => {
+    const targetLesson =
+      typeof lessonKey === 'string' && lessonKey.trim()
+        ? lessonKey.trim()
+        : 'cia_cbs_appraisal';
     if (typeof window !== 'undefined') {
-      window.__learningLabFocusTerm = 'cia_cbs_appraisal';
+      window.__learningLabFocusTerm = targetLesson;
     }
     if (typeof setActiveDashboardTab === 'function') {
       setActiveDashboardTab('learning-lab');
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
-        url.searchParams.set('lesson', 'cia_cbs_appraisal');
+        url.searchParams.set('lesson', targetLesson);
         window.history.pushState({}, '', url.toString());
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } else if (typeof navigateTo === 'function') {
-      navigateTo('/learning-lab?lesson=cia_cbs_appraisal');
+      navigateTo(`/learning-lab?lesson=${encodeURIComponent(targetLesson)}`);
     }
   };
 
@@ -1196,6 +1260,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
   const formatStatus = (status) => {
     if (!status) return 'WATCHING';
+    if (String(status).toLowerCase() === 'live_in') return 'LIVE-IN (FHA)';
     return String(status).replace(/_/g, ' ').toUpperCase();
   };
 
@@ -1240,10 +1305,20 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       }
     }
 
+    if (appliedFilters.fitsLiveIn) {
+      if (!evaluateLiveInFit(p, buyingProfile).fits) {
+        return false;
+      }
+    }
+
     return true;
   });
 
-  const isFiltered = appliedFilters.location || appliedFilters.type !== 'all' || appliedFilters.strategy !== 'all';
+  const isFiltered =
+    Boolean(appliedFilters.location) ||
+    appliedFilters.type !== 'all' ||
+    appliedFilters.strategy !== 'all' ||
+    Boolean(appliedFilters.fitsLiveIn);
 
   return (
     <div style={{ width: '100%', position: 'relative' }}>
@@ -2003,6 +2078,15 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 } else {
                   kpi5Sub = 'Enter ARV & rent in Deal';
                 }
+              } else if (activeStrategy === 'live_in') {
+                kpi5Label = 'LIVE-IN NET COST';
+                if (underwriteSummary?.results?.live?.netLiveInMonthlyCost != null) {
+                  const netLive = Math.round(Number(underwriteSummary.results.live.netLiveInMonthlyCost));
+                  kpi5Value = `${formatCurrency(netLive)}/mo`;
+                  kpi5Sub = underwriteSummary.results.live.rentComparisonLabel || 'Live-in plan (FHA)';
+                } else {
+                  kpi5Sub = 'Open Deal tab to model FHA plan';
+                }
               } else {
                 // rental
                 kpi5Label = 'MONTHLY CASH FLOW';
@@ -2059,10 +2143,16 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 ? Boolean(Number(underwriteSummary?.inputs?.arv) > 0)
                 : activeStrategy === 'brrrr'
                   ? (Boolean(Number(underwriteSummary?.inputs?.arv) > 0) && Boolean(Number(underwriteSummary?.inputs?.monthlyRent) > 0))
-                  : Boolean(Number(underwriteSummary?.inputs?.monthlyRent) > 0);
-              const hasInsurance = Boolean(Number(underwriteSummary?.inputs?.insuranceYr) > 0);
+                  : activeStrategy === 'live_in'
+                    ? (Boolean(Number(underwriteSummary?.inputs?.valueAfterReno) > 0) && Boolean(Number(underwriteSummary?.inputs?.marketRentMo) > 0))
+                    : Boolean(Number(underwriteSummary?.inputs?.monthlyRent) > 0);
+              const hasInsurance = activeStrategy === 'live_in'
+                ? Boolean(Number(underwriteSummary?.inputs?.homeownerInsuranceYr) > 0)
+                : Boolean(Number(underwriteSummary?.inputs?.insuranceYr) > 0);
               const isCondo = (activeProperty.property_type || '').toLowerCase() === 'condo' || String(activeProperty.use_code || '').trim() === '004';
-              const hasHoa = isCondo ? Boolean(Number(underwriteSummary?.inputs?.hoaMo) > 0) : true;
+              const hasHoa = isCondo
+                ? Boolean(Number(activeStrategy === 'live_in' ? underwriteSummary?.inputs?.hoaMonthly : underwriteSummary?.inputs?.hoaMo) > 0)
+                : true;
               const hasLiquidCash = Boolean(buyingProfile?.liquid_cash != null && Number(buyingProfile.liquid_cash) > 0);
               const hasZoningCode = hasZoning;
               const isCashLoan = underwriteSummary?.inputs?.loanType === 'cash';
@@ -2070,7 +2160,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
               const completenessItems = [
                 { key: 'comps', label: 'Comps (≥3)', done: hasComps },
-                { key: 'rentOrArv', label: activeStrategy === 'flip' ? 'ARV' : activeStrategy === 'brrrr' ? 'ARV & Rent' : 'Rent', done: hasRentOrArv },
+                { key: 'rentOrArv', label: activeStrategy === 'flip' ? 'ARV' : (activeStrategy === 'brrrr' || activeStrategy === 'live_in') ? 'ARV & Rent' : 'Rent', done: hasRentOrArv },
                 { key: 'insurance', label: 'Insurance', done: hasInsurance },
                 { key: 'hoa', label: 'Condo HOA', done: hasHoa },
                 { key: 'liquidCash', label: 'Profile liquid cash', done: hasLiquidCash },
@@ -2933,6 +3023,20 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     aria-labelledby="tab-overview"
                     style={{ display: activeTab === 'overview' ? 'block' : 'none' }}
                   >
+                    {activeStrategy === 'live_in' && (
+                      <div style={{
+                        marginBottom: '18px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                        border: '1px solid rgba(133, 157, 206, 0.45)',
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                        fontSize: '12px',
+                        color: '#34292A'
+                      }}>
+                        {LIVE_IN_PLAN_DISCLAIMER}
+                      </div>
+                    )}
                     <div className="investor-overview-grid">
                       {/* Left, wide: "What to know" Auto-generated Checklist */}
                       <div style={{
@@ -2960,6 +3064,20 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           }}>
                             Auto-generated checklist of deal factors, missing inputs, and property risks.
                           </p>
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                          <LiveInFitBadge
+                            property={{
+                              ...activeProperty,
+                              use_code: countyData?.use_code || activeProperty.use_code,
+                              flood_zone: siteData?.flood?.zone || activeProperty.flood_zone,
+                              flood_sfha: siteData?.flood?.is_sfha ?? activeProperty.flood_sfha
+                            }}
+                            profile={buyingProfile}
+                            showReasons
+                            showDisclaimer={activeStrategy === 'live_in'}
+                          />
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -3517,10 +3635,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       property={activeProperty}
                       compValueRaw={rawCompValue}
                       compValueFormatted={compValueFormatted}
+                      appraisalArv={appraisalArvGrid?.reconciledValue || null}
                       appliedAppraisal={appliedAppraisal}
                       profile={buyingProfile}
                       setActiveDashboardTab={setActiveDashboardTab}
                       navigateTo={navigateTo}
+                      onNavigateToLesson={handleOpenLearningLabLesson}
                       onOpenProfileModal={() => setIsProfileModalOpen(true)}
                       onUnderwriteChange={(summary) => {
                         setUnderwriteSummary(summary);
@@ -3735,6 +3855,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     <option value="rental">Rental</option>
                     <option value="flip">Flip</option>
                     <option value="brrrr">BRRRR</option>
+                    <option value="live_in">Live-in plan (FHA)</option>
                   </select>
                 </div>
 
@@ -3742,11 +3863,66 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   SEARCH &rarr;
                 </button>
               </div>
+
+              {/* Quick Filter Pill: "Fits live-in plan" */}
+              <div style={{
+                marginTop: '14px',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '10px',
+                flexWrap: 'wrap'
+              }}>
+                <button
+                  type="button"
+                  onClick={handleToggleFitsLiveIn}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '7px',
+                    padding: '7px 16px',
+                    borderRadius: '999px',
+                    border: fitsLiveInFilter
+                      ? '1px solid #BDD3E2'
+                      : '1px solid rgba(250, 248, 245, 0.35)',
+                    backgroundColor: fitsLiveInFilter
+                      ? '#BDD3E2'
+                      : 'rgba(250, 248, 245, 0.14)',
+                    color: fitsLiveInFilter ? '#34292A' : '#FAF8F5',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(6px)',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <span>{fitsLiveInFilter ? '✓' : '○'}</span>
+                  <span>Fits live-in plan</span>
+                </button>
+              </div>
             </form>
           </DarkBand>
 
           {/* PAGE CONTENT CONTAINER */}
           <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px 60px 24px', boxSizing: 'border-box' }}>
+            {(appliedFilters.fitsLiveIn || appliedFilters.strategy === 'live_in') && (
+              <div style={{
+                marginTop: '18px',
+                padding: '9px 14px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                border: '1px solid rgba(133, 157, 206, 0.45)',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12px',
+                color: '#34292A',
+                textAlign: 'center'
+              }}>
+                {LIVE_IN_PLAN_DISCLAIMER}
+              </div>
+            )}
             {/* SPLIT VIEW: Compact Cards List & Mapbox Live Map */}
             <div className="investor-split-view">
             {/* LEFT: Scrollable list of compact cards */}
@@ -3838,11 +4014,14 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             alignItems: 'center',
                             fontSize: '11px',
                             color: 'rgba(52, 41, 42, 0.65)',
-                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                            marginBottom: '5px'
                           }}>
                             <span>{specs || '—'}</span>
                             <span style={{ fontWeight: 600, color: 'var(--espresso, #1E1509)' }}>{pricePerSqft}</span>
                           </div>
+
+                          <LiveInFitBadge property={p} profile={buyingProfile} compact />
                         </div>
                       </div>
                     );
@@ -4261,11 +4440,15 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                             fontSize: '12px',
                             color: 'rgba(52, 41, 42, 0.75)',
-                            marginBottom: '16px'
+                            marginBottom: '10px'
                           }}>
                             {specs}
                           </div>
                         )}
+
+                        <div style={{ marginBottom: '14px' }}>
+                          <LiveInFitBadge property={p} profile={buyingProfile} compact />
+                        </div>
 
                         {/* Bottom Row */}
                         <div style={{
@@ -4535,9 +4718,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         </select>
                       </div>
 
-                      {propFormData.property_type === 'multifamily_2_9' ? (
+                      {(propFormData.property_type === 'multifamily_2_9' || propFormData.strategy === 'live_in') ? (
                         <div>
-                          <label className="investor-form-label" htmlFor="prop-units">Units</label>
+                          <label className="investor-form-label" htmlFor="prop-units">Units (1–4 FHA)</label>
                           <FormattedNumberInput
                             id="prop-units"
                             value={propFormData.units}
@@ -4663,7 +4846,42 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           <option value="rental">Rental</option>
                           <option value="flip">Flip</option>
                           <option value="brrrr">BRRRR</option>
+                          <option value="live_in">Live-in plan (FHA)</option>
                         </select>
+                      </div>
+                    </div>
+
+                    <div className="investor-form-grid-2">
+                      <div>
+                        <label className="investor-form-label" htmlFor="prop-has-hoa">HOA / Association</label>
+                        <select
+                          id="prop-has-hoa"
+                          value={propFormData.has_hoa === true ? 'true' : propFormData.has_hoa === false ? 'false' : ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setPropFormData((prev) => ({
+                              ...prev,
+                              has_hoa: v === 'true' ? true : v === 'false' ? false : null
+                            }));
+                          }}
+                          className="investor-form-select"
+                        >
+                          <option value="">Auto (from property type)</option>
+                          <option value="true">Yes — has HOA</option>
+                          <option value="false">No HOA</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="investor-form-label" htmlFor="prop-hoa-monthly">HOA Dues ($/mo)</label>
+                        <FormattedNumberInput
+                          id="prop-hoa-monthly"
+                          value={propFormData.hoa_monthly}
+                          onChange={(val) => setPropFormData((prev) => ({ ...prev, hoa_monthly: val }))}
+                          prefix="$"
+                          formatOnBlur={true}
+                          placeholder="$0"
+                          className="investor-form-input"
+                        />
                       </div>
                     </div>
 
@@ -4692,9 +4910,43 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         type="text"
                         value={propFormData.condition}
                         onChange={(e) => setPropFormData(prev => ({ ...prev, condition: e.target.value }))}
-                        placeholder="e.g. Dated, original kitchen"
+                        placeholder="e.g. C4 dated kitchen, or C5 needs 203(k)"
                         className="investor-form-input"
                       />
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                        {['C2', 'C3', 'C4', 'C5', 'C6'].map((code) => (
+                          <button
+                            key={code}
+                            type="button"
+                            onClick={() =>
+                              setPropFormData((prev) => ({
+                                ...prev,
+                                condition: prev.condition
+                                  ? prev.condition.replace(/\bC[1-6]\b\s*/gi, '').trim()
+                                    ? `${code} · ${prev.condition.replace(/\bC[1-6]\b\s*·?\s*/gi, '').trim()}`
+                                    : code
+                                  : code
+                              }))
+                            }
+                            style={{
+                              border: '1px solid rgba(52, 41, 42, 0.18)',
+                              background: new RegExp(`\\b${code}\\b`, 'i').test(propFormData.condition || '')
+                                ? '#34292A'
+                                : '#FAF8F5',
+                              color: new RegExp(`\\b${code}\\b`, 'i').test(propFormData.condition || '')
+                                ? '#FAF8F5'
+                                : '#34292A',
+                              borderRadius: '999px',
+                              padding: '2px 7px',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {code}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div>
                       <label className="investor-form-label" htmlFor="prop-roof-year">Roof Year</label>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { formatCurrency, underwriteFlip, underwriteRental, underwriteBrrrr } from '../../components/investor/underwriting.js';
+import { formatCurrency, underwriteFlip, underwriteRental, underwriteBrrrr, underwriteLiveInPlan } from '../../components/investor/underwriting.js';
+import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
 import { getCmaStaticMapUrl, getMapboxAerialUrl } from '../../components/investor/mapboxAerial.js';
 import { getUseCodeLabel, toTitleCase, formatNiceAddress } from '../../components/investor/AddressAutocomplete.jsx';
 import { getFloodPillStyle } from '../../components/investor/SiteZoningCard.jsx';
@@ -125,7 +126,9 @@ export default function DealReportPage({ propertyId, navigateTo }) {
 
     // Baseline calculation if no saved results
     let results = {};
-    if (strat === 'rental') {
+    if (strat === 'live_in') {
+      results = underwriteLiveInPlan(inputs, profile);
+    } else if (strat === 'rental') {
       results = underwriteRental(inputs);
     } else if (strat === 'brrrr') {
       results = underwriteBrrrr(inputs);
@@ -678,6 +681,24 @@ export default function DealReportPage({ propertyId, navigateTo }) {
           padding: '0 24px 60px'
         }}
       >
+        {strategy === 'live_in' && (
+          <div style={{
+            padding: '10px 14px',
+            marginTop: '16px',
+            marginBottom: '12px',
+            borderRadius: '8px',
+            backgroundColor: 'rgba(189, 211, 226, 0.30)',
+            border: '1px solid rgba(133, 157, 206, 0.50)',
+            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+            fontSize: '11.5px',
+            fontWeight: 500,
+            color: '#34292A',
+            textAlign: 'center'
+          }}>
+            {LIVE_IN_PLAN_DISCLAIMER}
+          </div>
+        )}
+
         {/* ================================================================= */}
         {/* 01. COVER PAGE                                                    */}
         {/* ================================================================= */}

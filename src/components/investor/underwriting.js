@@ -3,6 +3,15 @@
  * Pure JavaScript module: no React, no API dependencies.
  */
 
+import {
+  FINANCING_CONFIG,
+  CREDIT_SCORE_BANDS,
+  getMergedFinancingConfig,
+  getFhaLimitForProperty,
+  getDefaultMillageForCounty,
+  normalizeCreditBand
+} from '../../config/financing.js';
+
 // ============================================================================
 // 1. ESTIMATED CLOSING & TRANSACTION DEFAULTS
 // Clearly labeled estimates in one place for easy modification.
@@ -1143,5 +1152,877 @@ export function underwriteBrrrr(inputs = {}) {
     operatingExpensesYr,
     refiDebtYr,
     postRefiMonthlyDetails
+  };
+}
+
+// ============================================================================
+// 8. LIVE-IN PLAN (FHA) UNDERWRITING & FIT SCREENING
+// ============================================================================
+
+/**
+ * Remaining principal balance on a standard amortizing loan after `monthsPaid` payments.
+ */
+export function calculateRemainingLoanBalance(principal, annualRateDecimal, termYears = 30, monthsPaid = 0) {
+  const p = Number(principal) || 0;
+  if (p <= 0) return 0;
+  const totalMonths = Math.max(1, Math.round((Number(termYears) || 30) * 12));
+  const k = Math.max(0, Math.min(totalMonths, Math.round(Number(monthsPaid) || 0)));
+  if (k <= 0) return p;
+  if (k >= totalMonths) return 0;
+
+  let rateDec = Number(annualRateDecimal) || 0;
+  if (rateDec > 1) rateDec = rateDec / 100;
+  if (rateDec <= 0) {
+    return p * (1 - k / totalMonths);
+  }
+
+  const r = rateDec / 12;
+  const compoundTotal = Math.pow(1 + r, totalMonths);
+  const compoundPaid = Math.pow(1 + r, k);
+  return p * ((compoundTotal - compoundPaid) / (compoundTotal - 1));
+}
+
+/**
+ * Compare Florida Homesteaded primary-residence property tax against
+ * Non-Homestead rental property tax (reassessed at full market value from millage rate).
+ */
+export function calculateFloridaHomesteadTaxComparison({
+  marketValue = 0,
+  purchasePrice = 0,
+  millageRate = null,
+  county = 'Broward',
+  config = FINANCING_CONFIG
+} = {}) {
+  const cfg = config?.floridaTax ? config : getMergedFinancingConfig(config);
+  const resolvedMillage =
+    Number(millageRate) > 0
+      ? Number(millageRate)
+      : getDefaultMillageForCounty(county, cfg);
+
+  const homesteadBase = Math.max(0, Number(purchasePrice) || Number(marketValue) || 0);
+  const reassessedBase = Math.max(0, Number(marketValue) || Number(purchasePrice) || 0);
+
+  const firstExemption = Math.min(
+    homesteadBase,
+    cfg.floridaTax?.homesteadFirstExemption ?? 25000
+  );
+  const secondExemption = Math.min(
+    cfg.floridaTax?.homesteadSecondExemption ?? 25000,
+    Math.max(0, homesteadBase - 50000)
+  );
+  const nonSchoolShare = cfg.floridaTax?.nonSchoolMillageShare ?? 0.65;
+  const schoolShare = Math.max(0, 1 - nonSchoolShare);
+
+  const taxableSchool = Math.max(0, homesteadBase - firstExemption);
+  const taxableNonSchool = Math.max(0, homesteadBase - firstExemption - secondExemption);
+
+  const homesteadTaxYr = Math.round(
+    (taxableSchool * (resolvedMillage * schoolShare) +
+      taxableNonSchool * (resolvedMillage * nonSchoolShare)) /
+      1000
+  );
+  const nonHomesteadTaxYr = Math.round((reassessedBase * resolvedMillage) / 1000);
+
+  return {
+    millageRate: resolvedMillage,
+    homesteadAssessedValue: homesteadBase,
+    reassessedMarketValue: reassessedBase,
+    homesteadTaxYr,
+    homesteadTaxMo: homesteadTaxYr / 12,
+    nonHomesteadTaxYr,
+    nonHomesteadTaxMo: nonHomesteadTaxYr / 12,
+    annualDiff: nonHomesteadTaxYr - homesteadTaxYr,
+    monthlyDiff: (nonHomesteadTaxYr - homesteadTaxYr) / 12
+  };
+}
+
+/**
+ * Underwrite the 4-phase "Live-in plan (FHA)" strategy:
+ *   01 Buy -> 02 Live -> 03 Improve -> 04 Exit (A: Rent, B: Sell 1yr vs 2yr, C: Keep & buy next)
+ *   + Net Worth wealth trajectory at Years 3, 5, and 10.
+ */
+export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) {
+  const cfg = rawConfig?.fha ? rawConfig : getMergedFinancingConfig(rawConfig);
+
+  const purchasePrice = Math.max(0, Number(inputs.purchasePrice) || 0);
+  if (purchasePrice <= 0) {
+    return {
+      isComplete: false,
+      hint: 'Enter a purchase price to model your Live-in plan (FHA).',
+      verdict: null
+    };
+  }
+
+  const county = inputs.county || 'Broward';
+  const units = Math.min(4, Math.max(1, Math.round(Number(inputs.units) || 1)));
+  const creditScoreBand = normalizeCreditBand(inputs.creditScoreBand || '740-759');
+  const bandMeta =
+    CREDIT_SCORE_BANDS.find((b) => b.id === creditScoreBand) || CREDIT_SCORE_BANDS[1];
+
+  const requiredMinDownPct =
+    bandMeta.minScore < (cfg.fha.minCreditScoreFor35Down || 580)
+      ? cfg.fha.lowCreditDownPct
+      : cfg.fha.minDownPct;
+
+  const requestedDownPct =
+    inputs.downPaymentPct != null && inputs.downPaymentPct !== ''
+      ? Number(inputs.downPaymentPct)
+      : requiredMinDownPct;
+  const downPaymentPct = Math.max(requiredMinDownPct, Math.min(90, Number.isFinite(requestedDownPct) ? requestedDownPct : requiredMinDownPct));
+
+  const interestRatePct =
+    inputs.interestRatePct != null && inputs.interestRatePct !== ''
+      ? Math.max(0, Number(inputs.interestRatePct))
+      : cfg.defaults.fhaInterestRatePct;
+
+  const closingCostsPct =
+    inputs.closingCostsPct != null && inputs.closingCostsPct !== ''
+      ? Math.max(0, Number(inputs.closingCostsPct))
+      : cfg.defaults.closingCostsPct;
+
+  const sellerCreditsRaw = Math.max(0, Number(inputs.sellerCredits) || 0);
+  const rehabBudget = Math.max(0, Number(inputs.rehabBudget) || 0);
+  const rehabPaidBy = ['cash', 'limited_203k', 'standard_203k'].includes(inputs.rehabPaidBy)
+    ? inputs.rehabPaidBy
+    : 'cash';
+  const is203k = rehabPaidBy === 'limited_203k' || rehabPaidBy === 'standard_203k';
+
+  const valueAfterRenoInput = Number(inputs.valueAfterReno);
+  const valueAfterReno =
+    Number.isFinite(valueAfterRenoInput) && valueAfterRenoInput > 0
+      ? valueAfterRenoInput
+      : purchasePrice + rehabBudget;
+
+  const currentRentMo =
+    inputs.currentRentMo != null && inputs.currentRentMo !== ''
+      ? Math.max(0, Number(inputs.currentRentMo))
+      : cfg.defaults.currentRentMo;
+
+  const otherUnitsRentMo = units >= 2 ? Math.max(0, Number(inputs.otherUnitsRentMo) || 0) : 0;
+  const liveInYears = Number(inputs.liveInYears) === 1 ? 1 : 2;
+
+  const appreciationPctYr =
+    inputs.appreciationPctYr != null && inputs.appreciationPctYr !== ''
+      ? Number(inputs.appreciationPctYr)
+      : cfg.defaults.appreciationPctYr;
+
+  const rentGrowthPctYr =
+    inputs.rentGrowthPctYr != null && inputs.rentGrowthPctYr !== ''
+      ? Number(inputs.rentGrowthPctYr)
+      : cfg.defaults.rentGrowthPctYr;
+
+  const marketRentMo = Math.max(0, Number(inputs.marketRentMo) || 0);
+  const vacancyPct =
+    inputs.vacancyPct != null && inputs.vacancyPct !== ''
+      ? Math.max(0, Number(inputs.vacancyPct))
+      : cfg.defaults.vacancyPct;
+  const repairsPct =
+    inputs.repairsPct != null && inputs.repairsPct !== ''
+      ? Math.max(0, Number(inputs.repairsPct))
+      : cfg.defaults.repairsPct;
+  const capexPct =
+    inputs.capexPct != null && inputs.capexPct !== ''
+      ? Math.max(0, Number(inputs.capexPct))
+      : cfg.defaults.capexPct;
+  const managementPct =
+    inputs.managementPct != null && inputs.managementPct !== ''
+      ? Math.max(0, Number(inputs.managementPct))
+      : cfg.defaults.managementPct;
+
+  const homeownerInsuranceYr =
+    inputs.homeownerInsuranceYr != null && inputs.homeownerInsuranceYr !== ''
+      ? Math.max(0, Number(inputs.homeownerInsuranceYr))
+      : cfg.defaults.homeownerInsuranceYr;
+
+  const landlordInsuranceYr =
+    inputs.landlordInsuranceYr != null && inputs.landlordInsuranceYr !== ''
+      ? Math.max(0, Number(inputs.landlordInsuranceYr))
+      : cfg.defaults.landlordInsuranceYr;
+
+  const floodInsuranceYr = Math.max(0, Number(inputs.floodInsuranceYr) || 0);
+  const hoaMonthly = Math.max(0, Number(inputs.hoaMonthly) || 0);
+  const mySavings =
+    inputs.mySavings != null && inputs.mySavings !== '' ? Math.max(0, Number(inputs.mySavings)) : null;
+
+  const millageRate =
+    inputs.millageRate != null && Number(inputs.millageRate) > 0
+      ? Number(inputs.millageRate)
+      : getDefaultMillageForCounty(county, cfg);
+
+  const taxComparison = calculateFloridaHomesteadTaxComparison({
+    marketValue: valueAfterReno,
+    purchasePrice,
+    millageRate,
+    county,
+    config: cfg
+  });
+
+  const nonHomesteadTaxYr =
+    inputs.propertyTaxNonHomesteadYr != null &&
+    inputs.propertyTaxNonHomesteadYr !== '' &&
+    inputs.propertyTaxNonHomesteadOverride === true
+      ? Math.max(0, Number(inputs.propertyTaxNonHomesteadYr))
+      : taxComparison.nonHomesteadTaxYr;
+
+  const filingStatus = inputs.filingStatus === 'married' ? 'married' : 'single';
+  const useConvRefi = Boolean(inputs.useConvRefi);
+  const convRefiRatePct =
+    inputs.convRefiRatePct != null && Number(inputs.convRefiRatePct) > 0
+      ? Number(inputs.convRefiRatePct)
+      : cfg.defaults.convRefiRatePct;
+
+  // --------------------------------------------------------------------------
+  // PHASE 01: BUY
+  // --------------------------------------------------------------------------
+  const fhaLimitInfo = getFhaLimitForProperty(county, units, cfg);
+  const fhaAcquisitionBasis = is203k ? purchasePrice + rehabBudget : purchasePrice;
+  const downPayment = Math.round(fhaAcquisitionBasis * (downPaymentPct / 100));
+  const baseLoan = Math.max(0, Math.round(fhaAcquisitionBasis - downPayment));
+  const ufmipPct = cfg.fha.ufmipPct;
+  const ufmipAmount = cfg.fha.ufmipFinanced ? Math.round(baseLoan * (ufmipPct / 100)) : 0;
+  const totalLoanAmount = baseLoan + ufmipAmount;
+
+  const annualMipPct =
+    baseLoan > cfg.fha.highBalanceBaseLoanThreshold
+      ? cfg.fha.annualMipHighBalancePct
+      : cfg.fha.annualMipPct;
+  const mipForLife = downPaymentPct < cfg.fha.mipForLifeBelowDownPct;
+  const mipDurationYears = mipForLife ? null : cfg.fha.mipYearsAt10PctOrMoreDown;
+
+  const closingCosts = Math.round(purchasePrice * (closingCostsPct / 100));
+  const maxSellerCreditsAllowed = Math.round(
+    purchasePrice * ((cfg.fha.maxSellerConcessionPct || 6) / 100)
+  );
+  const effectiveSellerCredits = Math.min(closingCosts, maxSellerCreditsAllowed, sellerCreditsRaw);
+  const sellerCreditsCapped = sellerCreditsRaw > effectiveSellerCredits;
+
+  const cashToCloseAtTable = downPayment + Math.max(0, closingCosts - effectiveSellerCredits);
+  const cashRehabOutOfPocket = is203k ? 0 : rehabBudget;
+  const totalOutOfPocketCash = cashToCloseAtTable + cashRehabOutOfPocket;
+
+  const overFhaLimit = baseLoan > fhaLimitInfo.limit;
+  const overFhaLimitBy = Math.max(0, baseLoan - fhaLimitInfo.limit);
+  const limited203kExceeded =
+    rehabPaidBy === 'limited_203k' && rehabBudget > cfg.fha.limited203kMaxRehab;
+
+  const savingsDelta = mySavings != null ? mySavings - totalOutOfPocketCash : null;
+
+  const phase01Buy = {
+    purchasePrice,
+    fhaAcquisitionBasis,
+    downPaymentPct,
+    requiredMinDownPct,
+    downPayment,
+    baseLoan,
+    ufmipPct,
+    ufmipAmount,
+    totalLoanAmount,
+    annualMipPct,
+    mipForLife,
+    mipDurationYears,
+    closingCostsPct,
+    closingCosts,
+    sellerCreditsRequested: sellerCreditsRaw,
+    effectiveSellerCredits,
+    maxSellerCreditsAllowed,
+    sellerCreditsCapped,
+    cashToCloseAtTable,
+    cashRehabOutOfPocket,
+    totalOutOfPocketCash,
+    mySavings,
+    savingsDelta,
+    fhaLimitInfo,
+    overFhaLimit,
+    overFhaLimitBy,
+    limited203kExceeded,
+    occupancyMoveInDays: cfg.fha.occupancyMoveInDays,
+    occupancyMinYears: cfg.fha.occupancyMinYears
+  };
+
+  // --------------------------------------------------------------------------
+  // PHASE 02: LIVE (1 or 2 years as Primary Residence)
+  // --------------------------------------------------------------------------
+  const loanTermYears = cfg.fha.loanTermYears || 30;
+  const monthlyPi = calculateMortgagePayment(totalLoanAmount, interestRatePct / 100, loanTermYears);
+  const monthlyMip = (baseLoan * (annualMipPct / 100)) / 12;
+  const homesteadTaxMo = taxComparison.homesteadTaxMo;
+  const liveInInsuranceMo = (homeownerInsuranceYr + floodInsuranceYr) / 12;
+  const grossMonthlyHousing =
+    monthlyPi + monthlyMip + homesteadTaxMo + liveInInsuranceMo + hoaMonthly;
+
+  const otherUnitCreditFactor = cfg.fha.otherUnitRentCreditFactor ?? 0.75;
+  const creditedOtherUnitsRentMo = units >= 2 ? otherUnitsRentMo * otherUnitCreditFactor : 0;
+  const netLiveInMonthlyCost = grossMonthlyHousing - creditedOtherUnitsRentMo;
+  const vsCurrentRentMo = netLiveInMonthlyCost - currentRentMo;
+
+  let rentComparisonLabel = 'Matches your current rent';
+  if (Math.abs(vsCurrentRentMo) >= 1) {
+    rentComparisonLabel =
+      vsCurrentRentMo > 0
+        ? `Costs ${formatCurrency(vsCurrentRentMo)}/mo more than renting`
+        : `Costs ${formatCurrency(Math.abs(vsCurrentRentMo))}/mo less than renting`;
+  }
+
+  const monthsLived = liveInYears * 12;
+  const loanBalanceAfterLiveIn = calculateRemainingLoanBalance(
+    totalLoanAmount,
+    interestRatePct / 100,
+    loanTermYears,
+    monthsLived
+  );
+  const principalPaidDown = Math.max(0, totalLoanAmount - loanBalanceAfterLiveIn);
+
+  const valueAtEndOfLiveIn =
+    valueAfterReno * Math.pow(1 + appreciationPctYr / 100, liveInYears);
+  const appreciationWhileLiving = valueAtEndOfLiveIn - valueAfterReno;
+  const equityBuiltWhileLiving = principalPaidDown + appreciationWhileLiving;
+
+  const phase02Live = {
+    liveInYears,
+    monthlyPi,
+    monthlyMip,
+    homesteadTaxMo,
+    liveInInsuranceMo,
+    hoaMonthly,
+    grossMonthlyHousing,
+    units,
+    otherUnitsRentMo,
+    otherUnitCreditFactor,
+    creditedOtherUnitsRentMo,
+    netLiveInMonthlyCost,
+    currentRentMo,
+    vsCurrentRentMo,
+    rentComparisonLabel,
+    loanBalanceAfterLiveIn,
+    principalPaidDown,
+    valueAtEndOfLiveIn,
+    appreciationWhileLiving,
+    equityBuiltWhileLiving
+  };
+
+  // --------------------------------------------------------------------------
+  // PHASE 03: IMPROVE
+  // --------------------------------------------------------------------------
+  const valueAdded = valueAfterReno - purchasePrice;
+  const netForcedEquity = valueAdded - rehabBudget;
+  const equityAfterRenoDay1 = valueAfterReno - totalLoanAmount;
+  const equityPctAfterRenoDay1 = valueAfterReno > 0 ? equityAfterRenoDay1 / valueAfterReno : 0;
+  const equityAtExit = valueAtEndOfLiveIn - loanBalanceAfterLiveIn;
+  const equityPctAtExit = valueAtEndOfLiveIn > 0 ? equityAtExit / valueAtEndOfLiveIn : 0;
+
+  const phase03Improve = {
+    rehabBudget,
+    rehabPaidBy,
+    is203k,
+    financedRehabAmount: is203k ? Math.round(rehabBudget * (1 - downPaymentPct / 100)) : 0,
+    cashRehabAmount: is203k ? Math.round(rehabBudget * (downPaymentPct / 100)) : rehabBudget,
+    valueAfterReno,
+    valueAdded,
+    netForcedEquity,
+    equityAfterRenoDay1,
+    equityPctAfterRenoDay1,
+    equityAtExit,
+    equityPctAtExit
+  };
+
+  // --------------------------------------------------------------------------
+  // PHASE 04: EXIT SCENARIOS (A: Rent, B: Sell 1yr vs 2yr, C: Keep & buy next)
+  // --------------------------------------------------------------------------
+
+  // --- Scenario A: Rent after live-in period ---
+  const exitGrossRentMo = marketRentMo * Math.pow(1 + rentGrowthPctYr / 100, liveInYears);
+  const exitGrossRentYr = exitGrossRentMo * 12;
+  const vacancyLossYr = exitGrossRentYr * (vacancyPct / 100);
+  const effectiveGrossIncomeYr = exitGrossRentYr - vacancyLossYr;
+  const repairsYr = exitGrossRentYr * (repairsPct / 100);
+  const capexYr = exitGrossRentYr * (capexPct / 100);
+  const managementYr = exitGrossRentYr * (managementPct / 100);
+
+  // Reassessed non-homestead tax at exit (or manual override)
+  const exitReassessedTaxYr = inputs.propertyTaxNonHomesteadOverride
+    ? nonHomesteadTaxYr
+    : Math.round((valueAtEndOfLiveIn * millageRate) / 1000);
+
+  const rentalOperatingExpensesExVacancyYr =
+    repairsYr +
+    capexYr +
+    managementYr +
+    exitReassessedTaxYr +
+    landlordInsuranceYr +
+    floodInsuranceYr +
+    hoaMonthly * 12;
+
+  const rentalNoiYr = effectiveGrossIncomeYr - rentalOperatingExpensesExVacancyYr;
+
+  // Keep FHA loan path
+  const fhaDebtServiceMo = monthlyPi + monthlyMip;
+  const fhaDebtServiceYr = fhaDebtServiceMo * 12;
+  const fhaMonthlyCashFlow = (rentalNoiYr - fhaDebtServiceYr) / 12;
+  const fhaCashOnCash =
+    totalOutOfPocketCash > 0 ? (rentalNoiYr - fhaDebtServiceYr) / totalOutOfPocketCash : null;
+  const fhaDscr = fhaDebtServiceYr > 0 ? rentalNoiYr / fhaDebtServiceYr : null;
+
+  // Optional Conventional Refinance at >=20% equity (80% max LTV, drops MIP)
+  const convMinEquityDec = (cfg.defaults.convRefiMinEquityPct || 20) / 100;
+  const convMaxLtvDec = (cfg.defaults.convRefiMaxLtvPct || 80) / 100;
+  const convRefiEligible = equityPctAtExit >= convMinEquityDec;
+  const equityNeededForRefi = Math.max(
+    0,
+    loanBalanceAfterLiveIn / (1 - convMinEquityDec) - valueAtEndOfLiveIn
+  );
+
+  const convMaxLoan = Math.round(valueAtEndOfLiveIn * convMaxLtvDec);
+  const convRefiClosingCosts = Math.round(
+    convMaxLoan * ((cfg.defaults.convRefiClosingCostsPct || 2) / 100)
+  );
+  // If 80% LTV exceeds payoff + refi costs, borrower receives cash out; otherwise rate/term at payoff + costs (capped at 80% LTV)
+  const convLoanAmount = convRefiEligible
+    ? Math.max(Math.round(loanBalanceAfterLiveIn + convRefiClosingCosts), convMaxLoan)
+    : convMaxLoan;
+  const convCashOut = convRefiEligible
+    ? Math.max(0, Math.round(convMaxLoan - loanBalanceAfterLiveIn - convRefiClosingCosts))
+    : 0;
+  const convActualLoan = convRefiEligible ? convMaxLoan : Math.round(loanBalanceAfterLiveIn);
+  const convNewPiMo = calculateMortgagePayment(
+    convActualLoan,
+    convRefiRatePct / 100,
+    loanTermYears
+  );
+  const convDebtServiceYr = convNewPiMo * 12;
+  const convMonthlyCashFlow = (rentalNoiYr - convDebtServiceYr) / 12;
+  const netCashLeftAfterRefi = Math.max(0, totalOutOfPocketCash - convCashOut);
+  const convCashOnCash =
+    netCashLeftAfterRefi > 0 ? (rentalNoiYr - convDebtServiceYr) / netCashLeftAfterRefi : null;
+  const convIsInfiniteCoC = convRefiEligible && netCashLeftAfterRefi === 0 && convMonthlyCashFlow >= 0;
+  const convDscr = convDebtServiceYr > 0 ? rentalNoiYr / convDebtServiceYr : null;
+
+  const activeRefiApplied = useConvRefi && convRefiEligible;
+
+  const exitARent = {
+    marketRentTodayMo: marketRentMo,
+    exitGrossRentMo,
+    exitReassessedTaxYr,
+    rentalNoiYr,
+    activeMode: activeRefiApplied ? 'conv_refi' : 'keep_fha',
+    monthlyCashFlow: activeRefiApplied ? convMonthlyCashFlow : fhaMonthlyCashFlow,
+    cashOnCash: activeRefiApplied ? convCashOnCash : fhaCashOnCash,
+    isInfiniteCoC: activeRefiApplied ? convIsInfiniteCoC : false,
+    dscr: activeRefiApplied ? convDscr : fhaDscr,
+    fhaPath: {
+      monthlyDebtService: fhaDebtServiceMo,
+      monthlyCashFlow: fhaMonthlyCashFlow,
+      cashOnCash: fhaCashOnCash,
+      dscr: fhaDscr
+    },
+    convRefi: {
+      eligible: convRefiEligible,
+      applied: activeRefiApplied,
+      equityPctAtExit,
+      equityNeededForRefi,
+      ratePct: convRefiRatePct,
+      newLoanAmount: convActualLoan,
+      refiClosingCosts: convRefiClosingCosts,
+      newMonthlyPaymentPi: convNewPiMo,
+      monthlyMipDropped: monthlyMip,
+      cashOut: convCashOut,
+      monthlyCashFlow: convMonthlyCashFlow,
+      cashOnCash: convCashOnCash,
+      isInfiniteCoC: convIsInfiniteCoC,
+      dscr: convDscr
+    }
+  };
+
+  // --- Scenario B: Sell after 1 yr vs. after 2 yrs ---
+  const sellingCostsPct = cfg.defaults.sellingCostsPct || 7.5;
+  const adjustedBasis =
+    purchasePrice + rehabBudget + Math.max(0, closingCosts - effectiveSellerCredits);
+  const exclusionLimit =
+    filingStatus === 'married'
+      ? cfg.section121.marriedMaxExclusion
+      : cfg.section121.singleMaxExclusion;
+
+  const buildSellYear = (yr) => {
+    const salePrice = Math.round(valueAfterReno * Math.pow(1 + appreciationPctYr / 100, yr));
+    const sellingCosts = Math.round(salePrice * (sellingCostsPct / 100));
+    const loanPayoff = Math.round(
+      calculateRemainingLoanBalance(totalLoanAmount, interestRatePct / 100, loanTermYears, yr * 12)
+    );
+    const netProceeds = salePrice - sellingCosts - loanPayoff;
+    const profitBeforeTax = netProceeds - totalOutOfPocketCash;
+    const capitalGain = Math.max(0, salePrice - sellingCosts - adjustedBasis);
+    const qualifiesSection121 = yr >= cfg.section121.minYearsLived;
+    const excludedGain = qualifiesSection121 ? Math.min(capitalGain, exclusionLimit) : 0;
+    const taxableGain = Math.max(0, capitalGain - excludedGain);
+    const estimatedCapGainsTax = Math.round(
+      taxableGain * ((cfg.section121.illustrativeCapitalGainsTaxRatePct || 15) / 100)
+    );
+    const profitAfterEstTax = profitBeforeTax - estimatedCapGainsTax;
+
+    return {
+      years: yr,
+      salePrice,
+      sellingCostsPct,
+      sellingCosts,
+      loanPayoff,
+      netProceeds,
+      capitalGain,
+      qualifiesSection121,
+      exclusionLimit,
+      excludedGain,
+      taxableGain,
+      estimatedCapGainsTax,
+      profitBeforeTax,
+      profitAfterEstTax
+    };
+  };
+
+  const exitBSell = {
+    year1: buildSellYear(1),
+    year2: buildSellYear(2),
+    filingStatus,
+    singleMaxExclusion: cfg.section121.singleMaxExclusion,
+    marriedMaxExclusion: cfg.section121.marriedMaxExclusion,
+    taxDisclaimer: cfg.taxDisclaimer || 'estimate — confirm with a CPA'
+  };
+
+  // --- Scenario C: Keep & buy next ---
+  const remainingSavingsAfterClose =
+    mySavings != null ? Math.max(0, mySavings - totalOutOfPocketCash) : 0;
+  const monthlySavingsVsRent = Math.max(0, currentRentMo - netLiveInMonthlyCost);
+  const savingsAccumulatedWhileLiving = Math.round(monthlySavingsVsRent * monthsLived);
+  const tappableEquityCashOut = convRefiEligible ? convCashOut : 0;
+  const deployableCapitalForNext =
+    remainingSavingsAfterClose + savingsAccumulatedWhileLiving + tappableEquityCashOut;
+
+  const nextPurchaseCashPct =
+    (cfg.defaults.nextPropertyDownPct || 20) + (cfg.defaults.nextPropertyClosingPct || 3);
+  const estimatedNextPurchasingPower =
+    nextPurchaseCashPct > 0
+      ? Math.floor(deployableCapitalForNext / (nextPurchaseCashPct / 100))
+      : 0;
+
+  const exitCKeepAndBuyNext = {
+    property1EquityAtExit: Math.round(equityAtExit),
+    remainingSavingsAfterClose,
+    savingsAccumulatedWhileLiving,
+    tappableEquityCashOut,
+    deployableCapitalForNext,
+    nextPropertyDownPct: cfg.defaults.nextPropertyDownPct || 20,
+    nextPropertyClosingPct: cfg.defaults.nextPropertyClosingPct || 3,
+    estimatedNextPurchasingPower,
+    oneFhaRuleNote:
+      'One FHA loan at a time in most cases — Property #2 typically uses a Conventional (5% primary or 20–25% investment) or DSCR loan.'
+  };
+
+  // --------------------------------------------------------------------------
+  // WEALTH CHART: Net Worth Created from this Strategy at Years 3, 5, and 10
+  // --------------------------------------------------------------------------
+  const horizons = [3, 5, 10];
+  const selectedSellExit = liveInYears >= 2 ? exitBSell.year2 : exitBSell.year1;
+  const netProceedsAfterTaxAtSell = selectedSellExit.netProceeds - selectedSellExit.estimatedCapGainsTax;
+
+  const computeScenarioANetWorthAtYear = (horizonYr, forceConvRefi = activeRefiApplied) => {
+    const valAtH = valueAfterReno * Math.pow(1 + appreciationPctYr / 100, horizonYr);
+    let loanBalAtH = 0;
+    if (forceConvRefi && convRefiEligible) {
+      loanBalAtH = calculateRemainingLoanBalance(
+        convActualLoan,
+        convRefiRatePct / 100,
+        loanTermYears,
+        (horizonYr - liveInYears) * 12
+      );
+    } else {
+      loanBalAtH = calculateRemainingLoanBalance(
+        totalLoanAmount,
+        interestRatePct / 100,
+        loanTermYears,
+        horizonYr * 12
+      );
+    }
+    const equityAtH = valAtH - loanBalAtH;
+
+    // Accumulate annual rental cash flows from year `liveInYears` to `horizonYr`
+    let cumulativeRentalCf = forceConvRefi && convRefiEligible ? convCashOut : 0;
+    for (let y = liveInYears; y < horizonYr; y++) {
+      const yrsIntoRental = y - liveInYears;
+      const grossY = exitGrossRentYr * Math.pow(1 + rentGrowthPctYr / 100, yrsIntoRental);
+      const egiY = grossY * (1 - vacancyPct / 100);
+      const varExpY = grossY * ((repairsPct + capexPct + managementPct) / 100);
+      // Non-homestead FL assessment grows up to 10%/yr cap
+      const taxGrowthRate = Math.min(0.10, Math.max(0, appreciationPctYr / 100));
+      const fixedExpY =
+        exitReassessedTaxYr * Math.pow(1 + taxGrowthRate, yrsIntoRental) +
+        (landlordInsuranceYr + floodInsuranceYr + hoaMonthly * 12) * Math.pow(1.025, yrsIntoRental);
+      const noiY = egiY - varExpY - fixedExpY;
+      const debtY =
+        forceConvRefi && convRefiEligible ? convDebtServiceYr : fhaDebtServiceYr;
+      cumulativeRentalCf += noiY - debtY;
+    }
+
+    return Math.round(equityAtH + cumulativeRentalCf - totalOutOfPocketCash);
+  };
+
+  const computeScenarioBNetWorthAtYear = (horizonYr) => {
+    // Sold at end of liveInYears; after-tax cash proceeds compound conservatively at 4%/yr (cash/treasuries)
+    const yearsAfterSale = Math.max(0, horizonYr - liveInYears);
+    const grownProceeds = netProceedsAfterTaxAtSell * Math.pow(1.04, yearsAfterSale);
+    return Math.round(grownProceeds - totalOutOfPocketCash);
+  };
+
+  const computeScenarioCNetWorthAtYear = (horizonYr) => {
+    // Property #1 held (with conv refi if eligible) + accessible capital redeployed into Property #2
+    const prop1NetWorth = computeScenarioANetWorthAtYear(horizonYr, convRefiEligible);
+    const yearsSinceExit = Math.max(0, horizonYr - liveInYears);
+    const prop2Price = estimatedNextPurchasingPower;
+    if (prop2Price < 100000 || yearsSinceExit <= 0) {
+      return prop1NetWorth;
+    }
+    const prop2DownAndClose = deployableCapitalForNext;
+    const prop2Loan = Math.round(prop2Price * (1 - (cfg.defaults.nextPropertyDownPct || 20) / 100));
+    const prop2ValAtH = prop2Price * Math.pow(1 + appreciationPctYr / 100, yearsSinceExit);
+    const prop2BalAtH = calculateRemainingLoanBalance(
+      prop2Loan,
+      convRefiRatePct / 100,
+      30,
+      yearsSinceExit * 12
+    );
+    // Incremental net wealth created by redeploying capital into Property #2 (equity - capital deployed)
+    const prop2IncrementalWealth = (prop2ValAtH - prop2BalAtH) - prop2DownAndClose;
+    return Math.round(prop1NetWorth + Math.max(0, prop2IncrementalWealth));
+  };
+
+  const wealthSeries = horizons.map((year) => ({
+    year,
+    rentNetWorth: computeScenarioANetWorthAtYear(year),
+    sellNetWorth: computeScenarioBNetWorthAtYear(year),
+    keepAndBuyNextNetWorth: computeScenarioCNetWorthAtYear(year)
+  }));
+
+  // Verdict summary for header / saved analyses
+  const verdict = `${formatCurrency(netLiveInMonthlyCost)}/mo while living · ${formatCurrency(
+    exitARent.monthlyCashFlow
+  )}/mo exit cash flow`;
+
+  return {
+    isComplete: true,
+    hint: null,
+    verdict,
+    disclaimer: cfg.disclaimer,
+    asOfDisplay: cfg.asOfDisplay,
+    taxComparison,
+    buy: phase01Buy,
+    live: phase02Live,
+    improve: phase03Improve,
+    exit: {
+      rent: exitARent,
+      sell: exitBSell,
+      keepAndBuyNext: exitCKeepAndBuyNext
+    },
+    wealthSeries,
+    // Compatibility fields for InvestorStudio Deal Snapshot Band
+    cashToClose: {
+      liquidCashNeeded: totalOutOfPocketCash
+    },
+    monthlyPayment: {
+      totalPiti: grossMonthlyHousing
+    },
+    monthlyCashFlow: exitARent.monthlyCashFlow,
+    dscr: exitARent.dscr,
+    cashOnCash: exitARent.cashOnCash
+  };
+}
+
+/**
+ * Evaluate whether a saved property or county search result fits the "Live-in plan (FHA)" strategy.
+ * Checks:
+ *  1. Price under county + unit FHA limit (1–4 units eligible; 5+ units or land ineligible)
+ *  2. Condo -> "check FHA condo approval"
+ *  3. HOA -> "check rental restrictions (min lease term / no rentals first 1–2 yrs)"
+ *  4. Flood zone -> insurance flag
+ *  5. Condition C5–C6 -> "may need 203(k) to pass FHA appraisal"
+ *  6. 2–4 units -> house-hack bonus
+ */
+export function evaluateLiveInFit(property = {}, rawConfig = FINANCING_CONFIG) {
+  if (!property || typeof property !== 'object') {
+    return {
+      fits: false,
+      status: 'ineligible',
+      badgeLabel: 'No data',
+      reasons: [],
+      fhaLimitInfo: getFhaLimitForProperty('Broward', 1, FINANCING_CONFIG)
+    };
+  }
+
+  const cfg = rawConfig?.fha ? rawConfig : getMergedFinancingConfig(rawConfig);
+  const county = property.county || property.parcel_county || 'Broward';
+  const useCodeStr = String(property.use_code || '').trim();
+  const useNum = /^\d+$/.test(useCodeStr) ? parseInt(useCodeStr, 10) : null;
+  const usePrefix = useCodeStr.slice(0, 2);
+  const propType = String(property.property_type || '').toLowerCase();
+
+  // Determine unit count
+  let rawUnits = Number(property.units);
+  if (!Number.isFinite(rawUnits) || rawUnits <= 0) {
+    rawUnits = propType === 'multifamily_2_9' || useNum === 8 || usePrefix === '08' ? 2 : 1;
+  }
+
+  const isVacantLand =
+    propType === 'land' ||
+    (useCodeStr !== '' && (useNum === 0 || useNum === 10 || usePrefix === '00' || usePrefix === '10'));
+  const isFivePlusUnits = rawUnits > 4 || useNum === 3 || usePrefix === '03';
+
+  const clampedUnits = Math.min(4, Math.max(1, Math.round(rawUnits)));
+  const fhaLimitInfo = getFhaLimitForProperty(county, clampedUnits, cfg);
+
+  const price =
+    Number(property.asking_price) ||
+    Number(property.list_price) ||
+    Number(property.just_value) ||
+    Number(property.assessed_value) ||
+    0;
+
+  const reasons = [];
+  let fits = true;
+
+  if (isVacantLand) {
+    fits = false;
+    reasons.push({
+      key: 'land',
+      type: 'blocker',
+      text: 'Vacant land — standard FHA live-in requires an existing habitable 1–4 unit home'
+    });
+  } else if (isFivePlusUnits) {
+    fits = false;
+    reasons.push({
+      key: 'units_over_4',
+      type: 'blocker',
+      text: `${rawUnits >= 5 ? `${rawUnits} units` : '5+ units'} — FHA residential financing is capped at 1–4 units`
+    });
+  }
+
+  // 1. Price vs FHA limit
+  const verifySuffix = fhaLimitInfo.verify ? ' (verify limit)' : '';
+  if (price > 0) {
+    if (price <= fhaLimitInfo.limit) {
+      reasons.push({
+        key: 'fha_limit',
+        type: 'pass',
+        verify: fhaLimitInfo.verify,
+        text: `Under ${fhaLimitInfo.countyKey} ${clampedUnits}-unit FHA limit (${formatCurrency(fhaLimitInfo.limit)})${verifySuffix}`
+      });
+    } else {
+      fits = false;
+      reasons.push({
+        key: 'fha_limit_exceeded',
+        type: 'blocker',
+        verify: fhaLimitInfo.verify,
+        text: `Price (${formatCurrency(price)}) exceeds ${fhaLimitInfo.countyKey} ${clampedUnits}-unit FHA limit (${formatCurrency(fhaLimitInfo.limit)})${verifySuffix}`
+      });
+    }
+  } else {
+    reasons.push({
+      key: 'fha_limit_unknown_price',
+      type: 'caution',
+      verify: fhaLimitInfo.verify,
+      text: `Confirm price is under ${fhaLimitInfo.countyKey} ${clampedUnits}-unit FHA limit (${formatCurrency(fhaLimitInfo.limit)})${verifySuffix}`
+    });
+  }
+
+  // 2. 2–4 units bonus
+  if (!isFivePlusUnits && rawUnits >= 2 && rawUnits <= 4) {
+    reasons.push({
+      key: 'multifamily_bonus',
+      type: 'bonus',
+      text: `${rawUnits} units — house-hack bonus (75% of other-unit rent can help offset payment)`
+    });
+  }
+
+  // 3. Condo check
+  const isCondo =
+    propType === 'condo' ||
+    useNum === 4 ||
+    useNum === 5 ||
+    usePrefix === '04' ||
+    usePrefix === '05';
+  if (isCondo) {
+    reasons.push({
+      key: 'condo_approval',
+      type: 'caution',
+      text: 'Condo — check FHA condo approval'
+    });
+  }
+
+  // 4. HOA rental restrictions check
+  const notesCombined = [
+    property.condition_notes,
+    property.notes,
+    property.condition,
+    Array.isArray(property.distress_flags) ? property.distress_flags.join(' ') : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const hasHoa =
+    property.has_hoa === true ||
+    Number(property.hoa_monthly) > 0 ||
+    propType === 'townhouse' ||
+    propType === 'townhome' ||
+    isCondo ||
+    /\bhoa\b/.test(notesCombined);
+
+  if (hasHoa && property.has_hoa !== false) {
+    reasons.push({
+      key: 'hoa_rental_restrictions',
+      type: 'caution',
+      text: 'HOA — check rental restrictions (min lease term / no rentals first 1–2 yrs)'
+    });
+  }
+
+  // 5. Flood zone check
+  const floodZoneRaw = String(property.flood_zone || '').trim().toUpperCase();
+  const isHighRiskFlood =
+    property.is_sfha === true ||
+    property.flood_sfha === true ||
+    (/^(A|V)/.test(floodZoneRaw) && !floodZoneRaw.startsWith('AREA'));
+
+  if (isHighRiskFlood) {
+    reasons.push({
+      key: 'flood_zone',
+      type: 'caution',
+      text: `Flood zone${floodZoneRaw ? ` (${floodZoneRaw})` : ''} — mandatory flood insurance required`
+    });
+  }
+
+  // 6. Condition C5–C6 check
+  const isC5OrC6 =
+    /\bc[56]\b/i.test(notesCombined) ||
+    /\b(uninhabitable|major rehab|tear[- ]?down|needs 203k|structural|fire damage|roof leak)\b/i.test(
+      notesCombined
+    );
+
+  if (isC5OrC6) {
+    reasons.push({
+      key: 'condition_203k',
+      type: 'caution',
+      text: 'Condition C5–C6 — may need 203(k) to pass FHA appraisal'
+    });
+  }
+
+  const hasCautions = reasons.some((r) => r.type === 'caution');
+  let badgeLabel = 'Live-in fit';
+  if (!fits) {
+    if (isVacantLand) badgeLabel = 'Land · Non-FHA';
+    else if (isFivePlusUnits) badgeLabel = '5+ units · Non-FHA';
+    else badgeLabel = 'Over FHA limit';
+  }
+
+  return {
+    fits,
+    status: !fits ? 'ineligible' : hasCautions ? 'caution' : 'good',
+    badgeLabel,
+    hasBonus: reasons.some((r) => r.type === 'bonus'),
+    reasons,
+    fhaLimitInfo
   };
 }

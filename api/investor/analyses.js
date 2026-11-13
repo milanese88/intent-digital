@@ -1,7 +1,7 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
 
-const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr'];
+const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
 
 export default async function handler(req, res) {
   try {
@@ -136,6 +136,11 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
+    if (error?.code === '23514') {
+      return res.status(409).json({
+        error: 'The database migration "add_live_in_fha_strategy.sql" has not been applied yet. Please apply the SQL migration first.'
+      });
+    }
     console.error('Investor Analyses API Error:', error);
     return res.status(500).json({ error: error.message || 'Server error processing analysis request.' });
   }

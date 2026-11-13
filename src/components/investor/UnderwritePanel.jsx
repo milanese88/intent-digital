@@ -7,9 +7,16 @@ import {
   underwriteRental,
   underwriteFlip,
   underwriteBrrrr,
+  underwriteLiveInPlan,
   LOAN_TYPES,
   ESTIMATED_CLOSING_DEFAULTS
 } from './underwriting.js';
+import {
+  getMergedFinancingConfig,
+  getDefaultMillageForCounty,
+  normalizeCreditBand
+} from '../../config/financing.js';
+import LiveInPlanView from './LiveInPlanView.jsx';
 
 // Keyboard-accessible Tooltip for Underwriting Metric Labels
 function MetricTooltip({ text, alignRight = false }) {
@@ -257,16 +264,18 @@ export default function UnderwritePanel({
   property,
   compValueRaw,
   compValueFormatted,
+  appraisalArv,
   appliedAppraisal,
   profile: initialProfile,
   onOpenProfileModal,
   onUnderwriteChange,
+  onNavigateToLesson,
   setActiveDashboardTab,
   navigateTo
 }) {
-  // Strategy toggle: 'rental' | 'flip' | 'brrrr'
+  // Strategy toggle: 'rental' | 'flip' | 'brrrr' | 'live_in'
   const initialStrategy = useMemo(() => {
-    if (property?.strategy && ['rental', 'flip', 'brrrr'].includes(property.strategy.toLowerCase())) {
+    if (property?.strategy && ['rental', 'flip', 'brrrr', 'live_in'].includes(property.strategy.toLowerCase())) {
       return property.strategy.toLowerCase();
     }
     return 'rental';
@@ -276,7 +285,7 @@ export default function UnderwritePanel({
 
   // Sync strategy if property changes
   useEffect(() => {
-    if (property?.strategy && ['rental', 'flip', 'brrrr'].includes(property.strategy.toLowerCase())) {
+    if (property?.strategy && ['rental', 'flip', 'brrrr', 'live_in'].includes(property.strategy.toLowerCase())) {
       setStrategy(property.strategy.toLowerCase());
     }
   }, [property?.id, property?.strategy]);
@@ -427,9 +436,72 @@ export default function UnderwritePanel({
     };
   };
 
+  const buildDefaultLiveInInputs = (prop, userProfile, defaultArv) => {
+    const merged = getMergedFinancingConfig(userProfile);
+    const listPrice = prop?.list_price != null ? Number(prop.list_price) : '';
+    const defaultRehab =
+      prop?.rehab_budget != null && prop.rehab_budget !== ''
+        ? Math.round(Number(prop.rehab_budget))
+        : 0;
+    const unitsCount = Math.min(4, Math.max(1, Math.round(Number(prop?.units) || 1)));
+    const resolvedArv =
+      Number(defaultArv) > 0
+        ? Math.round(Number(defaultArv))
+        : Number(compValueRaw) > 0
+        ? Math.round(Number(compValueRaw))
+        : listPrice
+        ? Math.round(Number(listPrice) + defaultRehab)
+        : '';
+    const estMarketRent = listPrice
+      ? Math.max(1800, Math.round((Number(listPrice) * 0.0075) / 50) * 50)
+      : 3200;
+    const countyKey = prop?.county || prop?.parcel_county || 'Broward';
+
+    return {
+      purchasePrice: listPrice,
+      units: unitsCount,
+      interestRatePct: merged.defaults.fhaInterestRatePct,
+      creditScoreBand: normalizeCreditBand(userProfile?.credit_tier),
+      downPaymentPct: merged.fha.minDownPct,
+      closingCostsPct: merged.defaults.closingCostsPct,
+      sellerCredits: 0,
+      rehabBudget: defaultRehab,
+      rehabPaidBy: 'cash',
+      valueAfterReno: resolvedArv,
+      valueAfterRenoTouched: false,
+      currentRentMo: merged.defaults.currentRentMo,
+      otherUnitsRentMo: unitsCount >= 2 ? Math.round(estMarketRent * 0.5) : 0,
+      liveInYears: merged.defaults.liveInYears,
+      appreciationPctYr: merged.defaults.appreciationPctYr,
+      rentGrowthPctYr: merged.defaults.rentGrowthPctYr,
+      marketRentMo: estMarketRent,
+      vacancyPct: merged.defaults.vacancyPct,
+      repairsPct: merged.defaults.repairsPct,
+      capexPct: merged.defaults.capexPct,
+      managementPct: merged.defaults.managementPct,
+      homeownerInsuranceYr: merged.defaults.homeownerInsuranceYr,
+      landlordInsuranceYr: merged.defaults.landlordInsuranceYr,
+      floodInsuranceYr: isSFHA ? merged.defaults.floodInsuranceYr : 0,
+      hoaMonthly:
+        prop?.hoa_monthly != null && prop.hoa_monthly !== ''
+          ? Number(prop.hoa_monthly)
+          : isCondo
+          ? ESTIMATED_CLOSING_DEFAULTS.defaultCondoHoaMo
+          : 0,
+      millageRate: getDefaultMillageForCounty(countyKey, merged),
+      propertyTaxNonHomesteadOverride: false,
+      propertyTaxNonHomesteadYr: '',
+      useConvRefi: true,
+      filingStatus: 'single'
+    };
+  };
+
   const [rentalInputs, setRentalInputs] = useState(() => buildDefaultInputs('rental', property, profile));
   const [flipInputs, setFlipInputs] = useState(() => buildDefaultInputs('flip', property, profile));
   const [brrrrInputs, setBrrrrInputs] = useState(() => buildDefaultInputs('brrrr', property, profile));
+  const [liveInInputs, setLiveInInputs] = useState(() =>
+    buildDefaultLiveInInputs(property, profile, appraisalArv)
+  );
 
   // Toggle for detailed cash to close breakdown
   const [showDetailedClosing, setShowDetailedClosing] = useState(false);
@@ -442,7 +514,17 @@ export default function UnderwritePanel({
     setRentalInputs(buildDefaultInputs('rental', property, profile));
     setFlipInputs(buildDefaultInputs('flip', property, profile));
     setBrrrrInputs(buildDefaultInputs('brrrr', property, profile));
+    setLiveInInputs(buildDefaultLiveInInputs(property, profile, appraisalArv));
   }, [property?.id]);
+
+  // Keep Live-in valueAfterReno synced to Appraisal ARV until user manually edits it
+  useEffect(() => {
+    if (!(Number(appraisalArv) > 0)) return;
+    const roundedArv = Math.round(Number(appraisalArv));
+    setLiveInInputs((prev) =>
+      prev.valueAfterRenoTouched ? prev : { ...prev, valueAfterReno: roundedArv }
+    );
+  }, [appraisalArv]);
 
   // Apply reconciled appraisal value from Value & Comps ("Use in Deal →")
   useEffect(() => {
@@ -451,11 +533,13 @@ export default function UnderwritePanel({
     if (appliedAppraisal.mode === 'arv') {
       setFlipInputs((prev) => ({ ...prev, arv: rounded }));
       setBrrrrInputs((prev) => ({ ...prev, arv: rounded }));
+      setLiveInInputs((prev) => ({ ...prev, valueAfterReno: rounded, valueAfterRenoTouched: true }));
       setStrategy((prev) => (prev === 'rental' ? 'flip' : prev));
     } else {
       setRentalInputs((prev) => ({ ...prev, purchasePrice: rounded }));
       setFlipInputs((prev) => ({ ...prev, purchasePrice: rounded }));
       setBrrrrInputs((prev) => ({ ...prev, purchasePrice: rounded }));
+      setLiveInInputs((prev) => ({ ...prev, purchasePrice: rounded }));
     }
   }, [appliedAppraisal?.nonce]);
 
@@ -464,6 +548,7 @@ export default function UnderwritePanel({
   const [_analysesLoading, setAnalysesLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [saveErrorMsg, setSaveErrorMsg] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
@@ -503,9 +588,25 @@ export default function UnderwritePanel({
       setRentalInputs(prev => ({ ...prev, [field]: clean }));
     } else if (strategy === 'flip') {
       setFlipInputs(prev => ({ ...prev, [field]: clean }));
+    } else if (strategy === 'live_in') {
+      setLiveInInputs(prev => ({
+        ...prev,
+        [field]: clean,
+        ...(field === 'valueAfterReno' ? { valueAfterRenoTouched: true } : {})
+      }));
     } else {
       setBrrrrInputs(prev => ({ ...prev, [field]: clean }));
     }
+  };
+
+  const handleLiveInBatchChange = (patch) => {
+    setLiveInInputs((prev) => ({
+      ...prev,
+      ...patch,
+      ...(Object.prototype.hasOwnProperty.call(patch, 'valueAfterReno')
+        ? { valueAfterRenoTouched: true }
+        : {})
+    }));
   };
 
   // Loan Type Selection Handler
@@ -532,14 +633,32 @@ export default function UnderwritePanel({
 
     if (strategy === 'rental') setRentalInputs(updateState);
     else if (strategy === 'flip') setFlipInputs(updateState);
-    else setBrrrrInputs(updateState);
+    else if (strategy === 'brrrr') setBrrrrInputs(updateState);
   };
 
   // Active inputs pointer
-  const currentInputs = strategy === 'rental' ? rentalInputs : strategy === 'flip' ? flipInputs : brrrrInputs;
+  const currentInputs =
+    strategy === 'rental'
+      ? rentalInputs
+      : strategy === 'flip'
+      ? flipInputs
+      : strategy === 'live_in'
+      ? liveInInputs
+      : brrrrInputs;
 
   // Compute Results Live via underwriting.js
   const results = useMemo(() => {
+    if (strategy === 'live_in') {
+      return underwriteLiveInPlan(
+        {
+          ...liveInInputs,
+          county: property?.county || property?.parcel_county || 'Broward',
+          mySavings: profile?.liquid_cash != null ? Number(profile.liquid_cash) : null
+        },
+        profile
+      );
+    }
+
     const sharedInputs = {
       purchasePrice: Number(currentInputs.purchasePrice) || 0,
       loanType: currentInputs.loanType,
@@ -610,10 +729,13 @@ export default function UnderwritePanel({
       capexPct: Number(brrrrInputs.capexPct) || 0,
       managementPct: Number(brrrrInputs.managementPct) || 0
     });
-  }, [strategy, currentInputs, rentalInputs, flipInputs, brrrrInputs, profile]);
+  }, [strategy, currentInputs, rentalInputs, flipInputs, brrrrInputs, liveInInputs, property?.county, property?.parcel_county, profile]);
 
   // Save Analysis validation
   const isSaveDisabled = useMemo(() => {
+    if (strategy === 'live_in') {
+      return !(Number(liveInInputs.purchasePrice) > 0);
+    }
     if (strategy === 'rental') {
       const rent = Number(rentalInputs.monthlyRent);
       const ins = Number(rentalInputs.insuranceYr);
@@ -630,7 +752,7 @@ export default function UnderwritePanel({
       return !(arv > 0 && rent > 0 && ins > 0);
     }
     return false;
-  }, [strategy, rentalInputs, flipInputs, brrrrInputs]);
+  }, [strategy, rentalInputs, flipInputs, brrrrInputs, liveInInputs]);
 
   // Save Analysis Handler
   const handleSaveAnalysis = async () => {
@@ -638,6 +760,7 @@ export default function UnderwritePanel({
 
     setIsSaving(true);
     setSaveSuccessMsg('');
+    setSaveErrorMsg('');
     try {
       const res = await fetch('/api/investor/analyses', {
         method: 'POST',
@@ -650,16 +773,17 @@ export default function UnderwritePanel({
         })
       });
 
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error('Failed to save analysis');
+        throw new Error(body?.error || 'Failed to save analysis');
       }
 
-      const saved = await res.json();
-      setSavedAnalyses(prev => [saved, ...prev]);
+      setSavedAnalyses(prev => [body, ...prev]);
       setSaveSuccessMsg('Analysis saved');
       setTimeout(() => setSaveSuccessMsg(''), 3000);
     } catch (err) {
       console.error('Error saving analysis:', err);
+      setSaveErrorMsg(err.message || 'Failed to save analysis');
     } finally {
       setIsSaving(false);
     }
@@ -710,6 +834,8 @@ export default function UnderwritePanel({
       setFlipInputs(prev => ({ ...prev, ...(saved.inputs || {}) }));
     } else if (strat === 'brrrr') {
       setBrrrrInputs(prev => ({ ...prev, ...(saved.inputs || {}) }));
+    } else if (strat === 'live_in') {
+      setLiveInInputs(prev => ({ ...prev, ...(saved.inputs || {}), valueAfterRenoTouched: true }));
     }
   };
 
@@ -718,7 +844,18 @@ export default function UnderwritePanel({
     const res = item.results || {};
     const inp = item.inputs || {};
     const strat = (item.strategy || '').toLowerCase();
-    const arvPrefix = inp.arv ? `ARV ${formatCurrency(inp.arv)} · ` : '';
+    const arvVal = inp.arv || inp.valueAfterReno;
+    const arvPrefix = arvVal ? `ARV ${formatCurrency(arvVal)} · ` : '';
+
+    if (strat === 'live_in') {
+      const liveCost = res.live?.netLiveInMonthlyCost;
+      const exitCf = res.exit?.rent?.monthlyCashFlow ?? res.monthlyCashFlow;
+      if (liveCost != null && exitCf != null) {
+        const sign = exitCf >= 0 ? '+' : '';
+        return `${arvPrefix}${formatCurrency(liveCost)}/mo live · ${sign}${formatCurrency(exitCf)}/mo exit`;
+      }
+      return `${arvPrefix}Live-in (FHA) plan`;
+    }
 
     if (strat === 'rental') {
       if (res.monthlyCashFlow != null) {
@@ -795,10 +932,10 @@ export default function UnderwritePanel({
           )}
         </div>
 
-        {/* 3-way Strategy Pill Toggle: RENTAL / FLIP / BRRRR */}
+        {/* 4-way Strategy Pill Toggle: RENTAL / FLIP / BRRRR / LIVE-IN (FHA) */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           backgroundColor: 'rgba(52, 41, 42, 0.05)',
           borderRadius: '50px',
           padding: '4px',
@@ -807,7 +944,8 @@ export default function UnderwritePanel({
           {[
             { id: 'rental', label: 'RENTAL' },
             { id: 'flip', label: 'FLIP' },
-            { id: 'brrrr', label: 'BRRRR' }
+            { id: 'brrrr', label: 'BRRRR' },
+            { id: 'live_in', label: 'LIVE-IN (FHA)' }
           ].map(tab => {
             const isSelected = strategy === tab.id;
             return (
@@ -817,20 +955,22 @@ export default function UnderwritePanel({
                 onClick={() => {
                   setStrategy(tab.id);
                   setVerdictExpanded(false);
+                  setSaveErrorMsg('');
                 }}
                 style={{
                   backgroundColor: isSelected ? 'var(--secondary-color, #41101B)' : 'transparent',
                   color: isSelected ? 'var(--lighter-tone, #FAF8F5)' : 'rgba(52, 41, 42, 0.65)',
                   border: 'none',
                   borderRadius: '50px',
-                  padding: '7px 0',
+                  padding: '7px 4px',
                   fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                  fontSize: '11px',
+                  fontSize: '10.5px',
                   fontWeight: 700,
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.07em',
                   textTransform: 'uppercase',
                   cursor: 'pointer',
-                  transition: 'all 0.18s ease'
+                  transition: 'all 0.18s ease',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {tab.label}
@@ -839,6 +979,22 @@ export default function UnderwritePanel({
           })}
         </div>
 
+        {strategy === 'live_in' ? (
+          <LiveInPlanView
+            property={property}
+            profile={profile}
+            inputs={liveInInputs}
+            onChangeInput={handleInputChange}
+            onBatchChange={handleLiveInBatchChange}
+            results={results}
+            appraisalArv={appraisalArv}
+            onOpenBuyingProfile={onOpenProfileModal}
+            onNavigateToLesson={onNavigateToLesson}
+            onSaveAnalysis={handleSaveAnalysis}
+            savingAnalysis={isSaving}
+          />
+        ) : (
+        <>
         {/* ================================================================= */}
         {/* 1. PURCHASE & FINANCING BLOCK (SHARED ACROSS STRATEGIES)          */}
         {/* ================================================================= */}
@@ -2594,6 +2750,8 @@ export default function UnderwritePanel({
             );
           })()}
         </div>
+        </>
+        )}
 
         {/* ============================================================= */}
         {/* SAVE ANALYSIS BUTTON                                          */}
@@ -2719,10 +2877,25 @@ export default function UnderwritePanel({
             <span style={{
               fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
               fontSize: '12px',
-              color: '#196F3D',
+              color: '#3F5A3A',
               fontWeight: 600
             }}>
               ✓ {saveSuccessMsg}
+            </span>
+          )}
+
+          {saveErrorMsg && (
+            <span style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '12px',
+              color: '#41101B',
+              backgroundColor: 'rgba(65, 16, 27, 0.07)',
+              border: '1px solid rgba(65, 16, 27, 0.25)',
+              padding: '5px 10px',
+              borderRadius: '8px',
+              fontWeight: 500
+            }}>
+              {saveErrorMsg}
             </span>
           )}
         </div>

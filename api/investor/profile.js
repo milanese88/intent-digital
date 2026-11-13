@@ -4,6 +4,7 @@ import {
   DEFAULT_COMP_FILTERS,
   sanitizeProfileCompFilters
 } from '../../src/components/investor/compSearchLogic.js';
+import { sanitizeFinancingOverrides } from '../../src/config/financing.js';
 
 export const ALLOWED_CREDIT_TIERS = [
   '760+',
@@ -110,6 +111,7 @@ export function getDefaultProfile(email = '') {
     reserve_months: 6,
     rate_sheet: DEFAULT_RATE_SHEET,
     valuation_defaults: DEFAULT_VALUATION_DEFAULTS,
+    financing_overrides: {},
     is_default: true
   };
 }
@@ -137,6 +139,7 @@ export default async function handler(req, res) {
               reserve_months,
               rate_sheet,
               valuation_defaults,
+              financing_overrides,
               updated_at
             FROM investor_profile
             WHERE lower(owner_email) = ${cleanEmail}
@@ -145,19 +148,40 @@ export default async function handler(req, res) {
           if (rows.length > 0) profile = rows[0];
         } catch (colErr) {
           if (colErr.code === '42703') {
-            const rows = await sql`
-              SELECT
-                owner_email,
-                credit_tier,
-                liquid_cash,
-                reserve_months,
-                rate_sheet,
-                updated_at
-              FROM investor_profile
-              WHERE lower(owner_email) = ${cleanEmail}
-              LIMIT 1
-            `;
-            if (rows.length > 0) profile = rows[0];
+            try {
+              const rows = await sql`
+                SELECT
+                  owner_email,
+                  credit_tier,
+                  liquid_cash,
+                  reserve_months,
+                  rate_sheet,
+                  valuation_defaults,
+                  updated_at
+                FROM investor_profile
+                WHERE lower(owner_email) = ${cleanEmail}
+                LIMIT 1
+              `;
+              if (rows.length > 0) profile = rows[0];
+            } catch (colErr2) {
+              if (colErr2.code === '42703') {
+                const rows = await sql`
+                  SELECT
+                    owner_email,
+                    credit_tier,
+                    liquid_cash,
+                    reserve_months,
+                    rate_sheet,
+                    updated_at
+                  FROM investor_profile
+                  WHERE lower(owner_email) = ${cleanEmail}
+                  LIMIT 1
+                `;
+                if (rows.length > 0) profile = rows[0];
+              } else {
+                throw colErr2;
+              }
+            }
           } else {
             throw colErr;
           }
@@ -167,17 +191,21 @@ export default async function handler(req, res) {
           return res.status(200).json(getDefaultProfile(cleanEmail));
         }
 
-        // Ensure rate_sheet and valuation_defaults have all defaults populated
+        // Ensure rate_sheet, valuation_defaults, and financing_overrides have all defaults populated
         const mergedRateSheet = {
           ...DEFAULT_RATE_SHEET,
           ...(profile.rate_sheet || {})
         };
+        const cleanFinancingOverrides = sanitizeFinancingOverrides(
+          profile.financing_overrides || profile.valuation_defaults?.financing_overrides || {}
+        );
         const mergedValuationDefaults = {
           ...DEFAULT_VALUATION_DEFAULTS,
           ...(profile.valuation_defaults || {}),
           comp_search_filters: sanitizeProfileCompFilters(
             profile.valuation_defaults?.comp_search_filters
-          )
+          ),
+          financing_overrides: cleanFinancingOverrides
         };
 
         return res.status(200).json({
@@ -187,6 +215,7 @@ export default async function handler(req, res) {
           reserve_months: Number(profile.reserve_months) || 6,
           rate_sheet: mergedRateSheet,
           valuation_defaults: mergedValuationDefaults,
+          financing_overrides: cleanFinancingOverrides,
           updated_at: profile.updated_at
         });
       } catch (dbErr) {
@@ -202,14 +231,24 @@ export default async function handler(req, res) {
       let existingRow = null;
       try {
         const existingRows = await sql`
-          SELECT credit_tier, liquid_cash, reserve_months, rate_sheet, valuation_defaults
+          SELECT credit_tier, liquid_cash, reserve_months, rate_sheet, valuation_defaults, financing_overrides
           FROM investor_profile
           WHERE lower(owner_email) = ${cleanEmail}
           LIMIT 1
         `;
         if (existingRows.length > 0) existingRow = existingRows[0];
       } catch {
-        // column or table may not exist yet; handled below
+        try {
+          const existingRows = await sql`
+            SELECT credit_tier, liquid_cash, reserve_months, rate_sheet, valuation_defaults
+            FROM investor_profile
+            WHERE lower(owner_email) = ${cleanEmail}
+            LIMIT 1
+          `;
+          if (existingRows.length > 0) existingRow = existingRows[0];
+        } catch {
+          // column or table may not exist yet; handled below
+        }
       }
 
       const creditTier = body.credit_tier && ALLOWED_CREDIT_TIERS.includes(body.credit_tier)
@@ -234,6 +273,14 @@ export default async function handler(req, res) {
         ? { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}), ...body.rate_sheet }
         : { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}) };
 
+      const existingFinOverrides = sanitizeFinancingOverrides(
+        existingRow?.financing_overrides || existingRow?.valuation_defaults?.financing_overrides || {}
+      );
+      const financingOverrides =
+        body.financing_overrides !== undefined
+          ? sanitizeFinancingOverrides(body.financing_overrides)
+          : existingFinOverrides;
+
       const mergedRawValDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
         ? {
             ...DEFAULT_VALUATION_DEFAULTS,
@@ -247,7 +294,8 @@ export default async function handler(req, res) {
 
       const valuationDefaults = {
         ...mergedRawValDefaults,
-        comp_search_filters: sanitizeProfileCompFilters(mergedRawValDefaults.comp_search_filters)
+        comp_search_filters: sanitizeProfileCompFilters(mergedRawValDefaults.comp_search_filters),
+        financing_overrides: financingOverrides
       };
 
       try {
@@ -261,6 +309,7 @@ export default async function handler(req, res) {
               reserve_months,
               rate_sheet,
               valuation_defaults,
+              financing_overrides,
               updated_at
             ) VALUES (
               ${cleanEmail},
@@ -269,6 +318,7 @@ export default async function handler(req, res) {
               ${reserveMonths},
               ${JSON.stringify(rateSheet)}::jsonb,
               ${JSON.stringify(valuationDefaults)}::jsonb,
+              ${JSON.stringify(financingOverrides)}::jsonb,
               CURRENT_TIMESTAMP
             )
             ON CONFLICT (owner_email) DO UPDATE SET
@@ -277,6 +327,7 @@ export default async function handler(req, res) {
               reserve_months = EXCLUDED.reserve_months,
               rate_sheet = EXCLUDED.rate_sheet,
               valuation_defaults = EXCLUDED.valuation_defaults,
+              financing_overrides = EXCLUDED.financing_overrides,
               updated_at = CURRENT_TIMESTAMP
             RETURNING
               owner_email,
@@ -285,41 +336,87 @@ export default async function handler(req, res) {
               reserve_months,
               rate_sheet,
               valuation_defaults,
+              financing_overrides,
               updated_at
           `;
         } catch (colErr) {
           if (colErr.code === '42703') {
-            rows = await sql`
-              INSERT INTO investor_profile (
-                owner_email,
-                credit_tier,
-                liquid_cash,
-                reserve_months,
-                rate_sheet,
-                updated_at
-              ) VALUES (
-                ${cleanEmail},
-                ${creditTier},
-                ${liquidCash},
-                ${reserveMonths},
-                ${JSON.stringify(rateSheet)}::jsonb,
-                CURRENT_TIMESTAMP
-              )
-              ON CONFLICT (owner_email) DO UPDATE SET
-                credit_tier = EXCLUDED.credit_tier,
-                liquid_cash = EXCLUDED.liquid_cash,
-                reserve_months = EXCLUDED.reserve_months,
-                rate_sheet = EXCLUDED.rate_sheet,
-                updated_at = CURRENT_TIMESTAMP
-              RETURNING
-                owner_email,
-                credit_tier,
-                liquid_cash,
-                reserve_months,
-                rate_sheet,
-                updated_at
-            `;
-            if (rows[0]) rows[0].valuation_defaults = valuationDefaults;
+            try {
+              rows = await sql`
+                INSERT INTO investor_profile (
+                  owner_email,
+                  credit_tier,
+                  liquid_cash,
+                  reserve_months,
+                  rate_sheet,
+                  valuation_defaults,
+                  updated_at
+                ) VALUES (
+                  ${cleanEmail},
+                  ${creditTier},
+                  ${liquidCash},
+                  ${reserveMonths},
+                  ${JSON.stringify(rateSheet)}::jsonb,
+                  ${JSON.stringify(valuationDefaults)}::jsonb,
+                  CURRENT_TIMESTAMP
+                )
+                ON CONFLICT (owner_email) DO UPDATE SET
+                  credit_tier = EXCLUDED.credit_tier,
+                  liquid_cash = EXCLUDED.liquid_cash,
+                  reserve_months = EXCLUDED.reserve_months,
+                  rate_sheet = EXCLUDED.rate_sheet,
+                  valuation_defaults = EXCLUDED.valuation_defaults,
+                  updated_at = CURRENT_TIMESTAMP
+                RETURNING
+                  owner_email,
+                  credit_tier,
+                  liquid_cash,
+                  reserve_months,
+                  rate_sheet,
+                  valuation_defaults,
+                  updated_at
+              `;
+              if (rows[0]) rows[0].financing_overrides = financingOverrides;
+            } catch (colErr2) {
+              if (colErr2.code === '42703') {
+                rows = await sql`
+                  INSERT INTO investor_profile (
+                    owner_email,
+                    credit_tier,
+                    liquid_cash,
+                    reserve_months,
+                    rate_sheet,
+                    updated_at
+                  ) VALUES (
+                    ${cleanEmail},
+                    ${creditTier},
+                    ${liquidCash},
+                    ${reserveMonths},
+                    ${JSON.stringify(rateSheet)}::jsonb,
+                    CURRENT_TIMESTAMP
+                  )
+                  ON CONFLICT (owner_email) DO UPDATE SET
+                    credit_tier = EXCLUDED.credit_tier,
+                    liquid_cash = EXCLUDED.liquid_cash,
+                    reserve_months = EXCLUDED.reserve_months,
+                    rate_sheet = EXCLUDED.rate_sheet,
+                    updated_at = CURRENT_TIMESTAMP
+                  RETURNING
+                    owner_email,
+                    credit_tier,
+                    liquid_cash,
+                    reserve_months,
+                    rate_sheet,
+                    updated_at
+                `;
+                if (rows[0]) {
+                  rows[0].valuation_defaults = valuationDefaults;
+                  rows[0].financing_overrides = financingOverrides;
+                }
+              } else {
+                throw colErr2;
+              }
+            }
           } else {
             throw colErr;
           }
@@ -332,6 +429,7 @@ export default async function handler(req, res) {
           reserve_months: Number(rows[0].reserve_months) || 6,
           rate_sheet: rows[0].rate_sheet,
           valuation_defaults: rows[0].valuation_defaults || valuationDefaults,
+          financing_overrides: rows[0].financing_overrides || financingOverrides,
           updated_at: rows[0].updated_at
         });
       } catch (dbErr) {
@@ -344,6 +442,7 @@ export default async function handler(req, res) {
           reserve_months: reserveMonths,
           rate_sheet: rateSheet,
           valuation_defaults: valuationDefaults,
+          financing_overrides: financingOverrides,
           updated_at: new Date().toISOString(),
           table_pending: true
         });
