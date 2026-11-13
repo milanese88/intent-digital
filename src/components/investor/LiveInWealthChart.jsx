@@ -1,27 +1,34 @@
 import React, { useState } from 'react';
 import { formatCurrency } from './underwriting.js';
 
+// Heading token strictly resolves to Instrument Serif (portal default) — zero other serifs
+const HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
+const BODY_FONT = 'var(--font-sans, "Montserrat", sans-serif)';
+
 const SERIES_META = [
   {
     key: 'rentNetWorth',
     code: 'A',
     label: 'A · Rent',
     color: '#41101B', // Brand Burgundy / Cherry
-    dash: 'none'
+    dash: 'none',
+    requiresMarketRent: true
   },
   {
     key: 'sellNetWorth',
     code: 'B',
     label: 'B · Sell',
     color: '#5C75A8', // Brand Periwinkle Slate
-    dash: '6 4'
+    dash: '6 4',
+    requiresMarketRent: false
   },
   {
     key: 'keepAndBuyNextNetWorth',
     code: 'C',
     label: 'C · Keep & buy next',
     color: '#3F5A3A', // Brand Forest Green
-    dash: 'none'
+    dash: 'none',
+    requiresMarketRent: true
   }
 ];
 
@@ -42,16 +49,25 @@ function formatCompactDollar(val) {
  * Line chart in strict Intent Digital brand colors (zero orange) plotting
  * Net Worth created from this property at 3 / 5 / 10 years across Exits A, B, and C.
  */
-export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }) {
+export default function LiveInWealthChart({
+  wealthSeries = [],
+  liveInYears = 2,
+  hasMarketRent = true,
+  onFocusMarketRent = null
+}) {
   const [selectedYear, setSelectedYear] = useState(10);
 
   if (!Array.isArray(wealthSeries) || wealthSeries.length === 0) {
     return null;
   }
 
+  const plottableSeries = SERIES_META.filter((s) =>
+    wealthSeries.every((pt) => pt[s.key] != null && Number.isFinite(pt[s.key]))
+  );
+
   const allValues = [];
   for (const pt of wealthSeries) {
-    for (const s of SERIES_META) {
+    for (const s of plottableSeries) {
       if (Number.isFinite(pt[s.key])) allValues.push(pt[s.key]);
     }
   }
@@ -93,7 +109,7 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
         border: '1px solid rgba(52, 41, 42, 0.12)',
         borderRadius: '14px',
         padding: '20px 22px',
-        fontFamily: "'Montserrat', sans-serif"
+        fontFamily: BODY_FONT
       }}
     >
       {/* Header & Legend */}
@@ -111,7 +127,7 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
           <div
             style={{
               fontSize: '10px',
-              fontWeight: 600,
+              fontWeight: 700,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: 'rgba(52, 41, 42, 0.58)',
@@ -123,9 +139,10 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
           <h4
             style={{
               margin: 0,
-              fontFamily: "'Cormorant Garamond', 'Playfair Display', Georgia, serif",
-              fontSize: '23px',
-              fontWeight: 600,
+              fontFamily: HEADING_FONT,
+              fontSize: '25px',
+              fontWeight: 400,
+              lineHeight: 1.15,
               color: '#34292A'
             }}
           >
@@ -134,32 +151,84 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-          {SERIES_META.map((s) => (
-            <div
-              key={s.key}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '7px',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#34292A'
-              }}
-            >
-              <span
+          {SERIES_META.map((s) => {
+            const isMuted = s.requiresMarketRent && !hasMarketRent;
+            return (
+              <div
+                key={s.key}
                 style={{
-                  width: '18px',
-                  height: '3px',
-                  background: s.color,
-                  borderRadius: '2px',
-                  display: 'inline-block'
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#34292A',
+                  opacity: isMuted ? 0.52 : 1
                 }}
-              />
-              <span>{s.label}</span>
-            </div>
-          ))}
+              >
+                <span
+                  style={{
+                    width: '18px',
+                    height: '3px',
+                    background: s.color,
+                    borderRadius: '2px',
+                    display: 'inline-block'
+                  }}
+                />
+                <span>
+                  {s.label}
+                  {isMuted ? ' (add market rent)' : ''}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {/* Empty Market Rent Callout (Brand Quietude — no orange) */}
+      {!hasMarketRent && (
+        <div
+          style={{
+            marginBottom: '12px',
+            padding: '9px 12px',
+            borderRadius: '8px',
+            background: 'rgba(189, 211, 226, 0.25)',
+            border: '1px solid rgba(133, 157, 206, 0.42)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px',
+            fontSize: '11.5px',
+            color: '#34292A'
+          }}
+        >
+          <span>
+            Add <strong>Market rent after move-out ($/mo)</strong> above to plot{' '}
+            <strong>A · Rent</strong> and <strong>C · Keep &amp; buy next</strong> alongside{' '}
+            <strong>B · Sell</strong>.
+          </span>
+          {typeof onFocusMarketRent === 'function' && (
+            <button
+              type="button"
+              onClick={onFocusMarketRent}
+              style={{
+                border: '1px solid rgba(52, 41, 42, 0.22)',
+                background: '#FFFFFF',
+                color: '#34292A',
+                borderRadius: '999px',
+                padding: '4px 10px',
+                fontSize: '10.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: BODY_FONT
+              }}
+            >
+              Add market rent ↑
+            </button>
+          )}
+        </div>
+      )}
 
       {/* SVG Line Chart */}
       <div style={{ width: '100%', overflowX: 'auto' }}>
@@ -240,7 +309,7 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
           })}
 
           {/* Lines & Data Nodes */}
-          {SERIES_META.map((s) => {
+          {plottableSeries.map((s) => {
             const pointsAttr = wealthSeries
               .map((pt, idx) => `${xPositions[idx]},${yForVal(pt[s.key])}`)
               .join(' ');
@@ -308,7 +377,7 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
                 borderRadius: '10px',
                 padding: '10px 12px',
                 cursor: 'pointer',
-                fontFamily: "'Montserrat', sans-serif"
+                fontFamily: BODY_FONT
               }}
             >
               <div
@@ -324,33 +393,44 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
                 Year {pt.year} Net Worth
               </div>
               <div style={{ display: 'grid', gap: '4px' }}>
-                {SERIES_META.map((s) => (
-                  <div
-                    key={s.key}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '11.5px'
-                    }}
-                  >
-                    <span style={{ color: 'rgba(52, 41, 42, 0.75)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span
+                {SERIES_META.map((s) => {
+                  const val = pt[s.key];
+                  const missing = val == null || !Number.isFinite(val);
+                  return (
+                    <div
+                      key={s.key}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '11.5px'
+                      }}
+                    >
+                      <span style={{ color: 'rgba(52, 41, 42, 0.75)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            background: s.color,
+                            display: 'inline-block'
+                          }}
+                        />
+                        {s.label}
+                      </span>
+                      <strong
                         style={{
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          background: s.color,
-                          display: 'inline-block'
+                          color: missing ? 'rgba(52, 41, 42, 0.52)' : s.color,
+                          fontWeight: 600,
+                          fontSize: missing ? '10.5px' : '11.5px'
                         }}
-                      />
-                      {s.label}
-                    </span>
-                    <strong style={{ color: s.color, fontWeight: 600 }}>
-                      {formatCurrency(pt[s.key])}
-                    </strong>
-                  </div>
-                ))}
+                      >
+                        {missing ? 'Add market rent' : formatCurrency(val)}
+                      </strong>
+                    </div>
+                  );
+                })}
               </div>
             </button>
           );
@@ -359,4 +439,3 @@ export default function LiveInWealthChart({ wealthSeries = [], liveInYears = 2 }
     </div>
   );
 }
-

@@ -767,7 +767,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                 {strategy.toUpperCase()} ACQUISITION REPORT
               </span>
               <h1 style={{
-                fontFamily: 'var(--font-display, "Instrument Serif", "Atelier Fleur", Georgia, serif)',
+                fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
                 fontSize: '40px',
                 fontWeight: 400,
                 color: 'var(--espresso, #34292A)',
@@ -859,16 +859,20 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ display: 'block', fontSize: '10.5px', fontWeight: 600, color: 'rgba(52, 41, 42, 0.6)', textTransform: 'uppercase' }}>
-                  PROJECTED PROFIT
+                  {strategy === 'live_in' ? 'LIVE-IN NET COST' : 'PROJECTED PROFIT'}
                 </span>
                 <span style={{
                   fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
                   fontSize: '28px',
                   fontWeight: 600,
-                  color: (results.projectedProfit || 0) >= 0 ? 'var(--secondary-color, #41101B)' : '#b91c1c'
+                  color: strategy === 'live_in'
+                    ? 'var(--espresso, #34292A)'
+                    : ((results.projectedProfit || 0) >= 0 ? 'var(--secondary-color, #41101B)' : '#b91c1c')
                 }}>
-                  {(results.projectedProfit || 0) >= 0 ? '+' : ''}{formatCurrency(results.projectedProfit || 0)}
-                  {results.roi != null && (
+                  {strategy === 'live_in'
+                    ? `${formatCurrency(results.live?.netLiveInMonthlyCost || 0)}/mo`
+                    : `${(results.projectedProfit || 0) >= 0 ? '+' : ''}${formatCurrency(results.projectedProfit || 0)}`}
+                  {strategy !== 'live_in' && results.roi != null && (
                     <span style={{ fontSize: '15px', fontWeight: 400, marginLeft: '8px', color: 'rgba(52, 41, 42, 0.7)' }}>
                       ({(results.roi * 100).toFixed(1)}% ROI)
                     </span>
@@ -1039,19 +1043,23 @@ export default function DealReportPage({ propertyId, navigateTo }) {
 
               <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.08)' }}>
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
-                  TARGET ARV
+                  {strategy === 'live_in' ? 'VALUE AFTER RENO' : 'TARGET ARV'}
                 </span>
                 <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--secondary-color, #41101B)' }}>
-                  {formatCurrency(inputs.arv || 0)}
+                  {formatCurrency(inputs.arv || inputs.valueAfterReno || results.improve?.valueAfterReno || 0)}
                 </span>
               </div>
 
               <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.08)' }}>
                 <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'rgba(52, 41, 42, 0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block' }}>
-                  TOTAL PROJECT COST
+                  {strategy === 'live_in' ? 'EXIT CASH FLOW' : 'TOTAL PROJECT COST'}
                 </span>
                 <span style={{ fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)', fontSize: '26px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
-                  {formatCurrency(results.totalCost || 0)}
+                  {strategy === 'live_in'
+                    ? (results.exit?.rent?.hasMarketRent && results.exit?.rent?.monthlyCashFlow != null
+                        ? `${results.exit.rent.monthlyCashFlow >= 0 ? '+' : ''}${formatCurrency(results.exit.rent.monthlyCashFlow)}/mo`
+                        : 'Add market rent')
+                    : formatCurrency(results.totalCost || 0)}
                 </span>
               </div>
             </div>

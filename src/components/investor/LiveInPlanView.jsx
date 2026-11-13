@@ -4,11 +4,13 @@ import FormattedNumberInput from './FormattedNumberInput.jsx';
 import {
   CREDIT_SCORE_BANDS,
   LIVE_IN_PLAN_DISCLAIMER,
+  LIVE_IN_TAX_DISCLAIMER,
   getMergedFinancingConfig
 } from '../../config/financing.js';
 import { loadThemeFont } from '../../utils/themeFonts.js';
 import { formatCurrency } from './underwriting.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
+import LiveInWealthChart from './LiveInWealthChart.jsx';
 
 // Heading token strictly resolves to Instrument Serif (portal default) with zero other custom serifs
 const HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
@@ -32,12 +34,23 @@ const LIVE_IN_PERIOD_OPTIONS = [
   { id: 2, label: '2 years' }
 ];
 
+const FILING_STATUS_OPTIONS = [
+  { id: 'single', label: 'Single ($250k)' },
+  { id: 'married', label: 'Married ($500k)' }
+];
+
 const LESSON_LINKS = [
   { key: 'fha_plain_words', title: 'FHA in plain words' },
   { key: 'live_in_flip_vs_house_hack', title: 'Live-in flip vs. house hack' },
   { key: 'section_121_year_two', title: 'Why year 2 matters (Section 121)' },
   { key: 'homestead_when_you_rent', title: 'Homestead and what changes when you rent' }
 ];
+
+function fmtPct(decOrNum, digits = 1, isAlreadyPercent = false) {
+  if (decOrNum == null || !Number.isFinite(Number(decOrNum))) return '—';
+  const val = isAlreadyPercent ? Number(decOrNum) : Number(decOrNum) * 100;
+  return `${val.toFixed(digits)}%`;
+}
 
 const SELECT_CHEVRON_BG =
   "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2334292A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
@@ -294,6 +307,15 @@ export default function LiveInPlanView({
       valueAfterRenoSource: targetAppraisalLabel,
       valueAfterRenoTouched: false
     });
+  };
+
+  const focusMarketRentInput = () => {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('livein-market-rent');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus();
+    }
   };
 
   const handleOpenLesson = (termKey) => {
@@ -977,7 +999,7 @@ export default function LiveInPlanView({
       </div>
 
       {/* =================================================================== */}
-      {/* PART 1 PHASES: 01 BUY · 02 LIVE                                     */}
+      {/* FOUR PHASES: 01 BUY · 02 LIVE · 03 IMPROVE · 04 EXIT               */}
       {/* =================================================================== */}
       {!results?.isComplete ? (
         <div
@@ -988,241 +1010,804 @@ export default function LiveInPlanView({
             padding: '32px 20px'
           }}
         >
-          {results?.hint || 'Enter a purchase price above to calculate your Live-in phases.'}
+          {results?.hint || 'Enter a purchase price above to calculate all four Live-in phases.'}
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(295px, 1fr))',
-            gap: '16px'
-          }}
-        >
-          {/* PHASE 01: BUY */}
-          <div style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
-              <span
+        <>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(295px, 1fr))',
+              gap: '16px'
+            }}
+          >
+            {/* PHASE 01: BUY */}
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: '#41101B'
+                  }}
+                >
+                  01 · BUY
+                </span>
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: results.buy.overFhaLimit
+                      ? 'rgba(65, 16, 27, 0.09)'
+                      : 'rgba(63, 90, 58, 0.11)',
+                    color: results.buy.overFhaLimit ? '#41101B' : '#3F5A3A',
+                    border: results.buy.overFhaLimit
+                      ? '1px solid rgba(65, 16, 27, 0.28)'
+                      : '1px solid rgba(63, 90, 58, 0.28)'
+                  }}
+                >
+                  {results.buy.overFhaLimit
+                    ? `Exceeds FHA limit by ${formatCurrency(results.buy.overFhaLimitBy)}`
+                    : `Within ${results.buy.fhaLimitInfo.countyKey} ${results.buy.fhaLimitInfo.units}-unit limit`}
+                  {results.buy.fhaLimitInfo.verify ? ' · VERIFY' : ''}
+                </span>
+              </div>
+
+              <div
                 style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: '#41101B'
+                  fontFamily: HEADING_FONT,
+                  fontSize: '32px',
+                  fontWeight: 400,
+                  lineHeight: 1.1,
+                  color: '#34292A',
+                  marginBottom: '4px'
                 }}
               >
-                01 · BUY
-              </span>
-              <span
-                style={{
-                  fontSize: '9.5px',
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  background: results.buy.overFhaLimit
-                    ? 'rgba(65, 16, 27, 0.09)'
-                    : 'rgba(63, 90, 58, 0.11)',
-                  color: results.buy.overFhaLimit ? '#41101B' : '#3F5A3A',
-                  border: results.buy.overFhaLimit
-                    ? '1px solid rgba(65, 16, 27, 0.28)'
-                    : '1px solid rgba(63, 90, 58, 0.28)'
-                }}
-              >
-                {results.buy.overFhaLimit
-                  ? `Exceeds FHA limit by ${formatCurrency(results.buy.overFhaLimitBy)}`
-                  : `Within ${results.buy.fhaLimitInfo.countyKey} ${results.buy.fhaLimitInfo.units}-unit limit`}
-                {results.buy.fhaLimitInfo.verify ? ' · VERIFY' : ''}
-              </span>
-            </div>
+                {formatCurrency(results.buy.totalOutOfPocketCash)}
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '12px' }}>
+                Total cash needed ({formatCurrency(results.buy.cashToCloseAtTable)} at closing
+                {results.buy.cashRehabOutOfPocket > 0
+                  ? ` + ${formatCurrency(results.buy.cashRehabOutOfPocket)} cash reno`
+                  : ''}
+                )
+              </div>
 
-            <div
-              style={{
-                fontFamily: HEADING_FONT,
-                fontSize: '32px',
-                fontWeight: 400,
-                lineHeight: 1.1,
-                color: '#34292A',
-                marginBottom: '4px'
-              }}
-            >
-              {formatCurrency(results.buy.totalOutOfPocketCash)}
-            </div>
-            <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '12px' }}>
-              Total cash needed ({formatCurrency(results.buy.cashToCloseAtTable)} at closing
-              {results.buy.cashRehabOutOfPocket > 0
-                ? ` + ${formatCurrency(results.buy.cashRehabOutOfPocket)} cash reno`
-                : ''}
-              )
-            </div>
-
-            <div style={rowStyle}>
-              <span>Down payment ({results.buy.downPaymentPct}%)</span>
-              <strong>{formatCurrency(results.buy.downPayment)}</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>Base FHA loan</span>
-              <strong>{formatCurrency(results.buy.baseLoan)}</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>Financed UFMIP ({results.buy.ufmipPct}%)</span>
-              <strong>+{formatCurrency(results.buy.ufmipAmount)}</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>Total FHA loan amount</span>
-              <strong>{formatCurrency(results.buy.totalLoanAmount)}</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>Closing costs ({results.buy.closingCostsPct}%)</span>
-              <strong>{formatCurrency(results.buy.closingCosts)}</strong>
-            </div>
-            {results.buy.effectiveSellerCredits > 0 && (
               <div style={rowStyle}>
-                <span>Seller credits applied</span>
-                <strong style={{ color: '#3F5A3A' }}>
-                  −{formatCurrency(results.buy.effectiveSellerCredits)}
+                <span>Down payment ({results.buy.downPaymentPct}%)</span>
+                <strong>{formatCurrency(results.buy.downPayment)}</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Base FHA loan</span>
+                <strong>{formatCurrency(results.buy.baseLoan)}</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Financed UFMIP ({results.buy.ufmipPct}%)</span>
+                <strong>+{formatCurrency(results.buy.ufmipAmount)}</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Total FHA loan amount</span>
+                <strong>{formatCurrency(results.buy.totalLoanAmount)}</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Closing costs ({results.buy.closingCostsPct}%)</span>
+                <strong>{formatCurrency(results.buy.closingCosts)}</strong>
+              </div>
+              {results.buy.effectiveSellerCredits > 0 && (
+                <div style={rowStyle}>
+                  <span>Seller credits applied</span>
+                  <strong style={{ color: '#3F5A3A' }}>
+                    −{formatCurrency(results.buy.effectiveSellerCredits)}
+                  </strong>
+                </div>
+              )}
+
+              {results.buy.mySavings != null && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '9px 11px',
+                    borderRadius: '8px',
+                    background:
+                      results.buy.savingsDelta >= 0
+                        ? 'rgba(63, 90, 58, 0.08)'
+                        : 'rgba(65, 16, 27, 0.07)',
+                    border:
+                      results.buy.savingsDelta >= 0
+                        ? '1px solid rgba(63, 90, 58, 0.22)'
+                        : '1px solid rgba(65, 16, 27, 0.25)',
+                    fontSize: '11.5px',
+                    color: results.buy.savingsDelta >= 0 ? '#3F5A3A' : '#41101B',
+                    fontWeight: 600
+                  }}
+                >
+                  {results.buy.savingsDelta >= 0
+                    ? `Leaves ${formatCurrency(results.buy.savingsDelta)} of your ${formatCurrency(results.buy.mySavings)} profile savings`
+                    : `Exceeds your ${formatCurrency(results.buy.mySavings)} profile savings by ${formatCurrency(Math.abs(results.buy.savingsDelta))}`}
+                </div>
+              )}
+
+              {results.buy.limited203kExceeded && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(65, 16, 27, 0.30)',
+                    background: 'rgba(65, 16, 27, 0.06)',
+                    color: '#41101B',
+                    fontSize: '11px'
+                  }}
+                >
+                  Renovation exceeds Limited 203(k) max ({formatCurrency(mergedConfig.fha.limited203kMaxRehab)}) — switch to Standard 203(k) or reduce scope.
+                </div>
+              )}
+            </div>
+
+            {/* PHASE 02: LIVE */}
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: '#41101B'
+                  }}
+                >
+                  02 · LIVE ({results.live.liveInYears} {results.live.liveInYears === 1 ? 'YR' : 'YRS'})
+                </span>
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background:
+                      results.live.vsCurrentRentMo <= 0
+                        ? 'rgba(63, 90, 58, 0.11)'
+                        : 'rgba(189, 211, 226, 0.38)',
+                    color: results.live.vsCurrentRentMo <= 0 ? '#3F5A3A' : '#34292A'
+                  }}
+                >
+                  {results.live.rentComparisonLabel}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  fontFamily: HEADING_FONT,
+                  fontSize: '32px',
+                  fontWeight: 400,
+                  lineHeight: 1.1,
+                  color: '#34292A',
+                  marginBottom: '4px'
+                }}
+              >
+                {formatCurrency(results.live.netLiveInMonthlyCost)}/mo
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '12px' }}>
+                Net live-in monthly housing cost vs. {formatCurrency(results.live.currentRentMo)}/mo current rent
+              </div>
+
+              <div style={rowStyle}>
+                <span>Principal & interest</span>
+                <strong>{formatCurrency(results.live.monthlyPi)}/mo</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>
+                  Annual MIP ({results.buy.annualMipPct}% ·{' '}
+                  {results.buy.mipForLife ? 'for life' : `${results.buy.mipDurationYears} yrs`})
+                </span>
+                <strong>{formatCurrency(results.live.monthlyMip)}/mo</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Taxes (with Homestead) + Ins. + HOA</span>
+                <strong>
+                  {formatCurrency(
+                    results.live.homesteadTaxMo +
+                      results.live.liveInInsuranceMo +
+                      results.live.hoaMonthly
+                  )}
+                  /mo
                 </strong>
               </div>
-            )}
+              {results.live.units >= 2 && (
+                <div style={rowStyle}>
+                  <span>75% of other-unit rent ({formatCurrency(results.live.otherUnitsRentMo)}/mo)</span>
+                  <strong style={{ color: '#3F5A3A' }}>
+                    −{formatCurrency(results.live.creditedOtherUnitsRentMo)}/mo
+                  </strong>
+                </div>
+              )}
 
-            {results.buy.mySavings != null && (
               <div
                 style={{
                   marginTop: '10px',
-                  padding: '9px 11px',
+                  padding: '10px 12px',
                   borderRadius: '8px',
-                  background:
-                    results.buy.savingsDelta >= 0
-                      ? 'rgba(63, 90, 58, 0.08)'
-                      : 'rgba(65, 16, 27, 0.07)',
-                  border:
-                    results.buy.savingsDelta >= 0
-                      ? '1px solid rgba(63, 90, 58, 0.22)'
-                      : '1px solid rgba(65, 16, 27, 0.25)',
-                  fontSize: '11.5px',
-                  color: results.buy.savingsDelta >= 0 ? '#3F5A3A' : '#41101B',
-                  fontWeight: 600
+                  background: '#FAF8F5',
+                  border: '1px solid rgba(52, 41, 42, 0.10)',
+                  fontSize: '11.5px'
                 }}
               >
-                {results.buy.savingsDelta >= 0
-                  ? `Leaves ${formatCurrency(results.buy.savingsDelta)} of your ${formatCurrency(results.buy.mySavings)} profile savings`
-                  : `Exceeds your ${formatCurrency(results.buy.mySavings)} profile savings by ${formatCurrency(Math.abs(results.buy.savingsDelta))}`}
+                <div style={{ fontWeight: 700, color: '#34292A', marginBottom: '4px' }}>
+                  Equity built while living there: +{formatCurrency(results.live.equityBuiltWhileLiving)}
+                </div>
+                <div style={{ color: 'rgba(52, 41, 42, 0.72)' }}>
+                  {formatCurrency(results.live.principalPaidDown)} principal paid down +{' '}
+                  {formatCurrency(results.live.appreciationWhileLiving)} appreciation
+                </div>
               </div>
-            )}
+            </div>
 
-            {results.buy.limited203kExceeded && (
+            {/* PHASE 03: IMPROVE */}
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: '#41101B'
+                  }}
+                >
+                  03 · IMPROVE
+                </span>
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: 'rgba(189, 211, 226, 0.35)',
+                    color: '#34292A'
+                  }}
+                >
+                  {results.improve.rehabPaidBy === 'limited_203k'
+                    ? 'Financed · Limited 203(k)'
+                    : results.improve.rehabPaidBy === 'standard_203k'
+                    ? 'Financed · Standard 203(k)'
+                    : 'Paid in Cash'}
+                </span>
+              </div>
+
               <div
                 style={{
-                  marginTop: '8px',
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(65, 16, 27, 0.30)',
-                  background: 'rgba(65, 16, 27, 0.06)',
-                  color: '#41101B',
-                  fontSize: '11px'
+                  fontFamily: HEADING_FONT,
+                  fontSize: '32px',
+                  fontWeight: 400,
+                  lineHeight: 1.1,
+                  color: '#34292A',
+                  marginBottom: '4px'
                 }}
               >
-                Renovation exceeds Limited 203(k) max ({formatCurrency(mergedConfig.fha.limited203kMaxRehab)}) — switch to Standard 203(k) or reduce scope.
+                {formatCurrency(results.improve.equityAtExit)}
               </div>
-            )}
-          </div>
+              <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '12px' }}>
+                Total equity at Year {results.live.liveInYears} ({fmtPct(results.improve.equityPctAtExit)} of value)
+              </div>
 
-          {/* PHASE 02: LIVE */}
-          <div style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: '#41101B'
-                }}
-              >
-                02 · LIVE ({results.live.liveInYears} {results.live.liveInYears === 1 ? 'YR' : 'YRS'})
-              </span>
-              <span
-                style={{
-                  fontSize: '9.5px',
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  background:
-                    results.live.vsCurrentRentMo <= 0
-                      ? 'rgba(63, 90, 58, 0.11)'
-                      : 'rgba(189, 211, 226, 0.38)',
-                  color: results.live.vsCurrentRentMo <= 0 ? '#3F5A3A' : '#34292A'
-                }}
-              >
-                {results.live.rentComparisonLabel}
-              </span>
-            </div>
-
-            <div
-              style={{
-                fontFamily: HEADING_FONT,
-                fontSize: '32px',
-                fontWeight: 400,
-                lineHeight: 1.1,
-                color: '#34292A',
-                marginBottom: '4px'
-              }}
-            >
-              {formatCurrency(results.live.netLiveInMonthlyCost)}/mo
-            </div>
-            <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '12px' }}>
-              Net live-in monthly housing cost vs. {formatCurrency(results.live.currentRentMo)}/mo current rent
-            </div>
-
-            <div style={rowStyle}>
-              <span>Principal & interest</span>
-              <strong>{formatCurrency(results.live.monthlyPi)}/mo</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>
-                Annual MIP ({results.buy.annualMipPct}% ·{' '}
-                {results.buy.mipForLife ? 'for life' : `${results.buy.mipDurationYears} yrs`})
-              </span>
-              <strong>{formatCurrency(results.live.monthlyMip)}/mo</strong>
-            </div>
-            <div style={rowStyle}>
-              <span>Taxes (with Homestead) + Ins. + HOA</span>
-              <strong>
-                {formatCurrency(
-                  results.live.homesteadTaxMo +
-                    results.live.liveInInsuranceMo +
-                    results.live.hoaMonthly
-                )}
-                /mo
-              </strong>
-            </div>
-            {results.live.units >= 2 && (
               <div style={rowStyle}>
-                <span>75% of other-unit rent ({formatCurrency(results.live.otherUnitsRentMo)}/mo)</span>
-                <strong style={{ color: '#3F5A3A' }}>
-                  −{formatCurrency(results.live.creditedOtherUnitsRentMo)}/mo
+                <span>Renovation cost</span>
+                <strong>{formatCurrency(results.improve.rehabBudget)}</strong>
+              </div>
+              {results.improve.is203k && results.improve.rehabBudget > 0 && (
+                <div style={rowStyle}>
+                  <span>203(k) financed / down-payment share</span>
+                  <strong>
+                    {formatCurrency(results.improve.financedRehabAmount)} /{' '}
+                    {formatCurrency(results.improve.cashRehabAmount)}
+                  </strong>
+                </div>
+              )}
+              <div style={rowStyle}>
+                <span>
+                  {hasRehab ? 'Value after renovation (ARV)' : 'Property value (as-is)'}
+                </span>
+                <strong>{formatCurrency(results.improve.valueAfterReno)}</strong>
+              </div>
+              <div style={rowStyle}>
+                <span>Gross value added vs. purchase</span>
+                <strong style={{ color: results.improve.valueAdded >= 0 ? '#3F5A3A' : '#41101B' }}>
+                  {results.improve.valueAdded >= 0 ? '+' : ''}
+                  {formatCurrency(results.improve.valueAdded)}
                 </strong>
               </div>
-            )}
+              {results.improve.rehabBudget > 0 && (
+                <div style={rowStyle}>
+                  <span>Net forced equity (after reno cost)</span>
+                  <strong
+                    style={{
+                      color: results.improve.netForcedEquity >= 0 ? '#3F5A3A' : '#41101B'
+                    }}
+                  >
+                    {results.improve.netForcedEquity >= 0 ? '+' : ''}
+                    {formatCurrency(results.improve.netForcedEquity)}
+                  </strong>
+                </div>
+              )}
+              <div style={rowStyle}>
+                <span>Equity after renovation (Day 1)</span>
+                <strong>
+                  {formatCurrency(results.improve.equityAfterRenoDay1)} (
+                  {fmtPct(results.improve.equityPctAfterRenoDay1)})
+                </strong>
+              </div>
+
+              {results.improve.over15PctZeroRehabWarning && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(65, 16, 27, 0.28)',
+                    background: 'rgba(65, 16, 27, 0.06)',
+                    color: '#41101B',
+                    fontSize: '11px'
+                  }}
+                >
+                  Value is +{results.improve.valuePctAbovePurchase.toFixed(1)}% above purchase with $0 renovation — confirm comps or add renovation budget.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PHASE 04: EXIT — THREE SCENARIOS SIDE BY SIDE */}
+          <div style={cardStyle}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+                marginBottom: '16px'
+              }}
+            >
+              <div>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: '#41101B'
+                  }}
+                >
+                  04 · EXIT OPTIONS (AFTER LIVE-IN PHASE)
+                </span>
+                <h4
+                  style={{
+                    margin: '4px 0 0',
+                    fontFamily: HEADING_FONT,
+                    fontSize: '25px',
+                    fontWeight: 400,
+                    lineHeight: 1.15,
+                    color: '#34292A'
+                  }}
+                >
+                  Compare Rent, Sell, or Keep &amp; Buy Property #2
+                </h4>
+              </div>
+            </div>
 
             <div
               style={{
-                marginTop: '10px',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: '#FAF8F5',
-                border: '1px solid rgba(52, 41, 42, 0.10)',
-                fontSize: '11.5px'
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(275px, 1fr))',
+                gap: '16px'
               }}
             >
-              <div style={{ fontWeight: 700, color: '#34292A', marginBottom: '4px' }}>
-                Equity built while living there: +{formatCurrency(results.live.equityBuiltWhileLiving)}
+              {/* EXIT A: RENT */}
+              <div
+                style={{
+                  background: '#FAF8F5',
+                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  borderRadius: '12px',
+                  padding: '16px'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '6px'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      letterSpacing: '0.09em',
+                      textTransform: 'uppercase',
+                      color: '#41101B'
+                    }}
+                  >
+                    A · RENT IT OUT
+                  </span>
+                  {!results.exit.rent.hasMarketRent && (
+                    <button
+                      type="button"
+                      onClick={focusMarketRentInput}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        padding: 0,
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        color: '#5C75A8',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontFamily: BODY_FONT
+                      }}
+                    >
+                      Enter rent ↑
+                    </button>
+                  )}
+                </div>
+
+                {results.exit.rent.hasMarketRent ? (
+                  <>
+                    <div
+                      style={{
+                        fontFamily: HEADING_FONT,
+                        fontSize: '30px',
+                        fontWeight: 400,
+                        lineHeight: 1.1,
+                        color: results.exit.rent.monthlyCashFlow >= 0 ? '#3F5A3A' : '#41101B',
+                        marginBottom: '4px'
+                      }}
+                    >
+                      {results.exit.rent.monthlyCashFlow >= 0 ? '+' : ''}
+                      {formatCurrency(results.exit.rent.monthlyCashFlow)}/mo
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '10px' }}>
+                      Monthly cash flow (incl. reassessed non-homestead tax)
+                    </div>
+
+                    <div style={rowStyle}>
+                      <span>Projected market rent (Yr {results.live.liveInYears})</span>
+                      <strong>{formatCurrency(results.exit.rent.exitGrossRentMo)}/mo</strong>
+                    </div>
+                    <div style={rowStyle}>
+                      <span>Cash-on-Cash return</span>
+                      <strong>
+                        {results.exit.rent.isInfiniteCoC
+                          ? '∞ (All cash out)'
+                          : fmtPct(results.exit.rent.cashOnCash)}
+                      </strong>
+                    </div>
+                    <div style={rowStyle}>
+                      <span>DSCR</span>
+                      <strong>
+                        {results.exit.rent.dscr != null ? `${results.exit.rent.dscr.toFixed(2)}x` : '—'}
+                      </strong>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        fontFamily: HEADING_FONT,
+                        fontSize: '28px',
+                        fontWeight: 400,
+                        lineHeight: 1.15,
+                        color: 'rgba(52, 41, 42, 0.72)',
+                        marginBottom: '4px'
+                      }}
+                    >
+                      Add market rent
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '10px' }}>
+                      Enter &ldquo;Market rent after move-out ($/mo)&rdquo; above to see exit cash flow
+                    </div>
+
+                    <div style={rowStyle}>
+                      <span>Projected market rent (Yr {results.live.liveInYears})</span>
+                      <strong style={{ color: 'rgba(52, 41, 42, 0.58)', fontWeight: 600 }}>
+                        Add market rent
+                      </strong>
+                    </div>
+                    <div style={rowStyle}>
+                      <span>Cash-on-Cash return</span>
+                      <strong style={{ color: 'rgba(52, 41, 42, 0.58)', fontWeight: 600 }}>
+                        Add market rent
+                      </strong>
+                    </div>
+                    <div style={rowStyle}>
+                      <span>DSCR</span>
+                      <strong style={{ color: 'rgba(52, 41, 42, 0.58)', fontWeight: 600 }}>
+                        Add market rent
+                      </strong>
+                    </div>
+                  </>
+                )}
+
+                {/* Optional Conventional Refinance at >=20% equity */}
+                <div
+                  style={{
+                    marginTop: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '9px',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(52, 41, 42, 0.12)'
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      color: results.exit.rent.convRefi.eligible ? '#34292A' : 'rgba(52, 41, 42, 0.55)',
+                      cursor: results.exit.rent.convRefi.eligible ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(inputs.useConvRefi && results.exit.rent.convRefi.eligible)}
+                      disabled={!results.exit.rent.convRefi.eligible}
+                      onChange={(e) => onChangeInput('useConvRefi', e.target.checked)}
+                    />
+                    <span>Refinance to Conventional at ≥20% equity (drops MIP)</span>
+                  </label>
+
+                  {results.exit.rent.convRefi.eligible ? (
+                    <div style={{ marginTop: '8px', fontSize: '11px', lineHeight: 1.55, color: 'rgba(52, 41, 42, 0.8)' }}>
+                      <div>
+                        • Drops FHA MIP (<strong>{formatCurrency(results.exit.rent.convRefi.monthlyMipDropped)}/mo</strong> saved)
+                      </div>
+                      <div>
+                        • New Conv P&amp;I ({results.exit.rent.convRefi.ratePct}%):{' '}
+                        <strong>{formatCurrency(results.exit.rent.convRefi.newMonthlyPaymentPi)}/mo</strong>
+                      </div>
+                      <div>
+                        • 80% LTV cash out:{' '}
+                        <strong style={{ color: '#3F5A3A' }}>
+                          {formatCurrency(results.exit.rent.convRefi.cashOut)}
+                        </strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)' }}>
+                      Currently at {fmtPct(results.exit.rent.convRefi.equityPctAtExit)} equity — needs{' '}
+                      {formatCurrency(results.exit.rent.convRefi.equityNeededForRefi)} more value/paydown to reach 20% equity.
+                    </div>
+                  )}
+                </div>
               </div>
-              <div style={{ color: 'rgba(52, 41, 42, 0.72)' }}>
-                {formatCurrency(results.live.principalPaidDown)} principal paid down +{' '}
-                {formatCurrency(results.live.appreciationWhileLiving)} appreciation
+
+              {/* EXIT B: SELL (1 YR VS 2 YRS + SECTION 121) */}
+              <div
+                style={{
+                  background: '#FAF8F5',
+                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  borderRadius: '12px',
+                  padding: '16px'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexWrap: 'wrap',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      letterSpacing: '0.09em',
+                      textTransform: 'uppercase',
+                      color: '#5C75A8'
+                    }}
+                  >
+                    B · SELL (1 YR VS. 2 YRS)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      fontWeight: 600,
+                      padding: '2px 7px',
+                      borderRadius: '999px',
+                      background: 'rgba(189, 211, 226, 0.4)',
+                      color: '#34292A'
+                    }}
+                  >
+                    {LIVE_IN_TAX_DISCLAIMER}
+                  </span>
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                  <SegmentedControl
+                    size="sm"
+                    options={FILING_STATUS_OPTIONS}
+                    value={inputs.filingStatus || 'single'}
+                    onChange={(val) => onChangeInput('filingStatus', val)}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      width: '100%'
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '8px',
+                    marginBottom: '10px'
+                  }}
+                >
+                  {[results.exit.sell.year1, results.exit.sell.year2].map((yrData) => (
+                    <div
+                      key={yrData.years}
+                      style={{
+                        background: '#FFFFFF',
+                        border:
+                          yrData.years === 2
+                            ? '1px solid rgba(63, 90, 58, 0.35)'
+                            : '1px solid rgba(52, 41, 42, 0.10)',
+                        borderRadius: '9px',
+                        padding: '10px'
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.07em',
+                          color: yrData.years === 2 ? '#3F5A3A' : 'rgba(52, 41, 42, 0.7)',
+                          marginBottom: '4px'
+                        }}
+                      >
+                        After {yrData.years} {yrData.years === 1 ? 'yr' : 'yrs'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.72)' }}>
+                        Sale: <strong>{formatCurrency(yrData.salePrice)}</strong>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.72)' }}>
+                        Costs ({yrData.sellingCostsPct}%): −{formatCurrency(yrData.sellingCosts)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.72)', marginBottom: '4px' }}>
+                        Est. tax: −{formatCurrency(yrData.estimatedCapGainsTax)}
+                      </div>
+                      <div
+                        style={{
+                          paddingTop: '4px',
+                          borderTop: '1px solid rgba(52, 41, 42, 0.08)',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: yrData.profitAfterEstTax >= 0 ? '#3F5A3A' : '#41101B'
+                        }}
+                      >
+                        Profit: {formatCurrency(yrData.profitAfterEstTax)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '11px',
+                    lineHeight: 1.5,
+                    color: 'rgba(52, 41, 42, 0.78)',
+                    background: '#FFFFFF',
+                    padding: '9px 11px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(52, 41, 42, 0.09)'
+                  }}
+                >
+                  <strong>2-of-5-year rule (Section 121):</strong> Living in the home ≥ 2 of the last 5 years can exclude up to{' '}
+                  <strong>$250k single / $500k married</strong> in capital gains (
+                  <span style={{ fontStyle: 'italic', fontFamily: BODY_FONT }}>
+                    {LIVE_IN_TAX_DISCLAIMER}
+                  </span>
+                  ).
+                </div>
+              </div>
+
+              {/* EXIT C: KEEP & BUY NEXT */}
+              <div
+                style={{
+                  background: '#FAF8F5',
+                  border: '1px solid rgba(52, 41, 42, 0.12)',
+                  borderRadius: '12px',
+                  padding: '16px'
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.09em',
+                    textTransform: 'uppercase',
+                    color: '#3F5A3A',
+                    marginBottom: '6px'
+                  }}
+                >
+                  C · KEEP &amp; BUY PROPERTY #2
+                </div>
+
+                <div
+                  style={{
+                    fontFamily: HEADING_FONT,
+                    fontSize: '30px',
+                    fontWeight: 400,
+                    lineHeight: 1.1,
+                    color: '#34292A',
+                    marginBottom: '4px'
+                  }}
+                >
+                  {formatCurrency(results.exit.keepAndBuyNext.deployableCapitalForNext)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginBottom: '10px' }}>
+                  Accessible equity + savings available for Property #2
+                </div>
+
+                <div style={rowStyle}>
+                  <span>Property #1 equity kept</span>
+                  <strong>{formatCurrency(results.exit.keepAndBuyNext.property1EquityAtExit)}</strong>
+                </div>
+                <div style={rowStyle}>
+                  <span>Remaining + live-in rent savings</span>
+                  <strong>
+                    {formatCurrency(
+                      results.exit.keepAndBuyNext.remainingSavingsAfterClose +
+                        results.exit.keepAndBuyNext.savingsAccumulatedWhileLiving
+                    )}
+                  </strong>
+                </div>
+                <div style={rowStyle}>
+                  <span>Tappable 80% LTV cash-out</span>
+                  <strong>{formatCurrency(results.exit.keepAndBuyNext.tappableEquityCashOut)}</strong>
+                </div>
+                <div style={rowStyle}>
+                  <span>Est. #2 budget (@ 20% down + 3% close)</span>
+                  <strong>{formatCurrency(results.exit.keepAndBuyNext.estimatedNextPurchasingPower)}</strong>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: '10px',
+                    fontSize: '11px',
+                    lineHeight: 1.5,
+                    color: 'rgba(52, 41, 42, 0.78)',
+                    background: '#FFFFFF',
+                    padding: '9px 11px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(52, 41, 42, 0.09)'
+                  }}
+                >
+                  <strong>FHA rule note:</strong> {results.exit.keepAndBuyNext.oneFhaRuleNote}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* WEALTH CHART (3 / 5 / 10 YEARS) */}
+          <LiveInWealthChart
+            wealthSeries={results.wealthSeries}
+            liveInYears={results.live.liveInYears}
+            hasMarketRent={Boolean(results.hasMarketRent)}
+            onFocusMarketRent={focusMarketRentInput}
+          />
+        </>
       )}
 
       {/* Learning Lab Lesson Pills */}

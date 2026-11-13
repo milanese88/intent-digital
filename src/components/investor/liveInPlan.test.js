@@ -231,3 +231,57 @@ test('evaluateLiveInFit flags FHA limit, condo, HOA, flood zone, C5-C6 condition
   assert.equal(sixPlex.fits, false);
 });
 
+test('underwriteLiveInPlan handles empty marketRentMo cleanly ("Add market rent") without inventing exit cash flow', () => {
+  const res = underwriteLiveInPlan({
+    county: 'Broward',
+    purchasePrice: 480000,
+    units: 1,
+    rehabBudget: 0,
+    valueAfterReno: 480000,
+    marketRentMo: ''
+  });
+
+  assert.equal(res.isComplete, true);
+  assert.equal(res.hasMarketRent, false);
+  assert.equal(res.exit.rent.hasMarketRent, false);
+  assert.equal(res.exit.rent.monthlyCashFlow, null);
+  assert.equal(res.exit.rent.cashOnCash, null);
+  assert.equal(res.exit.rent.dscr, null);
+  assert.equal(res.monthlyCashFlow, null);
+  assert.match(res.verdict, /Add market rent/i);
+
+  // Wealth series leaves rent-dependent trajectories null while computing Sell (B)
+  for (const pt of res.wealthSeries) {
+    assert.equal(pt.rentNetWorth, null);
+    assert.equal(pt.keepAndBuyNextNetWorth, null);
+    assert.ok(Number.isFinite(pt.sellNetWorth));
+  }
+});
+
+test('underwriteLiveInPlan flags >15% valueAfterReno above purchase price when renovation budget is $0', () => {
+  const okZeroRehab = underwriteLiveInPlan({
+    county: 'Broward',
+    purchasePrice: 500000,
+    rehabBudget: 0,
+    valueAfterReno: 560000 // +12% -> no warning
+  });
+  assert.equal(okZeroRehab.over15PctZeroRehabWarning, false);
+
+  const highZeroRehab = underwriteLiveInPlan({
+    county: 'Broward',
+    purchasePrice: 500000,
+    rehabBudget: 0,
+    valueAfterReno: 590000 // +18% with $0 reno -> warning!
+  });
+  assert.equal(highZeroRehab.over15PctZeroRehabWarning, true);
+  assert.equal(highZeroRehab.improve.over15PctZeroRehabWarning, true);
+
+  const highWithRehab = underwriteLiveInPlan({
+    county: 'Broward',
+    purchasePrice: 500000,
+    rehabBudget: 55000,
+    valueAfterReno: 620000 // +24% WITH $55k reno -> no zero-rehab warning
+  });
+  assert.equal(highWithRehab.over15PctZeroRehabWarning, false);
+});
+
