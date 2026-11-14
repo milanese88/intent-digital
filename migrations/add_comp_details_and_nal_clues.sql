@@ -115,3 +115,20 @@ ALTER TABLE investor_properties
   ADD COLUMN IF NOT EXISTS waterfront boolean,
   ADD COLUMN IF NOT EXISTS subject_details jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+-- Carry over any subject_details saved before this migration ran
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'investor_properties'
+      AND column_name = 'before_offer_checklist'
+  ) THEN
+    UPDATE investor_properties
+    SET subject_details = before_offer_checklist->'subject_details'
+    WHERE (subject_details IS NULL OR subject_details = '{}'::jsonb)
+      AND before_offer_checklist ? 'subject_details';
+  END IF;
+END $$;
+

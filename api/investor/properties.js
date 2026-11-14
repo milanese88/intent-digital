@@ -280,8 +280,8 @@ export default async function handler(req, res) {
                 psi.zoning_code, psi.zoning_desc,
                 p.rehab_budget, p.rehab_budget_source, p.rehab_budget_updated_at,
                 p.has_hoa, p.hoa_monthly,
-                NULL::boolean AS pool, NULL::boolean AS garage, NULL::boolean AS waterfront,
-                '{}'::jsonb AS subject_details,
+                p.pool, p.garage, p.waterfront,
+                COALESCE(p.before_offer_checklist->'subject_details', '{}'::jsonb) AS subject_details,
                 COALESCE(p.is_studying, false) AS is_studying,
                 ipp.blob_url AS cover_photo_url,
                 p.created_at, p.updated_at
@@ -431,8 +431,8 @@ export default async function handler(req, res) {
               psi.zoning_code, psi.zoning_desc,
               p.rehab_budget, p.rehab_budget_source, p.rehab_budget_updated_at,
               p.has_hoa, p.hoa_monthly,
-              NULL::boolean AS pool, NULL::boolean AS garage, NULL::boolean AS waterfront,
-              '{}'::jsonb AS subject_details,
+              p.pool, p.garage, p.waterfront,
+              COALESCE(p.before_offer_checklist->'subject_details', '{}'::jsonb) AS subject_details,
               COALESCE(p.is_studying, false) AS is_studying,
               ipp.blob_url AS cover_photo_url,
               p.created_at, p.updated_at
@@ -719,6 +719,15 @@ export default async function handler(req, res) {
               rehab_budget_updated_at = ${data.rehab_budget_updated_at},
               has_hoa = ${data.has_hoa},
               hoa_monthly = ${data.hoa_monthly},
+              pool = ${data.pool},
+              garage = ${data.garage},
+              waterfront = ${data.waterfront},
+              before_offer_checklist = jsonb_set(
+                COALESCE(before_offer_checklist, '{}'::jsonb),
+                '{subject_details}',
+                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                true
+              ),
               is_studying = ${data.is_studying}
             WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
             RETURNING *
@@ -790,15 +799,22 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
+      const prevSubjectDetails =
+        current[0].subject_details && typeof current[0].subject_details === 'object' && Object.keys(current[0].subject_details).length > 0
+          ? current[0].subject_details
+          : (current[0].before_offer_checklist?.subject_details && typeof current[0].before_offer_checklist.subject_details === 'object'
+              ? current[0].before_offer_checklist.subject_details
+              : {});
+
       const merged = {
         ...current[0],
         ...req.body,
         subject_details: req.body?.subject_details !== undefined
           ? {
-              ...(current[0].subject_details && typeof current[0].subject_details === 'object' ? current[0].subject_details : {}),
+              ...prevSubjectDetails,
               ...(req.body.subject_details && typeof req.body.subject_details === 'object' ? req.body.subject_details : {})
             }
-          : current[0].subject_details
+          : prevSubjectDetails
       };
       const { errors, data } = validateProperty(merged);
       if (Object.keys(errors).length > 0) {
@@ -848,47 +864,92 @@ export default async function handler(req, res) {
         `;
       } catch (colErr) {
         if (colErr?.code === '23514') throw colErr;
-        if (req.body?.subject_details !== undefined && colErr?.code === '42703') {
-          return res.status(409).json({
-            error: 'The database migration "add_comp_details_and_nal_clues.sql" has not been applied yet. Please apply the SQL migration first.'
-          });
-        }
-        console.warn('Patch with subject_details columns failed, falling back:', colErr.message);
-        rows = await sql`
-          UPDATE investor_properties
-          SET
-            address = ${data.address},
-            city = ${data.city},
-            state = ${data.state},
-            zip = ${data.zip},
-            county = ${data.county},
-            lat = ${data.lat},
-            lng = ${data.lng},
-            property_type = ${data.property_type},
-            units = ${data.units},
-            beds = ${data.beds},
-            baths = ${data.baths},
-            sqft = ${data.sqft},
-            lot_sqft = ${data.lot_sqft},
-            year_built = ${data.year_built},
-            list_price = ${data.list_price},
-            status = ${data.status},
-            strategy = ${data.strategy},
-            condition = ${data.condition},
-            roof_year = ${data.roof_year},
-            listing_url = ${data.listing_url},
-            notes = ${data.notes},
-            is_studying = ${data.is_studying}
-          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-          RETURNING *
-        `;
-        if (rows[0]) {
-          rows[0].parcel_id = data.parcel_id || null;
-          rows[0].parcel_county = data.parcel_county || null;
-          rows[0].rehab_budget = data.rehab_budget || null;
-          rows[0].rehab_budget_source = data.rehab_budget_source || null;
-          rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
-          rows[0].subject_details = data.subject_details || {};
+        console.warn('Patch with subject_details column failed, storing in before_offer_checklist fallback:', colErr.message);
+        try {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes},
+              parcel_id = ${data.parcel_id},
+              parcel_county = ${data.parcel_county},
+              rehab_budget = ${data.rehab_budget},
+              rehab_budget_source = ${data.rehab_budget_source},
+              rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+              has_hoa = ${data.has_hoa},
+              hoa_monthly = ${data.hoa_monthly},
+              pool = ${data.pool},
+              garage = ${data.garage},
+              waterfront = ${data.waterfront},
+              before_offer_checklist = jsonb_set(
+                COALESCE(before_offer_checklist, '{}'::jsonb),
+                '{subject_details}',
+                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                true
+              ),
+              is_studying = ${data.is_studying}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].subject_details = data.subject_details || {};
+          }
+        } catch {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes},
+              is_studying = ${data.is_studying}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].parcel_id = data.parcel_id || null;
+            rows[0].parcel_county = data.parcel_county || null;
+            rows[0].rehab_budget = data.rehab_budget || null;
+            rows[0].rehab_budget_source = data.rehab_budget_source || null;
+            rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].subject_details = data.subject_details || {};
+          }
         }
       }
 
