@@ -10,6 +10,7 @@ import {
   getNextMonthsExpansion,
   getNextRadiusExpansion
 } from './compSearchLogic.js';
+import { formatCountyClues, detailsToLegacyColumns } from './compDetailsModel.js';
 
 const MONTH_OPTIONS = [
   { id: 3, label: '3 mo' },
@@ -206,6 +207,18 @@ export default function SuggestedCompsPanel({
         lng = coords.lng;
       }
 
+      const isOutlier = Boolean(candidate.is_outlier);
+      const savedDetails = candidate.saved_comp_details || null;
+      const prefilledColumns = savedDetails
+        ? detailsToLegacyColumns(savedDetails)
+        : {
+            condition: 'unknown',
+            pool: null,
+            garage: null,
+            waterfront: null,
+            comp_details_json: {}
+          };
+
       const payload = {
         property_id: property.id,
         address: niceAddress,
@@ -218,8 +231,14 @@ export default function SuggestedCompsPanel({
         sqft: Number(candidate.living_sqft),
         lot_sqft: candidate.land_sqft != null ? Number(candidate.land_sqft) : null,
         year_built: candidate.year_built ? Number(candidate.year_built) : null,
-        source: 'Property appraiser',
-        included: true,
+        source: savedDetails?.source || 'Property appraiser',
+        notes: savedDetails?.notes || null,
+        ...prefilledColumns,
+        included: isOutlier ? false : true,
+        is_outlier: isOutlier,
+        adjustments: isOutlier
+          ? { is_outlier: true, outlier_reason: candidate.outlier_reason || null }
+          : {},
         parcel_id: candidate.parcel_id,
         parcel_county: property.parcel_county || property.county || 'Broward'
       };
@@ -239,7 +258,7 @@ export default function SuggestedCompsPanel({
         onCompAdded(resJson);
       }
       if (showToast) {
-        showToast('Comp added');
+        showToast(isOutlier ? 'Outlier comp added (OFF by default in Appraisal)' : 'Comp added');
       }
     } catch (err) {
       console.error('Error adding comp:', err);
@@ -743,7 +762,7 @@ export default function SuggestedCompsPanel({
                       {ppsStr}
                     </span>
 
-                    {ybStr && (
+                    {ybStr && !c.likely_renovated && (
                       <span
                         style={{
                           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -755,15 +774,65 @@ export default function SuggestedCompsPanel({
                       </span>
                     )}
 
-                    {/* Likely Renovated Pill */}
-                    {c.likely_renovated && (
+                    {/* County Clues from DOR NAL: Likely renovated (both years), Extra features, Units */}
+                    {(() => {
+                      const clues = formatCountyClues(c);
+                      return (
+                        <>
+                          {clues.likelyRenovatedLabel && (
+                            <Pill
+                              variant="info"
+                              size="sm"
+                              title="DOR tax roll hint (not a confirmed fact — confirm in Edit)"
+                              style={{ textTransform: 'none', fontWeight: 600 }}
+                            >
+                              {clues.likelyRenovatedLabel}
+                            </Pill>
+                          )}
+                          {clues.extraFeaturesLabel && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title="DOR SPEC_FEAT_VAL hint (pools, enclosures, docks — confirm in Edit)"
+                              style={{
+                                backgroundColor: '#ffffff',
+                                border: '1px solid rgba(52, 41, 42, 0.14)',
+                                color: 'rgba(52, 41, 42, 0.78)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {clues.extraFeaturesLabel}
+                            </Pill>
+                          )}
+                          {clues.unitsLabel && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              style={{
+                                backgroundColor: '#ffffff',
+                                border: '1px solid rgba(52, 41, 42, 0.14)',
+                                color: 'rgba(52, 41, 42, 0.75)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {clues.unitsLabel}
+                            </Pill>
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    {/* Saved comp_details progress when previously filled */}
+                    {c.details_filled_count > 0 && (
                       <Pill
-                        variant="info"
+                        variant="positive"
                         size="sm"
-                        title={`Effective year built is ${c.eff_year_built} (actual ${c.year_built})`}
-                        style={{ cursor: 'help' }}
+                        title="Pre-filled from your saved comp_details"
+                        style={{ textTransform: 'none', fontWeight: 600 }}
                       >
-                        Renovated?
+                        Details: {c.details_filled_count} of 9 filled
                       </Pill>
                     )}
 

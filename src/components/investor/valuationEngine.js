@@ -5,9 +5,10 @@
  * 1. Palm Beach & Broward County Residential Appraisal Adjustment Guide:
  *    - Auto-selected property tiers from unadjusted median comp sale price
  *    - Size-method toggle: 35% of local $/sf vs tier library GLA rate + min variance threshold
- *    - Tier-scaled contributory values (Kitchen/Bath condition, Pool, Windstorm/Roof, Garage, Lot/Waterfront)
- *    - No below-grade basement modules (South Florida slab-on-grade standard)
- *    - Dedicated Location / Lot & Waterfront line separated from GLA and Condition
+ *    - Tier-scaled contributory values (UAD C1–C6 Condition, Windows, Roof, Pool, Garage, Waterfront/View & Lot)
+ *    - Strict "Unknown" handling: Unknown condition, windows, roof, pool, garage = $0 adjustment,
+ *      "Needs info" chip, and reduced reconciliation weight. Never infers impact windows or roof age from year_built.
+ *    - $/sf outlier comps default to OFF in the grid unless manually enabled.
  * 2. Property Appraisal Mathematics & Calculator Specification Guide:
  *    - Strict CIA (Comp Inferior -> Add, +) & CBS (Comp Better -> Subtract, -) sign logic
  *    - Net Adjustment ($ and %), Gross Adjustment ($ and %), Adjusted Sale Price (ASP)
@@ -15,6 +16,17 @@
  *    - Weighted Reconciliation Engine enforcing |sum(w_i) - 1.0| < 0.0001
  *    - Configurable market-precision rounding ($500 / $1,000 / $5,000)
  */
+
+import {
+  normalizeConditionKey,
+  normalizeCompDetails,
+  computeDetailsProgress,
+  formatCountyClues,
+  resolveSubjectDetailsForMode,
+  ROOF_TYPE_OPTIONS,
+  WINDOW_OPTIONS,
+  WATERFRONT_VIEW_OPTIONS
+} from './compDetailsModel.js';
 
 export const DEFAULT_VALUATION_SETTINGS = {
   sizeFactor: 0.5,             // legacy factor kept for backwards-compatible callers/tests
@@ -24,20 +36,139 @@ export const DEFAULT_VALUATION_SETTINGS = {
   garageAdjustment: 10000,     // $ value of garage
   waterfrontAdjustment: 50000, // $ value of waterfront frontage
   lotSqftAdjustment: 5,        // $ per lot sqft difference
-  ageAdjustmentPerYear: 1000,  // $ per year built difference
+  ageAdjustmentPerYear: 1000,  // $ per year built difference (legacy helper only)
   timeTrendMonthlyPct: 0.003   // 0.3% per month market trend default
 };
 
 export const COMP_CONDITIONS = {
-  as_is: { key: 'as_is', label: 'As-is', shortLabel: 'As-is (C4)', rank: 0, isRenovated: false, badgeClass: 'comp-cond-as-is' },
-  unknown: { key: 'unknown', label: 'Unknown', shortLabel: 'Unknown', rank: 0, isRenovated: false, badgeClass: 'comp-cond-unknown' },
-  updated: { key: 'updated', label: 'Updated', shortLabel: 'Updated (C3)', rank: 1, isRenovated: true, badgeClass: 'comp-cond-updated' },
-  fully_renovated: { key: 'fully_renovated', label: 'Fully renovated', shortLabel: 'Renovated (C2)', rank: 2, isRenovated: true, badgeClass: 'comp-cond-fully-renovated' }
+  c1: {
+    key: 'c1',
+    uad: 'C1',
+    label: 'C1 · New',
+    shortLabel: 'New (C1)',
+    rank: 3,
+    isRenovated: true,
+    color: '#3F5A3A',
+    bg: '#EEF2EA',
+    badgeClass: 'comp-cond-fully-renovated'
+  },
+  c2: {
+    key: 'c2',
+    uad: 'C2',
+    label: 'Fully renovated',
+    shortLabel: 'Renovated (C2)',
+    rank: 2,
+    isRenovated: true,
+    color: '#3F5A3A',
+    bg: '#EEF2EA',
+    badgeClass: 'comp-cond-fully-renovated'
+  },
+  fully_renovated: {
+    key: 'c2',
+    uad: 'C2',
+    label: 'Fully renovated',
+    shortLabel: 'Renovated (C2)',
+    rank: 2,
+    isRenovated: true,
+    color: '#3F5A3A',
+    bg: '#EEF2EA',
+    badgeClass: 'comp-cond-fully-renovated'
+  },
+  c3: {
+    key: 'c3',
+    uad: 'C3',
+    label: 'Updated',
+    shortLabel: 'Updated (C3)',
+    rank: 1,
+    isRenovated: true,
+    color: '#3F5A3A',
+    bg: '#EEF2EA',
+    badgeClass: 'comp-cond-updated'
+  },
+  updated: {
+    key: 'c3',
+    uad: 'C3',
+    label: 'Updated',
+    shortLabel: 'Updated (C3)',
+    rank: 1,
+    isRenovated: true,
+    color: '#3F5A3A',
+    bg: '#EEF2EA',
+    badgeClass: 'comp-cond-updated'
+  },
+  c4: {
+    key: 'c4',
+    uad: 'C4',
+    label: 'Original',
+    shortLabel: 'Original (C4)',
+    rank: 0,
+    isRenovated: false,
+    color: '#34292A',
+    bg: '#F2EFEA',
+    badgeClass: 'comp-cond-as-is'
+  },
+  original: {
+    key: 'c4',
+    uad: 'C4',
+    label: 'Original',
+    shortLabel: 'Original (C4)',
+    rank: 0,
+    isRenovated: false,
+    color: '#34292A',
+    bg: '#F2EFEA',
+    badgeClass: 'comp-cond-as-is'
+  },
+  as_is: {
+    key: 'c4',
+    uad: 'C4',
+    label: 'Original',
+    shortLabel: 'Original (C4)',
+    rank: 0,
+    isRenovated: false,
+    color: '#34292A',
+    bg: '#F2EFEA',
+    badgeClass: 'comp-cond-as-is'
+  },
+  c5: {
+    key: 'c5',
+    uad: 'C5',
+    label: 'C5 · Fair',
+    shortLabel: 'Fair (C5)',
+    rank: -1,
+    isRenovated: false,
+    color: '#41101B',
+    bg: 'rgba(65, 16, 27, 0.08)',
+    badgeClass: 'comp-cond-as-is'
+  },
+  c6: {
+    key: 'c6',
+    uad: 'C6',
+    label: 'C6 · Major rehab',
+    shortLabel: 'Poor (C6)',
+    rank: -2,
+    isRenovated: false,
+    color: '#41101B',
+    bg: 'rgba(65, 16, 27, 0.12)',
+    badgeClass: 'comp-cond-as-is'
+  },
+  unknown: {
+    key: 'unknown',
+    uad: null,
+    label: 'Unknown',
+    shortLabel: 'Unknown',
+    rank: null,
+    isRenovated: false,
+    color: '#6B5F58',
+    bg: '#F2EFEA',
+    badgeClass: 'comp-cond-unknown'
+  }
 };
 
 export function getConditionMeta(condKey) {
   const k = String(condKey || 'unknown').toLowerCase().trim();
-  return COMP_CONDITIONS[k] || COMP_CONDITIONS.unknown;
+  if (COMP_CONDITIONS[k]) return COMP_CONDITIONS[k];
+  const norm = normalizeConditionKey(k);
+  return COMP_CONDITIONS[norm] || COMP_CONDITIONS.unknown;
 }
 
 export const SOUTH_FLORIDA_TIERS = {
@@ -114,12 +245,12 @@ export const DEFAULT_ADJUSTMENT_LIBRARY = {
   bedAdjustment: 10000,
   fullBathAdjustment: 13000,       // Guide: $8,000 – $18,000 / bath
   halfBathAdjustment: 6000,        // Guide: $4,000 – $8,000 / half bath
-  conditionUpdatedVsAsIs: 22000,   // Minor kitchen refresh + bath update
-  conditionRenovatedVsAsIs: 48000, // Full kitchen ($30k) + baths ($18k)
+  conditionUpdatedVsAsIs: 22000,   // Minor kitchen refresh + bath update (C3 vs C4)
+  conditionRenovatedVsAsIs: 48000, // Full kitchen ($30k) + baths ($18k) (C2 vs C4)
   poolAdjustment: 40000,           // Guide: $30,000 – $50,000 Standard In-Ground Pool
   garageBayAdjustment: 15000,      // Guide: $10,000 – $20,000 / bay
   impactWindowsAdjustment: 25000,  // Guide: $15,000 – $35,000 Full Impact Windows & Doors
-  newerRoofAdjustment: 25000,      // Guide: $15,000 – $35,000 Newer Tile/Metal (<5 yrs vs >15 yrs)
+  newerRoofAdjustment: 25000,      // Guide: $15,000 – $35,000 Newer Roof (<5 yrs vs older)
   waterfrontAdjustment: 75000,     // Dedicated Location / Site / Waterfront adjustment
   lotSqftRate: 5,                  // $/sf for lot size variance beyond ±500 sf
   lotMinThreshold: 500,
@@ -214,47 +345,6 @@ export function normalizeReconciliationWeights(rawWeights = []) {
   return normalized;
 }
 
-function parseConditionRankFromSubject(subjectConditionText, mode = 'as_is') {
-  if (mode === 'arv') {
-    return { rank: 2, label: 'Renovated (ARV · C2)' };
-  }
-  const raw = String(subjectConditionText || '').toLowerCase();
-  if (raw.includes('renovated') || raw.includes('new') || raw.includes('turnkey') || raw.includes('c1') || raw.includes('c2')) {
-    return { rank: 2, label: 'Renovated (C2)' };
-  }
-  if (raw.includes('updated') || raw.includes('good') || raw.includes('remodeled') || raw.includes('c3')) {
-    return { rank: 1, label: 'Updated (C3)' };
-  }
-  return { rank: 0, label: subjectConditionText ? `${subjectConditionText} (As-is)` : 'As-is (C4)' };
-}
-
-function getGarageBays(entity, defaultWhenTrue = 2) {
-  if (entity?.garage_bays != null && entity.garage_bays !== '') {
-    return Math.max(0, Number(entity.garage_bays) || 0);
-  }
-  if (typeof entity?.garage === 'number') {
-    return Math.max(0, entity.garage);
-  }
-  return entity?.garage ? defaultWhenTrue : 0;
-}
-
-function hasNewerRoofOrImpact(entity, mode = 'as_is', isSubject = false) {
-  const currentYear = new Date().getFullYear();
-  const roofYr = Number(entity?.roof_year) || 0;
-  const recentRoof = roofYr > 0 && (currentYear - roofYr) <= 7;
-  const explicitImpact = Boolean(entity?.impact_windows || entity?.adjustments?.impact_windows);
-  if (isSubject && mode === 'arv' && entity?.arvIncludesWindstorm !== false) {
-    return {
-      impact: Boolean(entity?.impact_windows ?? true),
-      recentRoof: Boolean(recentRoof || entity?.arvIncludesRoof !== false)
-    };
-  }
-  return {
-    impact: explicitImpact,
-    recentRoof
-  };
-}
-
 export function computeMonthsSinceSale(soldDateStr, effectiveDate = new Date()) {
   if (!soldDateStr) return 0;
   const raw = String(soldDateStr).trim();
@@ -279,6 +369,67 @@ export function computeMonthsSinceSale(soldDateStr, effectiveDate = new Date()) 
   );
 }
 
+function formatBathDisplay(details) {
+  if (details.full_baths != null && details.half_baths != null && details.half_baths > 0) {
+    return `${details.full_baths}f ${details.half_baths}h ba`;
+  }
+  if (details.full_baths != null) {
+    return `${details.full_baths} ba`;
+  }
+  if (details.baths != null) {
+    return `${details.baths} ba`;
+  }
+  return null;
+}
+
+function formatWindowsLabel(windowsKey) {
+  const found = WINDOW_OPTIONS.find((o) => o.id === windowsKey);
+  return found ? found.label : 'Unknown';
+}
+
+function formatRoofSpecLabel(details) {
+  const typeObj = ROOF_TYPE_OPTIONS.find((o) => o.id === details.roof_type && o.id !== 'unknown');
+  const yrStr = details.roof_year != null ? `${details.roof_year}` : null;
+  if (!typeObj && !yrStr) return 'Unknown';
+  return [typeObj ? typeObj.label : null, yrStr ? `Roof ${yrStr}` : null].filter(Boolean).join(' · ');
+}
+
+function formatPoolSpecLabel(details) {
+  if (details.pool_type === 'unknown') return 'Unknown';
+  if (details.pool_type === 'none') return 'No pool';
+  const base = details.pool_type === 'resort' ? 'Resort pool' : 'Standard pool';
+  if (details.screen_enclosure === true) return `${base} · Screen`;
+  if (details.screen_enclosure === false) return `${base} · Open`;
+  return base;
+}
+
+function formatGarageSpecLabel(details) {
+  if (details.garage_type === 'unknown') return 'Unknown';
+  if (details.garage_type === 'none') return 'None';
+  if (details.garage_type === 'carport') return 'Carport';
+  if (details.garage_type === 'converted') return 'Converted';
+  const bays = details.garage_bays ?? 2;
+  return bays > 0 ? `${bays}-Car` : 'None';
+}
+
+function formatWaterfrontSpecLabel(details, lotSqft) {
+  const wfObj = WATERFRONT_VIEW_OPTIONS.find((o) => o.id === details.waterfront_view && o.id !== 'unknown');
+  const lotPart = lotSqft > 0 ? `${lotSqft.toLocaleString()} sf` : null;
+  if (!wfObj && !lotPart) return 'Unknown';
+  return [wfObj ? wfObj.label : 'View n/a', lotPart].filter(Boolean).join(' · ');
+}
+
+/**
+ * Determines whether a comp is included (USED) in reconciliation.
+ * Comps flagged as $/sf outliers default to OFF unless explicitly included === true.
+ */
+export function resolveCompIsIncluded(comp) {
+  if (!comp) return false;
+  if (comp.included === true) return true;
+  if (comp.included === false) return false;
+  return comp.is_outlier ? false : true;
+}
+
 /**
  * Full South Florida Sales Comparison & Reconciliation Grid Engine.
  * Evaluates all comps (USED and OFF), computes CIA/CBS directional cells,
@@ -297,10 +448,11 @@ export function computeAppraisalGrid({
   effectiveDate = new Date()
 } = {}) {
   const library = mergeAdjustmentLibrary(rawLibrary);
+  const effYear = effectiveDate.getFullYear();
 
   // Valid comps with a sale price
   const validComps = comps.filter((c) => c && Number(c.sold_price) > 0);
-  const usedCompsRaw = validComps.filter((c) => c.included !== false);
+  const usedCompsRaw = validComps.filter((c) => resolveCompIsIncluded(c));
 
   // Median unadjusted sale price & local $/sf from USED comps (fallback to all valid comps)
   const pricePool = (usedCompsRaw.length > 0 ? usedCompsRaw : validComps)
@@ -341,8 +493,10 @@ export function computeAppraisalGrid({
     condUpdatedVsAsIs: scaleAmt(library.conditionUpdatedVsAsIs),
     condRenovatedVsAsIs: scaleAmt(library.conditionRenovatedVsAsIs),
     pool: scaleAmt(library.poolAdjustment),
+    screenEnclosure: scaleAmt(6000),
     garageBay: scaleAmt(library.garageBayAdjustment),
     impactWindows: scaleAmt(library.impactWindowsAdjustment),
+    shutters: Math.round((scaleAmt(library.impactWindowsAdjustment) * 0.4) / 500) * 500,
     newerRoof: scaleAmt(library.newerRoofAdjustment),
     waterfront: scaleAmt(library.waterfrontAdjustment),
     lotSqftRate: Number(library.lotSqftRate) || 5,
@@ -354,37 +508,93 @@ export function computeAppraisalGrid({
           : 0.25)
   };
 
-  // Subject normalized attributes
+  // Resolve Subject Details for active mode ('as_is' vs 'arv')
+  const subjectDetails = resolveSubjectDetailsForMode(subject, mode);
   const subjectSqft = Number(subject?.sqft) || 0;
-  const subjectBeds = subject?.beds != null && subject?.beds !== '' ? Number(subject.beds) : null;
-  const subjectBaths = subject?.baths != null && subject?.baths !== '' ? Number(subject.baths) : null;
-  const subjectCond = parseConditionRankFromSubject(subject?.condition, mode);
-  const subjectHasPool = Boolean(subject?.pool);
-  const subjectGarageBays = getGarageBays(subject, 2);
-  const subjectHasWaterfront = Boolean(subject?.waterfront);
   const subjectLotSqft = Number(subject?.lot_sqft) || 0;
-  const subjectWindRoof = hasNewerRoofOrImpact(subject, mode, true);
+  const subjectCondMeta = getConditionMeta(subjectDetails.condition);
 
-  const conditionValueForRank = (rank) => {
-    if (rank >= 2) return effectiveRates.condRenovatedVsAsIs;
-    if (rank === 1) return effectiveRates.condUpdatedVsAsIs;
+  // Contributory value functions (only called when BOTH subject and comp values are known)
+  const conditionContributory = (condKey) => {
+    const k = normalizeConditionKey(condKey);
+    if (k === 'c1') return Math.round((effectiveRates.condRenovatedVsAsIs * 1.25) / 500) * 500;
+    if (k === 'c2') return effectiveRates.condRenovatedVsAsIs;
+    if (k === 'c3') return effectiveRates.condUpdatedVsAsIs;
+    if (k === 'c4') return 0;
+    if (k === 'c5') return -Math.round((effectiveRates.condUpdatedVsAsIs * 0.6) / 500) * 500;
+    if (k === 'c6') return -effectiveRates.condRenovatedVsAsIs;
+    return 0;
+  };
+
+  const windowsContributory = (winKey) => {
+    if (winKey === 'impact') return effectiveRates.impactWindows;
+    if (winKey === 'shutters') return effectiveRates.shutters;
+    return 0;
+  };
+
+  const roofAgeContributory = (roofYear) => {
+    if (roofYear == null) return 0;
+    const age = Math.max(0, effYear - Number(roofYear));
+    if (age <= 5) return effectiveRates.newerRoof;
+    if (age <= 12) return Math.round((effectiveRates.newerRoof * 0.45) / 500) * 500;
+    return 0;
+  };
+
+  const roofMaterialContributory = (roofType) => {
+    if (roofType === 'metal' || roofType === 'barrel_tile') {
+      return Math.round((effectiveRates.newerRoof * 0.35) / 500) * 500;
+    }
+    return 0;
+  };
+
+  const poolBaseContributory = (poolType) => {
+    if (poolType === 'resort') return Math.round((effectiveRates.pool * 1.45) / 500) * 500;
+    if (poolType === 'standard') return effectiveRates.pool;
+    return 0;
+  };
+
+  const garageContributory = (details) => {
+    if (details.garage_type === 'garage') {
+      return Math.max(0, Number(details.garage_bays ?? 2)) * effectiveRates.garageBay;
+    }
+    if (details.garage_type === 'carport') {
+      return Math.round((effectiveRates.garageBay * 0.45) / 500) * 500;
+    }
+    if (details.garage_type === 'converted') {
+      return Math.round((effectiveRates.garageBay * 0.35) / 500) * 500;
+    }
+    return 0;
+  };
+
+  const waterfrontContributory = (wfView) => {
+    if (wfView === 'ocean_access') return Math.round((effectiveRates.waterfront * 1.8) / 500) * 500;
+    if (wfView === 'canal_fixed_bridge') return effectiveRates.waterfront;
+    if (wfView === 'lake') return Math.round((effectiveRates.waterfront * 0.5) / 500) * 500;
+    if (wfView === 'golf') return Math.round((effectiveRates.waterfront * 0.35) / 500) * 500;
     return 0;
   };
 
   // Evaluate every comp (preserving order)
   const evaluatedComps = comps.map((comp) => {
-    const isUsed = comp.included !== false && Number(comp.sold_price) > 0;
+    const isUsed = resolveCompIsIncluded(comp) && Number(comp.sold_price) > 0;
     const soldPrice = Number(comp.sold_price) || 0;
     const compSqft = Number(comp.sqft) || 0;
     const compPpsf = soldPrice > 0 && compSqft > 0 ? Math.round(soldPrice / compSqft) : null;
     const monthsSinceSale = computeMonthsSinceSale(comp.sold_date, effectiveDate);
     const isOlderThan6Months = Boolean(comp.sold_date && monthsSinceSale > 6);
-    const condMeta = getConditionMeta(comp.condition);
+
+    const compDetails = normalizeCompDetails(comp, {
+      treatLegacyUneditedCountyBooleansAsUnknown: true
+    });
+    const detailsProgress = computeDetailsProgress(compDetails);
+    const countyClues = comp.county_clues || formatCountyClues(comp);
+    const condMeta = getConditionMeta(compDetails.condition);
+
     const overrides = (comp.adjustments && typeof comp.adjustments === 'object' && comp.adjustments.overrides)
       ? comp.adjustments.overrides
       : {};
 
-    const resolveCell = (rowKey, computedAmount, compSpecLabel, note = '') => {
+    const resolveCell = (rowKey, computedAmount, compSpecLabel, { note = '', needsInfo = false } = {}) => {
       const hasOverride = overrides[rowKey] != null && overrides[rowKey] !== '' && !isNaN(Number(overrides[rowKey]));
       const amount = hasOverride ? Math.round(Number(overrides[rowKey])) : Math.round(computedAmount);
       return {
@@ -392,6 +602,7 @@ export function computeAppraisalGrid({
         amount,
         computedAmount: Math.round(computedAmount),
         isOverridden: hasOverride,
+        needsInfo: Boolean(needsInfo && !hasOverride),
         direction: amount > 0 ? 'add' : amount < 0 ? 'subtract' : 'neutral',
         spec: compSpecLabel,
         note
@@ -411,9 +622,11 @@ export function computeAppraisalGrid({
       'time',
       rawTimeAdj,
       comp.sold_date ? (monthsSinceSale === 0 ? 'this mo' : `${monthsSinceSale} mo ago`) : 'Date n/a',
-      comp.sold_date && monthsSinceSale > 0 && effectiveRates.monthlyTrendPct !== 0
-        ? `${trendSign}${effectiveRates.monthlyTrendPct}%/mo`
-        : ''
+      {
+        note: comp.sold_date && monthsSinceSale > 0 && effectiveRates.monthlyTrendPct !== 0
+          ? `${trendSign}${effectiveRates.monthlyTrendPct}%/mo`
+          : ''
+      }
     );
 
     // 2. Gross Living Area (GLA) with South Florida minimum threshold
@@ -426,81 +639,155 @@ export function computeAppraisalGrid({
       'gla',
       rawGlaAdj,
       compSqft > 0 ? `${compSqft.toLocaleString()} sf` : '—',
-      withinGlaThreshold && sqftDiff !== 0 ? `<${effectiveRates.minGlaThreshold} sf threshold` : ''
+      {
+        note: withinGlaThreshold && sqftDiff !== 0 ? `<${effectiveRates.minGlaThreshold} sf threshold` : ''
+      }
     );
 
     // 3. Bedrooms & Bathrooms (Full + Half bath awareness)
-    const compBeds = comp.beds != null && comp.beds !== '' ? Number(comp.beds) : null;
-    const compBaths = comp.baths != null && comp.baths !== '' ? Number(comp.baths) : null;
+    const compBeds = compDetails.beds;
+    const subBeds = subjectDetails.beds;
+    const compBathUnknown = compDetails.full_baths == null && compDetails.baths == null;
+    const compBedBathAllUnknown = compBeds == null && compBathUnknown;
+
     let rawBedBathAdj = 0;
-    if (subjectBeds != null && compBeds != null) {
-      rawBedBathAdj += (subjectBeds - compBeds) * effectiveRates.bed;
+    if (subBeds != null && compBeds != null) {
+      rawBedBathAdj += (subBeds - compBeds) * effectiveRates.bed;
     }
-    if (subjectBaths != null && compBaths != null) {
-      const bathDiff = subjectBaths - compBaths;
+    if (subjectDetails.full_baths != null && compDetails.full_baths != null) {
+      rawBedBathAdj += (subjectDetails.full_baths - compDetails.full_baths) * effectiveRates.fullBath;
+      rawBedBathAdj += ((subjectDetails.half_baths ?? 0) - (compDetails.half_baths ?? 0)) * effectiveRates.halfBath;
+    } else if (subjectDetails.baths != null && compDetails.baths != null) {
+      const bathDiff = subjectDetails.baths - compDetails.baths;
       const sign = bathDiff >= 0 ? 1 : -1;
       const absDiff = Math.abs(bathDiff);
       const fullCount = Math.floor(absDiff + 1e-6);
       const hasHalf = Math.abs(absDiff - fullCount - 0.5) < 0.26;
       rawBedBathAdj += sign * (fullCount * effectiveRates.fullBath + (hasHalf ? effectiveRates.halfBath : 0));
     }
+
     const bedBathSpec = [
       compBeds != null ? `${compBeds} bd` : null,
-      compBaths != null ? `${compBaths} ba` : null
-    ].filter(Boolean).join(' / ') || '—';
-    const bedBathCell = resolveCell('bed_bath', rawBedBathAdj, bedBathSpec);
+      formatBathDisplay(compDetails)
+    ].filter(Boolean).join(' / ') || 'Unknown';
 
-    // 4. Condition (Kitchen & Bath UAD C-Rating parity)
-    const rawCondAdj = conditionValueForRank(subjectCond.rank) - conditionValueForRank(condMeta.rank);
-    const conditionCell = resolveCell('condition', rawCondAdj, condMeta.shortLabel);
+    const bedBathCell = resolveCell('bed_bath', rawBedBathAdj, bedBathSpec, {
+      needsInfo: compBedBathAllUnknown
+    });
 
-    // 5. Pool & Outdoor Living
-    const compHasPool = Boolean(comp.pool);
-    const rawPoolAdj = ((subjectHasPool ? 1 : 0) - (compHasPool ? 1 : 0)) * effectiveRates.pool;
-    const poolCell = resolveCell('pool', rawPoolAdj, compHasPool ? 'In-ground pool' : 'No pool');
+    // 4. Condition (UAD C1–C6): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    const isConditionUnknown = compDetails.condition === 'unknown';
+    const rawCondAdj = (!isConditionUnknown && subjectDetails.condition !== 'unknown')
+      ? conditionContributory(subjectDetails.condition) - conditionContributory(compDetails.condition)
+      : 0;
+    const condNote = !isConditionUnknown && typeof compDetails.kitchen_baths_updated === 'boolean'
+      ? (compDetails.kitchen_baths_updated ? 'K&B updated' : 'Orig. K&B')
+      : '';
+    const conditionCell = resolveCell(
+      'condition',
+      rawCondAdj,
+      isConditionUnknown ? 'Unknown' : condMeta.shortLabel,
+      { note: condNote, needsInfo: isConditionUnknown }
+    );
 
-    // 6. Garage Capacity (Per-bay differential)
-    const compGarageBays = getGarageBays(comp, 2);
-    const rawGarageAdj = (subjectGarageBays - compGarageBays) * effectiveRates.garageBay;
+    // 5. Windows (impact / shutters / none): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // Never infer impact windows from year_built!
+    const isWindowsUnknown = compDetails.windows === 'unknown';
+    const rawWindowsAdj = (!isWindowsUnknown && subjectDetails.windows !== 'unknown')
+      ? windowsContributory(subjectDetails.windows) - windowsContributory(compDetails.windows)
+      : 0;
+    const windowsCell = resolveCell(
+      'windows',
+      rawWindowsAdj,
+      isWindowsUnknown ? 'Unknown' : formatWindowsLabel(compDetails.windows),
+      {
+        note: !isWindowsUnknown && subjectDetails.windows === 'unknown' ? 'Set subject windows' : '',
+        needsInfo: isWindowsUnknown
+      }
+    );
+
+    // 6. Roof (type + roof year): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // Never infer roof age from year_built!
+    const isRoofUnknown = compDetails.roof_type === 'unknown' && compDetails.roof_year == null;
+    let rawRoofAdj = 0;
+    if (!isRoofUnknown) {
+      if (subjectDetails.roof_year != null && compDetails.roof_year != null) {
+        rawRoofAdj += roofAgeContributory(subjectDetails.roof_year) - roofAgeContributory(compDetails.roof_year);
+      }
+      if (subjectDetails.roof_type !== 'unknown' && compDetails.roof_type !== 'unknown') {
+        rawRoofAdj += roofMaterialContributory(subjectDetails.roof_type) - roofMaterialContributory(compDetails.roof_type);
+      }
+    }
+    const roofCell = resolveCell(
+      'roof',
+      rawRoofAdj,
+      isRoofUnknown ? 'Unknown' : formatRoofSpecLabel(compDetails),
+      {
+        note: !isRoofUnknown && compDetails.roof_year == null ? 'Roof yr not set' : '',
+        needsInfo: isRoofUnknown
+      }
+    );
+
+    // 7. Pool & Outdoor: Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    const isPoolUnknown = compDetails.pool_type === 'unknown';
+    let rawPoolAdj = 0;
+    if (!isPoolUnknown && subjectDetails.pool_type !== 'unknown') {
+      rawPoolAdj += poolBaseContributory(subjectDetails.pool_type) - poolBaseContributory(compDetails.pool_type);
+      if (
+        typeof subjectDetails.screen_enclosure === 'boolean' &&
+        typeof compDetails.screen_enclosure === 'boolean' &&
+        (subjectDetails.pool_type !== 'none' || compDetails.pool_type !== 'none')
+      ) {
+        const subEnc = subjectDetails.pool_type !== 'none' && subjectDetails.screen_enclosure ? 1 : 0;
+        const compEnc = compDetails.pool_type !== 'none' && compDetails.screen_enclosure ? 1 : 0;
+        rawPoolAdj += (subEnc - compEnc) * effectiveRates.screenEnclosure;
+      }
+    }
+    const poolCell = resolveCell(
+      'pool',
+      rawPoolAdj,
+      isPoolUnknown ? 'Unknown' : formatPoolSpecLabel(compDetails),
+      { needsInfo: isPoolUnknown }
+    );
+
+    // 8. Garage & Parking: Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    const isGarageUnknown = compDetails.garage_type === 'unknown';
+    const rawGarageAdj = (!isGarageUnknown && subjectDetails.garage_type !== 'unknown')
+      ? garageContributory(subjectDetails) - garageContributory(compDetails)
+      : 0;
     const garageCell = resolveCell(
       'garage',
       rawGarageAdj,
-      compGarageBays > 0 ? `${compGarageBays}-Car` : 'None'
+      isGarageUnknown ? 'Unknown' : formatGarageSpecLabel(compDetails),
+      { needsInfo: isGarageUnknown }
     );
 
-    // 7. Windstorm & Roof (South Florida Insurance Mitigation)
-    const compWindRoof = hasNewerRoofOrImpact(comp, 'as_is', false);
-    const impactDiff = (subjectWindRoof.impact ? 1 : 0) - (compWindRoof.impact ? 1 : 0);
-    const roofDiff = (subjectWindRoof.recentRoof ? 1 : 0) - (compWindRoof.recentRoof ? 1 : 0);
-    const rawWindRoofAdj = impactDiff * effectiveRates.impactWindows + roofDiff * effectiveRates.newerRoof;
-    const compWindSpec = [
-      compWindRoof.impact ? 'Impact' : 'Std glass',
-      compWindRoof.recentRoof ? 'Newer roof' : (comp.year_built ? `Built ${comp.year_built}` : 'Std roof')
-    ].join(' · ');
-    const windstormCell = resolveCell('windstorm', rawWindRoofAdj, compWindSpec);
-
-    // 8. Location / Site & Water Frontage (Dedicated row per Guide Section 6)
-    const compHasWaterfront = Boolean(comp.waterfront);
+    // 9. Location / Waterfront & View / Lot Size
+    const isWaterfrontUnknown = compDetails.waterfront_view === 'unknown';
     const compLotSqft = Number(comp.lot_sqft) || 0;
     const lotDiff = subjectLotSqft > 0 && compLotSqft > 0 ? subjectLotSqft - compLotSqft : 0;
     const lotAdjPart = Math.abs(lotDiff) >= effectiveRates.lotMinThreshold
       ? Math.round((lotDiff * effectiveRates.lotSqftRate) / 500) * 500
       : 0;
-    const waterAdjPart = ((subjectHasWaterfront ? 1 : 0) - (compHasWaterfront ? 1 : 0)) * effectiveRates.waterfront;
-    const siteSpec = [
-      compHasWaterfront ? 'Waterfront' : 'Dry lot',
-      compLotSqft > 0 ? `${compLotSqft.toLocaleString()} sf` : null
-    ].filter(Boolean).join(' · ');
-    const locationSiteCell = resolveCell('location_site', lotAdjPart + waterAdjPart, siteSpec);
+    const waterAdjPart = (!isWaterfrontUnknown && subjectDetails.waterfront_view !== 'unknown')
+      ? waterfrontContributory(subjectDetails.waterfront_view) - waterfrontContributory(compDetails.waterfront_view)
+      : 0;
+    const locationSiteCell = resolveCell(
+      'location_site',
+      lotAdjPart + waterAdjPart,
+      formatWaterfrontSpecLabel(compDetails, compLotSqft),
+      { needsInfo: isWaterfrontUnknown && compLotSqft <= 0 }
+    );
 
     const cells = {
       time: timeCell,
       gla: glaCell,
       bed_bath: bedBathCell,
       condition: conditionCell,
+      windows: windowsCell,
+      roof: roofCell,
       pool: poolCell,
       garage: garageCell,
-      windstorm: windstormCell,
       location_site: locationSiteCell
     };
 
@@ -517,19 +804,35 @@ export function computeAppraisalGrid({
     const isHighNet = netAdjustmentPct > 15;
     const isHighGross = grossAdjustmentPct > 25;
 
-    // Auto-weight score (higher for closer, more recent, lower gross %, and condition match;
-    // comps older than 6 months have reduced reconciliation weight)
+    // Count unknown core features (condition, windows, roof, pool, garage) -> reduce weight
+    const unknownFeatureKeys = [
+      isConditionUnknown ? 'condition' : null,
+      isWindowsUnknown ? 'windows' : null,
+      isRoofUnknown ? 'roof' : null,
+      isPoolUnknown ? 'pool' : null,
+      isGarageUnknown ? 'garage' : null
+    ].filter(Boolean);
+    const unknownFeatureCount = unknownFeatureKeys.length;
+    const wCompleteness = Math.pow(0.80, unknownFeatureCount);
+
+    // Auto-weight score (higher for closer, more recent, lower gross %, condition match, and verified features;
+    // comps older than 6 months and comps with unknown features have reduced reconciliation weight)
     const distMi = comp.distance_mi != null && !isNaN(Number(comp.distance_mi)) ? Number(comp.distance_mi) : 0.5;
     const wRecency = (1 / (1 + monthsSinceSale / 6)) * (isOlderThan6Months ? 0.55 : 1.0);
     const wDistance = 1 / (1 + distMi / 0.5);
     const wGross = 1 / (1 + grossAdjustmentPct / 12);
-    const modeMatchesCondition = mode === 'arv' ? condMeta.isRenovated : !condMeta.isRenovated;
-    const wConditionParity = modeMatchesCondition ? 1.25 : 0.8;
-    const rawAutoScore = isUsed ? Math.max(0.01, wRecency * wDistance * wGross * wConditionParity) : 0;
+    const wConditionParity = isConditionUnknown
+      ? 0.85
+      : ((mode === 'arv' ? condMeta.isRenovated : !condMeta.isRenovated) ? 1.25 : 0.8);
+    const rawAutoScore = isUsed
+      ? Math.max(0.005, wRecency * wDistance * wGross * wConditionParity * wCompleteness)
+      : 0;
 
     return {
       ...comp,
       isUsed,
+      isOutlier: Boolean(comp.is_outlier || comp.adjustments?.is_outlier),
+      outlierReason: comp.outlier_reason || comp.adjustments?.outlier_reason || null,
       soldPrice,
       compSqft,
       compPpsf,
@@ -537,6 +840,11 @@ export function computeAppraisalGrid({
       isOlderThan6Months,
       distanceMi: distMi,
       conditionMeta: condMeta,
+      compDetails,
+      detailsProgress,
+      countyClues,
+      unknownFeatureKeys,
+      unknownFeatureCount,
       cells,
       netAdjustment,
       grossAdjustment,
@@ -612,6 +920,7 @@ export function computeAppraisalGrid({
   const renovatedUsedCount = usedEvaluated.filter((c) => c.conditionMeta.isRenovated).length;
   const highNetComps = usedEvaluated.filter((c) => c.isHighNet);
   const highGrossComps = usedEvaluated.filter((c) => c.isHighGross);
+  const compsMissingInfo = usedEvaluated.filter((c) => c.unknownFeatureCount > 0);
 
   const usedSqfts = usedEvaluated.map((c) => c.compSqft).filter((s) => s > 0);
   const isBracketedGla = subjectSqft > 0 && usedSqfts.length >= 2 &&
@@ -659,6 +968,11 @@ export function computeAppraisalGrid({
     if (avgMonths != null && avgMonths <= 6) confidencePct += 7;
     else if (avgMonths != null && avgMonths <= 12) confidencePct += 3;
 
+    // Slight confidence deduction if comps still have all 5 features unknown
+    const avgUnknowns = usedEvaluated.reduce((a, c) => a + c.unknownFeatureCount, 0) / usedEvaluated.length;
+    if (avgUnknowns >= 4) confidencePct -= 8;
+    else if (avgUnknowns >= 2.5) confidencePct -= 4;
+
     if (mode === 'arv' && renovatedUsedCount === 0) {
       confidencePct = Math.min(confidencePct, 42);
     }
@@ -695,6 +1009,16 @@ export function computeAppraisalGrid({
       detail: usedEvaluated.length >= 3
         ? `${usedEvaluated.length} active comps USED in reconciliation`
         : `${usedEvaluated.length} of 3 recommended comps USED`
+    },
+    {
+      id: 'comp_details_completeness',
+      status: usedEvaluated.length > 0 && compsMissingInfo.length === 0 ? 'pass' : 'warn',
+      label: 'Verified Comp Features',
+      detail: usedEvaluated.length === 0
+        ? 'Add comps and confirm condition, windows, roof, pool & garage'
+        : compsMissingInfo.length === 0
+          ? 'Condition, windows, roof, pool & garage confirmed on all USED comps'
+          : `${compsMissingInfo.length} USED ${compsMissingInfo.length === 1 ? 'comp has' : 'comps have'} "Needs info" features ($0 adj · weight reduced)`
     },
     {
       id: 'fannie_mae_net_gross',
@@ -761,6 +1085,8 @@ export function computeAppraisalGrid({
     ...(justValueCheck ? [justValueCheck] : [])
   ];
 
+  const subjectDetailsProgress = computeDetailsProgress(subjectDetails);
+
   return {
     mode,
     sizeMethod,
@@ -770,24 +1096,28 @@ export function computeAppraisalGrid({
     zipTrendSource,
     medianUnadjustedPrice,
     localMedianPpsf: localMedianPpsf ? Math.round(localMedianPpsf) : null,
+    subjectDetails,
+    subjectDetailsProgress,
     subjectSummary: {
       address: subject?.address || 'Subject Property',
       listPrice: Number(subject?.list_price) > 0 ? Number(subject.list_price) : null,
       justValue: subjectJustValue > 0 ? subjectJustValue : null,
       sqft: subjectSqft,
-      beds: subjectBeds,
-      baths: subjectBaths,
-      conditionLabel: subjectCond.label,
-      poolLabel: subjectHasPool ? 'In-ground pool' : 'No pool',
-      garageLabel: subjectGarageBays > 0 ? `${subjectGarageBays}-Car` : 'None',
-      windstormLabel: [
-        subjectWindRoof.impact ? 'Impact' : 'Std glass',
-        subjectWindRoof.recentRoof ? 'Newer roof' : (subject?.roof_year ? `Roof ${subject.roof_year}` : 'Std roof')
-      ].join(' · '),
-      locationSiteLabel: [
-        subjectHasWaterfront ? 'Waterfront' : 'Dry lot',
-        subjectLotSqft > 0 ? `${subjectLotSqft.toLocaleString()} sf` : null
-      ].filter(Boolean).join(' · ')
+      beds: subjectDetails.beds,
+      baths: subjectDetails.baths,
+      bedBathLabel: [
+        subjectDetails.beds != null ? `${subjectDetails.beds} bd` : null,
+        formatBathDisplay(subjectDetails)
+      ].filter(Boolean).join(' / ') || 'Add beds/baths',
+      conditionLabel: subjectDetails.condition === 'unknown'
+        ? 'Unknown'
+        : (mode === 'arv' && subjectDetails.condition === 'c2' ? 'Renovated (ARV · C2)' : subjectCondMeta.shortLabel),
+      windowsLabel: formatWindowsLabel(subjectDetails.windows),
+      roofLabel: formatRoofSpecLabel(subjectDetails),
+      poolLabel: formatPoolSpecLabel(subjectDetails),
+      garageLabel: formatGarageSpecLabel(subjectDetails),
+      locationSiteLabel: formatWaterfrontSpecLabel(subjectDetails, subjectLotSqft),
+      detailsProgress: subjectDetailsProgress
     },
     comps: evaluatedComps,
     usedComps: usedEvaluated,
@@ -849,23 +1179,26 @@ export function calculateCompAdjustments(comp, subject = {}, userSettings = {}, 
   const bathDiff = subjectBaths > 0 && compBaths > 0 ? subjectBaths - compBaths : 0;
   const bathAdj = Math.round(bathDiff * (Number(settings.bathAdjustment) || 7500));
 
-  // 5. Pool Adjustment
-  const subjectHasPool = Boolean(subject.pool);
-  const compHasPool = Boolean(comp.pool);
-  const poolDiff = (subjectHasPool ? 1 : 0) - (compHasPool ? 1 : 0);
-  const poolAdj = Math.round(poolDiff * (Number(settings.poolAdjustment) || 25000));
+  // 5. Pool Adjustment (only when both booleans are explicitly known)
+  let poolAdj = 0;
+  if (typeof subject.pool === 'boolean' && typeof comp.pool === 'boolean') {
+    const poolDiff = (subject.pool ? 1 : 0) - (comp.pool ? 1 : 0);
+    poolAdj = Math.round(poolDiff * (Number(settings.poolAdjustment) || 25000));
+  }
 
-  // 6. Garage Adjustment
-  const subjectHasGarage = Boolean(subject.garage);
-  const compHasGarage = Boolean(comp.garage);
-  const garageDiff = (subjectHasGarage ? 1 : 0) - (compHasGarage ? 1 : 0);
-  const garageAdj = Math.round(garageDiff * (Number(settings.garageAdjustment) || 10000));
+  // 6. Garage Adjustment (only when both booleans are explicitly known)
+  let garageAdj = 0;
+  if (typeof subject.garage === 'boolean' && typeof comp.garage === 'boolean') {
+    const garageDiff = (subject.garage ? 1 : 0) - (comp.garage ? 1 : 0);
+    garageAdj = Math.round(garageDiff * (Number(settings.garageAdjustment) || 10000));
+  }
 
-  // 7. Waterfront Adjustment
-  const subjectHasWaterfront = Boolean(subject.waterfront);
-  const compHasWaterfront = Boolean(comp.waterfront);
-  const waterfrontDiff = (subjectHasWaterfront ? 1 : 0) - (compHasWaterfront ? 1 : 0);
-  const waterfrontAdj = Math.round(waterfrontDiff * (Number(settings.waterfrontAdjustment) || 50000));
+  // 7. Waterfront Adjustment (only when both booleans are explicitly known)
+  let waterfrontAdj = 0;
+  if (typeof subject.waterfront === 'boolean' && typeof comp.waterfront === 'boolean') {
+    const waterfrontDiff = (subject.waterfront ? 1 : 0) - (comp.waterfront ? 1 : 0);
+    waterfrontAdj = Math.round(waterfrontDiff * (Number(settings.waterfrontAdjustment) || 50000));
+  }
 
   // 8. Lot Sqft Adjustment
   const subjectLot = Number(subject.lot_sqft) || 0;
@@ -933,7 +1266,7 @@ export function calculateValuation({
   zipRatioStats = null,
   manualArv = null
 }) {
-  const includedComps = comps.filter(c => c.included !== false && c.sold_price && Number(c.sold_price) > 0);
+  const includedComps = comps.filter(c => resolveCompIsIncluded(c) && c.sold_price && Number(c.sold_price) > 0);
 
   const analyzedComps = includedComps.map(c => {
     const adj = calculateCompAdjustments(c, subject, userSettings, zipTrendMonthlyPct);
