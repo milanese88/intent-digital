@@ -278,3 +278,4 @@ test('Prepared building-characteristics importer normalizes BCPA/PAPA folios and
     bldg_num: 1
   });
 });
+
