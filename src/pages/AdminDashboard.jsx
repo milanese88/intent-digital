@@ -10,15 +10,33 @@ import InvestorStudio from '../components/investor/InvestorStudio.jsx';
 import DesignerHub from '../components/designer/DesignerHub.jsx';
 import LearningLabTab from '../components/learning/LearningLabTab.jsx';
 
+const INVESTOR_PROPERTY_TABS = ['overview', 'comps', 'appraisal', 'site', 'deal', 'photos'];
+
+function resolveDashboardTabFromSearch(searchStr) {
+  const params = new URLSearchParams(searchStr);
+  const rawTab = params.get('tab');
+  if (params.get('property') && (!rawTab || INVESTOR_PROPERTY_TABS.includes(rawTab))) {
+    return 'investor';
+  }
+  return rawTab || 'overview';
+}
+
 export default function AdminDashboard({ navigateTo }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('tab') || 'overview';
+      return resolveDashboardTabFromSearch(window.location.search);
     }
     return 'overview';
   });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(resolveDashboardTabFromSearch(window.location.search));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);

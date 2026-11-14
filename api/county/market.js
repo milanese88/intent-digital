@@ -307,6 +307,32 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     ppsfChangePct = Math.round(((medianPpsfLast6 - medianPpsfPrev6) / medianPpsfPrev6) * 1000) / 10;
   }
 
+  // Monthly ZIP trend (% per month) from complete county months for Appraisal time adjustment
+  let monthlyTrendPct = null;
+  if (ppsfChangePct != null) {
+    monthlyTrendPct = Math.round(Math.max(-1.5, Math.min(1.5, ppsfChangePct / 12)) * 100) / 100;
+  } else if (priceChangePct != null) {
+    monthlyTrendPct = Math.round(Math.max(-1.5, Math.min(1.5, priceChangePct / 12)) * 100) / 100;
+  } else {
+    const priorHalfEndTotal = last6StartYear * 12 + last6StartMonth - 1;
+    const priorHalfEndYear = Math.floor((priorHalfEndTotal - 1) / 12);
+    const priorHalfEndMonth = ((priorHalfEndTotal - 1) % 12) + 1;
+    const priorHalfSales = rows.filter((r) =>
+      r.is_market &&
+      Number(r.living_sqft) > 0 &&
+      isInRange(r.sale_year, r.sale_month, last12StartYear, last12StartMonth, priorHalfEndYear, priorHalfEndMonth)
+    );
+    if (ppsfLast6List.length >= 5 && priorHalfSales.length >= 5 && medianPpsfLast6 != null) {
+      const medianPriorHalf = calculateMedian(
+        priorHalfSales.map((r) => Math.round(Number(r.sale_price) / Number(r.living_sqft)))
+      );
+      if (medianPriorHalf && medianPriorHalf > 0) {
+        const halfChangePct = ((medianPpsfLast6 - medianPriorHalf) / medianPriorHalf) * 100;
+        monthlyTrendPct = Math.round(Math.max(-1.5, Math.min(1.5, halfChangePct / 6)) * 100) / 100;
+      }
+    }
+  }
+
   const total12Sales = last12MarketSales.length + last12DistressedSales.length;
   const distressedSharePct = total12Sales > 0
     ? Math.round((last12DistressedSales.length / total12Sales) * 1000) / 10
@@ -358,6 +384,7 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
     median_ppsf_last_6m: medianPpsfLast6,
     median_ppsf_prev_6m: medianPpsfPrev6,
     ppsf_change_pct: ppsfChangePct,
+    monthly_trend_pct: monthlyTrendPct,
     distressed_sales_last_12m: last12DistressedSales.length,
     distressed_share_pct: distressedSharePct,
     counts: {

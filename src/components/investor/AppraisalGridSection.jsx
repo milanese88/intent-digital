@@ -21,17 +21,18 @@ function formatShortSoldDate(dStr) {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-const CONDITION_CYCLE = ['as_is', 'updated', 'fully_renovated'];
+const CONDITION_CYCLE = ['c4', 'c3', 'c2', 'unknown'];
 
 const GRID_ROWS = [
-  { key: 'time', label: 'Sale Date / Time', sub: 'Market trend' },
+  { key: 'time', label: 'Sale Date / Time', sub: 'Monthly ZIP trend' },
   { key: 'gla', label: 'Living Area (GLA)', sub: 'Size differential' },
-  { key: 'bed_bath', label: 'Beds & Baths', sub: 'Room & bath count' },
-  { key: 'condition', label: 'Condition (UAD)', sub: 'Kitchen & baths' },
-  { key: 'pool', label: 'Pool & Outdoor', sub: 'In-ground pool' },
-  { key: 'garage', label: 'Garage Capacity', sub: 'Enclosed bays' },
-  { key: 'windstorm', label: 'Windstorm & Roof', sub: 'Impact / roof age' },
-  { key: 'location_site', label: 'Location & Site', sub: 'Waterfront & lot sf' }
+  { key: 'bed_bath', label: 'Beds & Baths', sub: 'Full & half baths' },
+  { key: 'condition', label: 'Condition (UAD)', sub: 'C1–C6 · kitchen & baths' },
+  { key: 'windows', label: 'Windows', sub: 'Impact / shutters / none' },
+  { key: 'roof', label: 'Roof', sub: 'Material & roof year' },
+  { key: 'pool', label: 'Pool & Outdoor', sub: 'Standard / resort · screen' },
+  { key: 'garage', label: 'Garage & Parking', sub: 'Bays / carport / converted' },
+  { key: 'location_site', label: 'Waterfront & View', sub: 'Water / view & lot sf' }
 ];
 
 export default function AppraisalGridSection({
@@ -42,11 +43,13 @@ export default function AppraisalGridSection({
   onSizeMethodChange,
   subjectOverrides = {},
   onSubjectOverrideChange,
+  onOpenEditSubject,
   onToggleCompUsed,
   onChangeCompCondition,
   onOverrideCompCell,
   onOpenEditComp,
   onOpenAddComp,
+  onGoToCompsTab,
   customWeights,
   onWeightChange,
   onAutoWeights,
@@ -211,8 +214,21 @@ export default function AppraisalGridSection({
 
   const renderSubjectRowValue = (rowKey) => {
     switch (rowKey) {
-      case 'time':
-        return <span style={{ opacity: 0.9 }}>Current ({effectiveRates.monthlyTrendPct}%/mo)</span>;
+      case 'time': {
+        const trendSign = effectiveRates.monthlyTrendPct > 0 ? '+' : '';
+        return (
+          <span>
+            <span style={{ opacity: 0.9 }}>
+              Current ({trendSign}{effectiveRates.monthlyTrendPct}%/mo)
+            </span>
+            {grid.zipTrendSource && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                {grid.zipTrendSource}
+              </span>
+            )}
+          </span>
+        );
+      }
       case 'gla':
         return (
           <span>
@@ -224,39 +240,106 @@ export default function AppraisalGridSection({
         );
       case 'bed_bath':
         return (
-          <span>
-            {[
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject beds & baths"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
+            }}
+          >
+            {subjectSummary.bedBathLabel || [
               subjectSummary.beds != null ? `${subjectSummary.beds} bd` : null,
               subjectSummary.baths != null ? `${subjectSummary.baths} ba` : null
-            ].filter(Boolean).join(' / ') || '—'}
-          </span>
+            ].filter(Boolean).join(' / ') || 'Add beds/baths'}
+          </button>
         );
       case 'condition':
         return (
-          <span
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject condition (As-is / After-rehab)"
             style={{
               display: 'inline-block',
-              padding: '2px 8px',
+              padding: '2px 9px',
               borderRadius: '999px',
               backgroundColor: mode === 'arv' ? 'rgba(63, 90, 58, 0.38)' : 'rgba(250, 248, 245, 0.14)',
               border: '1px solid rgba(250, 248, 245, 0.24)',
               fontSize: '11px',
               fontWeight: 600,
-              color: '#FAF8F5'
+              color: '#FAF8F5',
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
             }}
           >
             {subjectSummary.conditionLabel}
-          </span>
+          </button>
+        );
+      case 'windows':
+        return (
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenEditSubject) {
+                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+              } else if (onSubjectOverrideChange) {
+                onSubjectOverrideChange('impact_windows', !subjectOverrides.impact_windows);
+              }
+            }}
+            title="Click to edit Subject windows (Impact / Shutters / None)"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {subjectSummary.windowsLabel || 'Unknown'}
+          </button>
+        );
+      case 'roof':
+        return (
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject roof type & roof year"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
+            }}
+          >
+            {subjectSummary.roofLabel || 'Unknown'}
+          </button>
         );
       case 'pool':
         return (
           <button
             type="button"
-            onClick={() =>
-              onSubjectOverrideChange &&
-              onSubjectOverrideChange('pool', !subjectOverrides.pool)
-            }
-            title="Click to toggle Subject pool attribute"
+            onClick={() => {
+              if (onOpenEditSubject) {
+                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+              } else if (onSubjectOverrideChange) {
+                onSubjectOverrideChange('pool', !subjectOverrides.pool);
+              }
+            }}
+            title="Click to edit Subject pool & screen enclosure"
             style={{
               background: 'rgba(250, 248, 245, 0.12)',
               border: '1px solid rgba(250, 248, 245, 0.24)',
@@ -277,10 +360,14 @@ export default function AppraisalGridSection({
           <button
             type="button"
             onClick={() => {
-              const next = (currBays + 1) % 4;
-              onSubjectOverrideChange && onSubjectOverrideChange('garage_bays', next);
+              if (onOpenEditSubject) {
+                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+              } else if (onSubjectOverrideChange) {
+                const next = (currBays + 1) % 4;
+                onSubjectOverrideChange('garage_bays', next);
+              }
             }}
-            title="Click to cycle Subject garage bays (0–3)"
+            title="Click to edit Subject garage / parking"
             style={{
               background: 'rgba(250, 248, 245, 0.12)',
               border: '1px solid rgba(250, 248, 245, 0.24)',
@@ -296,38 +383,18 @@ export default function AppraisalGridSection({
           </button>
         );
       }
-      case 'windstorm':
-        return (
-          <button
-            type="button"
-            onClick={() =>
-              onSubjectOverrideChange &&
-              onSubjectOverrideChange('impact_windows', !subjectOverrides.impact_windows)
-            }
-            title="Click to toggle Subject impact glass protection"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {subjectSummary.windstormLabel}
-          </button>
-        );
       case 'location_site':
         return (
           <button
             type="button"
-            onClick={() =>
-              onSubjectOverrideChange &&
-              onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront)
-            }
-            title="Click to toggle Subject waterfront / canal status"
+            onClick={() => {
+              if (onOpenEditSubject) {
+                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+              } else if (onSubjectOverrideChange) {
+                onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
+              }
+            }}
+            title="Click to edit Subject waterfront & view"
             style={{
               background: 'rgba(250, 248, 245, 0.12)',
               border: '1px solid rgba(250, 248, 245, 0.24)',
@@ -547,11 +614,18 @@ export default function AppraisalGridSection({
                 margin: '0 0 18px 0'
               }}
             >
-              Pull verified Palm Beach &amp; Broward sales from Suggested County Comps below or add an MLS sale manually.
+              Pick verified Palm Beach &amp; Broward sales in the Value &amp; Comps tab, or add an MLS sale manually.
             </p>
-            <Button variant="primary" size="sm" onClick={onOpenAddComp}>
-              + Add comparable sale
-            </Button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {onGoToCompsTab && (
+                <Button variant="primary" size="sm" onClick={onGoToCompsTab}>
+                  Pick comps in Value &amp; Comps &rarr;
+                </Button>
+              )}
+              <Button variant={onGoToCompsTab ? 'secondary' : 'primary'} size="sm" onClick={onOpenAddComp}>
+                + Add comparable sale
+              </Button>
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -656,6 +730,46 @@ export default function AppraisalGridSection({
                           ? `Just Val ${formatDollar(subjectSummary.justValue)}`
                           : 'Unadjusted anchor'}
                     </div>
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      {subjectSummary.detailsProgress && (
+                        <span
+                          style={{
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            color: 'rgba(250, 248, 245, 0.8)'
+                          }}
+                        >
+                          {subjectSummary.detailsProgress.label}
+                        </span>
+                      )}
+                      {onOpenEditSubject && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+                          style={{
+                            background: 'rgba(189, 211, 226, 0.2)',
+                            border: '1px solid rgba(189, 211, 226, 0.45)',
+                            color: '#FAF8F5',
+                            borderRadius: '999px',
+                            padding: '2px 9px',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Edit subject
+                        </button>
+                      )}
+                    </div>
                   </th>
 
                   {/* Columns 3..N: COMPARABLE COLUMNS WITH USED / OFF TOGGLES */}
@@ -663,20 +777,23 @@ export default function AppraisalGridSection({
                     const isUsed = comp.isUsed;
                     const condKey = comp.conditionMeta?.key || 'unknown';
                     const isRenov = comp.conditionMeta?.isRenovated;
+                    const clues = comp.countyClues || {};
+                    const progress = comp.detailsProgress;
+                    const isVerified = Boolean(comp.compDetails?.verified);
 
                     return (
                       <th
                         key={comp.id}
                         style={{
-                          width: '235px',
-                          minWidth: '220px',
+                          width: '240px',
+                          minWidth: '225px',
                           padding: '16px 16px',
                           textAlign: 'left',
                           verticalAlign: 'top',
                           backgroundColor: isUsed ? '#FFFFFF' : 'rgba(242, 239, 234, 0.65)',
                           borderBottom: '1px solid var(--border)',
                           borderLeft: '1px solid var(--border)',
-                          opacity: isUsed ? 1 : 0.62,
+                          opacity: isUsed ? 1 : 0.68,
                           transition: 'opacity 0.18s ease, background-color 0.18s ease'
                         }}
                       >
@@ -756,7 +873,7 @@ export default function AppraisalGridSection({
                           {comp.address}
                         </div>
 
-                        {/* Distance · Date · Edit + Condition Cycle Chip */}
+                        {/* Distance · Date · Edit */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--muted)' }}>
                             {comp.distance_mi != null ? `${comp.distance_mi} mi` : '— mi'} · {formatShortSoldDate(comp.sold_date)}
@@ -780,10 +897,33 @@ export default function AppraisalGridSection({
                           </button>
                         </div>
 
-                        <div style={{ marginTop: '8px' }}>
+                        {/* Details progress: "Details: X of 9 filled" */}
+                        {progress && (
+                          <div
+                            style={{
+                              marginTop: '5px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              color: progress.filledCount === 9 ? 'var(--positive, #3F5A3A)' : 'rgba(52, 41, 42, 0.68)'
+                            }}
+                          >
+                            <span>{progress.label}</span>
+                            {isVerified && (
+                              <span style={{ color: 'var(--positive, #3F5A3A)', fontWeight: 700 }}>
+                                &#10003; Verified
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: '7px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '5px' }}>
                           <button
                             type="button"
-                            title="Click to cycle comp condition (As-is → Updated → Fully renovated)"
+                            title="Click to cycle comp condition (Original C4 → Updated C3 → Renovated C2 → Unknown)"
                             onClick={() => {
                               const currIdx = CONDITION_CYCLE.indexOf(condKey);
                               const nextKey = CONDITION_CYCLE[(currIdx + 1) % CONDITION_CYCLE.length];
@@ -802,9 +942,101 @@ export default function AppraisalGridSection({
                               border: isRenov ? '1px solid rgba(63, 90, 58, 0.28)' : '1px solid var(--border)'
                             }}
                           >
-                            {(COMP_CONDITIONS[condKey] || COMP_CONDITIONS.unknown).label} &#8635;
+                            {(COMP_CONDITIONS[condKey] || COMP_CONDITIONS.unknown).shortLabel} &#8635;
                           </button>
+
+                          {/* $/sf Outlier chip (burgundy outline, OFF by default) */}
+                          {comp.isOutlier && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title={comp.outlierReason || '$/sf outlier — defaulted to OFF in reconciliation'}
+                              style={{
+                                backgroundColor: 'transparent',
+                                color: 'var(--burgundy, #41101B)',
+                                border: '1px solid var(--burgundy, #41101B)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              Outlier
+                            </Pill>
+                          )}
+
+                          {/* Amber-free warning chip in burgundy outline when comp is > 6 months old */}
+                          {comp.isOlderThan6Months && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title={`Sold ${comp.monthsSinceSale} months ago — reconciliation weight reduced`}
+                              style={{
+                                backgroundColor: 'transparent',
+                                color: 'var(--burgundy, #41101B)',
+                                border: '1px solid var(--burgundy, #41101B)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              Older than 6 months
+                            </Pill>
+                          )}
                         </div>
+
+                        {/* County NAL Clues (hints only — user confirms in Edit) */}
+                        {(clues.likelyRenovatedLabel || clues.extraFeaturesLabel || clues.unitsLabel) && (
+                          <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {clues.likelyRenovatedLabel && (
+                              <span
+                                title="County hint from DOR roll (not a confirmed fact — click Edit to confirm)"
+                                style={{
+                                  display: 'inline-block',
+                                  fontSize: '9.5px',
+                                  fontWeight: 600,
+                                  padding: '1px 7px',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(189, 211, 226, 0.3)',
+                                  border: '1px solid rgba(133, 157, 206, 0.45)',
+                                  color: '#34292A'
+                                }}
+                              >
+                                {clues.likelyRenovatedLabel}
+                              </span>
+                            )}
+                            {clues.extraFeaturesLabel && (
+                              <span
+                                title="DOR NAL SPEC_FEAT_VAL hint (pools, enclosures, docks — click Edit to confirm)"
+                                style={{
+                                  display: 'inline-block',
+                                  fontSize: '9.5px',
+                                  fontWeight: 600,
+                                  padding: '1px 7px',
+                                  borderRadius: '999px',
+                                  backgroundColor: '#FAF8F5',
+                                  border: '1px solid rgba(52, 41, 42, 0.14)',
+                                  color: 'rgba(52, 41, 42, 0.78)'
+                                }}
+                              >
+                                {clues.extraFeaturesLabel}
+                              </span>
+                            )}
+                            {clues.unitsLabel && (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  fontSize: '9.5px',
+                                  fontWeight: 600,
+                                  padding: '1px 7px',
+                                  borderRadius: '999px',
+                                  backgroundColor: '#FAF8F5',
+                                  border: '1px solid rgba(52, 41, 42, 0.14)',
+                                  color: 'rgba(52, 41, 42, 0.75)'
+                                }}
+                              >
+                                {clues.unitsLabel}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </th>
                     );
                   })}
@@ -894,9 +1126,10 @@ export default function AppraisalGridSection({
                       {renderSubjectRowValue(row.key)}
                     </td>
 
-                    {/* Comp Feature + Green/Burgundy Adjustment Cell */}
+                    {/* Comp Feature + Needs Info Chip + Green/Burgundy Adjustment Cell */}
                     {comps.map((comp) => {
                       const cell = comp.cells[row.key];
+                      if (!cell) return <td key={comp.id} />;
                       return (
                         <td
                           key={comp.id}
@@ -917,11 +1150,43 @@ export default function AppraisalGridSection({
                             }}
                           >
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '12px', color: 'var(--espresso)', fontWeight: 500 }}>
-                                {cell.spec}
+                              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '5px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '12px',
+                                    color: cell.needsInfo ? 'var(--muted)' : 'var(--espresso)',
+                                    fontWeight: 500
+                                  }}
+                                >
+                                  {cell.spec}
+                                </span>
+                                {cell.needsInfo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenEditComp && onOpenEditComp(comp)}
+                                    title="Unknown feature ($0 adjustment, weight reduced) — click to fill in comp details"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '1px 7px',
+                                      borderRadius: '999px',
+                                      backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                                      border: '1px solid rgba(65, 16, 27, 0.32)',
+                                      color: 'var(--burgundy, #41101B)',
+                                      fontFamily: 'var(--font-sans)',
+                                      fontSize: '9.5px',
+                                      fontWeight: 700,
+                                      letterSpacing: '0.03em',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    Needs info
+                                  </button>
+                                )}
                               </div>
                               {cell.note && (
-                                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                                <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '1px' }}>
                                   {cell.note}
                                 </div>
                               )}
@@ -1501,8 +1766,15 @@ export default function AppraisalGridSection({
                         </div>
                       </div>
 
-                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px' }}>
-                        {comp.distanceMi} mi · {comp.monthsSinceSale} mo · {comp.grossAdjustmentPct.toFixed(1)}% gross
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>
+                          {comp.distanceMi} mi · {comp.monthsSinceSale} mo · {comp.grossAdjustmentPct.toFixed(1)}% gross
+                        </span>
+                        {comp.isOlderThan6Months && (
+                          <span style={{ color: 'var(--burgundy, #41101B)', fontWeight: 600 }}>
+                            Weight reduced (&gt;6 mo)
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

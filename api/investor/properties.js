@@ -1,9 +1,10 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
+import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 
 const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifamily_2_9', 'other'];
 const ALLOWED_STATUSES = ['watching', 'analyzing', 'offer_sent', 'under_contract', 'passed', 'owned'];
-const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr'];
+const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
 
 function validateProperty(body) {
   const errors = {};
@@ -119,6 +120,37 @@ function validateProperty(body) {
   const rehab_budget_updated_at = body.rehab_budget_updated_at != null && String(body.rehab_budget_updated_at).trim() !== '' ? new Date(body.rehab_budget_updated_at).toISOString() : null;
   const is_studying = body.is_studying !== undefined ? Boolean(body.is_studying) : false;
 
+  // Optional HOA fields for Live-in fit rental restriction check
+  const has_hoa =
+    body.has_hoa === true || body.has_hoa === 'true'
+      ? true
+      : body.has_hoa === false || body.has_hoa === 'false'
+      ? false
+      : null;
+  const hoa_monthly = parseNumField(body.hoa_monthly, 'hoa_monthly', 'HOA monthly');
+
+  // Optional subject_details (as_is & after_rehab) + nullable amenity booleans
+  const parseTriBool = (v) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : null);
+  let pool = parseTriBool(body.pool);
+  let garage = parseTriBool(body.garage);
+  let waterfront = parseTriBool(body.waterfront);
+
+  let subject_details = {};
+  if (body.subject_details && typeof body.subject_details === 'object') {
+    const nextSubjectDetails = {};
+    if (body.subject_details.as_is && typeof body.subject_details.as_is === 'object') {
+      nextSubjectDetails.as_is = normalizeCompDetails(body.subject_details.as_is);
+      const legacy = detailsToLegacyColumns(nextSubjectDetails.as_is);
+      if (pool === null && legacy.pool !== null) pool = legacy.pool;
+      if (garage === null && legacy.garage !== null) garage = legacy.garage;
+      if (waterfront === null && legacy.waterfront !== null) waterfront = legacy.waterfront;
+    }
+    if (body.subject_details.after_rehab && typeof body.subject_details.after_rehab === 'object') {
+      nextSubjectDetails.after_rehab = normalizeCompDetails(body.subject_details.after_rehab);
+    }
+    subject_details = nextSubjectDetails;
+  }
+
   return {
     errors,
     data: {
@@ -148,7 +180,13 @@ function validateProperty(body) {
       rehab_budget,
       rehab_budget_source,
       rehab_budget_updated_at,
-      is_studying
+      is_studying,
+      has_hoa,
+      hoa_monthly,
+      pool,
+      garage,
+      waterfront,
+      subject_details
     }
   };
 }
@@ -205,6 +243,12 @@ export default async function handler(req, res) {
               p.rehab_budget,
               p.rehab_budget_source,
               p.rehab_budget_updated_at,
+              p.has_hoa,
+              p.hoa_monthly,
+              p.pool,
+              p.garage,
+              p.waterfront,
+              COALESCE(p.subject_details, '{}'::jsonb) AS subject_details,
               COALESCE(p.is_studying, false) AS is_studying,
               ipp.blob_url AS cover_photo_url,
               p.created_at,
@@ -223,50 +267,35 @@ export default async function handler(req, res) {
             LIMIT 1
           `;
         } catch (fullErr) {
-          console.warn('Single property query with joins failed, falling back:', fullErr.message);
+          console.warn('Single property query with subject_details failed, falling back:', fullErr.message);
           try {
             rows = await sql`
               SELECT 
-                id,
-                owner_email,
-                address,
-                city,
-                state,
-                zip,
-                county,
-                lat,
-                lng,
-                property_type,
-                units,
-                beds,
-                baths,
-                sqft,
-                lot_sqft,
-                year_built,
-                list_price,
-                status,
-                strategy,
-                condition,
-                roof_year,
-                listing_url,
-                notes,
-                parcel_id,
-                parcel_county,
-                NULL::text AS flood_zone,
-                NULL::text AS flood_subtype,
-                NULL::boolean AS flood_sfha,
-                NULL::numeric AS flood_bfe,
-                NULL::text AS zoning_code,
-                NULL::text AS zoning_desc,
-                NULL::numeric AS rehab_budget,
-                NULL::text AS rehab_budget_source,
-                NULL::timestamptz AS rehab_budget_updated_at,
-                COALESCE(is_studying, false) AS is_studying,
-                NULL::text AS cover_photo_url,
-                created_at,
-                updated_at
-              FROM investor_properties
-              WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+                p.id, p.owner_email, p.address, p.city, p.state, p.zip, p.county,
+                p.lat, p.lng, p.property_type, p.units, p.beds, p.baths, p.sqft,
+                p.lot_sqft, p.year_built, p.list_price, p.status, p.strategy,
+                p.condition, p.roof_year, p.listing_url, p.notes,
+                p.parcel_id, p.parcel_county,
+                psi.flood_zone, psi.flood_subtype, psi.flood_sfha, psi.flood_bfe,
+                psi.zoning_code, psi.zoning_desc,
+                p.rehab_budget, p.rehab_budget_source, p.rehab_budget_updated_at,
+                p.has_hoa, p.hoa_monthly,
+                NULL::boolean AS pool, NULL::boolean AS garage, NULL::boolean AS waterfront,
+                '{}'::jsonb AS subject_details,
+                COALESCE(p.is_studying, false) AS is_studying,
+                ipp.blob_url AS cover_photo_url,
+                p.created_at, p.updated_at
+              FROM investor_properties p
+              LEFT JOIN parcel_site_info psi 
+                ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
+               AND psi.parcel_id = p.parcel_id
+              LEFT JOIN LATERAL (
+                SELECT blob_url FROM investor_property_photos
+                WHERE property_id = p.id
+                ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+                LIMIT 1
+              ) ipp ON true
+              WHERE p.id = ${id} AND lower(p.owner_email) = ${cleanEmail}
               LIMIT 1
             `;
           } catch (colErr) {
@@ -364,6 +393,12 @@ export default async function handler(req, res) {
             p.rehab_budget,
             p.rehab_budget_source,
             p.rehab_budget_updated_at,
+            p.has_hoa,
+            p.hoa_monthly,
+            p.pool,
+            p.garage,
+            p.waterfront,
+            COALESCE(p.subject_details, '{}'::jsonb) AS subject_details,
             COALESCE(p.is_studying, false) AS is_studying,
             ipp.blob_url AS cover_photo_url,
             p.created_at,
@@ -382,52 +417,37 @@ export default async function handler(req, res) {
           ORDER BY p.created_at DESC
         `;
       } catch (joinErr) {
-        console.warn('Property query with joins failed, falling back:', joinErr.message);
+        console.warn('Property query with subject_details failed, falling back:', joinErr.message);
         try {
-          // Tier 2: investor_properties with parcel columns, without optional joins
+          // Tier 2: Joined query without subject_details (works before add_comp_details_and_nal_clues.sql is applied)
           properties = await sql`
             SELECT 
-              id,
-              owner_email,
-              address,
-              city,
-              state,
-              zip,
-              county,
-              lat,
-              lng,
-              property_type,
-              units,
-              beds,
-              baths,
-              sqft,
-              lot_sqft,
-              year_built,
-              list_price,
-              status,
-              strategy,
-              condition,
-              roof_year,
-              listing_url,
-              notes,
-              parcel_id,
-              parcel_county,
-              NULL::text AS flood_zone,
-              NULL::text AS flood_subtype,
-              NULL::boolean AS flood_sfha,
-              NULL::numeric AS flood_bfe,
-              NULL::text AS zoning_code,
-              NULL::text AS zoning_desc,
-              NULL::numeric AS rehab_budget,
-              NULL::text AS rehab_budget_source,
-              NULL::timestamptz AS rehab_budget_updated_at,
-              COALESCE(is_studying, false) AS is_studying,
-              NULL::text AS cover_photo_url,
-              created_at,
-              updated_at
-            FROM investor_properties
-            WHERE lower(owner_email) = ${cleanEmail}
-            ORDER BY created_at DESC
+              p.id, p.owner_email, p.address, p.city, p.state, p.zip, p.county,
+              p.lat, p.lng, p.property_type, p.units, p.beds, p.baths, p.sqft,
+              p.lot_sqft, p.year_built, p.list_price, p.status, p.strategy,
+              p.condition, p.roof_year, p.listing_url, p.notes,
+              p.parcel_id, p.parcel_county,
+              psi.flood_zone, psi.flood_subtype, psi.flood_sfha, psi.flood_bfe,
+              psi.zoning_code, psi.zoning_desc,
+              p.rehab_budget, p.rehab_budget_source, p.rehab_budget_updated_at,
+              p.has_hoa, p.hoa_monthly,
+              NULL::boolean AS pool, NULL::boolean AS garage, NULL::boolean AS waterfront,
+              '{}'::jsonb AS subject_details,
+              COALESCE(p.is_studying, false) AS is_studying,
+              ipp.blob_url AS cover_photo_url,
+              p.created_at, p.updated_at
+            FROM investor_properties p
+            LEFT JOIN parcel_site_info psi 
+              ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
+             AND psi.parcel_id = p.parcel_id
+            LEFT JOIN LATERAL (
+              SELECT blob_url FROM investor_property_photos
+              WHERE property_id = p.id
+              ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+              LIMIT 1
+            ) ipp ON true
+            WHERE lower(p.owner_email) = ${cleanEmail}
+            ORDER BY p.created_at DESC
           `;
         } catch (parcelErr) {
           console.warn('Property query without joins failed, falling back to base columns:', parcelErr.message);
@@ -516,7 +536,9 @@ export default async function handler(req, res) {
             listing_url,
             notes,
             parcel_id,
-            parcel_county
+            parcel_county,
+            has_hoa,
+            hoa_monthly
           ) VALUES (
             ${cleanEmail},
             ${data.address},
@@ -541,12 +563,15 @@ export default async function handler(req, res) {
             ${data.listing_url},
             ${data.notes},
             ${data.parcel_id},
-            ${data.parcel_county}
+            ${data.parcel_county},
+            ${data.has_hoa},
+            ${data.hoa_monthly}
           )
           RETURNING *
         `;
       } catch (colErr) {
-        console.warn('Insert with parcel columns failed, falling back to base columns:', colErr.message);
+        if (colErr?.code === '23514') throw colErr;
+        console.warn('Insert with parcel/HOA columns failed, falling back to base columns:', colErr.message);
         rows = await sql`
           INSERT INTO investor_properties (
             owner_email,
@@ -649,46 +674,95 @@ export default async function handler(req, res) {
             rehab_budget = ${data.rehab_budget},
             rehab_budget_source = ${data.rehab_budget_source},
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+            has_hoa = ${data.has_hoa},
+            hoa_monthly = ${data.hoa_monthly},
+            pool = ${data.pool},
+            garage = ${data.garage},
+            waterfront = ${data.waterfront},
+            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
       } catch (colErr) {
-        console.warn('Update with parcel columns failed, falling back to base columns:', colErr.message);
-        rows = await sql`
-          UPDATE investor_properties
-          SET
-            address = ${data.address},
-            city = ${data.city},
-            state = ${data.state},
-            zip = ${data.zip},
-            county = ${data.county},
-            lat = ${data.lat},
-            lng = ${data.lng},
-            property_type = ${data.property_type},
-            units = ${data.units},
-            beds = ${data.beds},
-            baths = ${data.baths},
-            sqft = ${data.sqft},
-            lot_sqft = ${data.lot_sqft},
-            year_built = ${data.year_built},
-            list_price = ${data.list_price},
-            status = ${data.status},
-            strategy = ${data.strategy},
-            condition = ${data.condition},
-            roof_year = ${data.roof_year},
-            listing_url = ${data.listing_url},
-            notes = ${data.notes},
-            is_studying = ${data.is_studying}
-          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-          RETURNING *
-        `;
-        if (rows[0]) {
-          rows[0].parcel_id = data.parcel_id || null;
-          rows[0].parcel_county = data.parcel_county || null;
-          rows[0].rehab_budget = data.rehab_budget || null;
-          rows[0].rehab_budget_source = data.rehab_budget_source || null;
-          rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+        if (colErr?.code === '23514') throw colErr;
+        console.warn('Update with subject_details columns failed, falling back:', colErr.message);
+        try {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes},
+              parcel_id = ${data.parcel_id},
+              parcel_county = ${data.parcel_county},
+              rehab_budget = ${data.rehab_budget},
+              rehab_budget_source = ${data.rehab_budget_source},
+              rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+              has_hoa = ${data.has_hoa},
+              hoa_monthly = ${data.hoa_monthly},
+              is_studying = ${data.is_studying}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].subject_details = data.subject_details || {};
+          }
+        } catch {
+          rows = await sql`
+            UPDATE investor_properties
+            SET
+              address = ${data.address},
+              city = ${data.city},
+              state = ${data.state},
+              zip = ${data.zip},
+              county = ${data.county},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              property_type = ${data.property_type},
+              units = ${data.units},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              sqft = ${data.sqft},
+              lot_sqft = ${data.lot_sqft},
+              year_built = ${data.year_built},
+              list_price = ${data.list_price},
+              status = ${data.status},
+              strategy = ${data.strategy},
+              condition = ${data.condition},
+              roof_year = ${data.roof_year},
+              listing_url = ${data.listing_url},
+              notes = ${data.notes},
+              is_studying = ${data.is_studying}
+            WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+            RETURNING *
+          `;
+          if (rows[0]) {
+            rows[0].parcel_id = data.parcel_id || null;
+            rows[0].parcel_county = data.parcel_county || null;
+            rows[0].rehab_budget = data.rehab_budget || null;
+            rows[0].rehab_budget_source = data.rehab_budget_source || null;
+            rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].subject_details = data.subject_details || {};
+          }
         }
       }
 
@@ -716,7 +790,16 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
-      const merged = { ...current[0], ...req.body };
+      const merged = {
+        ...current[0],
+        ...req.body,
+        subject_details: req.body?.subject_details !== undefined
+          ? {
+              ...(current[0].subject_details && typeof current[0].subject_details === 'object' ? current[0].subject_details : {}),
+              ...(req.body.subject_details && typeof req.body.subject_details === 'object' ? req.body.subject_details : {})
+            }
+          : current[0].subject_details
+      };
       const { errors, data } = validateProperty(merged);
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
@@ -753,12 +836,24 @@ export default async function handler(req, res) {
             rehab_budget = ${data.rehab_budget},
             rehab_budget_source = ${data.rehab_budget_source},
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
+            has_hoa = ${data.has_hoa},
+            hoa_monthly = ${data.hoa_monthly},
+            pool = ${data.pool},
+            garage = ${data.garage},
+            waterfront = ${data.waterfront},
+            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
       } catch (colErr) {
-        console.warn('Patch with parcel columns failed, falling back to base columns:', colErr.message);
+        if (colErr?.code === '23514') throw colErr;
+        if (req.body?.subject_details !== undefined && colErr?.code === '42703') {
+          return res.status(409).json({
+            error: 'The database migration "add_comp_details_and_nal_clues.sql" has not been applied yet. Please apply the SQL migration first.'
+          });
+        }
+        console.warn('Patch with subject_details columns failed, falling back:', colErr.message);
         rows = await sql`
           UPDATE investor_properties
           SET
@@ -793,6 +888,7 @@ export default async function handler(req, res) {
           rows[0].rehab_budget = data.rehab_budget || null;
           rows[0].rehab_budget_source = data.rehab_budget_source || null;
           rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+          rows[0].subject_details = data.subject_details || {};
         }
       }
 
@@ -821,6 +917,11 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
+    if (error?.code === '23514') {
+      return res.status(409).json({
+        error: 'The database migration "add_live_in_fha_strategy.sql" has not been applied yet. Please apply the SQL migration first.'
+      });
+    }
     console.error('Investor Properties API Error:', error);
     return res.status(500).json({ error: error.message || 'Server error processing request.' });
   }

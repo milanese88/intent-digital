@@ -31,7 +31,9 @@ export async function getCountyFreshness() {
 
   const sql = getDb();
 
-  // Query monthly market sale counts for all counties to determine completeness
+  const minFreshnessYear = new Date().getFullYear() - 2;
+
+  // Query monthly market sale counts for recent years using idx_county_sales_comps
   const monthlyCounts = await sql`
     SELECT 
       s.county,
@@ -41,7 +43,8 @@ export async function getCountyFreshness() {
     FROM county_sales s
     JOIN county_sale_codes c ON s.qual_code = c.qual_code
     WHERE c.is_market = true
-      AND s.sale_year IS NOT NULL
+      AND s.qual_code IN ('01', '02')
+      AND s.sale_year >= ${minFreshnessYear}
       AND s.sale_month IS NOT NULL
       AND s.sale_month BETWEEN 1 AND 12
       AND s.sale_price > 100

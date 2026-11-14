@@ -548,7 +548,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                 fontSize: '32px',
                 color: '#FAF8F5'
               }}>
-                {termsLearnedCount} <span style={{ fontSize: '18px', color: 'var(--on-dark-muted)' }}>/ 40</span>
+                {termsLearnedCount} <span style={{ fontSize: '18px', color: 'var(--on-dark-muted)' }}>/ {data?.terms?.length || 45}</span>
               </div>
             </div>
 
@@ -995,7 +995,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
 
               <button
                 type="button"
-                onClick={() => setTermIndex(prev => (prev + 1) % (data?.terms?.length || 40))}
+                onClick={() => setTermIndex(prev => (prev + 1) % (data?.terms?.length || 45))}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1012,8 +1012,70 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
               </button>
             </div>
 
+            {/* Quick-jump pills for Live-in Plan (FHA) lessons */}
+            {Array.isArray(data?.terms) && (
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                marginBottom: '12px'
+              }}>
+                {[
+                  { id: 'fha_plain_words', label: 'FHA in plain words' },
+                  { id: 'live_in_flip_vs_house_hack', label: 'Live-in flip vs. house hack' },
+                  { id: 'section_121_year_two', label: 'Why year 2 matters (Section 121)' },
+                  { id: 'homestead_when_you_rent', label: 'Homestead when you rent' }
+                ].map((lesson) => {
+                  const idx = data.terms.findIndex((t) => t.id === lesson.id);
+                  if (idx < 0) return null;
+                  const isActive = currentTerm?.id === lesson.id;
+                  return (
+                    <button
+                      key={lesson.id}
+                      type="button"
+                      onClick={() => setTermIndex(idx)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '999px',
+                        border: isActive
+                          ? '1px solid var(--burgundy, #41101B)'
+                          : '1px solid rgba(52, 41, 42, 0.18)',
+                        background: isActive ? 'var(--burgundy, #41101B)' : '#FAF8F5',
+                        color: isActive ? '#FAF8F5' : '#34292A',
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {lesson.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {currentTerm && (
               <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 50px)', boxSizing: 'border-box' }}>
+                {[
+                  'fha_plain_words',
+                  'live_in_flip_vs_house_hack',
+                  'section_121_year_two',
+                  'homestead_when_you_rent'
+                ].includes(currentTerm.id) && (
+                  <div style={{
+                    marginBottom: '14px',
+                    padding: '7px 11px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(189, 211, 226, 0.30)',
+                    border: '1px solid rgba(133, 157, 206, 0.45)',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    color: '#34292A'
+                  }}>
+                    Estimate for planning — confirm with your lender and CPA.
+                  </div>
+                )}
                 {/* Header: Term Title + Full Name */}
                 <div style={{ marginBottom: '16px' }}>
                   <h3 style={{

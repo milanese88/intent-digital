@@ -261,7 +261,7 @@ export default function MarketCard({
 
     setCompsLoading(true);
     try {
-      const url = `/api/county/comps?county=${encodeURIComponent(county)}&parcel_id=${encodeURIComponent(property.parcel_id)}`;
+      const url = `/api/county/comps?county=${encodeURIComponent(county)}&parcel_id=${encodeURIComponent(property.parcel_id)}&radius=1&months=12`;
       const res = await fetch(url);
       if (res.ok) {
         const cJson = await res.json();

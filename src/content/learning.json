@@ -327,6 +327,38 @@
       "definition": "Appraisers adjust Comparable Sales—never the Subject—using market contributory value (30%–45% marginal GLA $/sf in South Florida, scaled by tier). CIA (Comp Inferior) adds value (+); CBS (Comp Better) subtracts value (−). Fannie Mae flags comps exceeding 15% Net or 25% Gross adjustments.",
       "example": "Against a 2,200 sf subject with a pool, a 2,000 sf comp sold at $460K without a pool receives +$17K GLA and +$25K pool (+$42K / 9.1% Net), indicating $502K Adjusted Sale Price.",
       "appPointer": "Investor Studio → Value & Comps Appraisal Grid, Reconciliation Weights, and Checks card."
+    },
+    {
+      "id": "fha_plain_words",
+      "title": "FHA in plain words",
+      "fullName": "Federal Housing Administration Primary-Residence Financing",
+      "definition": "An FHA loan lets owner-occupants buy a 1–4 unit primary residence with as little as 3.5% down (580+ credit; 10% down for 500–579). You pay a 1.75% Upfront Mortgage Insurance Premium (UFMIP, typically rolled into the loan) plus 0.55%/yr annual MIP (0.75%/yr above $726,200) that stays for the life of the loan when putting under 10% down. You must move in within 60 days and intend to live there at least 1 year; dated C5–C6 properties can pair FHA with a Limited 203(k) (up to $75,000 rehab) or Standard 203(k). Estimate for planning — confirm with your lender and CPA.",
+      "example": "On a $500,000 Broward single-family home (under the $667,000 1-unit FHA limit), 3.5% down is $17,500; the $482,500 base loan adds $8,444 financed UFMIP for a $490,944 total loan.",
+      "appPointer": "Investor Studio → Deal tab → Live-in (FHA) → 01 Buy & My Buying Profile FHA limits."
+    },
+    {
+      "id": "live_in_flip_vs_house_hack",
+      "title": "Live-in flip vs. house hack",
+      "fullName": "Single-Family Value-Add vs. 2–4 Unit Owner-Occupied Offset",
+      "definition": "A live-in flip focuses on buying an under-improved home, renovating while you live in it over 1–2 years, and capturing forced equity through a tax-advantaged sale or conventional refinance. A house hack buys 2–4 units (duplex, triplex, or fourplex) under FHA, living in one unit while renting the others—where lenders typically count 75% of the other units' market rent toward qualifying and offsetting your monthly PITI + MIP. Generally, borrowers can hold only one FHA loan at a time. Estimate for planning — confirm with your lender and CPA.",
+      "example": "Living in half of a $560,000 duplex where Unit B rents for $2,200/mo offsets $1,650/mo (75%) of your housing cost, often making ownership cheaper per month than renting an apartment.",
+      "appPointer": "Investor Studio → Deal tab → Live-in (FHA) → 02 Live, 03 Improve & 04 Exit."
+    },
+    {
+      "id": "section_121_year_two",
+      "title": "Why year 2 matters (Section 121)",
+      "fullName": "IRS Section 121 Primary Residence Capital Gain Exclusion (2-of-5-Year Rule)",
+      "definition": "Under IRS Section 121, if you own and use a home as your primary residence for at least 24 months (2 years) out of the 5 years before selling, you can exclude up to $250,000 of capital gains if single or up to $500,000 if married filing jointly. Selling after only 1 year generally forfeits the full exclusion (absent specific IRS exceptions) and exposes gains to capital gains tax; renting the home out too long beyond year 5 or claiming depreciation also triggers recapture rules. Estimate for planning — confirm with your lender and CPA.",
+      "example": "Buying at $460,000, investing $45,000 in renovations, and netting $615,000 after selling costs creates a ~$110,000 gain—potentially $0 federal capital gains tax after 2 full years of primary occupancy vs. taxable if sold at month 12 (estimate — confirm with a CPA).",
+      "appPointer": "Investor Studio → Deal tab → Live-in (FHA) → 04 Exit (Scenario B: Sell 1 yr vs. 2 yrs)."
+    },
+    {
+      "id": "homestead_when_you_rent",
+      "title": "Homestead and what changes when you rent",
+      "fullName": "Florida Homestead Exemption, Save Our Homes Cap & Rental Reassessment",
+      "definition": "While a Florida home is your primary residence (as of Jan 1), Homestead Exemption reduces taxable value by up to $50,000 ($25k all levies + $25k non-school levies) and the Save Our Homes cap limits assessed value increases to 3%/yr. Once you move out and rent the property, you must notify the County Property Appraiser: you lose the Homestead Exemption and the 3% cap, and on the next assessment roll the property resets to full market value multiplied by the county millage rate (subject afterward to a 10% non-school cap). Always underwrite Exit A with non-homestead reassessed taxes! Estimate for planning — confirm with your lender and CPA.",
+      "example": "A Broward home bought at $420,000 and renovated to $510,000 might carry ~$7,400/yr homesteaded taxes while you live there, then jump to ~$9,945/yr (+$212/mo) at 19.5 mills once converted to a rental.",
+      "appPointer": "Investor Studio → Deal tab → Live-in (FHA) → Rental Phase Homestead vs. Non-Homestead Tax callout."
     }
   ],
   "principles": [

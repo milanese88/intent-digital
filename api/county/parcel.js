@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
+import { formatCountyClues } from '../../src/components/investor/compDetailsModel.js';
 
 export default async function handler(req, res) {
   try {
@@ -22,37 +23,76 @@ export default async function handler(req, res) {
 
     const sql = getDb();
 
-    // 1. Fetch parcel record (strictly non-PII)
-    const parcels = await sql`
-      SELECT 
-        county,
-        parcel_id,
-        address,
-        city,
-        zip,
-        use_code,
-        living_sqft,
-        year_built,
-        eff_year_built,
-        land_sqft,
-        units,
-        just_value,
-        nbrhd_cd,
-        mkt_ar,
-        lat,
-        lng,
-        roll_year,
-        imported_at
-      FROM county_parcels
-      WHERE county = ${county} AND parcel_id = ${parcelId}
-      LIMIT 1;
-    `;
+    // 1. Fetch parcel record (strictly non-PII), including NAL clue columns when migrated
+    let parcels;
+    try {
+      parcels = await sql`
+        SELECT 
+          county,
+          parcel_id,
+          address,
+          city,
+          zip,
+          use_code,
+          living_sqft,
+          year_built,
+          eff_year_built,
+          land_sqft,
+          units,
+          imp_qual,
+          const_class,
+          spec_feat_val,
+          beds,
+          full_baths,
+          half_baths,
+          just_value,
+          nbrhd_cd,
+          mkt_ar,
+          lat,
+          lng,
+          roll_year,
+          imported_at
+        FROM county_parcels
+        WHERE county = ${county} AND parcel_id = ${parcelId}
+        LIMIT 1;
+      `;
+    } catch (colErr) {
+      if (colErr?.code === '42703') {
+        parcels = await sql`
+          SELECT 
+            county,
+            parcel_id,
+            address,
+            city,
+            zip,
+            use_code,
+            living_sqft,
+            year_built,
+            eff_year_built,
+            land_sqft,
+            units,
+            just_value,
+            nbrhd_cd,
+            mkt_ar,
+            lat,
+            lng,
+            roll_year,
+            imported_at
+          FROM county_parcels
+          WHERE county = ${county} AND parcel_id = ${parcelId}
+          LIMIT 1;
+        `;
+      } else {
+        throw colErr;
+      }
+    }
 
     if (parcels.length === 0) {
       return res.status(404).json({ error: 'County parcel not found' });
     }
 
     const parcel = parcels[0];
+    const county_clues = formatCountyClues(parcel);
 
     // 2. Fetch sales history with qualification code metadata
     const sales = await sql`
@@ -83,6 +123,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ...parcel,
+      county_clues,
       sales
     });
   } catch (err) {

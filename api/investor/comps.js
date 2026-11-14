@@ -1,5 +1,15 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb } from '../_lib/db.js';
+import {
+  VALID_CONDITIONS,
+  normalizeConditionKey,
+  normalizeCompDetails,
+  detailsToLegacyColumns,
+  computeDetailsProgress,
+  buildSaleMonthKey,
+  mergeCompWithSavedDetails
+} from '../../src/components/investor/compDetailsModel.js';
+import { upsertUserCompDetails } from './comp-details.js';
 
 function calculateDistanceMi(lat1, lon1, lat2, lon2) {
   if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
@@ -20,6 +30,44 @@ function calculateDistanceMi(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const d = R * c;
   return Math.round(d * 10) / 10;
+}
+
+function parseNullableBool(val) {
+  if (val === true || val === 'true') return true;
+  if (val === false || val === 'false') return false;
+  return null;
+}
+
+/**
+ * Maps canonical UAD condition ('c1'..'c6') to legacy constraint values ONLY as an
+ * emergency fallback if add_comp_details_and_nal_clues.sql has not been applied yet.
+ */
+function toLegacyCheckCondition(cond) {
+  const c = normalizeConditionKey(cond);
+  if (c === 'c1' || c === 'c2') return 'fully_renovated';
+  if (c === 'c3') return 'updated';
+  if (c === 'c4' || c === 'c5' || c === 'c6') return 'as_is';
+  return 'unknown';
+}
+
+const STRUCTURED_DETAIL_KEYS = [
+  'comp_details_json',
+  'full_baths',
+  'half_baths',
+  'kitchen_baths_updated',
+  'roof_type',
+  'roof_year',
+  'windows',
+  'pool_type',
+  'screen_enclosure',
+  'garage_type',
+  'garage_bays',
+  'waterfront_view',
+  'verified'
+];
+
+function hasExplicitStructuredPayload(body = {}) {
+  return STRUCTURED_DETAIL_KEYS.some((k) => body[k] !== undefined);
 }
 
 function validateComp(body, isUpdate = false) {
@@ -87,7 +135,6 @@ function validateComp(body, isUpdate = false) {
   const lat = parseCoord(body.lat, 'lat', 'Latitude', -90, 90);
   const lng = parseCoord(body.lng, 'lng', 'Longitude', -180, 180);
 
-  // Optional fields
   const parseNumField = (val, isInt = false) => {
     if (val === undefined || val === null || String(val).trim() === '') return null;
     const num = Number(String(val).replace(/,/g, '').trim());
@@ -95,26 +142,62 @@ function validateComp(body, isUpdate = false) {
     return isInt ? Math.round(num) : num;
   };
 
-  const beds = parseNumField(body.beds, false);
-  const baths = parseNumField(body.baths, false);
+  let beds = parseNumField(body.beds, false);
+  let baths = parseNumField(body.baths, false);
   const year_built = parseNumField(body.year_built, true);
   const lot_sqft = parseNumField(body.lot_sqft, true);
   const city = body.city != null && String(body.city).trim() !== '' ? String(body.city).trim() : null;
   const zip = body.zip != null && String(body.zip).trim() !== '' ? String(body.zip).trim() : null;
   const source = body.source != null && String(body.source).trim() !== '' ? String(body.source).trim() : null;
-  const included = body.included !== undefined ? Boolean(body.included) : true;
   const parcel_id = body.parcel_id != null && String(body.parcel_id).trim() !== '' ? String(body.parcel_id).trim() : null;
   const parcel_county = body.parcel_county != null && String(body.parcel_county).trim() !== '' ? String(body.parcel_county).trim() : null;
 
-  // Valuation attributes
-  const validConditions = ['as_is', 'updated', 'fully_renovated', 'unknown'];
   const rawCond = body.condition != null ? String(body.condition).trim().toLowerCase() : 'unknown';
-  const condition = validConditions.includes(rawCond) ? rawCond : 'unknown';
-  const pool = Boolean(body.pool);
-  const garage = Boolean(body.garage);
-  const waterfront = Boolean(body.waterfront);
-  const notes = body.notes != null && String(body.notes).trim() !== '' ? String(body.notes).trim() : null;
-  const adjustments = typeof body.adjustments === 'object' && body.adjustments !== null ? body.adjustments : {};
+  let condition = VALID_CONDITIONS.has(rawCond) ? normalizeConditionKey(rawCond) : 'unknown';
+
+  // Nullable feature booleans (null = Unknown; NEVER force undefined to false!)
+  let pool = parseNullableBool(body.pool);
+  let garage = parseNullableBool(body.garage);
+  let waterfront = parseNullableBool(body.waterfront);
+
+  let notes = body.notes != null && String(body.notes).trim() !== '' ? String(body.notes).trim() : null;
+  const rawAdjustments = typeof body.adjustments === 'object' && body.adjustments !== null ? { ...body.adjustments } : {};
+  const is_outlier = Boolean(body.is_outlier || rawAdjustments.is_outlier);
+  if (is_outlier) {
+    rawAdjustments.is_outlier = true;
+  }
+
+  // Outlier comps default to OFF in the grid unless explicitly included === true
+  const included = body.included !== undefined
+    ? Boolean(body.included)
+    : (is_outlier ? false : true);
+
+  let comp_details_json = {};
+  if (hasExplicitStructuredPayload(body) || body.condition !== undefined || body.beds !== undefined || body.baths !== undefined || body.pool !== undefined || body.garage !== undefined || body.waterfront !== undefined) {
+    const normalizedDetails = normalizeCompDetails({
+      ...body,
+      beds,
+      baths,
+      condition,
+      pool,
+      garage,
+      waterfront,
+      notes: notes ?? '',
+      source: source ?? ''
+    });
+    const synced = detailsToLegacyColumns(normalizedDetails);
+    beds = synced.beds;
+    baths = synced.baths;
+    condition = synced.condition;
+    pool = synced.pool;
+    garage = synced.garage;
+    waterfront = synced.waterfront;
+    if (normalizedDetails.notes) {
+      notes = normalizedDetails.notes;
+    }
+    comp_details_json = normalizedDetails;
+    rawAdjustments.comp_details_json = normalizedDetails;
+  }
 
   return {
     errors,
@@ -136,13 +219,274 @@ function validateComp(body, isUpdate = false) {
       garage,
       waterfront,
       notes,
-      adjustments,
+      adjustments: rawAdjustments,
+      comp_details_json,
+      is_outlier,
       included,
       source,
       parcel_id,
       parcel_county
     }
   };
+}
+
+/**
+ * Batch-enriches investor_comps rows with:
+ * 1) DOR NAL clues from county_parcels (eff_year_built, units, imp_qual, const_class, spec_feat_val)
+ * 2) User's saved comp_details rows keyed by (county, parcel_id, sale_month_key)
+ * 3) Computed 9-field progress ("Details: X of 9 filled")
+ */
+async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []) {
+  if (!Array.isArray(rawRows) || rawRows.length === 0) return [];
+
+  const parcelIds = Array.from(
+    new Set(rawRows.map((r) => (r.parcel_id ? String(r.parcel_id).trim() : '')).filter(Boolean))
+  );
+
+  const parcelMap = new Map();
+  const savedExactMap = new Map();
+  const savedFolioMap = new Map();
+
+  if (parcelIds.length > 0) {
+    // 1. Fetch county_parcels clues
+    try {
+      const pRows = await sql`
+        SELECT
+          county,
+          parcel_id,
+          year_built,
+          eff_year_built,
+          units,
+          imp_qual,
+          const_class,
+          spec_feat_val,
+          beds,
+          full_baths,
+          half_baths
+        FROM county_parcels
+        WHERE parcel_id = ANY(${parcelIds});
+      `;
+      for (const pr of pRows) {
+        parcelMap.set(`${pr.county}|${pr.parcel_id}`, pr);
+        if (!parcelMap.has(pr.parcel_id)) parcelMap.set(pr.parcel_id, pr);
+      }
+    } catch (err) {
+      if (err?.code === '42703') {
+        try {
+          const pRowsFallback = await sql`
+            SELECT county, parcel_id, year_built, eff_year_built, units
+            FROM county_parcels
+            WHERE parcel_id = ANY(${parcelIds});
+          `;
+          for (const pr of pRowsFallback) {
+            parcelMap.set(`${pr.county}|${pr.parcel_id}`, pr);
+            if (!parcelMap.has(pr.parcel_id)) parcelMap.set(pr.parcel_id, pr);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 2. Fetch user's reusable comp_details rows
+    try {
+      const dRows = await sql`
+        SELECT *
+        FROM comp_details
+        WHERE lower(owner_email) = ${cleanEmail}
+          AND parcel_id = ANY(${parcelIds})
+        ORDER BY updated_at DESC;
+      `;
+      for (const dr of dRows) {
+        const exactKey = `${dr.county}|${dr.parcel_id}|${dr.sale_month_key || ''}`;
+        const folioKey = `${dr.county}|${dr.parcel_id}`;
+        if (!savedExactMap.has(exactKey)) savedExactMap.set(exactKey, dr);
+        if (!savedFolioMap.has(folioKey)) savedFolioMap.set(folioKey, dr);
+      }
+    } catch (err) {
+      if (err?.code !== '42P01') {
+        console.warn('comp_details enrichment skipped:', err.message);
+      }
+    }
+  }
+
+  return rawRows.map((row) => {
+    const adj = row.adjustments && typeof row.adjustments === 'object' ? row.adjustments : {};
+    const fallbackJson =
+      row.comp_details_json && typeof row.comp_details_json === 'object' && Object.keys(row.comp_details_json).length > 0
+        ? row.comp_details_json
+        : (adj.comp_details_json && typeof adj.comp_details_json === 'object' ? adj.comp_details_json : {});
+
+    const county = row.parcel_county ? (/palm/i.test(row.parcel_county) ? 'Palm Beach' : 'Broward') : 'Broward';
+    const pid = row.parcel_id ? String(row.parcel_id).trim() : '';
+    const saleMonthKey = buildSaleMonthKey(
+      row.sold_date ? (row.sold_date instanceof Date ? row.sold_date.toISOString() : String(row.sold_date)) : ''
+    );
+
+    const countyParcel = pid ? (parcelMap.get(`${county}|${pid}`) || parcelMap.get(pid) || null) : null;
+    const savedRow = pid
+      ? (savedExactMap.get(`${county}|${pid}|${saleMonthKey}`) || savedFolioMap.get(`${county}|${pid}`) || null)
+      : null;
+
+    const merged = mergeCompWithSavedDetails(
+      {
+        ...row,
+        comp_details_json: fallbackJson,
+        is_outlier: Boolean(row.is_outlier || adj.is_outlier)
+      },
+      savedRow,
+      countyParcel
+    );
+
+    return merged;
+  });
+}
+
+async function selectCompsQuery(sql, cleanEmail, propertyId = null) {
+  try {
+    if (propertyId) {
+      return await sql`
+        SELECT
+          id,
+          owner_email,
+          property_id,
+          address,
+          city,
+          zip,
+          lat,
+          lng,
+          sold_date,
+          sold_price,
+          sqft,
+          beds,
+          baths,
+          year_built,
+          price_per_sqft,
+          distance_mi,
+          included,
+          source,
+          parcel_id,
+          parcel_county,
+          COALESCE(condition, 'unknown') AS condition,
+          pool,
+          garage,
+          waterfront,
+          lot_sqft,
+          notes,
+          COALESCE(adjustments, '{}'::jsonb) AS adjustments,
+          COALESCE(comp_details_json, '{}'::jsonb) AS comp_details_json,
+          COALESCE(is_outlier, false) AS is_outlier,
+          created_at
+        FROM investor_comps
+        WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+        ORDER BY sold_date DESC NULLS LAST, created_at DESC
+      `;
+    }
+    return await sql`
+      SELECT
+        id,
+        owner_email,
+        property_id,
+        address,
+        city,
+        zip,
+        lat,
+        lng,
+        sold_date,
+        sold_price,
+        sqft,
+        beds,
+        baths,
+        year_built,
+        price_per_sqft,
+        distance_mi,
+        included,
+        source,
+        parcel_id,
+        parcel_county,
+        COALESCE(condition, 'unknown') AS condition,
+        pool,
+        garage,
+        waterfront,
+        lot_sqft,
+        notes,
+        COALESCE(adjustments, '{}'::jsonb) AS adjustments,
+        COALESCE(comp_details_json, '{}'::jsonb) AS comp_details_json,
+        COALESCE(is_outlier, false) AS is_outlier,
+        created_at
+      FROM investor_comps
+      WHERE lower(owner_email) = ${cleanEmail}
+      ORDER BY sold_date DESC NULLS LAST, created_at DESC
+    `;
+  } catch (colErr) {
+    if (colErr?.code !== '42703') throw colErr;
+    // Fallback before comp_details_json / is_outlier columns exist
+    try {
+      if (propertyId) {
+        return await sql`
+          SELECT
+            id, owner_email, property_id, address, city, zip, lat, lng,
+            sold_date, sold_price, sqft, beds, baths, year_built,
+            price_per_sqft, distance_mi, included, source,
+            parcel_id, parcel_county,
+            COALESCE(condition, 'unknown') AS condition,
+            pool, garage, waterfront, lot_sqft, notes,
+            COALESCE(adjustments, '{}'::jsonb) AS adjustments,
+            created_at
+          FROM investor_comps
+          WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+          ORDER BY sold_date DESC NULLS LAST, created_at DESC
+        `;
+      }
+      return await sql`
+        SELECT
+          id, owner_email, property_id, address, city, zip, lat, lng,
+          sold_date, sold_price, sqft, beds, baths, year_built,
+          price_per_sqft, distance_mi, included, source,
+          parcel_id, parcel_county,
+          COALESCE(condition, 'unknown') AS condition,
+          pool, garage, waterfront, lot_sqft, notes,
+          COALESCE(adjustments, '{}'::jsonb) AS adjustments,
+          created_at
+        FROM investor_comps
+        WHERE lower(owner_email) = ${cleanEmail}
+        ORDER BY sold_date DESC NULLS LAST, created_at DESC
+      `;
+    } catch (baseErr) {
+      if (baseErr?.code !== '42703') throw baseErr;
+      const raw = propertyId
+        ? await sql`
+            SELECT id, owner_email, property_id, address, city, zip, lat, lng,
+              sold_date, sold_price, sqft, beds, baths, year_built,
+              price_per_sqft, distance_mi, included, source, created_at
+            FROM investor_comps
+            WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
+            ORDER BY sold_date DESC NULLS LAST, created_at DESC
+          `
+        : await sql`
+            SELECT id, owner_email, property_id, address, city, zip, lat, lng,
+              sold_date, sold_price, sqft, beds, baths, year_built,
+              price_per_sqft, distance_mi, included, source, created_at
+            FROM investor_comps
+            WHERE lower(owner_email) = ${cleanEmail}
+            ORDER BY sold_date DESC NULLS LAST, created_at DESC
+          `;
+      return raw.map((r) => ({
+        ...r,
+        parcel_id: null,
+        parcel_county: null,
+        condition: 'unknown',
+        pool: null,
+        garage: null,
+        waterfront: null,
+        lot_sqft: null,
+        notes: null,
+        adjustments: {},
+        comp_details_json: {},
+        is_outlier: false
+      }));
+    }
+  }
 }
 
 export default async function handler(req, res) {
@@ -160,7 +504,6 @@ export default async function handler(req, res) {
       const propertyId = req.query?.property_id;
 
       if (propertyId) {
-        // FIRST confirm property_id belongs to the logged-in user
         const prop = await sql`
           SELECT id, lat, lng FROM investor_properties
           WHERE id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
@@ -170,171 +513,14 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Property not found.' });
         }
 
-        let comps;
-        try {
-          comps = await sql`
-            SELECT
-              id,
-              owner_email,
-              property_id,
-              address,
-              city,
-              zip,
-              lat,
-              lng,
-              sold_date,
-              sold_price,
-              sqft,
-              beds,
-              baths,
-              year_built,
-              price_per_sqft,
-              distance_mi,
-              included,
-              source,
-              parcel_id,
-              parcel_county,
-              COALESCE(condition, 'unknown') AS condition,
-              COALESCE(pool, false) AS pool,
-              COALESCE(garage, false) AS garage,
-              COALESCE(waterfront, false) AS waterfront,
-              lot_sqft,
-              notes,
-              COALESCE(adjustments, '{}'::jsonb) AS adjustments,
-              created_at
-            FROM investor_comps
-            WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
-            ORDER BY sold_date DESC NULLS LAST, created_at DESC
-          `;
-        } catch (colErr) {
-          if (colErr.code === '42703') {
-            const rawComps = await sql`
-              SELECT
-                id,
-                owner_email,
-                property_id,
-                address,
-                city,
-                zip,
-                lat,
-                lng,
-                sold_date,
-                sold_price,
-                sqft,
-                beds,
-                baths,
-                year_built,
-                price_per_sqft,
-                distance_mi,
-                included,
-                source,
-                created_at
-              FROM investor_comps
-              WHERE property_id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
-              ORDER BY sold_date DESC NULLS LAST, created_at DESC
-            `;
-            comps = rawComps.map(r => ({
-              ...r,
-              parcel_id: null,
-              parcel_county: null,
-              condition: 'unknown',
-              pool: false,
-              garage: false,
-              waterfront: false,
-              lot_sqft: null,
-              notes: null,
-              adjustments: {}
-            }));
-          } else {
-            throw colErr;
-          }
-        }
-
-        return res.status(200).json(comps);
+        const rawComps = await selectCompsQuery(sql, cleanEmail, propertyId);
+        const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawComps);
+        return res.status(200).json(enriched);
       }
 
-      // No property_id: return all comps for the logged-in user
-      let allComps;
-      try {
-        allComps = await sql`
-          SELECT
-            id,
-            owner_email,
-            property_id,
-            address,
-            city,
-            zip,
-            lat,
-            lng,
-            sold_date,
-            sold_price,
-            sqft,
-            beds,
-            baths,
-            year_built,
-            price_per_sqft,
-            distance_mi,
-            included,
-            source,
-            parcel_id,
-            parcel_county,
-            COALESCE(condition, 'unknown') AS condition,
-            COALESCE(pool, false) AS pool,
-            COALESCE(garage, false) AS garage,
-            COALESCE(waterfront, false) AS waterfront,
-            lot_sqft,
-            notes,
-            COALESCE(adjustments, '{}'::jsonb) AS adjustments,
-            created_at
-          FROM investor_comps
-          WHERE lower(owner_email) = ${cleanEmail}
-          ORDER BY sold_date DESC NULLS LAST, created_at DESC
-        `;
-      } catch (colErr) {
-        if (colErr.code === '42703') {
-          const rawComps = await sql`
-            SELECT
-              id,
-              owner_email,
-              property_id,
-              address,
-              city,
-              zip,
-              lat,
-              lng,
-              sold_date,
-              sold_price,
-              sqft,
-              beds,
-              baths,
-              year_built,
-              price_per_sqft,
-              distance_mi,
-              included,
-              source,
-              created_at
-            FROM investor_comps
-            WHERE lower(owner_email) = ${cleanEmail}
-            ORDER BY sold_date DESC NULLS LAST, created_at DESC
-          `;
-          allComps = rawComps.map(r => ({
-            ...r,
-            parcel_id: null,
-            parcel_county: null,
-            condition: 'unknown',
-            pool: false,
-            garage: false,
-            waterfront: false,
-            lot_sqft: null,
-            notes: null,
-            adjustments: {}
-          }));
-        } else {
-          throw colErr;
-        }
-      }
-
-      return res.status(200).json(allComps);
+      const allRaw = await selectCompsQuery(sql, cleanEmail, null);
+      const enrichedAll = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, allRaw);
+      return res.status(200).json(enrichedAll);
     }
 
     // POST: Create a new comp
@@ -344,7 +530,6 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'property_id is required.' });
       }
 
-      // FIRST confirm property_id belongs to the logged-in user
       const prop = await sql`
         SELECT id, lat, lng FROM investor_properties
         WHERE id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
@@ -359,7 +544,6 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
-      // Calculate distance_mi if both property and comp have lat/lng
       let distance_mi = null;
       if (prop[0].lat != null && prop[0].lng != null && data.lat != null && data.lng != null) {
         distance_mi = calculateDistanceMi(prop[0].lat, prop[0].lng, data.lat, data.lng);
@@ -369,115 +553,62 @@ export default async function handler(req, res) {
       try {
         rows = await sql`
           INSERT INTO investor_comps (
-            owner_email,
-            property_id,
-            address,
-            city,
-            zip,
-            lat,
-            lng,
-            sold_date,
-            sold_price,
-            sqft,
-            beds,
-            baths,
-            year_built,
-            distance_mi,
-            included,
-            source,
-            parcel_id,
-            parcel_county,
-            condition,
-            pool,
-            garage,
-            waterfront,
-            lot_sqft,
-            notes,
-            adjustments
+            owner_email, property_id, address, city, zip, lat, lng,
+            sold_date, sold_price, sqft, beds, baths, year_built, distance_mi,
+            included, source, parcel_id, parcel_county, condition,
+            pool, garage, waterfront, lot_sqft, notes,
+            adjustments, comp_details_json, is_outlier
           ) VALUES (
-            ${cleanEmail},
-            ${propertyId},
-            ${data.address},
-            ${data.city},
-            ${data.zip},
-            ${data.lat},
-            ${data.lng},
-            ${data.sold_date},
-            ${data.sold_price},
-            ${data.sqft},
-            ${data.beds},
-            ${data.baths},
-            ${data.year_built},
-            ${distance_mi},
-            ${data.included},
-            ${data.source},
-            ${data.parcel_id},
-            ${data.parcel_county},
-            ${data.condition},
-            ${data.pool},
-            ${data.garage},
-            ${data.waterfront},
-            ${data.lot_sqft},
-            ${data.notes},
-            ${JSON.stringify(data.adjustments)}::jsonb
+            ${cleanEmail}, ${propertyId}, ${data.address}, ${data.city}, ${data.zip}, ${data.lat}, ${data.lng},
+            ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
+            ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${data.condition},
+            ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.notes},
+            ${JSON.stringify(data.adjustments)}::jsonb,
+            ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            ${data.is_outlier}
           )
           RETURNING *
         `;
-      } catch (colErr) {
-        if (colErr.code === '42703') {
+      } catch (insErr) {
+        if (insErr?.code === '42703' || insErr?.code === '23514') {
+          const safeCond = toLegacyCheckCondition(data.condition);
           rows = await sql`
             INSERT INTO investor_comps (
-              owner_email,
-              property_id,
-              address,
-              city,
-              zip,
-              lat,
-              lng,
-              sold_date,
-              sold_price,
-              sqft,
-              beds,
-              baths,
-              year_built,
-              distance_mi,
-              included,
-              source
+              owner_email, property_id, address, city, zip, lat, lng,
+              sold_date, sold_price, sqft, beds, baths, year_built, distance_mi,
+              included, source, parcel_id, parcel_county, condition,
+              pool, garage, waterfront, lot_sqft, notes, adjustments
             ) VALUES (
-              ${cleanEmail},
-              ${propertyId},
-              ${data.address},
-              ${data.city},
-              ${data.zip},
-              ${data.lat},
-              ${data.lng},
-              ${data.sold_date},
-              ${data.sold_price},
-              ${data.sqft},
-              ${data.beds},
-              ${data.baths},
-              ${data.year_built},
-              ${distance_mi},
-              ${data.included},
-              ${data.source}
+              ${cleanEmail}, ${propertyId}, ${data.address}, ${data.city}, ${data.zip}, ${data.lat}, ${data.lng},
+              ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
+              ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${safeCond},
+              ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.notes},
+              ${JSON.stringify(data.adjustments)}::jsonb
             )
             RETURNING *
           `;
-          rows[0].parcel_id = data.parcel_id;
-          rows[0].parcel_county = data.parcel_county;
-          rows[0].condition = data.condition;
-          rows[0].pool = data.pool;
-          rows[0].garage = data.garage;
-          rows[0].waterfront = data.waterfront;
-          rows[0].lot_sqft = data.lot_sqft;
-          rows[0].notes = data.notes;
-          rows[0].adjustments = data.adjustments;
+          if (rows[0]) {
+            rows[0].condition = data.condition;
+            rows[0].comp_details_json = data.comp_details_json || {};
+            rows[0].is_outlier = data.is_outlier;
+          }
         } else {
-          throw colErr;
+          throw insErr;
         }
       }
 
-      return res.status(200).json(rows[0]);
+      // Persist reusable comp_details if county folio + filled details were provided
+      if (data.parcel_id && data.comp_details_json && computeDetailsProgress(data.comp_details_json).filledCount > 0) {
+        await upsertUserCompDetails(sql, cleanEmail, {
+          county: data.parcel_county || 'Broward',
+          parcel_id: data.parcel_id,
+          sold_date: data.sold_date,
+          comp_details_json: data.comp_details_json
+        }).catch(() => null);
+      }
+
+      const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);
+      return res.status(200).json(enriched[0]);
     }
 
     // PUT: Update an existing comp
@@ -487,7 +618,6 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Comp ID is required for update.' });
       }
 
-      // Check comp exists and belongs to logged-in user
       const existing = await sql`
         SELECT *
         FROM investor_comps
@@ -501,7 +631,6 @@ export default async function handler(req, res) {
       const currentComp = existing[0];
       const propertyId = req.body?.property_id || currentComp.property_id;
 
-      // FIRST confirm property_id belongs to the logged-in user
       const prop = await sql`
         SELECT id, lat, lng FROM investor_properties
         WHERE id = ${propertyId} AND lower(owner_email) = ${cleanEmail}
@@ -511,7 +640,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
-      // If this is an 'included' toggle only
+      // Fast path: 'included' toggle only
       if (req.body?.included !== undefined && Object.keys(req.body).length <= 2) {
         const rows = await sql`
           UPDATE investor_comps
@@ -522,42 +651,73 @@ export default async function handler(req, res) {
         if (rows.length === 0) {
           return res.status(404).json({ error: 'Comp not found.' });
         }
-        return res.status(200).json(rows[0]);
+        const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);
+        return res.status(200).json(enriched[0]);
       }
 
       const body = req.body || {};
-      const { errors, data } = validateComp(body, true);
+      const currentAdj = currentComp.adjustments && typeof currentComp.adjustments === 'object' ? currentComp.adjustments : {};
+      const currentDetailsJson =
+        currentComp.comp_details_json && typeof currentComp.comp_details_json === 'object' && Object.keys(currentComp.comp_details_json).length > 0
+          ? currentComp.comp_details_json
+          : (currentAdj.comp_details_json && typeof currentAdj.comp_details_json === 'object' ? currentAdj.comp_details_json : {});
+
+      // Merge partial update cleanly over existing comp + comp_details_json
+      const mergedInput = {
+        address: body.address !== undefined ? body.address : currentComp.address,
+        city: body.city !== undefined ? body.city : currentComp.city,
+        zip: body.zip !== undefined ? body.zip : currentComp.zip,
+        lat: body.lat !== undefined ? body.lat : currentComp.lat,
+        lng: body.lng !== undefined ? body.lng : currentComp.lng,
+        sold_date: body.sold_date !== undefined
+          ? body.sold_date
+          : (currentComp.sold_date instanceof Date ? currentComp.sold_date.toISOString().slice(0, 10) : currentComp.sold_date),
+        sold_price: body.sold_price !== undefined ? body.sold_price : currentComp.sold_price,
+        sqft: body.sqft !== undefined ? body.sqft : currentComp.sqft,
+        beds: body.beds !== undefined ? body.beds : currentComp.beds,
+        baths: body.baths !== undefined ? body.baths : currentComp.baths,
+        year_built: body.year_built !== undefined ? body.year_built : currentComp.year_built,
+        lot_sqft: body.lot_sqft !== undefined ? body.lot_sqft : currentComp.lot_sqft,
+        included: body.included !== undefined ? body.included : currentComp.included,
+        source: body.source !== undefined ? body.source : currentComp.source,
+        parcel_id: body.parcel_id !== undefined ? body.parcel_id : currentComp.parcel_id,
+        parcel_county: body.parcel_county !== undefined ? body.parcel_county : currentComp.parcel_county,
+        condition: body.condition !== undefined ? body.condition : (currentDetailsJson.condition || currentComp.condition || 'unknown'),
+        pool: body.pool !== undefined ? body.pool : currentComp.pool,
+        garage: body.garage !== undefined ? body.garage : currentComp.garage,
+        waterfront: body.waterfront !== undefined ? body.waterfront : currentComp.waterfront,
+        notes: body.notes !== undefined ? body.notes : currentComp.notes,
+        is_outlier: body.is_outlier !== undefined ? body.is_outlier : Boolean(currentComp.is_outlier || currentAdj.is_outlier),
+        adjustments: body.adjustments !== undefined ? body.adjustments : currentAdj,
+        comp_details_json: {
+          ...currentDetailsJson,
+          ...(body.comp_details_json && typeof body.comp_details_json === 'object' ? body.comp_details_json : {}),
+          ...(body.condition !== undefined ? { condition: body.condition } : {}),
+          ...(body.beds !== undefined ? { beds: body.beds } : {}),
+          ...(body.full_baths !== undefined ? { full_baths: body.full_baths } : {}),
+          ...(body.half_baths !== undefined ? { half_baths: body.half_baths } : {}),
+          ...(body.kitchen_baths_updated !== undefined ? { kitchen_baths_updated: body.kitchen_baths_updated } : {}),
+          ...(body.roof_type !== undefined ? { roof_type: body.roof_type } : {}),
+          ...(body.roof_year !== undefined ? { roof_year: body.roof_year } : {}),
+          ...(body.windows !== undefined ? { windows: body.windows } : {}),
+          ...(body.pool_type !== undefined ? { pool_type: body.pool_type } : {}),
+          ...(body.screen_enclosure !== undefined ? { screen_enclosure: body.screen_enclosure } : {}),
+          ...(body.garage_type !== undefined ? { garage_type: body.garage_type } : {}),
+          ...(body.garage_bays !== undefined ? { garage_bays: body.garage_bays } : {}),
+          ...(body.waterfront_view !== undefined ? { waterfront_view: body.waterfront_view } : {}),
+          ...(body.verified !== undefined ? { verified: body.verified } : {}),
+          ...(body.detail_source !== undefined ? { source: body.detail_source } : {})
+        }
+      };
+
+      const { errors, data } = validateComp(mergedInput, true);
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
-      const finalAddress = body.address !== undefined ? (data.address || currentComp.address) : currentComp.address;
-      const finalCity = body.city !== undefined ? data.city : currentComp.city;
-      const finalZip = body.zip !== undefined ? data.zip : currentComp.zip;
-      const finalLat = body.lat !== undefined ? data.lat : currentComp.lat;
-      const finalLng = body.lng !== undefined ? data.lng : currentComp.lng;
-      const finalSoldDate = body.sold_date !== undefined ? data.sold_date : currentComp.sold_date;
-      const finalSoldPrice = body.sold_price !== undefined ? data.sold_price : currentComp.sold_price;
-      const finalSqft = body.sqft !== undefined ? data.sqft : currentComp.sqft;
-      const finalBeds = body.beds !== undefined ? data.beds : currentComp.beds;
-      const finalBaths = body.baths !== undefined ? data.baths : currentComp.baths;
-      const finalYearBuilt = body.year_built !== undefined ? data.year_built : currentComp.year_built;
-      const finalIncluded = body.included !== undefined ? data.included : currentComp.included;
-      const finalSource = body.source !== undefined ? data.source : currentComp.source;
-      const finalParcelId = body.parcel_id !== undefined ? data.parcel_id : (currentComp.parcel_id || null);
-      const finalParcelCounty = body.parcel_county !== undefined ? data.parcel_county : (currentComp.parcel_county || null);
-      const finalCondition = body.condition !== undefined ? data.condition : (currentComp.condition || 'unknown');
-      const finalPool = body.pool !== undefined ? data.pool : Boolean(currentComp.pool);
-      const finalGarage = body.garage !== undefined ? data.garage : Boolean(currentComp.garage);
-      const finalWaterfront = body.waterfront !== undefined ? data.waterfront : Boolean(currentComp.waterfront);
-      const finalLotSqft = body.lot_sqft !== undefined ? data.lot_sqft : (currentComp.lot_sqft || null);
-      const finalNotes = body.notes !== undefined ? data.notes : (currentComp.notes || null);
-      const finalAdjustments = body.adjustments !== undefined ? data.adjustments : (currentComp.adjustments || {});
-
-      // Calculate distance_mi if both property and comp have lat/lng
       let finalDistance = null;
-      if (prop[0].lat != null && prop[0].lng != null && finalLat != null && finalLng != null) {
-        finalDistance = calculateDistanceMi(prop[0].lat, prop[0].lng, finalLat, finalLng);
+      if (prop[0].lat != null && prop[0].lng != null && data.lat != null && data.lng != null) {
+        finalDistance = calculateDistanceMi(prop[0].lat, prop[0].lng, data.lat, data.lng);
       }
 
       let rows;
@@ -565,67 +725,73 @@ export default async function handler(req, res) {
         rows = await sql`
           UPDATE investor_comps
           SET
-            address = ${finalAddress},
-            city = ${finalCity},
-            zip = ${finalZip},
-            lat = ${finalLat},
-            lng = ${finalLng},
-            sold_date = ${finalSoldDate},
-            sold_price = ${finalSoldPrice},
-            sqft = ${finalSqft},
-            beds = ${finalBeds},
-            baths = ${finalBaths},
-            year_built = ${finalYearBuilt},
+            address = ${data.address},
+            city = ${data.city},
+            zip = ${data.zip},
+            lat = ${data.lat},
+            lng = ${data.lng},
+            sold_date = ${data.sold_date},
+            sold_price = ${data.sold_price},
+            sqft = ${data.sqft},
+            beds = ${data.beds},
+            baths = ${data.baths},
+            year_built = ${data.year_built},
             distance_mi = ${finalDistance},
-            included = ${finalIncluded},
-            source = ${finalSource},
-            parcel_id = ${finalParcelId},
-            parcel_county = ${finalParcelCounty},
-            condition = ${finalCondition},
-            pool = ${finalPool},
-            garage = ${finalGarage},
-            waterfront = ${finalWaterfront},
-            lot_sqft = ${finalLotSqft},
-            notes = ${finalNotes},
-            adjustments = ${JSON.stringify(finalAdjustments)}::jsonb
+            included = ${data.included},
+            source = ${data.source},
+            parcel_id = ${data.parcel_id},
+            parcel_county = ${data.parcel_county},
+            condition = ${data.condition},
+            pool = ${data.pool},
+            garage = ${data.garage},
+            waterfront = ${data.waterfront},
+            lot_sqft = ${data.lot_sqft},
+            notes = ${data.notes},
+            adjustments = ${JSON.stringify(data.adjustments)}::jsonb,
+            comp_details_json = ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            is_outlier = ${data.is_outlier}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
         `;
-      } catch (colErr) {
-        if (colErr.code === '42703') {
+      } catch (updErr) {
+        if (updErr?.code === '42703' || updErr?.code === '23514') {
+          const safeCond = toLegacyCheckCondition(data.condition);
           rows = await sql`
             UPDATE investor_comps
             SET
-              address = ${finalAddress},
-              city = ${finalCity},
-              zip = ${finalZip},
-              lat = ${finalLat},
-              lng = ${finalLng},
-              sold_date = ${finalSoldDate},
-              sold_price = ${finalSoldPrice},
-              sqft = ${finalSqft},
-              beds = ${finalBeds},
-              baths = ${finalBaths},
-              year_built = ${finalYearBuilt},
+              address = ${data.address},
+              city = ${data.city},
+              zip = ${data.zip},
+              lat = ${data.lat},
+              lng = ${data.lng},
+              sold_date = ${data.sold_date},
+              sold_price = ${data.sold_price},
+              sqft = ${data.sqft},
+              beds = ${data.beds},
+              baths = ${data.baths},
+              year_built = ${data.year_built},
               distance_mi = ${finalDistance},
-              included = ${finalIncluded},
-              source = ${finalSource}
+              included = ${data.included},
+              source = ${data.source},
+              parcel_id = ${data.parcel_id},
+              parcel_county = ${data.parcel_county},
+              condition = ${safeCond},
+              pool = ${data.pool},
+              garage = ${data.garage},
+              waterfront = ${data.waterfront},
+              lot_sqft = ${data.lot_sqft},
+              notes = ${data.notes},
+              adjustments = ${JSON.stringify(data.adjustments)}::jsonb
             WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
             RETURNING *
           `;
           if (rows[0]) {
-            rows[0].parcel_id = finalParcelId;
-            rows[0].parcel_county = finalParcelCounty;
-            rows[0].condition = finalCondition;
-            rows[0].pool = finalPool;
-            rows[0].garage = finalGarage;
-            rows[0].waterfront = finalWaterfront;
-            rows[0].lot_sqft = finalLotSqft;
-            rows[0].notes = finalNotes;
-            rows[0].adjustments = finalAdjustments;
+            rows[0].condition = data.condition;
+            rows[0].comp_details_json = data.comp_details_json || {};
+            rows[0].is_outlier = data.is_outlier;
           }
         } else {
-          throw colErr;
+          throw updErr;
         }
       }
 
@@ -633,7 +799,22 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Comp not found.' });
       }
 
-      return res.status(200).json(rows[0]);
+      // Persist reusable comp_details per county sale (folio + sale month) when edited
+      const isAdjustmentOnlyUpdate =
+        body.adjustments !== undefined &&
+        Object.keys(body).every((k) => ['id', 'property_id', 'adjustments'].includes(k));
+
+      if (!isAdjustmentOnlyUpdate && data.parcel_id && data.comp_details_json) {
+        await upsertUserCompDetails(sql, cleanEmail, {
+          county: data.parcel_county || 'Broward',
+          parcel_id: data.parcel_id,
+          sold_date: data.sold_date,
+          comp_details_json: data.comp_details_json
+        }).catch(() => null);
+      }
+
+      const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);
+      return res.status(200).json(enriched[0]);
     }
 
     // DELETE: Delete a comp
@@ -653,7 +834,6 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Comp not found.' });
       }
 
-      // FIRST confirm the property_id belongs to the logged-in user
       const prop = await sql`
         SELECT id FROM investor_properties
         WHERE id = ${existing[0].property_id} AND lower(owner_email) = ${cleanEmail}
