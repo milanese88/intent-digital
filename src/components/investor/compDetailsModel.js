@@ -8,7 +8,7 @@
  * - Strict separation between confirmed facts and county NAL hints.
  * - Full UAD C1–C6 condition ratings + quick picks (Original -> C4, Updated -> C3, Fully renovated -> C2).
  * - Explicit "Unknown" tri-state handling (never inferring impact windows or roof age from year_built).
- * - 9-category completeness progress ("Details: X of 9 filled").
+ * - 10-field completeness progress ("Details: X of 10 filled") matching every editor field in order.
  * - Normalized county sale key (county + folio + YYYY-MM) so comp details filled once
  *   pre-fill across every property and appraisal using that county sale.
  */
@@ -321,7 +321,10 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     else if (!isUneditedCountyRow && src.pool === false) pool_type = 'none';
     else pool_type = 'unknown';
   }
-  const screen_enclosure = parseTriBoolean(pick('screen_enclosure'));
+  const rawScreenEnclosure = parseTriBoolean(pick('screen_enclosure'));
+  const screen_enclosure = pool_type === 'none' && rawScreenEnclosure === null
+    ? false
+    : rawScreenEnclosure;
 
   // Garage
   let garage_type = String(pick('garage_type') || '').trim().toLowerCase();
@@ -430,34 +433,42 @@ export function detailsToLegacyColumns(details = {}) {
 }
 
 /**
- * Computes the 9-field completeness progress ("Details: 6 of 9 filled"):
+ * Computes the 10-field completeness progress ("Details: X of 10 filled") matching
+ * every field on the Comp / Subject Details Editor in top-to-bottom form order:
  * 1. Beds
  * 2. Baths (full / half)
  * 3. Condition (UAD)
  * 4. Kitchen & baths updated (Y/N)
- * 5. Roof (type or roof year)
- * 6. Windows (impact / shutters / none)
- * 7. Pool (none / standard / resort)
- * 8. Garage (bays / carport / converted / none)
- * 9. Waterfront & view (dry lot / lake / golf / canal / ocean access)
+ * 5. Roof type
+ * 6. Roof year
+ * 7. Windows (impact / shutters / none)
+ * 8. Pool (none, or standard/resort + screen enclosure Y/N)
+ * 9. Garage (bays / carport / converted / none)
+ * 10. Waterfront & view (dry lot / lake / golf / canal / ocean access)
  */
 export function computeDetailsProgress(rawDetails = {}, options = {}) {
   const d = normalizeCompDetails(rawDetails, options);
+
+  const poolFilled = d.pool_type === 'none'
+    ? true
+    : (d.pool_type !== 'unknown' && typeof d.screen_enclosure === 'boolean');
+  const poolLabel = d.pool_type === 'unknown' ? 'Pool' : 'Screen enclosure';
 
   const checks = [
     { key: 'beds', label: 'Beds', filled: d.beds != null },
     { key: 'baths', label: 'Baths', filled: d.full_baths != null || d.baths != null },
     { key: 'condition', label: 'Condition', filled: d.condition !== 'unknown' },
     { key: 'kitchen_baths', label: 'Kitchen & baths', filled: typeof d.kitchen_baths_updated === 'boolean' },
-    { key: 'roof', label: 'Roof', filled: d.roof_type !== 'unknown' || d.roof_year != null },
+    { key: 'roof_type', label: 'Roof type', filled: d.roof_type !== 'unknown' },
+    { key: 'roof_year', label: 'Roof year', filled: d.roof_year != null },
     { key: 'windows', label: 'Windows', filled: d.windows !== 'unknown' },
-    { key: 'pool', label: 'Pool', filled: d.pool_type !== 'unknown' },
+    { key: 'pool', label: poolLabel, filled: poolFilled },
     { key: 'garage', label: 'Garage', filled: d.garage_type !== 'unknown' },
     { key: 'waterfront_view', label: 'Waterfront & view', filled: d.waterfront_view !== 'unknown' }
   ];
 
   const filledCount = checks.filter((c) => c.filled).length;
-  const totalCount = 9;
+  const totalCount = checks.length;
   const missingLabels = checks.filter((c) => !c.filled).map((c) => c.label);
 
   return {

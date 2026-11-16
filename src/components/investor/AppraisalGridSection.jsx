@@ -897,7 +897,7 @@ export default function AppraisalGridSection({
                           </button>
                         </div>
 
-                        {/* Details progress: "Details: X of 9 filled" */}
+                        {/* Details progress: "Details: X of 10 filled" */}
                         {progress && (
                           <div
                             style={{
@@ -908,7 +908,7 @@ export default function AppraisalGridSection({
                               gap: '6px',
                               fontSize: '10.5px',
                               fontWeight: 600,
-                              color: progress.filledCount === 9 ? 'var(--positive, #3F5A3A)' : 'rgba(52, 41, 42, 0.68)'
+                              color: progress.isComplete ? 'var(--positive, #3F5A3A)' : 'rgba(52, 41, 42, 0.68)'
                             }}
                           >
                             <span>{progress.label}</span>

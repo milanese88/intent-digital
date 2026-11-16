@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { put, del } from '@vercel/blob';
 import crypto from 'crypto';
 
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
           insertedDoc = rows[0];
         }
       } catch (insertErr) {
-        console.warn('Document uploaded to blob, database insert warning:', insertErr.message);
+        return sendSafeApiError(res, insertErr, 'Documents API Insert Error', 'Unable to save document record right now.');
       }
 
       return res.status(200).json({ document: insertedDoc });
@@ -131,17 +131,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Document ID is required' });
       }
 
-      let existing = [];
-      try {
-        existing = await sql`
-          SELECT id, blob_url
-          FROM investor_property_documents
-          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
-          LIMIT 1;
-        `;
-      } catch (queryErr) {
-        console.warn('investor_property_documents delete check:', queryErr.message);
-      }
+      const existing = await sql`
+        SELECT id, blob_url
+        FROM investor_property_documents
+        WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+        LIMIT 1;
+      `;
 
       if (existing.length > 0 && existing[0].blob_url) {
         try {
@@ -161,7 +156,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error('Documents API Error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error processing document' });
+    return sendSafeApiError(res, err, 'Documents API Error', 'Unable to process document right now. Please try again.');
   }
 }

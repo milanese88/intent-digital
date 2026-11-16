@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 const USER_AGENT = 'IntentDigital-InvestorStudio/1.0';
 
@@ -339,7 +339,6 @@ export default async function handler(req, res) {
       cached: false
     });
   } catch (err) {
-    console.error('Error in /api/site/zoning:', err);
-    return res.status(500).json({ error: 'Internal server error checking zoning.' });
+    return sendSafeApiError(res, err, 'Error in /api/site/zoning', 'Unable to check zoning data right now.');
   }
 }

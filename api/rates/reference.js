@@ -72,6 +72,6 @@ export default async function handler(req, res) {
     if (cachedData) {
       return res.status(200).json({ ...cachedData, stale: true });
     }
-    return res.status(200).json({ rate: null, error: err.message });
+    return res.status(200).json({ rate: null, error: 'Reference rate temporarily unavailable.' });
   }
 }

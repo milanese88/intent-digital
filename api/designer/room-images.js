@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { put, del } from '@vercel/blob';
 import crypto from 'crypto';
 
@@ -353,7 +353,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('api/designer/room-images error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return sendSafeApiError(res, err, 'api/designer/room-images error', 'Unable to process room image right now.');
   }
 }

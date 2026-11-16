@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 const ALLOWED_PROJECT_TYPES = ['client', 'investor', 'concept', 'coursework'];
 const ALLOWED_STATUSES = ['concept', 'in_design', 'in_progress', 'complete', 'on_hold'];
@@ -430,7 +430,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error('API /api/designer/projects error:', err);
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    return sendSafeApiError(res, err, 'API /api/designer/projects error', 'Unable to process design project request right now.');
   }
 }

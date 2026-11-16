@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -633,7 +633,6 @@ export default async function handler(req, res) {
       nextBooking
     });
   } catch (error) {
-    console.error('Error in /api/journal/learning-lab:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Error in /api/journal/learning-lab', 'Unable to load Learning Lab right now.');
   }
 }

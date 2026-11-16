@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { del } from '@vercel/blob';
 
 const ALLOWED_ROOM_TYPES = [
@@ -280,7 +280,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('api/designer/rooms error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return sendSafeApiError(res, err, 'api/designer/rooms error', 'Unable to process room request right now.');
   }
 }

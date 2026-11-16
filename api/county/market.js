@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { getCountyFreshness, formatMonthYear } from './freshness.js';
 
 export function calculateMedian(numbers) {
@@ -422,7 +422,9 @@ export default async function handler(req, res) {
     const result = await getMarketTrends({ county, zip, type, mode, lat, lng });
     return res.status(200).json(result);
   } catch (err) {
-    console.error('Error in /api/county/market:', err);
-    return res.status(err.message?.includes('valid 5-digit zip') ? 400 : 500).json({ error: err.message || 'Failed to compute market trends for ZIP' });
+    if (err?.message?.includes('valid 5-digit zip')) {
+      return res.status(400).json({ error: 'Please enter a valid 5-digit ZIP code.' });
+    }
+    return sendSafeApiError(res, err, 'Error in /api/county/market', 'Failed to compute market trends for ZIP.');
   }
 }

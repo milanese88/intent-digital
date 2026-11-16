@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   try {
@@ -109,7 +109,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Error in /api/journal/learning-notes:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Error in /api/journal/learning-notes', 'Unable to process learning notes right now.');
   }
 }

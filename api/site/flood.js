@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 const FEMA_ZONE_LAYER_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query';
 const FEMA_PANEL_LAYER_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/3/query';
@@ -284,7 +284,6 @@ export default async function handler(req, res) {
       cached: false
     });
   } catch (err) {
-    console.error('Unhandled error in /api/site/flood:', err);
-    return res.status(500).json({ error: 'Internal server error checking flood hazard.' });
+    return sendSafeApiError(res, err, 'Unhandled error in /api/site/flood', 'Unable to check flood hazard right now.');
   }
 }

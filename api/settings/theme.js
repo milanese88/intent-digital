@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import {
   DEFAULT_THEME_COLORS,
   DEFAULT_THEME_FONTS,
@@ -136,19 +136,13 @@ export default async function handler(req, res) {
           updated_at: updated[0].updated_at
         });
       } catch (dbErr) {
-        if (dbErr.message && (dbErr.message.includes('relation "portal_theme" does not exist') || dbErr.code === '42P01')) {
-          return res.status(400).json({
-            error: 'The database table "portal_theme" has not been created yet. Please apply the SQL migration first.'
-          });
-        }
-        throw dbErr;
+        return sendSafeApiError(res, dbErr, 'Error in /api/settings/theme PUT', 'Unable to save appearance settings right now.');
       }
     }
 
     res.setHeader('Allow', ['GET', 'PUT']);
-    return res.status(450).json({ error: `Method ${req.method} Not Allowed` });
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   } catch (error) {
-    console.error('Error in /api/settings/theme:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return sendSafeApiError(res, error, 'Error in /api/settings/theme', 'Unable to process theme settings right now.');
   }
 }

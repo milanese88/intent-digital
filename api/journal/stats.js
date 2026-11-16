@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 function getWeekMonday(date = new Date()) {
   const d = new Date(date);
@@ -243,7 +243,6 @@ export default async function handler(req, res) {
       studyingProperty
     });
   } catch (error) {
-    console.error('Error in /api/journal/stats:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Error in /api/journal/stats', 'Unable to load journal stats right now.');
   }
 }

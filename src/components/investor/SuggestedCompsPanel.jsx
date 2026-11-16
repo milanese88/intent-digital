@@ -832,7 +832,7 @@ export default function SuggestedCompsPanel({
                         title="Pre-filled from your saved comp_details"
                         style={{ textTransform: 'none', fontWeight: 600 }}
                       >
-                        Details: {c.details_filled_count} of 9 filled
+                        {c.details_progress?.label || `Details: ${c.details_filled_count} of ${c.details_progress?.totalCount || 10} filled`}
                       </Pill>
                     )}
 

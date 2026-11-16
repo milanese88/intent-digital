@@ -1,4 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
+import { sendSafeApiError } from '../_lib/db.js';
 import {
   isPinterestHost,
   resolvePinterestShortLink,
@@ -81,7 +82,6 @@ export default async function handler(req, res) {
       section: parsed.section
     });
   } catch (error) {
-    console.error('Error in /api/designer/pinterest-resolve:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Error in /api/designer/pinterest-resolve', 'Could not resolve Pinterest link right now.');
   }
 }
