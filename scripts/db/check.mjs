@@ -81,3 +81,4 @@ main().catch((err) => {
   console.error('Migration check failed:', err?.message || err);
   process.exit(1);
 });
+

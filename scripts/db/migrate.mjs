@@ -109,3 +109,4 @@ main().catch((err) => {
   console.error('Migration execution failed:', err);
   process.exit(1);
 });
+
