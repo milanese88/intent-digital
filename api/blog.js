@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { getUserFromSession } from './_lib/session.js';
+import { sendSafeApiError } from './_lib/db.js';
 
 const generateSlug = (title) => {
   return title
@@ -154,7 +155,9 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Blog API Error:', error);
-    return res.status(500).json({ error: error.message });
+    if (error?.message === 'Post not found') {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    return sendSafeApiError(res, error, 'Blog API Error', 'Unable to process blog post request right now.');
   }
 }

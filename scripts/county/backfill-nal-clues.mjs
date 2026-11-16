@@ -37,28 +37,15 @@ function formatBytes(bytes) {
 
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
-  const migrationPath = path.resolve(PROJECT_ROOT, 'migrations/add_comp_details_and_nal_clues.sql');
+  const migrateScriptPath = path.resolve(PROJECT_ROOT, 'scripts/db/migrate.mjs');
   const importScriptPath = path.resolve(__dirname, 'import-roll.mjs');
 
-  if (!isDryRun) {
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      console.error('[!] DATABASE_URL is missing in .env.local');
-      process.exit(1);
-    }
-
-    const { Pool } = await import('@neondatabase/serverless');
-    const pool = new Pool({ connectionString: dbUrl });
-    try {
-      const sqlText = fs.readFileSync(migrationPath, 'utf8');
-      console.log('--- [1/4] Applying migrations/add_comp_details_and_nal_clues.sql ---');
-      await pool.query(sqlText);
-      console.log('[✓] Schema migration applied cleanly.\n');
-    } finally {
-      await pool.end();
-    }
-  } else {
-    console.log('--- [DRY-RUN] Skipping DDL migration against Neon ---\n');
+  const migrateArgs = [migrateScriptPath];
+  if (isDryRun) migrateArgs.push('--dry-run');
+  console.log('--- [1/4] Checking & applying pending migrations via scripts/db/migrate.mjs ---');
+  const migRes = spawnSync(process.execPath, migrateArgs, { stdio: 'inherit', cwd: PROJECT_ROOT });
+  if (migRes.status !== 0) {
+    process.exit(migRes.status || 1);
   }
 
   for (const county of ['Broward', 'Palm Beach']) {

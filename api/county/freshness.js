@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 // 10-minute in-memory cache to keep response times sub-millisecond
 let cachedFreshness = null;
@@ -163,7 +163,6 @@ export default async function handler(req, res) {
     const freshnessData = await getCountyFreshness();
     return res.status(200).json(freshnessData);
   } catch (err) {
-    console.error('Error in /api/county/freshness:', err);
-    return res.status(500).json({ error: 'Failed to fetch county freshness data' });
+    return sendSafeApiError(res, err, 'Error in /api/county/freshness', 'Failed to fetch county freshness data.');
   }
 }

@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 
 const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifamily_2_9', 'other'];
@@ -978,12 +978,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    if (error?.code === '23514') {
-      return res.status(409).json({
-        error: 'The database migration "add_live_in_fha_strategy.sql" has not been applied yet. Please apply the SQL migration first.'
-      });
-    }
-    console.error('Investor Properties API Error:', error);
-    return res.status(500).json({ error: error.message || 'Server error processing request.' });
+    return sendSafeApiError(res, error, 'Investor Properties API Error', 'Unable to process property request right now. Please try again.');
   }
 }

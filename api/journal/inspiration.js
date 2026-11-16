@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { del } from '@vercel/blob';
 
 export default async function handler(req, res) {
@@ -257,7 +257,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Error in /api/journal/inspiration:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Error in /api/journal/inspiration', 'Unable to process inspiration gallery right now.');
   }
 }

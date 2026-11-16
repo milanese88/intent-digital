@@ -1,4 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
+import { sendSafeApiError } from '../_lib/db.js';
 import { put } from '@vercel/blob';
 import crypto from 'crypto';
 
@@ -77,7 +78,6 @@ export default async function handler(req, res) {
       size: buffer.length
     });
   } catch (error) {
-    console.error('Error uploading inspiration image:', error);
-    return res.status(500).json({ error: error.message || 'Upload failed' });
+    return sendSafeApiError(res, error, 'Error uploading inspiration image', 'Upload failed. Please try again.');
   }
 }

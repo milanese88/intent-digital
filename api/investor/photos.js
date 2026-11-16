@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { put, del } from '@vercel/blob';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -282,7 +282,6 @@ export default async function handler(req, res) {
     res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   } catch (err) {
-    console.error('Error in /api/investor/photos:', err);
-    return res.status(500).json({ error: 'Internal server error handling photos.' });
+    return sendSafeApiError(res, err, 'Error in /api/investor/photos', 'Unable to process property photos right now. Please try again.');
   }
 }

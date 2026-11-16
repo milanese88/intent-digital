@@ -1,5 +1,6 @@
 import { handleUpload } from '@vercel/blob/client';
 import { getUserFromSession } from './_lib/session.js';
+import { sendSafeApiError } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -29,7 +30,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json(jsonResponse);
   } catch (error) {
-    console.error('Error in upload-blog-image:', error);
-    return res.status(400).json({ error: error.message });
+    if (error?.message === 'Unauthorized') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    return sendSafeApiError(res, error, 'Error in upload-blog-image', 'Unable to upload blog image right now.');
   }
 }

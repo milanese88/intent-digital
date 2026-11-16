@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import {
   validateAndParsePinterestBoardUrl,
   resolvePinterestShortLink,
@@ -183,7 +183,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Error in /api/designer/pinterest-boards:', error);
     const friendlyMessage = req.method === 'POST'
       ? "Couldn't save the board — please try again."
       : req.method === 'DELETE'
@@ -191,6 +190,6 @@ export default async function handler(req, res) {
       : req.method === 'PUT'
       ? "Couldn't reorder boards — please try again."
       : "Couldn't load boards — please try again.";
-    return res.status(500).json({ error: friendlyMessage });
+    return sendSafeApiError(res, error, 'Error in /api/designer/pinterest-boards', friendlyMessage);
   }
 }

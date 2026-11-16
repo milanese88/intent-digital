@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   try {
@@ -107,7 +107,6 @@ export default async function handler(req, res) {
     res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   } catch (err) {
-    console.error('Error in /api/investor/locations:', err);
-    return res.status(500).json({ error: 'Failed to process watched location request' });
+    return sendSafeApiError(res, err, 'Error in /api/investor/locations', 'Failed to process watched location request.');
   }
 }

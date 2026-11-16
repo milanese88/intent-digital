@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   try {
@@ -220,7 +220,6 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error('Error generating deal report data:', err);
-    return res.status(500).json({ error: 'Internal server error fetching deal report' });
+    return sendSafeApiError(res, err, 'Error generating deal report data', 'Unable to generate deal report right now. Please try again.');
   }
 }

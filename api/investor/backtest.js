@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { calculateMedian } from '../../src/components/investor/valuationEngine.js';
 
 export default async function handler(req, res) {
@@ -267,7 +267,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Error in /api/investor/backtest:', error);
-    return res.status(500).json({ error: "Couldn't complete accuracy backtest — please try again." });
+    return sendSafeApiError(res, error, 'Error in /api/investor/backtest', "Couldn't complete accuracy backtest — please try again.");
   }
 }

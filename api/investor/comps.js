@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import {
   VALID_CONDITIONS,
   normalizeConditionKey,
@@ -858,7 +858,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Investor Comps API Error:', error);
-    return res.status(500).json({ error: error.message || 'Server error processing comps request.' });
+    return sendSafeApiError(res, error, 'Investor Comps API Error', 'Unable to save or load comps right now. Please try again.');
   }
 }

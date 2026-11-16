@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import {
   DEFAULT_THEME_COLORS,
   DEFAULT_THEME_FONTS,
@@ -92,12 +92,7 @@ export default async function handler(req, res) {
 
         return res.status(201).json({ preset: rows[0] });
       } catch (dbErr) {
-        if (dbErr.message && (dbErr.message.includes('relation "portal_theme_presets" does not exist') || dbErr.code === '42P01')) {
-          return res.status(400).json({
-            error: 'Database table "portal_theme_presets" does not exist yet. Please apply the migration SQL first.'
-          });
-        }
-        throw dbErr;
+        return sendSafeApiError(res, dbErr, 'Error in /api/settings/theme-presets POST', 'Unable to save theme preset right now.');
       }
     }
 
@@ -123,17 +118,13 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ success: true, id });
       } catch (dbErr) {
-        if (dbErr.message && (dbErr.message.includes('relation "portal_theme_presets" does not exist') || dbErr.code === '42P01')) {
-          return res.status(400).json({ error: 'Database table "portal_theme_presets" does not exist yet.' });
-        }
-        throw dbErr;
+        return sendSafeApiError(res, dbErr, 'Error in /api/settings/theme-presets DELETE', 'Unable to delete theme preset right now.');
       }
     }
 
     res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
     return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   } catch (error) {
-    console.error('Error in /api/settings/theme-presets:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return sendSafeApiError(res, error, 'Error in /api/settings/theme-presets', 'Unable to process theme presets right now.');
   }
 }

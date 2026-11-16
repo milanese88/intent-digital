@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { put, del } from '@vercel/blob';
 import crypto from 'crypto';
 
@@ -164,7 +164,6 @@ export default async function handler(req, res) {
       size: buffer.length
     });
   } catch (err) {
-    console.error('api/designer/upload-invoice error:', err);
-    return res.status(500).json({ error: err.message || 'Server error uploading invoice' });
+    return sendSafeApiError(res, err, 'api/designer/upload-invoice error', 'Unable to upload invoice right now.');
   }
 }

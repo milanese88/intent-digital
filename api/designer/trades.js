@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   try {
@@ -225,7 +225,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('api/designer/trades error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return sendSafeApiError(res, err, 'api/designer/trades error', 'Unable to process trade contact right now.');
   }
 }

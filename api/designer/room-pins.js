@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { parsePinterestPinUrl } from '../../src/utils/pinterest.js';
 
 export default async function handler(req, res) {
@@ -111,12 +111,11 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Error in /api/designer/room-pins:', error);
     const friendlyMessage = req.method === 'POST'
       ? "Couldn't save the pin — please try again."
       : req.method === 'DELETE'
       ? "Couldn't remove the pin — please try again."
       : "Couldn't load pins — please try again.";
-    return res.status(500).json({ error: friendlyMessage });
+    return sendSafeApiError(res, error, 'Error in /api/designer/room-pins', friendlyMessage);
   }
 }

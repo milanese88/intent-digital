@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import {
   DEFAULT_COMP_FILTERS,
   sanitizeProfileCompFilters
@@ -451,7 +451,6 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
-    console.error('Investor Profile API error:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'Investor Profile API Error', 'Unable to update buying profile right now. Please try again.');
   }
 }

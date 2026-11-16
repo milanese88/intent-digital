@@ -16,6 +16,19 @@ import {
   resolveBuildingCharHeaderMapping,
   parseBuildingCharRow
 } from '../../../scripts/county/import-building-chars.mjs';
+import {
+  MIGRATION_UPDATE_MESSAGE,
+  isMissingSchemaError,
+  sendSafeApiError
+} from '../../../api/_lib/db.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  CANONICAL_MIGRATION_ORDER,
+  MIGRATIONS_DIR,
+  listOrderedMigrationFiles,
+  splitSqlStatements
+} from '../../../scripts/db/_lib.mjs';
 
 test('Unknown condition, windows, roof, pool, and garage produce $0 adjustment, Needs info chip, and reduced weight', () => {
   const subject = {
@@ -175,9 +188,46 @@ test('County NAL clues format Likely renovated (both years), Extra features, and
   assert.equal(suggestions.verified, false);
 });
 
-test('Details progress counts 9 categories and saved comp_details pre-fill across properties via county sale key', () => {
+test('Details progress counts all 10 form fields separately (including Roof type + Roof year + Screen enclosure) and pre-fills across properties', () => {
   assert.equal(buildSaleMonthKey('2026-07-18'), '2026-07');
   assert.equal(buildSaleMonthKey(2026, 7), '2026-07');
+
+  // Exact scenario reported: Roof type filled, Roof year empty, Windows Unknown -> 8 of 10 filled · Missing: Roof year, Windows
+  const roofYearMissingCase = computeDetailsProgress({
+    beds: 3,
+    full_baths: 2,
+    half_baths: 0,
+    condition: 'c3',
+    kitchen_baths_updated: true,
+    roof_type: 'shingle',
+    roof_year: null,
+    windows: 'unknown',
+    pool_type: 'none',
+    garage_type: 'garage',
+    garage_bays: 2,
+    waterfront_view: 'dry_lot'
+  });
+  assert.equal(roofYearMissingCase.filledCount, 8);
+  assert.equal(roofYearMissingCase.totalCount, 10);
+  assert.equal(roofYearMissingCase.label, 'Details: 8 of 10 filled');
+  assert.deepEqual(roofYearMissingCase.missingLabels, ['Roof year', 'Windows']);
+
+  // Pool = standard with unknown screen enclosure flags Screen enclosure as missing
+  const poolNeedsScreenCase = computeDetailsProgress({
+    beds: 3,
+    full_baths: 2,
+    condition: 'c3',
+    kitchen_baths_updated: true,
+    roof_type: 'shingle',
+    roof_year: 2021,
+    windows: 'impact',
+    pool_type: 'standard',
+    screen_enclosure: null,
+    garage_type: 'none',
+    waterfront_view: 'dry_lot'
+  });
+  assert.equal(poolNeedsScreenCase.filledCount, 9);
+  assert.deepEqual(poolNeedsScreenCase.missingLabels, ['Screen enclosure']);
 
   const savedRow = {
     county: 'Broward',
@@ -199,8 +249,9 @@ test('Details progress counts 9 categories and saved comp_details pre-fill acros
   };
 
   const progress = computeDetailsProgress(savedRow);
-  assert.equal(progress.filledCount, 6);
-  assert.equal(progress.label, 'Details: 6 of 9 filled');
+  assert.equal(progress.filledCount, 7);
+  assert.equal(progress.totalCount, 10);
+  assert.equal(progress.label, 'Details: 7 of 10 filled');
 
   const newPropertyComp = {
     id: 'comp-prop-b',
@@ -221,7 +272,7 @@ test('Details progress counts 9 categories and saved comp_details pre-fill acros
   assert.equal(merged.beds, 3);
   assert.equal(merged.baths, 2.5);
   assert.equal(merged.condition, 'c2');
-  assert.equal(merged.details_progress.label, 'Details: 6 of 9 filled');
+  assert.equal(merged.details_progress.label, 'Details: 7 of 10 filled');
   assert.equal(merged.county_clues.likelyRenovatedLabel, 'Likely renovated (built 1956 · eff. 1978)');
 });
 
@@ -278,4 +329,78 @@ test('Prepared building-characteristics importer normalizes BCPA/PAPA folios and
     bldg_num: 1
   });
 });
+
+test('sendSafeApiError maps 42P01 and 42703 to friendly migration message and never leaks raw DB errors', () => {
+  const makeMockRes = () => {
+    const out = { statusCode: null, body: null };
+    return {
+      status(code) {
+        out.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        out.body = payload;
+        return out;
+      },
+      out
+    };
+  };
+
+  const colErr = Object.assign(new Error('column "condition" of relation "investor_comps" does not exist'), {
+    code: '42703'
+  });
+  assert.equal(isMissingSchemaError(colErr), true);
+
+  const origConsoleError = console.error;
+  console.error = () => {};
+  try {
+    const res1 = makeMockRes();
+    sendSafeApiError(res1, colErr, 'test 42703', 'Fallback error');
+    assert.equal(res1.out.statusCode, 503);
+    assert.equal(res1.out.body.error, MIGRATION_UPDATE_MESSAGE);
+    assert.equal(res1.out.body.error, 'This feature needs a database update — ask to apply migrations.');
+    assert.ok(!JSON.stringify(res1.out.body).includes('investor_comps'));
+
+    const tblErr = Object.assign(new Error('relation "comp_details" does not exist'), {
+      code: '42P01'
+    });
+    const res2 = makeMockRes();
+    sendSafeApiError(res2, tblErr, 'test 42P01', 'Fallback error');
+    assert.equal(res2.out.statusCode, 503);
+    assert.equal(res2.out.body.error, 'This feature needs a database update — ask to apply migrations.');
+
+    const genericDbErr = Object.assign(new Error('syntax error at or near "SELECT"'), {
+      code: '42601'
+    });
+    const res3 = makeMockRes();
+    sendSafeApiError(res3, genericDbErr, 'test 42601', 'Unable to save comp right now.');
+    assert.equal(res3.out.statusCode, 500);
+    assert.equal(res3.out.body.error, 'Unable to save comp right now.');
+    assert.ok(!JSON.stringify(res3.out.body).includes('syntax error'));
+  } finally {
+    console.error = origConsoleError;
+  }
+});
+
+test('Migration runner orders dependencies cleanly and splits DO $$ blocks intact across all SQL files', () => {
+  const files = listOrderedMigrationFiles();
+  assert.ok(files.length >= 18);
+  assert.equal(files[0], '000_schema_migrations.sql');
+
+  const valIdx = files.indexOf('add_valuation_and_backtest.sql');
+  const fhaIdx = files.indexOf('add_live_in_fha_strategy.sql');
+  const compDetailsIdx = files.indexOf('add_comp_details_and_nal_clues.sql');
+  assert.ok(valIdx > 0 && fhaIdx > valIdx && compDetailsIdx > valIdx);
+
+  for (const f of files) {
+    assert.ok(
+      CANONICAL_MIGRATION_ORDER.includes(f) || f.endsWith('.sql'),
+      `Expected ${f} to be valid SQL migration`
+    );
+    const raw = fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
+    const statements = splitSqlStatements(raw);
+    assert.ok(statements.length >= 1, `Expected >= 1 statement in ${f}`);
+  }
+});
+
 

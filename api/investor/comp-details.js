@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, isMissingSchemaError, sendSafeApiError, MIGRATION_UPDATE_MESSAGE } from '../_lib/db.js';
 import {
   buildSaleMonthKey,
   normalizeCompDetails,
@@ -9,7 +9,7 @@ import {
 
 const ALLOWED_COUNTIES = new Set(['Broward', 'Palm Beach']);
 
-export async function upsertUserCompDetails(sql, cleanEmail, payload = {}) {
+export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, options = {}) {
   const rawCounty = payload.county || payload.parcel_county || 'Broward';
   const county = /palm/i.test(rawCounty) ? 'Palm Beach' : 'Broward';
   const parcelId = payload.parcel_id ? String(payload.parcel_id).trim() : '';
@@ -110,7 +110,8 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}) {
     savedRow = rows[0] || null;
   } catch (err) {
     // 42P01 = undefined_table (before add_comp_details_and_nal_clues.sql is applied)
-    if (err?.code === '42P01') {
+    if (isMissingSchemaError(err) && !options.throwOnMissingTable) {
+      console.warn('[DB Schema Update Needed] comp_details upsert skipped:', MIGRATION_UPDATE_MESSAGE, err?.message);
       return null;
     }
     throw err;
@@ -222,10 +223,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'parcel_id is required to save county sale details.' });
       }
 
-      const saved = await upsertUserCompDetails(sql, cleanEmail, body);
+      let saved;
+      try {
+        saved = await upsertUserCompDetails(sql, cleanEmail, body, { throwOnMissingTable: true });
+      } catch (err) {
+        return sendSafeApiError(res, err, 'Comp Details API Error', 'Unable to save comp details right now.');
+      }
+
       if (!saved) {
-        return res.status(409).json({
-          error: 'The database migration "add_comp_details_and_nal_clues.sql" has not been applied yet, or no detail fields were provided.'
+        return res.status(400).json({
+          error: 'Enter at least one detail field or note before saving.'
         });
       }
 
@@ -240,8 +247,7 @@ export default async function handler(req, res) {
     res.setHeader('Allow', ['GET', 'POST', 'PUT']);
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   } catch (err) {
-    console.error('Comp Details API Error:', err);
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+    return sendSafeApiError(res, err, 'Comp Details API Error', 'Unable to process comp details right now.');
   }
 }
 

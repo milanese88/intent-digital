@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { getCountyFreshness } from './freshness.js';
 import {
   validateCompSearchParams,
@@ -420,7 +420,6 @@ export default async function handler(req, res) {
       candidates: enrichedCandidates
     });
   } catch (err) {
-    console.error('Error in /api/county/comps:', err);
-    return res.status(500).json({ error: 'Internal server error while searching county comps' });
+    return sendSafeApiError(res, err, 'Error in /api/county/comps', 'Unable to search county comparable sales right now.');
   }
 }

@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { formatCountyClues } from '../../src/components/investor/compDetailsModel.js';
 
 export default async function handler(req, res) {
@@ -127,7 +127,6 @@ export default async function handler(req, res) {
       sales
     });
   } catch (err) {
-    console.error('Error in /api/county/parcel:', err);
-    return res.status(500).json({ error: 'Internal server error while fetching parcel details' });
+    return sendSafeApiError(res, err, 'Error in /api/county/parcel', 'Unable to fetch parcel details right now.');
   }
 }

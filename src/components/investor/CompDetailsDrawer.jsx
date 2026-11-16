@@ -56,6 +56,22 @@ function segToTriBool(seg) {
   return null;
 }
 
+function parseCompleteRoofYear(raw) {
+  const cleaned = raw == null ? '' : String(raw).trim();
+  if (cleaned === '') {
+    return { isEmpty: true, valid: true, value: null };
+  }
+  if (!/^\d{4}$/.test(cleaned)) {
+    return { isEmpty: false, valid: false, value: null };
+  }
+  const num = Number(cleaned);
+  const maxYear = new Date().getFullYear() + 1;
+  if (!Number.isFinite(num) || num < 1900 || num > maxYear) {
+    return { isEmpty: false, valid: false, value: null };
+  }
+  return { isEmpty: false, valid: true, value: num };
+}
+
 function ChoiceChipGroup({ options, value, onChange, suggestedValue = null }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -137,6 +153,11 @@ export default function CompDetailsDrawer({
     as_is: normalizeCompDetails({}),
     after_rehab: normalizeCompDetails({ condition: 'c2' })
   }));
+  const [roofYearInput, setRoofYearInput] = useState({
+    comp: '',
+    as_is: '',
+    after_rehab: ''
+  });
   const [hintSuggestedFields, setHintSuggestedFields] = useState({});
 
   // County clues for active entity
@@ -175,6 +196,11 @@ export default function CompDetailsDrawer({
         as_is: baseAsIs,
         after_rehab: baseAfterRehab
       });
+      setRoofYearInput({
+        comp: '',
+        as_is: baseAsIs.roof_year != null ? String(baseAsIs.roof_year) : '',
+        after_rehab: baseAfterRehab.roof_year != null ? String(baseAfterRehab.roof_year) : ''
+      });
       setHintSuggestedFields({});
       return;
     }
@@ -203,14 +229,17 @@ export default function CompDetailsDrawer({
       });
       const clues = editingComp.county_clues || formatCountyClues(editingComp);
       const { suggestions } = buildCountyHintSuggestions(baseNorm, clues);
+      const initialCompNorm = Object.keys(suggestions).length > 0
+        ? normalizeCompDetails({ ...baseNorm, ...suggestions })
+        : baseNorm;
 
-      if (Object.keys(suggestions).length > 0) {
-        setCompDetails(normalizeCompDetails({ ...baseNorm, ...suggestions }));
-        setHintSuggestedFields(suggestions);
-      } else {
-        setCompDetails(baseNorm);
-        setHintSuggestedFields({});
-      }
+      setCompDetails(initialCompNorm);
+      setRoofYearInput({
+        comp: initialCompNorm.roof_year != null ? String(initialCompNorm.roof_year) : '',
+        as_is: '',
+        after_rehab: ''
+      });
+      setHintSuggestedFields(Object.keys(suggestions).length > 0 ? suggestions : {});
     } else {
       setSaleFields({
         address: '',
@@ -229,13 +258,33 @@ export default function CompDetailsDrawer({
         is_outlier: false
       });
       setCompDetails(normalizeCompDetails({ source: 'MLS', verified: false }));
+      setRoofYearInput({ comp: '', as_is: '', after_rehab: '' });
       setHintSuggestedFields({});
     }
   }, [isOpen, entityType, editingComp, subjectProperty, initialSubjectMode]);
 
   if (!isOpen) return null;
 
+  const activeSlot = entityType === 'subject' ? subjectTab : 'comp';
   const activeDetails = entityType === 'subject' ? subjectDetailsMap[subjectTab] : compDetails;
+  const activeRoofYearInput = roofYearInput[activeSlot] ?? '';
+
+  const handleRoofYearChange = (rawVal) => {
+    const trimmed = String(rawVal ?? '').slice(0, 4);
+    setRoofYearInput((prev) => ({
+      ...prev,
+      [activeSlot]: trimmed
+    }));
+    const parsed = parseCompleteRoofYear(trimmed);
+    if (parsed.valid && fieldErrors.roof_year) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.roof_year;
+        return next;
+      });
+    }
+    updateActiveDetails({ roof_year: parsed.valid ? parsed.value : null });
+  };
 
   const updateActiveDetails = (patch) => {
     // Clear county hint highlight for fields the user explicitly interacts with
@@ -303,6 +352,10 @@ export default function CompDetailsDrawer({
         kitchen_baths_updated: true
       })
     }));
+    setRoofYearInput((prev) => ({
+      ...prev,
+      after_rehab: prev.as_is
+    }));
   };
 
   // Lookup saved comp_details if user selects an address with a county folio during "+ Add Comp"
@@ -319,7 +372,12 @@ export default function CompDetailsDrawer({
       const data = await res.json();
       const saved = data?.item?.comp_details_json || data?.items?.[0]?.comp_details_json;
       if (saved) {
-        setCompDetails(normalizeCompDetails(saved));
+        const savedNorm = normalizeCompDetails(saved);
+        setCompDetails(savedNorm);
+        setRoofYearInput((prev) => ({
+          ...prev,
+          comp: savedNorm.roof_year != null ? String(savedNorm.roof_year) : ''
+        }));
         setHintSuggestedFields({});
       }
     } catch {
@@ -333,6 +391,16 @@ export default function CompDetailsDrawer({
     setFieldErrors({});
 
     if (entityType === 'subject') {
+      const asIsRoof = parseCompleteRoofYear(roofYearInput.as_is);
+      const afterRehabRoof = parseCompleteRoofYear(roofYearInput.after_rehab);
+      if (!asIsRoof.valid || !afterRehabRoof.valid) {
+        if (!asIsRoof.valid && subjectTab !== 'as_is') setSubjectTab('as_is');
+        else if (!afterRehabRoof.valid && subjectTab !== 'after_rehab') setSubjectTab('after_rehab');
+        const msg = `Enter a 4-digit roof year between 1900 and ${new Date().getFullYear() + 1}, or leave blank if unknown.`;
+        setFieldErrors({ roof_year: msg });
+        setFormError(msg);
+        return;
+      }
       if (!onSaveSubjectDetails) return;
       try {
         await onSaveSubjectDetails(subjectDetailsMap);
@@ -345,6 +413,14 @@ export default function CompDetailsDrawer({
     if (!saleFields.address.trim()) {
       setFieldErrors({ address: 'Address is required.' });
       setFormError('Address is required.');
+      return;
+    }
+
+    const compRoofCheck = parseCompleteRoofYear(roofYearInput.comp);
+    if (!compRoofCheck.valid) {
+      const msg = `Enter a 4-digit roof year between 1900 and ${new Date().getFullYear() + 1}, or leave blank if unknown.`;
+      setFieldErrors({ roof_year: msg });
+      setFormError(msg);
       return;
     }
 
@@ -496,9 +572,9 @@ export default function CompDetailsDrawer({
             </button>
           </div>
 
-          {/* Progress Bar: Details: X of 9 filled */}
+          {/* Progress Bar: Details: X of 10 filled */}
           <div style={{ marginTop: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '5px' }}>
               <span
                 style={{
                   fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -512,9 +588,12 @@ export default function CompDetailsDrawer({
                   <span style={{ marginLeft: '8px', color: '#3F5A3A', fontWeight: 700 }}>· ✓ Verified</span>
                 )}
               </span>
-              {progress.missingLabels.length > 0 && progress.missingLabels.length <= 4 && (
+              {progress.missingLabels.length > 0 && (
                 <span style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.58)' }}>
-                  Missing: {progress.missingLabels.join(', ')}
+                  Missing:{' '}
+                  {progress.missingLabels.length <= 4
+                    ? progress.missingLabels.join(', ')
+                    : `${progress.missingLabels.slice(0, 3).join(', ')} +${progress.missingLabels.length - 3} more`}
                 </span>
               )}
             </div>
@@ -873,12 +952,22 @@ export default function CompDetailsDrawer({
                   <FormattedNumberInput
                     id="detail-full-baths"
                     value={activeDetails.full_baths != null ? String(activeDetails.full_baths) : ''}
-                    onChange={(val) =>
-                      updateActiveDetails({
-                        full_baths: val === '' ? null : val,
-                        half_baths: activeDetails.half_baths ?? 0
-                      })
-                    }
+                    onChange={(val) => {
+                      if (val === '') {
+                        const hasHalf = activeDetails.half_baths != null && activeDetails.half_baths > 0;
+                        updateActiveDetails(
+                          hasHalf
+                            ? { full_baths: 0, half_baths: activeDetails.half_baths, baths: null }
+                            : { full_baths: null, half_baths: null, baths: null }
+                        );
+                      } else {
+                        updateActiveDetails({
+                          full_baths: val,
+                          half_baths: activeDetails.half_baths ?? 0,
+                          baths: null
+                        });
+                      }
+                    }}
                     allowDecimal={false}
                     formatOnBlur={false}
                     placeholder="e.g. 2"
@@ -890,12 +979,21 @@ export default function CompDetailsDrawer({
                   <FormattedNumberInput
                     id="detail-half-baths"
                     value={activeDetails.half_baths != null ? String(activeDetails.half_baths) : ''}
-                    onChange={(val) =>
-                      updateActiveDetails({
-                        full_baths: activeDetails.full_baths ?? 0,
-                        half_baths: val === '' ? 0 : val
-                      })
-                    }
+                    onChange={(val) => {
+                      if (val === '') {
+                        updateActiveDetails(
+                          activeDetails.full_baths == null
+                            ? { full_baths: null, half_baths: null, baths: null }
+                            : { full_baths: activeDetails.full_baths, half_baths: 0, baths: null }
+                        );
+                      } else {
+                        updateActiveDetails({
+                          full_baths: activeDetails.full_baths ?? 0,
+                          half_baths: val,
+                          baths: null
+                        });
+                      }
+                    }}
                     allowDecimal={false}
                     formatOnBlur={false}
                     placeholder="0"
@@ -1000,13 +1098,18 @@ export default function CompDetailsDrawer({
                   </label>
                   <FormattedNumberInput
                     id="detail-roof-year"
-                    value={activeDetails.roof_year != null ? String(activeDetails.roof_year) : ''}
-                    onChange={(val) => updateActiveDetails({ roof_year: val === '' ? null : val })}
+                    value={activeRoofYearInput}
+                    onChange={handleRoofYearChange}
                     allowDecimal={false}
                     formatOnBlur={false}
                     placeholder="Unknown — e.g. 2021"
                     className="investor-form-input"
                   />
+                  {fieldErrors.roof_year && (
+                    <div style={{ fontSize: '11px', color: '#41101B', fontWeight: 600, marginTop: '4px' }}>
+                      {fieldErrors.roof_year}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1034,7 +1137,18 @@ export default function CompDetailsDrawer({
                     size="sm"
                     options={POOL_OPTIONS}
                     value={activeDetails.pool_type}
-                    onChange={(id) => updateActiveDetails({ pool_type: id })}
+                    onChange={(id) => {
+                      if (id === 'none') {
+                        updateActiveDetails({ pool_type: 'none', screen_enclosure: false });
+                      } else if (id === 'unknown') {
+                        updateActiveDetails({ pool_type: 'unknown', screen_enclosure: null });
+                      } else {
+                        updateActiveDetails({
+                          pool_type: id,
+                          ...(activeDetails.pool_type === 'none' ? { screen_enclosure: null } : {})
+                        });
+                      }
+                    }}
                   />
                 </div>
                 <div>

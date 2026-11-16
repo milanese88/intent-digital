@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb } from '../_lib/db.js';
+import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { normalizeAddress } from '../../src/utils/addressNorm.js';
 
 export { normalizeAddress, normalizeAddress as normalizeAddressQuery };
@@ -43,15 +43,25 @@ export default async function handler(req, res) {
       ? [queryCounty] 
       : ['Broward', 'Palm Beach'];
 
-    // Check if new normalized columns exist
+    // Check if new normalized columns exist AND have been populated
     let hasNormColumns = false;
     try {
       const colCheck = await sql`
         SELECT column_name 
         FROM information_schema.columns 
-        WHERE table_name = 'county_parcels' AND column_name = 'situs_street_norm';
+        WHERE table_schema = 'public'
+          AND table_name = 'county_parcels'
+          AND column_name = 'situs_street_norm';
       `;
-      hasNormColumns = colCheck.length > 0;
+      if (colCheck.length > 0) {
+        const popCheck = await sql`
+          SELECT 1
+          FROM county_parcels
+          WHERE situs_street_norm IS NOT NULL
+          LIMIT 1;
+        `;
+        hasNormColumns = popCheck.length > 0;
+      }
     } catch {
       hasNormColumns = false;
     }
@@ -308,13 +318,13 @@ export default async function handler(req, res) {
     return sendResponse(200, [], 'none', false, failureMsg);
 
   } catch (err) {
-    console.error('Error in /api/county/search:', err);
     if (err.code === '57014' || (err.message && err.message.includes('statement_timeout'))) {
+      console.error('Timeout in /api/county/search:', err);
       return res.status(504).json({
         error: 'Search timed out after 5 seconds. Please refine your search query or pick from the map.',
         timeout: true
       });
     }
-    return res.status(500).json({ error: 'Internal server error while searching county parcels' });
+    return sendSafeApiError(res, err, 'Error in /api/county/search', 'Unable to search county parcels right now.');
   }
 }
