@@ -33,8 +33,10 @@
 
   /* --- Typography Families --- */
   --font-display: 'Atelier Fleur', 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-instrument: 'Instrument Serif', Georgia, 'Times New Roman', serif;
   --font-body: 'Montserrat', system-ui, -apple-system, sans-serif;
   --font-script: 'Dreams on Paper', cursive;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   --font-numeral: 'Dreams on Paper', cursive, var(--font-display);
   --font-serif: var(--font-display);
   --font-sans: var(--font-body);

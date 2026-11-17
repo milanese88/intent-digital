@@ -32,7 +32,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_property_documents.sql',
   'add_valuation_and_backtest.sql',
   'add_live_in_fha_strategy.sql',
-  'add_comp_details_and_nal_clues.sql'
+  'add_comp_details_and_nal_clues.sql',
+  'add_newsletter_subscribers.sql'
 ];
 
 /**
@@ -174,6 +175,16 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
     constraintDefs: [
       { table: 'investor_comps', includes: 'c1', label: "investor_comps.condition allows UAD 'c1'..'c6'" }
     ]
+  },
+  'add_newsletter_subscribers.sql': {
+    tables: ['newsletter_subscribers'],
+    columns: [
+      { table: 'newsletter_subscribers', column: 'email' },
+      { table: 'newsletter_subscribers', column: 'created_at' },
+      { table: 'newsletter_subscribers', column: 'consent_text' },
+      { table: 'newsletter_subscribers', column: 'unsubscribed_at' }
+    ],
+    indexes: ['idx_newsletter_subscribers_email_lower']
   }
 };
 

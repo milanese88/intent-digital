@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { sendSafeApiError } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -41,7 +42,6 @@ export default async function handler(req, res) {
       return res.status(200).json(posts);
     }
   } catch (error) {
-    console.error('News API Error:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    return sendSafeApiError(res, error, 'News API Error', 'Unable to load journal entries right now.');
   }
 }

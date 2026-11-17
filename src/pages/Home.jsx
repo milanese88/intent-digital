@@ -1,411 +1,815 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import AnnouncementBanner from '../components/AnnouncementBanner';
-import SectionDivider from '../components/SectionDivider';
-import { projectsData } from '../data/projectsData';
-import '../styles/home.css';
+import { Button, Card, DarkBand, ScriptAccent } from '../components/ui/index.js';
+import { BRAND_NAME } from '../config/legal.js';
+import {
+  HOME_CONTENT,
+  splitJournalTitle,
+  resolveJournalCategory
+} from '../content/home.js';
+import { newsArticles } from '../data/newsData.js';
+import '../styles/florencia-home.css';
+
+function upsertMetaTag(attrName, attrValue, content) {
+  if (typeof document === 'undefined' || !content) return;
+  let tag = document.head.querySelector(`meta[${attrName}="${attrValue}"]`);
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute(attrName, attrValue);
+    document.head.appendChild(tag);
+  }
+  tag.setAttribute('content', content);
+}
+
+function formatJournalDate(rawDate) {
+  if (!rawDate) return '';
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return String(rawDate).toUpperCase();
+  return parsed
+    .toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    .toUpperCase();
+}
 
 export default function Home({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [portraitMissing, setPortraitMissing] = useState(false);
 
-  const handleScroll = (e, id) => {
-    e.preventDefault();
+  // Journal posts state (fetched from published blog_posts via /api/news)
+  const [journalPosts, setJournalPosts] = useState([]);
+  const [totalPublishedCount, setTotalPublishedCount] = useState(0);
+  const [journalLoading, setJournalLoading] = useState(true);
+
+  // Newsletter state
+  const [email, setEmail] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [newsletterError, setNewsletterError] = useState('');
+  const [newsletterSaved, setNewsletterSaved] = useState(false);
+
+  const {
+    seo,
+    marquee,
+    header,
+    hero,
+    readTwice,
+    system,
+    currently,
+    series,
+    specSheet,
+    journal,
+    newsletter,
+    workWithMe,
+    footer
+  } = HOME_CONTENT;
+
+  // SEO & Open Graph tags
+  useEffect(() => {
+    document.title = seo.title;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const ogImgUrl = seo.ogImage?.startsWith('http') ? seo.ogImage : `${origin}${seo.ogImage}`;
+
+    upsertMetaTag('name', 'description', seo.description);
+    upsertMetaTag('property', 'og:title', seo.ogTitle || seo.title);
+    upsertMetaTag('property', 'og:description', seo.ogDescription || seo.description);
+    upsertMetaTag('property', 'og:type', seo.ogType || 'website');
+    upsertMetaTag('property', 'og:image', ogImgUrl);
+    if (origin) {
+      upsertMetaTag('property', 'og:url', `${origin}/`);
+    }
+    upsertMetaTag('name', 'twitter:card', 'summary_large_image');
+    upsertMetaTag('name', 'twitter:title', seo.ogTitle || seo.title);
+    upsertMetaTag('name', 'twitter:description', seo.ogDescription || seo.description);
+  }, [seo]);
+
+  // Close mobile menu on Escape
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
+
+  // Fetch 3 latest published blog posts from /api/news
+  useEffect(() => {
+    let active = true;
+    const loadPosts = async () => {
+      setJournalLoading(true);
+      try {
+        const res = await fetch('/api/news');
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          const data = await res.json();
+          if (active && Array.isArray(data)) {
+            setTotalPublishedCount(data.length);
+            setJournalPosts(data.slice(0, 3));
+            setJournalLoading(false);
+            return;
+          }
+        }
+        // Local plain-vite fallback when serverless /api/news is not mounted
+        if (active && !contentType.includes('application/json')) {
+          const fallback = newsArticles.map((item) => ({
+            id: item.id,
+            slug: item.id,
+            title: item.title,
+            category: item.category,
+            published_at: item.date
+          }));
+          setTotalPublishedCount(fallback.length);
+          setJournalPosts(fallback.slice(0, 3));
+        }
+      } catch {
+        if (active) {
+          setJournalPosts([]);
+          setTotalPublishedCount(0);
+        }
+      } finally {
+        if (active) setJournalLoading(false);
+      }
+    };
+
+    loadPosts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const scrollToSection = (targetId) => {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const navOffset = 82;
+    const top = el.getBoundingClientRect().top + window.scrollY - navOffset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+
+  const handleAction = (e, item) => {
+    if (!item) return;
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+    if (e) e.preventDefault();
     setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      const navHeight = 80; // approximate nav height
-      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({
-        top: elementPosition - navHeight,
-        behavior: 'smooth'
+
+    if (item.route && navigateTo) {
+      navigateTo(item.route, item.targetId || null);
+      return;
+    }
+    if (item.targetId) {
+      scrollToSection(item.targetId);
+    }
+  };
+
+  const handleJournalPostClick = (e, slug) => {
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+    e.preventDefault();
+    if (navigateTo && slug) {
+      navigateTo('news', null, slug);
+    }
+  };
+
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    setNewsletterError('');
+
+    const trimmed = email.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) {
+      setNewsletterError('Please enter a valid email address.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmed,
+          consent_text: newsletter.consentText,
+          company_website: honeypot
+        })
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await res.json() : {};
+
+      if (!res.ok) {
+        setNewsletterError(
+          data?.error || 'Unable to save your subscription right now. Please try again.'
+        );
+        return;
+      }
+
+      setNewsletterSaved(true);
+      setEmail('');
+    } catch {
+      setNewsletterError('Network error — please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleNavClick = (e, page, targetId) => {
-    e.preventDefault();
-    setMobileMenuOpen(false);
-    if (navigateTo) {
-      navigateTo(page, targetId);
-    }
-  };
+  // Repeat marquee sequence 4x per track for seamless wide-screen loop
+  const marqueeLoop = [0, 1, 2, 3];
+  const currentYear = new Date().getFullYear();
 
   return (
-    <div className="home-page">
-      
-      {/* TOP ANNOUNCEMENT MARQUEE BANNER */}
-      <AnnouncementBanner />
+    <div className="florencia-home">
+      {/* 2. TOP MARQUEE (ESPRESSO) */}
+      <div className="fl-marquee" role="region" aria-label="Site marquee">
+        <div className="fl-marquee-track">
+          {[false, true].map((isDuplicate) => (
+            <div
+              key={isDuplicate ? 'dup' : 'main'}
+              className="fl-marquee-group"
+              aria-hidden={isDuplicate ? 'true' : undefined}
+            >
+              {marqueeLoop.map((pass) =>
+                marquee.items.map((item, idx) => (
+                  <React.Fragment key={`${pass}-${idx}`}>
+                    <span className={`fl-marquee-item fl-marquee-item--${item.variant}`}>
+                      {item.text}
+                    </span>
+                    <span className="fl-marquee-dot" aria-hidden="true">
+                      &middot;
+                    </span>
+                  </React.Fragment>
+                ))
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* SECTION 1 — NAV (IMAGE 2 MATCHING STYLE) */}
-      <nav className="navbar">
-        <div className="container nav-container">
-          <a href="#" className="nav-logo-link" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="nav-seal-img" />
+      {/* 2. HEADER */}
+      <header className="fl-header">
+        <div className="fl-container fl-header-inner">
+          <a
+            href="/"
+            className="fl-wordmark"
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey) return;
+              e.preventDefault();
+              setMobileMenuOpen(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            {header.wordmark}
+            <em className="fl-wordmark-period">{header.wordmarkPeriod}</em>
           </a>
 
-          <div className="nav-links desktop-only">
-            <a href="#why-us" className="nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#portfolio" className="nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-          </div>
+          <nav className="fl-nav" aria-label="Primary">
+            {header.nav.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className="fl-nav-link"
+                onClick={(e) => handleAction(e, item)}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
 
-          <div className="nav-right">
-            <a 
-              href="#" 
-              className="desktop-only" 
-              onClick={(e) => handleNavClick(e, 'login')}
-              style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: '#34292A', fontFamily: 'Montserrat, sans-serif', fontSize: '12px', fontWeight: 500, letterSpacing: '0.05em', marginRight: '20px' }}
+          <div className="fl-header-right">
+            <a
+              href={header.login.href}
+              className="fl-login-link"
+              onClick={(e) => handleAction(e, header.login)}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              LOG IN
+              {header.login.label}
             </a>
-            <button 
-              className="mobile-toggle-btn mobile-only" 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle Navigation Menu"
+
+            <button
+              type="button"
+              className="fl-menu-btn"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="fl-mobile-menu"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
             >
-              {mobileMenuOpen ? '✕' : '☰'}
+              {mobileMenuOpen ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+                  <line x1="4" y1="7" x2="20" y2="7" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                  <line x1="4" y1="17" x2="20" y2="17" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Mobile Nav Drawer */}
         {mobileMenuOpen && (
-          <div className="mobile-nav-drawer">
-            <button className="mobile-drawer-close" onClick={() => setMobileMenuOpen(false)}>✕</button>
-            <a href="#" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>HOME</a>
-            <a href="#why-us" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'services')}>SERVICES</a>
-            <a href="#portfolio" className="mobile-nav-link" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'news')}>NEWS</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'contact')}>CONTACT</a>
-            <a href="#" className="mobile-nav-link" onClick={(e) => handleNavClick(e, 'login')}>LOG IN</a>
-          </div>
-        )}
-      </nav>
-
-      {/* MAIN CINEMATIC EDITORIAL HERO SECTION */}
-      {/* UNIFIED HERO SECTION */}
-      <header className="unified-hero-section">
-        <div className="container unified-hero-container">
-          <div className="unified-hero-content">
-            <span className="unified-hero-tagline">INTENT DIGITAL STUDIO</span>
-            <h1 className="unified-hero-title">
-              Goodbye cookie-cutter.<br />
-              <i>Hello intentional.</i>
-            </h1>
-            <p className="unified-hero-subheadline">
-              Brand identity, website experience, and content direction for brands seeking distinction, intention, and world-class visual presence.
-            </p>
-            <div className="unified-hero-actions">
-              <a href="#" className="btn btn-cta" onClick={(e) => handleNavClick(e, 'contact')}>
-                Start your brand &rarr;
-              </a>
-            </div>
-          </div>
-
-        </div>
-      </header>
-      <SectionDivider color="var(--bg-cream-deep)" topColor="var(--bg-cream)" />
-
-      {/* POSITIONING / STUDIO OFFERINGS SECTION (MATCHING SCREENSHOT 2) */}
-      <section className="welcome-intro-section">
-        <div className="container">
-          {/* Main Editorial Headline */}
-          <div className="global-section-header align-left">
-            <h2 className="global-section-title" style={{ maxWidth: '900px', fontSize: 'clamp(32px, 4.5vw, 48px)' }}>
-              Shaping brand identity and digital presence for clients worldwide.
-            </h2>
-          </div>
-
-          {/* Two Large Side-by-Side Feature Cards */}
-          <div className="welcome-visuals-grid studio-offerings-cards">
-            <div className="welcome-visual-card studio-card">
-              <img 
-                src="/offerings/brand-identity-card.jpg" 
-                alt="The Complete Brand Identity - Intent Digital Monogram Tray" 
-                className="welcome-card-img" 
-              />
-            </div>
-            <div className="welcome-visual-card studio-card">
-              <img 
-                src="/offerings/website-experience-card.jpg" 
-                alt="The Website Experience - Intent Digital Laptop Mockup" 
-                className="welcome-card-img" 
-              />
-            </div>
-          </div>
-
-          {/* Studio Offerings Section Below Cards */}
-          <div className="studio-offerings-footer">
-            <div className="offerings-header-row">
-              <h3 className="offerings-section-label">Studio Offerings</h3>
-            </div>
-            <div className="offerings-columns-grid">
-              <div className="offering-col">
-                <a href="#" className="offering-link-title" onClick={(e) => handleNavClick(e, 'services')}>
-                  THE COMPLETE BRAND IDENTITY &rarr;
-                </a>
-                <p className="offering-desc">
-                  A 6 to 8 week, end-to-end brand build that gives you a complete strategy, creative direction, and visual identity system, designed to launch your brand with clarity, confidence, and luxury-level presence.
-                </p>
-              </div>
-
-              <div className="offering-col">
-                <a href="#" className="offering-link-title" onClick={(e) => handleNavClick(e, 'services')}>
-                  THE WEBSITE EXPERIENCE &rarr;
-                </a>
-                <p className="offering-desc">
-                  A refined 4 to 8 week digital build transforming your brand into an elevated, seamless website crafted with intentional design, strategic structure, and a world-class user experience.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <SectionDivider color="var(--neutral-oat)" topColor="var(--bg-cream-deep)" />
-
-      {/* OUR SERVICES SECTION — TWO-COLUMN EDITORIAL LAYOUT */}
-      <section id="services" className="home-services-summary-section">
-        <div className="container">
-          <div className="home-services-grid">
-            {/* Left Column: Visual Mockup / On-Brand Image */}
-            <div className="home-services-visual-wrap">
-              <img 
-                src="/services-studio-desk.jpg" 
-                alt="Creative branding studio workspace with camera and editorial prints" 
-                className="home-services-visual-img" 
-                loading="lazy"
-              />
-            </div>
-
-            {/* Right Column: Content & Organized Vertical Service List */}
-            <div className="home-services-content">
-              <span className="section-tagline">OUR SERVICES</span>
-              <h2 className="services-home-title">Everything your brand needs to feel like itself.</h2>
-              <p className="services-home-subheadline">
-                From strategy to the smallest visual choice, we shape brands that are cohesive, considered, and made to last.
-              </p>
-
-              <ul className="services-vertical-list">
-                <li className="service-list-row">
-                  <span className="service-marker">&bull;</span>
-                  <div className="service-row-text">
-                    <strong className="service-row-name">Brand Strategy</strong>
-                    <span className="service-row-sep">&mdash;</span>
-                    <span className="service-row-desc">the thinking behind the beauty.</span>
-                  </div>
-                </li>
-
-                <li className="service-list-row">
-                  <span className="service-marker">&bull;</span>
-                  <div className="service-row-text">
-                    <strong className="service-row-name">Visual Identity</strong>
-                    <span className="service-row-sep">&mdash;</span>
-                    <span className="service-row-desc">logos, color, type, and a cohesive system.</span>
-                  </div>
-                </li>
-
-                <li className="service-list-row">
-                  <span className="service-marker">&bull;</span>
-                  <div className="service-row-text">
-                    <strong className="service-row-name">Messaging &amp; Voice</strong>
-                    <span className="service-row-sep">&mdash;</span>
-                    <span className="service-row-desc">words that sound like you.</span>
-                  </div>
-                </li>
-
-                <li className="service-list-row">
-                  <span className="service-marker">&bull;</span>
-                  <div className="service-row-text">
-                    <strong className="service-row-name">Web Architecture</strong>
-                    <span className="service-row-sep">&mdash;</span>
-                    <span className="service-row-desc">a digital home with intention.</span>
-                  </div>
-                </li>
-
-                <li className="service-list-row">
-                  <span className="service-marker">&bull;</span>
-                  <div className="service-row-text">
-                    <strong className="service-row-name">Content Creation</strong>
-                    <span className="service-row-sep">&mdash;</span>
-                    <span className="service-row-desc">photography and content, on retainer.</span>
-                  </div>
-                </li>
-              </ul>
-
-              <div className="home-services-cta-wrap">
-                <a href="#" className="btn btn-pill-secondary" onClick={(e) => handleNavClick(e, 'services')}>
-                  Discover our services &rarr;
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* OUR WORK SECTION — 4-COLUMN PORTRAIT GALLERY */}
-      <section id="portfolio" className="our-work-section">
-        <div className="our-work-container">
-          <div className="global-section-header">
-            <span className="global-section-tagline">OUR WORK</span>
-            <h2 className="global-section-title">Brands we've built.</h2>
-            <p className="global-section-subtext">
-              A look at the identities we've shaped — each one crafted with the same intention we'd bring to yours.
-            </p>
-          </div>
-
-          <div className="our-work-grid">
-            {projectsData.map((project) => (
+          <nav id="fl-mobile-menu" className="fl-mobile-drawer" aria-label="Mobile navigation">
+            {header.nav.map((item) => (
               <a
-                key={project.id}
-                href={project.href || "#"}
-                className="gallery-item"
-                onClick={(e) => { e.preventDefault(); if (navigateTo) navigateTo('contact'); }}
+                key={item.label}
+                href={item.href}
+                className="fl-mobile-link"
+                onClick={(e) => handleAction(e, item)}
               >
-                <div className="gallery-image-wrap">
-                  <img
-                    src={project.image}
-                    alt={project.title}
-                    className="gallery-image"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="gallery-caption">
-                  <h3 className="gallery-title">{project.title}</h3>
-                  <p className="gallery-desc">{project.description}</p>
-                </div>
+                <span>{item.label}</span>
+                <span aria-hidden="true">&rarr;</span>
               </a>
             ))}
-          </div>
-        </div>
-      </section>
+            <a
+              href={header.login.href}
+              className="fl-mobile-link"
+              onClick={(e) => handleAction(e, header.login)}
+            >
+              <span>{header.login.label}</span>
+              <span aria-hidden="true">&rarr;</span>
+            </a>
+          </nav>
+        )}
+      </header>
 
-      {/* APPROACH / WHY INTENT DIGITAL SECTION */}
-      <section id="why-us" className="why-section">
-        <div className="container">
-          <div className="why-split-container">
-            {/* Left Column: Eyebrow, headline, and paragraph */}
-            <div className="why-left-col">
-              <span className="global-section-tagline">OUR APPROACH</span>
-              <h2 className="global-section-title">Intentional from the very first call.</h2>
-              <p className="global-section-subtext">
-                Great branding isn't decoration — it's meaning made visible. Every color, type choice, and detail we design carries a reason. That's the difference between a brand that simply looks good and one that feels right — and gets remembered.
-              </p>
-            </div>
-            
-            {/* Right Column: Ruled items stack */}
-            <div className="why-right-col">
-              <div className="why-item-row">
-                <div className="why-item-num">01</div>
-                <div className="why-item-content">
-                  <h3 className="why-item-title">Strategy first</h3>
-                  <p className="why-item-text">
-                    Every decision is rooted in who you are and who you're for. We don't just design to look pretty; we design to convert.
-                  </p>
-                </div>
-              </div>
-              <div className="why-item-row">
-                <div className="why-item-num">02</div>
-                <div className="why-item-content">
-                  <h3 className="why-item-title">Done with you</h3>
-                  <p className="why-item-text">
-                    Collaborative process so your brand actually feels like you. No handoffs over a brick wall—we work hand-in-hand to build alignment.
-                  </p>
-                </div>
-              </div>
-              <div className="why-item-row">
-                <div className="why-item-num">03</div>
-                <div className="why-item-content">
-                  <h3 className="why-item-title">Built to last</h3>
-                  <p className="why-item-text">
-                    No recycled templates. Your brand is yours. Crafted custom from scratch, allowing you to scale confidently.
-                  </p>
-                </div>
+      <main>
+        {/* 3a. HERO — FAINT 40PX GRID */}
+        <section className="fl-hero">
+          <div className="fl-container fl-hero-grid">
+            <div>
+              <span className="fl-mono-eyebrow">{hero.monoLabel}</span>
+
+              <h1 className="fl-hero-title">
+                <span className="fl-hero-title-line">{hero.headingLine1}</span>
+                <em className="fl-hero-title-line">{hero.headingLine2Italic}</em>
+              </h1>
+
+              <p className="fl-hero-intro">{hero.intro}</p>
+
+              <div className="fl-hero-actions">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  href={hero.primaryCta.href}
+                  onClick={(e) => handleAction(e, hero.primaryCta)}
+                >
+                  {hero.primaryCta.label}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  href={hero.secondaryCta.href}
+                  onClick={(e) => handleAction(e, hero.secondaryCta)}
+                >
+                  {hero.secondaryCta.label}
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* CLOSING CTA SECTION */}
-      <section className="cta-banner-section">
-        <div className="container cta-banner-container">
-          <h2 className="cta-banner-title">Let's create something worth remembering.</h2>
-          <p className="cta-banner-subtext">
-            Whether you're starting fresh or ready to evolve, we'd love to hear your story and shape what comes next — together.
+            {/* Right: Arched Portrait + Annotations + Measurement Line */}
+            <div className="fl-portrait-stage">
+              <div className="fl-annot fl-annot--script">
+                <ScriptAccent size="md" color="var(--burgundy)">
+                  {hero.portrait.annotations.scriptNote}
+                </ScriptAccent>
+                <span className="fl-annot-leader" aria-hidden="true" />
+              </div>
+
+              <div className="fl-annot fl-annot--ppsf">
+                <span className="fl-mono-chip">{hero.portrait.annotations.pricePerSqftTag}</span>
+              </div>
+
+              <div className="fl-annot fl-annot--palette">
+                <span className="fl-mono-chip">
+                  <span
+                    className="fl-swatch-dot"
+                    style={{ backgroundColor: hero.portrait.annotations.paletteHex }}
+                    aria-hidden="true"
+                  />
+                  {hero.portrait.annotations.paletteTag}
+                </span>
+              </div>
+
+              <div className="fl-arch-frame">
+                {!portraitMissing ? (
+                  <img
+                    src={hero.portrait.src}
+                    alt={hero.portrait.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="fl-arch-img"
+                    onError={() => setPortraitMissing(true)}
+                  />
+                ) : (
+                  <div
+                    className="fl-arch-placeholder"
+                    role="img"
+                    aria-label={hero.portrait.alt}
+                  >
+                    <div className="fl-arch-placeholder-inner" aria-hidden="true" />
+                    <span className="fl-arch-monogram" aria-hidden="true">
+                      F<em>.</em>
+                    </span>
+                    <span className="fl-arch-placeholder-tag">
+                      {hero.portrait.placeholderMono}
+                    </span>
+                    <span className="fl-arch-placeholder-path">
+                      {hero.portrait.placeholderPath}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="fl-measure">
+                <div className="fl-measure-bar" aria-hidden="true">
+                  <span className="fl-measure-tick" />
+                  <span className="fl-measure-line" />
+                  <span className="fl-measure-tick" />
+                </div>
+                <span className="fl-measure-caption">{hero.portrait.figureCaption}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3b. "EVERY SPACE, READ TWICE." */}
+        <section id="design" className="fl-section">
+          <div className="fl-container">
+            <div className="fl-read-header">
+              <span className="fl-section-eyebrow">{readTwice.eyebrow}</span>
+              <h2 className="fl-h2">
+                {readTwice.headingLine1} <em>{readTwice.headingLine2Italic}</em>
+              </h2>
+              <p className="fl-section-lead">{readTwice.subtitle}</p>
+            </div>
+
+            <div className="fl-read-grid">
+              {/* Left Column: the eye (serif) */}
+              <div>
+                <div className="fl-lens-col-head">
+                  <span className="fl-lens-col-title--eye">{readTwice.eye.heading}</span>
+                  <span className="fl-lens-col-tag">{readTwice.eye.tag}</span>
+                </div>
+                <ul className="fl-lens-list">
+                  {readTwice.eye.items.map((item) => (
+                    <li key={item.title} className="fl-lens-item">
+                      <h3 className="fl-lens-item-title--serif">{item.title}</h3>
+                      <p className="fl-lens-item-line">{item.line}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Center Image */}
+              <figure className="fl-read-center">
+                <div className="fl-read-photo-wrap">
+                  <img
+                    src={readTwice.image.src}
+                    alt={readTwice.image.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="fl-read-photo"
+                  />
+                </div>
+                <figcaption className="fl-fig-caption">{readTwice.image.caption}</figcaption>
+              </figure>
+
+              {/* Right Column: the mind (mono) */}
+              <div>
+                <div className="fl-lens-col-head">
+                  <span className="fl-lens-col-title--mind">{readTwice.mind.heading}</span>
+                  <span className="fl-lens-col-tag">{readTwice.mind.tag}</span>
+                </div>
+                <ul className="fl-lens-list">
+                  {readTwice.mind.items.map((item) => (
+                    <li key={item.title} className="fl-lens-item">
+                      <h3 className="fl-lens-item-title--mono">{item.title}</h3>
+                      <p className="fl-lens-item-line">{item.line}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3c. "I HAVE A SYSTEM. OF COURSE I DO." */}
+        <section id="system" className="fl-section fl-section--beige">
+          <div className="fl-container">
+            <div className="fl-system-top">
+              <div>
+                <span className="fl-section-eyebrow">{system.eyebrow}</span>
+                <h2 className="fl-h2">
+                  {system.headingLine1} <em>{system.headingLine2Italic}</em>
+                </h2>
+              </div>
+              <ScriptAccent size="lg" color="var(--burgundy)">
+                {system.scriptNote}
+              </ScriptAccent>
+            </div>
+
+            <div className="fl-ruler" aria-hidden="true">
+              <div className="fl-ruler-majors">
+                {system.steps.map((step) => (
+                  <div key={step.number} className="fl-ruler-major-tick" />
+                ))}
+              </div>
+            </div>
+
+            <div className="fl-steps-grid">
+              {system.steps.map((step) => (
+                <article key={step.number} className="fl-step-card">
+                  <span className="fl-step-num">{step.number}</span>
+                  <h3 className="fl-step-title">{step.title}</h3>
+                  <p className="fl-step-desc">{step.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 3d. "CURRENTLY…" ESPRESSO BAND */}
+        <DarkBand paddingTop="80px" paddingBottom="88px" maxWidth="1152px">
+          <div className="fl-currently-top">
+            <h2 className="fl-h2 fl-h2--on-dark">
+              {currently.headingLine1}
+              <em>{currently.headingItalicSuffix}</em>
+            </h2>
+            <span className="fl-currently-status">
+              STATUS &middot; UPDATED {currently.updatedMonthYear}
+            </span>
+          </div>
+
+          <dl className="fl-currently-dl">
+            {currently.items.map((row) => (
+              <div key={row.term} className="fl-currently-row">
+                <dt className="fl-currently-dt">{row.term}</dt>
+                <dd className="fl-currently-dd">{row.definition}</dd>
+              </div>
+            ))}
+          </dl>
+        </DarkBand>
+
+        {/* 3e. SERIES — "DESIGN IT, THEN RUN THE NUMBERS." */}
+        <section id="real-estate" className="fl-section">
+          <div className="fl-container">
+            <div className="fl-series-header">
+              <span className="fl-section-eyebrow">{series.eyebrow}</span>
+              <h2 className="fl-h2">
+                {series.headingLine1} <em>{series.headingLine2Italic}</em>
+              </h2>
+              <p className="fl-section-lead">{series.intro}</p>
+            </div>
+
+            <div className="fl-series-pair">
+              <figure className="fl-series-figure">
+                <div className="fl-series-img-wrap">
+                  <img
+                    src={series.before.src}
+                    alt={series.before.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="fl-series-img"
+                  />
+                  <span className="fl-series-badge">{series.before.tag}</span>
+                </div>
+                <figcaption className="fl-series-figcaption">{series.before.caption}</figcaption>
+              </figure>
+
+              <figure className="fl-series-figure">
+                <div className="fl-series-img-wrap">
+                  <img
+                    src={series.after.src}
+                    alt={series.after.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="fl-series-img"
+                  />
+                  <span className="fl-series-badge fl-series-badge--after">{series.after.tag}</span>
+                </div>
+                <figcaption className="fl-series-figcaption">{series.after.caption}</figcaption>
+              </figure>
+            </div>
+
+            <div className="fl-metrics-table" role="table" aria-label="Series study numbers">
+              {series.metrics.map((cell) => (
+                <div key={cell.label} className="fl-metric-cell" role="cell">
+                  <span className="fl-metric-label">{cell.label}</span>
+                  <span className="fl-metric-value">{cell.value}</span>
+                  <span className="fl-metric-detail">{cell.detail}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="fl-series-note">{series.note}</p>
+          </div>
+        </section>
+
+        {/* 3f. SPEC SHEET ("FLORENCIA, ITEMIZED") + "FROM THE JOURNAL" */}
+        <section className="fl-section fl-section--beige">
+          <div className="fl-container fl-editorial-split">
+            {/* Spec Sheet Card */}
+            <Card id="about" className="fl-spec-card">
+              <span className="fl-section-eyebrow">{specSheet.eyebrow}</span>
+              <h2 className="fl-h2">
+                {specSheet.headingLine1} <em>{specSheet.headingLine2Italic}</em>
+              </h2>
+
+              <dl className="fl-spec-dl">
+                {specSheet.items.map((item) => (
+                  <div key={item.label} className="fl-spec-row">
+                    <dt className="fl-spec-dt">{item.label}</dt>
+                    <dd className="fl-spec-dd">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+
+            {/* From the Journal */}
+            <div id="journal">
+              <div className="fl-journal-head">
+                <div>
+                  <span className="fl-section-eyebrow">{journal.eyebrow}</span>
+                  <h2 className="fl-h2">
+                    {journal.headingLine1} <em>{journal.headingLine2Italic}</em>
+                  </h2>
+                </div>
+                <a
+                  href="/news"
+                  className="fl-journal-all-link"
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey) return;
+                    e.preventDefault();
+                    if (navigateTo) navigateTo(journal.viewAllRoute);
+                  }}
+                >
+                  {journal.viewAllLabel}
+                </a>
+              </div>
+
+              {journalLoading ? (
+                <p className="fl-section-lead">Loading latest entries…</p>
+              ) : journalPosts.length === 0 ? (
+                <p className="fl-section-lead">{journal.emptyMessage}</p>
+              ) : (
+                <ol className="fl-journal-list">
+                  {journalPosts.map((post, idx) => {
+                    const issueNum = Math.max(1, (totalPublishedCount || journalPosts.length) - idx);
+                    const formattedIssue = `No. ${String(issueNum).padStart(2, '0')}`;
+                    const { firstPart, italicPart } = splitJournalTitle(post.title);
+                    const category = resolveJournalCategory(post, journal.defaultCategory);
+                    const dateStr = formatJournalDate(post.published_at);
+
+                    return (
+                      <li key={post.id || post.slug || idx} className="fl-journal-item">
+                        <a
+                          href={`/news/${post.slug}`}
+                          className="fl-journal-link"
+                          onClick={(e) => handleJournalPostClick(e, post.slug)}
+                        >
+                          <span className="fl-journal-num">{formattedIssue}</span>
+                          <div>
+                            <h3 className="fl-journal-title">
+                              {firstPart}
+                              {italicPart ? (
+                                <>
+                                  {' '}
+                                  <em>{italicPart}</em>
+                                </>
+                              ) : null}
+                            </h3>
+                            <div className="fl-journal-meta">
+                              <span className="fl-journal-cat">{category}</span>
+                              {dateStr && <span className="fl-journal-date">{dateStr}</span>}
+                            </div>
+                          </div>
+                          <span className="fl-journal-arrow" aria-hidden="true">
+                            &rarr;
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* 3g. NEWSLETTER CARD (ESPRESSO) + "WORK WITH ME" CARD */}
+        <section className="fl-section">
+          <div className="fl-container fl-cta-pair">
+            {/* Espresso Newsletter Card */}
+            <div className="fl-newsletter-card">
+              <div>
+                <span className="fl-newsletter-eyebrow">{newsletter.eyebrow}</span>
+                <h2 className="fl-h2 fl-h2--on-dark">
+                  {newsletter.headingLine1} <em>{newsletter.headingLine2Italic}</em>
+                </h2>
+                <p className="fl-newsletter-desc">{newsletter.description}</p>
+              </div>
+
+              {newsletterSaved ? (
+                <div className="fl-newsletter-success" role="status" aria-live="polite">
+                  <p className="fl-newsletter-success-title">{newsletter.successTitle}</p>
+                  <p className="fl-newsletter-success-body">{newsletter.successMessage}</p>
+                </div>
+              ) : (
+                <form className="fl-newsletter-form" onSubmit={handleNewsletterSubmit} noValidate>
+                  <div className="fl-hp-wrap" aria-hidden="true">
+                    <label htmlFor="fl-company-website">Website</label>
+                    <input
+                      id="fl-company-website"
+                      name="company_website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                    />
+                  </div>
+
+                  <label htmlFor="fl-newsletter-email" className="fl-sr-only">
+                    {newsletter.inputLabel}
+                  </label>
+
+                  <div className="fl-newsletter-row">
+                    <input
+                      id="fl-newsletter-email"
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder={newsletter.inputPlaceholder}
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (newsletterError) setNewsletterError('');
+                      }}
+                      disabled={submitting}
+                      className="fl-newsletter-input"
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={submitting}
+                      style={{ border: '1px solid rgba(250, 248, 245, 0.24)' }}
+                    >
+                      {submitting ? newsletter.submittingLabel : newsletter.buttonLabel}
+                    </Button>
+                  </div>
+
+                  {newsletterError && (
+                    <div className="fl-newsletter-error" role="alert">
+                      {newsletterError}
+                    </div>
+                  )}
+
+                  <p className="fl-newsletter-consent">{newsletter.consentText}</p>
+                </form>
+              )}
+            </div>
+
+            {/* Work With Me Card */}
+            <Card id="work-with-me" featured className="fl-work-card">
+              <div>
+                <span className="fl-section-eyebrow">{workWithMe.eyebrow}</span>
+                <h2 className="fl-h2">
+                  {workWithMe.headingLine1} <em>{workWithMe.headingLine2Italic}</em>
+                </h2>
+                <p className="fl-work-desc">{workWithMe.description}</p>
+              </div>
+
+              <div>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  href={workWithMe.href}
+                  onClick={(e) => handleAction(e, workWithMe)}
+                >
+                  {workWithMe.buttonLabel}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </section>
+      </main>
+
+      {/* 3h. FOOTER */}
+      <footer className="fl-footer">
+        <div className="fl-container fl-footer-inner">
+          <p className="fl-footer-line">
+            &copy; {currentYear} {BRAND_NAME} &middot; {footer.personName} &middot;{' '}
+            {footer.rightsText}
+            {footer.links.map((lnk) => (
+              <React.Fragment key={lnk.label}>
+                {' '}
+                &middot;{' '}
+                <a
+                  href={lnk.href}
+                  className="fl-footer-link"
+                  onClick={(e) => handleAction(e, lnk)}
+                >
+                  {lnk.label}
+                </a>
+              </React.Fragment>
+            ))}
           </p>
-          <a href="#" className="btn btn-cta-banner" onClick={(e) => handleNavClick(e, 'contact')}>
-            Get in touch &rarr;
-          </a>
-        </div>
-      </section>
-
-      {/* SECTION 6 — FOOTER */}
-      <footer className="footer-section">
-        <div className="container footer-container">
-          <div className="footer-grid-layout">
-            {/* Left Column: Brand script logo, tagline, quote */}
-            <div className="footer-col-left">
-              <img src="/intent-script-logo.png" alt="Intent Digital" className="footer-script-logo" />
-              <p className="footer-agency-tagline">
-                Full-service brand + website design studio for ambitious founders.
-              </p>
-              <p className="footer-quote">
-                <em>Pure intention &amp; craft behind every choice.</em>
-              </p>
-            </div>
-
-            {/* Center Column: Centered Seal logo + Social icons */}
-            <div className="footer-col-center">
-              <div className="footer-seal-wrapper">
-                <img src="/intent-digital-logo-web.png" alt="Intent Digital" className="footer-main-seal" />
-              </div>
-              <div className="footer-social-row">
-                <a href="#" className="social-icon-link" aria-label="Facebook">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-                </a>
-                <a href="#" className="social-icon-link" aria-label="Pinterest">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345c-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146A11.96 11.96 0 0012 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z"/></svg>
-                </a>
-                <a href="#" className="social-icon-link" aria-label="Instagram">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                </a>
-              </div>
-            </div>
-
-            {/* Right Column: Navigation Links + CTA Button */}
-            <div className="footer-col-right">
-              <div className="footer-nav-columns">
-                <div className="footer-nav-col">
-                  <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>HOME</a>
-                  <a href="#why-us" onClick={(e) => handleScroll(e, 'why-us')}>ABOUT</a>
-                  <a href="#services" onClick={(e) => handleScroll(e, 'services')}>SERVICES</a>
-                  <a href="#portfolio" onClick={(e) => handleScroll(e, 'portfolio')}>PORTFOLIO</a>
-                </div>
-                <div className="footer-nav-col">
-                  <a href="#services" onClick={(e) => handleScroll(e, 'services')}>WORK WITH US</a>
-                  <a href="mailto:hello@intent-digital.com">CONTACT</a>
-                  <a href="#portfolio" onClick={(e) => handleScroll(e, 'portfolio')}>CLIENT WORK</a>
-                </div>
-              </div>
-              <div className="footer-cta-wrap">
-                <a href="mailto:hello@intent-digital.com" className="btn btn-footer-pill-cta">
-                  GET STARTED &rarr;
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="footer-bottom-bar">
-            <p className="footer-copy">&copy; 2025 Intent Digital Studio LLC &nbsp;|&nbsp; Fort Lauderdale, FL &nbsp;|&nbsp; All rights reserved.</p>
-          </div>
         </div>
       </footer>
     </div>

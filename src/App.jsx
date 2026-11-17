@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import LearningLab from './pages/LearningLab.jsx';
+import LegalPage from './pages/LegalPage.jsx';
 import DealReportPage from './pages/investor/DealReportPage.jsx';
 import { PortalThemeProvider } from './context/PortalThemeContext.jsx';
 
@@ -44,6 +45,12 @@ function App() {
       }
       if (path === '/learning-lab' || path.startsWith('/learning-lab')) {
         return 'learning-lab';
+      }
+      if (path === '/terms') {
+        return 'terms';
+      }
+      if (path === '/privacy') {
+        return 'privacy';
       }
 
       const params = new URLSearchParams(window.location.search);
@@ -233,6 +240,14 @@ function App() {
 
   if (currentPage === 'learning-lab') {
     return <LearningLab navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'terms') {
+    return <LegalPage docType="terms" navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'privacy') {
+    return <LegalPage docType="privacy" navigateTo={navigateTo} />;
   }
 
   return <Home navigateTo={navigateTo} />;
