@@ -14,3 +14,4 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletter_subscribers_email_lower
   ON newsletter_subscribers (lower(email));
+

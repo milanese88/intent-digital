@@ -372,3 +372,4 @@ export function resolveJournalCategory(post = {}, fallback = 'DESIGN & SPACE') {
   }
   return fallback;
 }
+

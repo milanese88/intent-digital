@@ -93,3 +93,4 @@ export default function LegalPage({ docType = 'terms', navigateTo }) {
     </div>
   );
 }
+

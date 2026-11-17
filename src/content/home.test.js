@@ -149,3 +149,4 @@ test('Newsletter validation, rate limiting, and honeypot handler work safely wit
   assert.equal(statusOut, 200);
   assert.equal(jsonOut.ok, true);
 });
+
