@@ -118,3 +118,4 @@ CREATE TABLE IF NOT EXISTS fdle_agency_stats (
 
 CREATE INDEX IF NOT EXISTS idx_fdle_agency_stats_lookup
   ON fdle_agency_stats (county, jurisdiction_key, report_year DESC);
+

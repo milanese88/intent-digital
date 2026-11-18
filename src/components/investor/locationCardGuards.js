@@ -263,3 +263,4 @@ export function sanitizeSafetyCard(raw, propertyAddress = '') {
     provenanceLine
   };
 }
+
