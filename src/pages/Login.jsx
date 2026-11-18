@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { computeThemeCssVariables, loadSelectedThemeFonts } from '../utils/themeFonts.js';
+import {
+  extractValidatedAdminNext,
+  resolvePostLoginDestination
+} from '../utils/authRedirect.js';
+import '../styles/home.css';
 
 export default function Login({ navigateTo }) {
   const [email, setEmail] = useState('');
@@ -30,7 +35,24 @@ export default function Login({ navigateTo }) {
       .catch(() => {});
   }, []);
 
-  // Check for URL errors (e.g. from verify-magic-link redirect)
+  // If already logged in, skip the login screen and go straight to /admin (or validated ?next=)
+  useEffect(() => {
+    let active = true;
+    fetch('/api/verify', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.loggedIn && navigateTo) {
+          const dest = resolvePostLoginDestination(window.location.search);
+          navigateTo('admin', null, dest);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [navigateTo]);
+
+  // Check for URL errors (e.g. from verify-magic-link redirect) while preserving ?next=
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -41,9 +63,12 @@ export default function Login({ navigateTo }) {
         setError('Your magic link has expired. Please request a new one.');
       }
       
-      // Cleanup URL
       if (err) {
-        window.history.replaceState({}, document.title, window.location.pathname);
+        const preservedNext = extractValidatedAdminNext(window.location.search);
+        const cleanUrl = preservedNext
+          ? `${window.location.pathname}?next=${encodeURIComponent(preservedNext)}`
+          : window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
       }
     }
   }, []);
@@ -61,10 +86,14 @@ export default function Login({ navigateTo }) {
     setLoading(true);
 
     try {
+      const next =
+        typeof window !== 'undefined'
+          ? extractValidatedAdminNext(window.location.search)
+          : null;
       const res = await fetch('/api/request-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, ...(next ? { next } : {}) })
       });
       
       const data = await res.json();
@@ -119,17 +148,17 @@ export default function Login({ navigateTo }) {
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
 
       if (res.ok) {
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get('redirect');
-        if (redirect && redirect.startsWith('/')) {
-          window.location.href = redirect;
+        const dest = resolvePostLoginDestination(window.location.search);
+        if (navigateTo) {
+          navigateTo('admin', null, dest);
         } else {
-          navigateTo('admin');
+          window.location.assign(dest);
         }
       } else {
         if (res.status === 500) {

@@ -76,10 +76,12 @@ const vercelApiMock = () => {
           return;
         }
 
-        // General serverless function runner for local dev
-        if (req.url.startsWith('/api/')) {
+        // General serverless function runner for local dev (including /auth/verify -> /api/verify-magic-link)
+        if (req.url.startsWith('/api/') || req.url.startsWith('/auth/verify')) {
           const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-          const endpoint = urlObj.pathname.replace('/api/', '');
+          const endpoint = urlObj.pathname === '/auth/verify'
+            ? 'verify-magic-link'
+            : urlObj.pathname.replace('/api/', '');
           const filePath = path.resolve(`./api/${endpoint}.js`);
 
           if (fs.existsSync(filePath)) {
@@ -99,7 +101,7 @@ const vercelApiMock = () => {
 
                 req.query = Object.fromEntries(urlObj.searchParams.entries());
 
-                if (!req.headers.cookie || !req.headers.cookie.includes('auth_session')) {
+                if (process.env.DEV_BYPASS_AUTH === 'true' && (!req.headers.cookie || !req.headers.cookie.includes('auth_session'))) {
                   req._user = {
                     id: 'a145b049-c360-4664-99c6-f029ce1b83b3',
                     email: process.env.ADMIN_EMAIL || 'mn.florenciaok@gmail.com',

@@ -1,8 +1,10 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
 
-const FEMA_ZONE_LAYER_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query';
-const FEMA_PANEL_LAYER_URL = 'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/3/query';
+const FEMA_NFHL_BASES = [
+  'https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer',
+  'https://msc.fema.gov/arcgis/rest/services/NFHL_Print/NFHLQuery/MapServer'
+];
 
 /**
  * Computes plain-English flood description and display label based on FEMA zone attributes.
@@ -45,9 +47,11 @@ export function getFloodZoneDetails(zone, subtype, sfha, bfe) {
 }
 
 /**
- * Queries FEMA NFHL REST endpoints server-side with an 8-second timeout.
+ * Queries FEMA NFHL REST endpoints server-side with automatic fallback across
+ * FEMA's hazards.fema.gov and msc.fema.gov mirrors so transient TLS resets never
+ * drop Palm Beach or Broward lookups.
  */
-export async function queryFemaNFHL(lng, lat) {
+export async function queryFemaNFHL(lng, lat, fetchImpl = fetch) {
   const lonNum = Number(lng);
   const latNum = Number(lat);
 
@@ -55,41 +59,46 @@ export async function queryFemaNFHL(lng, lat) {
     throw new Error('Valid lat and lng numeric coordinates are required to query FEMA.');
   }
 
-  const zoneUrl = new URL(FEMA_ZONE_LAYER_URL);
-  zoneUrl.searchParams.set('geometry', `${lonNum},${latNum}`);
-  zoneUrl.searchParams.set('geometryType', 'esriGeometryPoint');
-  zoneUrl.searchParams.set('inSR', '4326');
-  zoneUrl.searchParams.set('spatialRel', 'esriSpatialRelIntersects');
-  zoneUrl.searchParams.set('outFields', 'FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE');
-  zoneUrl.searchParams.set('returnGeometry', 'false');
-  zoneUrl.searchParams.set('f', 'json');
-
-  const panelUrl = new URL(FEMA_PANEL_LAYER_URL);
-  panelUrl.searchParams.set('geometry', `${lonNum},${latNum}`);
-  panelUrl.searchParams.set('geometryType', 'esriGeometryPoint');
-  panelUrl.searchParams.set('inSR', '4326');
-  panelUrl.searchParams.set('spatialRel', 'esriSpatialRelIntersects');
-  panelUrl.searchParams.set('outFields', 'FIRM_PAN,EFF_DATE');
-  panelUrl.searchParams.set('returnGeometry', 'false');
-  panelUrl.searchParams.set('f', 'json');
-
   const fetchOptions = {
     headers: {
       'User-Agent': 'IntentDigital-InvestorStudio/1.0',
       'Accept': 'application/json'
     },
-    signal: AbortSignal.timeout(8000)
+    signal: AbortSignal.timeout(9000)
+  };
+
+  const queryLayerWithFallback = async (layerId, outFields) => {
+    let lastErr = null;
+    for (const baseUrl of FEMA_NFHL_BASES) {
+      try {
+        const u = new URL(`${baseUrl}/${layerId}/query`);
+        u.searchParams.set('geometry', `${lonNum},${latNum}`);
+        u.searchParams.set('geometryType', 'esriGeometryPoint');
+        u.searchParams.set('inSR', '4326');
+        u.searchParams.set('spatialRel', 'esriSpatialRelIntersects');
+        u.searchParams.set('outFields', outFields);
+        u.searchParams.set('returnGeometry', 'false');
+        u.searchParams.set('f', 'json');
+
+        const r = await fetchImpl(u.toString(), fetchOptions);
+        if (!r.ok) {
+          throw new Error(`FEMA layer ${layerId} HTTP ${r.status}`);
+        }
+        const json = await r.json();
+        if (json?.error) {
+          throw new Error(json.error.message || `FEMA layer ${layerId} error`);
+        }
+        return json;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr || new Error(`FEMA layer ${layerId} query failed`);
   };
 
   const [resZone, resPanel] = await Promise.all([
-    fetch(zoneUrl.toString(), fetchOptions).then(r => {
-      if (!r.ok) throw new Error(`FEMA Zone query failed: ${r.status}`);
-      return r.json();
-    }),
-    fetch(panelUrl.toString(), fetchOptions).then(r => {
-      if (!r.ok) throw new Error(`FEMA Panel query failed: ${r.status}`);
-      return r.json();
-    })
+    queryLayerWithFallback(28, 'FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE'),
+    queryLayerWithFallback(3, 'FIRM_PAN,EFF_DATE').catch(() => ({ features: [] }))
   ]);
 
   const zoneFeature = resZone?.features?.[0]?.attributes || {};
@@ -133,7 +142,10 @@ export default async function handler(req, res) {
     }
 
     const { county: rawCounty, parcel_id: rawParcelId, lat: queryLat, lng: queryLng, refresh } = req.query || {};
-    const county = /palm/i.test(rawCounty || '') ? 'Palm Beach' : 'Broward';
+    const inferredPalmBeach =
+      /palm/i.test(rawCounty || '') ||
+      (!rawCounty && queryLat != null && Number(queryLat) >= 26.33);
+    const county = inferredPalmBeach ? 'Palm Beach' : 'Broward';
     const parcelId = rawParcelId ? String(rawParcelId).trim() : null;
     const forceRefresh = refresh === '1' || refresh === 'true';
 

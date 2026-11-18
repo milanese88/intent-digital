@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
+import { sanitizeAdminNextPath } from '../src/utils/authRedirect.js';
 
 // In-memory rate limiting (Note: resets on serverless cold starts)
 const rateLimitMap = new Map();
@@ -22,7 +23,8 @@ export default async function handler(req, res) {
   // Always return the exact same success message regardless of outcome to prevent email enumeration
   const sendSuccess = () => res.status(200).json({ success: true, message: 'If the email exists, a magic link has been sent.' });
 
-  const { email } = req.body;
+  const { email, next: rawNext } = req.body || {};
+  const safeNext = sanitizeAdminNextPath(rawNext);
   
   if (!email || typeof email !== 'string') {
     return sendSuccess(); // Fail silently
@@ -75,7 +77,7 @@ export default async function handler(req, res) {
     // Generate stateless token
     // Expiry: 15 minutes in the future
     const expiresAt = now + 15 * 60 * 1000;
-    const payload = JSON.stringify({ email: cleanEmail, exp: expiresAt });
+    const payload = JSON.stringify({ email: cleanEmail, exp: expiresAt, next: safeNext });
     
     const signature = crypto
       .createHmac('sha256', authSecret)
@@ -85,10 +87,11 @@ export default async function handler(req, res) {
     const tokenPayload = Buffer.from(payload).toString('base64url');
     const token = `${tokenPayload}.${signature}`;
 
-    // Use req.headers.host to determine the domain
-    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
-    const host = req.headers.host;
-    const magicLink = `${protocol}://${host}/auth/verify?token=${token}`;
+    // Determine exact preview or production origin from forwarded headers
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const protocol = forwardedProto || (/^(localhost|127\.0\.0\.1)(:|$)/i.test(host) ? 'http' : 'https');
+    const magicLink = `${protocol}://${host}/auth/verify?token=${encodeURIComponent(token)}`;
 
     const resend = new Resend(resendApiKey);
     

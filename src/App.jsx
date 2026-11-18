@@ -8,8 +8,70 @@ import Login from './pages/Login.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import LearningLab from './pages/LearningLab.jsx';
+import LegalPage from './pages/LegalPage.jsx';
 import DealReportPage from './pages/investor/DealReportPage.jsx';
 import { PortalThemeProvider } from './context/PortalThemeContext.jsx';
+import {
+  isAllowedAdminPath,
+  extractValidatedAdminNext,
+  buildLoginPath
+} from './utils/authRedirect.js';
+
+function resolveInitialPageFromWindow() {
+  if (typeof window === 'undefined') return 'home';
+
+  const path = window.location.pathname;
+  if (path.startsWith('/admin/investor/report/')) {
+    const propId = path.split('/admin/investor/report/')[1]?.split('?')[0]?.split('/')[0];
+    return propId ? 'deal-report' : 'admin-not-found';
+  }
+  if (path === '/login') {
+    return 'login';
+  }
+  if (path.startsWith('/news')) {
+    return 'news';
+  }
+  if (path === '/reset-password') {
+    return 'reset-password';
+  }
+  if (path === '/admin' || /^\/admin(?:\/|$)/.test(path)) {
+    return 'admin';
+  }
+  if (path === '/dashboard' || path.startsWith('/dashboard/')) {
+    window.history.replaceState({}, '', `/admin${window.location.search || ''}`);
+    return 'admin';
+  }
+  if (path === '/learning-lab' || path.startsWith('/learning-lab')) {
+    return 'learning-lab';
+  }
+  if (path === '/terms') {
+    return 'terms';
+  }
+  if (path === '/privacy') {
+    return 'privacy';
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const route = params.get('route');
+  if (route === 'reset-password') {
+    return 'reset-password';
+  }
+  if (route === 'admin') {
+    window.history.replaceState({}, '', '/admin');
+    return 'admin';
+  }
+  if (route === 'login') {
+    const validatedNext = extractValidatedAdminNext(window.location.search);
+    window.history.replaceState({}, '', buildLoginPath(validatedNext));
+    return 'login';
+  }
+  if (route) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return route;
+  }
+
+  return 'home';
+}
 
 function App() {
   const [resetToken, setResetToken] = useState(() => {
@@ -20,45 +82,7 @@ function App() {
     return '';
   });
 
-  const [currentPage, setCurrentPage] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path.startsWith('/admin/investor/report/')) {
-        const propId = path.split('/admin/investor/report/')[1]?.split('?')[0]?.split('/')[0];
-        if (!propId) {
-          return 'admin-not-found';
-        }
-        return 'deal-report';
-      }
-      if (path === '/login') {
-        return 'login';
-      }
-      if (path.startsWith('/news')) {
-        return 'news';
-      }
-      if (path === '/reset-password') {
-        return 'reset-password';
-      }
-      if (path === '/admin' || path.startsWith('/admin')) {
-        return 'admin';
-      }
-      if (path === '/learning-lab' || path.startsWith('/learning-lab')) {
-        return 'learning-lab';
-      }
-
-      const params = new URLSearchParams(window.location.search);
-      const route = params.get('route');
-      if (route === 'reset-password') {
-        return 'reset-password';
-      }
-      if (route) {
-        // Optionally clean up the URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-        return route;
-      }
-    }
-    return 'home';
-  });
+  const [currentPage, setCurrentPage] = useState(() => resolveInitialPageFromWindow());
 
   const [newsSlug, setNewsSlug] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -94,14 +118,31 @@ function App() {
       const newPath = `/admin/investor/report/${propId}${anIdParam}`;
       window.history.pushState({}, '', newPath);
       setReportPropertyId(propId);
+    } else if (page === 'admin') {
+      const adminTarget = slug && isAllowedAdminPath(slug) ? slug.trim() : '/admin';
+      const reportMatch = adminTarget.match(/^\/admin\/investor\/report\/([^/?#]+)/);
+      if (reportMatch) {
+        window.history.pushState({}, '', adminTarget);
+        setReportPropertyId(reportMatch[1]);
+        setCurrentPage('deal-report');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      window.history.pushState({}, '', adminTarget);
     } else if (page === 'login') {
-      const redirectTarget = slug || (typeof window !== 'undefined' ? (window.location.pathname + window.location.search) : '');
-      const redirectParam = (redirectTarget && redirectTarget !== '/' && !redirectTarget.includes('route=login')) 
-        ? `&redirect=${encodeURIComponent(redirectTarget)}` 
-        : '';
-      window.history.pushState({}, '', `/?route=login${redirectParam}`);
+      const nextCandidate =
+        slug ||
+        (typeof window !== 'undefined'
+          ? window.location.pathname + window.location.search
+          : '');
+      const loginPath = buildLoginPath(nextCandidate);
+      window.history.pushState({}, '', loginPath);
     } else if (page === 'home') {
       window.history.pushState({}, '', '/');
+    } else if (page === 'terms') {
+      window.history.pushState({}, '', '/terms');
+    } else if (page === 'privacy') {
+      window.history.pushState({}, '', '/privacy');
     } else if (page === 'reset-password') {
       const tokenParam = token || resetToken ? `&token=${encodeURIComponent(token || resetToken)}` : '';
       window.history.pushState({}, '', `/?route=reset-password${tokenParam}`);
@@ -130,6 +171,25 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const nextPage = resolveInitialPageFromWindow();
+      const path = window.location.pathname;
+      if (path.startsWith('/news/')) {
+        setNewsSlug(path.split('/news/')[1].split('/')[0]);
+      } else {
+        setNewsSlug(null);
+      }
+      const repMatch = path.match(/^\/admin\/investor\/report\/([^/?#]+)/);
+      if (repMatch) {
+        setReportPropertyId(repMatch[1]);
+      }
+      setCurrentPage(nextPage);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   if (currentPage === 'about') {
     return <About navigateTo={navigateTo} />;
@@ -233,6 +293,14 @@ function App() {
 
   if (currentPage === 'learning-lab') {
     return <LearningLab navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'terms') {
+    return <LegalPage docType="terms" navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'privacy') {
+    return <LegalPage docType="privacy" navigateTo={navigateTo} />;
   }
 
   return <Home navigateTo={navigateTo} />;

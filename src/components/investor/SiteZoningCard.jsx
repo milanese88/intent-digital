@@ -62,10 +62,13 @@ export default function SiteZoningCard({ property, onPropertyUpdate, showToast, 
   const [savingManual, setSavingManual] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const county = property?.parcel_county || property?.county || 'Broward';
+  const lat = property?.lat != null ? Number(property.lat) : null;
+  const lng = property?.lng != null ? Number(property.lng) : null;
+  const county =
+    property?.parcel_county ||
+    property?.county ||
+    (lat != null && !isNaN(lat) && lat >= 26.33 ? 'Palm Beach' : 'Broward');
   const parcelId = property?.parcel_id || null;
-  const lat = property?.lat || null;
-  const lng = property?.lng || null;
 
   // 1. Fetch Flood Hazard Info
   const fetchFloodInfo = async (forceRefresh = false) => {
@@ -98,6 +101,16 @@ export default function SiteZoningCard({ property, onPropertyUpdate, showToast, 
         setFloodError(data.error || 'FEMA flood hazard service is currently unavailable.');
       } else {
         setFloodData(data);
+        if (onPropertyUpdate && property && data.flood_zone && property.flood_zone !== data.flood_zone) {
+          onPropertyUpdate({
+            ...property,
+            flood_zone: data.flood_zone,
+            flood_sfha: data.flood_sfha,
+            flood_subtype: data.flood_subtype,
+            flood_bfe: data.flood_bfe,
+            flood_panel: data.flood_panel
+          });
+        }
         if (forceRefresh && showToast) {
           showToast('Flood hazard data refreshed from FEMA');
         }
