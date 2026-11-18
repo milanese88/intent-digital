@@ -94,3 +94,4 @@ test('Homepage header config exposes STUDIO -> /admin when authenticated, Login 
   assert.equal(verifyMagicSrc.includes("'/dashboard'"), false);
   assert.equal(verifyMagicSrc.includes('sanitizeAdminNextPath'), true);
 });
+

@@ -49,3 +49,4 @@ export function buildLoginPath(nextCandidate = '') {
   }
   return '/login';
 }
+
