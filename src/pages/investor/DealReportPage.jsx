@@ -1055,7 +1055,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   ZONING
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
-                  {property.zoning || countyData.zoning || 'RD-15'}
+                  {property.zoning_code || property.zoning || countyData.zoning || 'Not verified'}
                 </span>
               </div>
 
@@ -1064,7 +1064,9 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   FLOOD ZONE & PANEL
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--espresso, #34292A)' }}>
-                  Zone {property.flood_zone || 'X'} · Panel {property.flood_panel || '12011C0387H'}
+                  {property.flood_zone
+                    ? `Zone ${property.flood_zone}${property.flood_panel ? ` · Panel ${property.flood_panel}` : ''}`
+                    : 'Not verified'}
                 </span>
               </div>
 

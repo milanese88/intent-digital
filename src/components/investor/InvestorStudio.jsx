@@ -1931,10 +1931,19 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '36px 24px 60px 24px' }}>
           {activeProperty ? (
             (() => {
-              // Flood info
-              const floodZone = siteData?.floodData?.floodZone || activeProperty.flood_zone;
-              const floodSfha = siteData?.floodData?.isSfha != null ? siteData.floodData.isSfha : activeProperty.flood_sfha;
-              const floodSubtype = siteData?.floodData?.subtype || activeProperty.flood_subtype;
+              // Flood info (supports both snake_case from /api/site/flood and legacy camelCase)
+              const floodZone =
+                siteData?.floodData?.flood_zone ||
+                siteData?.floodData?.floodZone ||
+                activeProperty.flood_zone;
+              const floodSfha =
+                siteData?.floodData?.flood_sfha ??
+                siteData?.floodData?.isSfha ??
+                activeProperty.flood_sfha;
+              const floodSubtype =
+                siteData?.floodData?.flood_subtype ||
+                siteData?.floodData?.subtype ||
+                activeProperty.flood_subtype;
               const isSFHA = Boolean(
                 floodSfha ||
                 (floodZone && ['A', 'AE', 'AH', 'AO', 'A99', 'AR', 'V', 'VE'].includes(String(floodZone).toUpperCase()))
@@ -3039,8 +3048,15 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             property={{
                               ...activeProperty,
                               use_code: countyData?.use_code || activeProperty.use_code,
-                              flood_zone: siteData?.flood?.zone || activeProperty.flood_zone,
-                              flood_sfha: siteData?.flood?.is_sfha ?? activeProperty.flood_sfha
+                              flood_zone:
+                                siteData?.floodData?.flood_zone ||
+                                siteData?.flood?.zone ||
+                                activeProperty.flood_zone,
+                              flood_sfha:
+                                siteData?.floodData?.flood_sfha ??
+                                siteData?.floodData?.isSfha ??
+                                siteData?.flood?.is_sfha ??
+                                activeProperty.flood_sfha
                             }}
                             profile={buyingProfile}
                             showReasons

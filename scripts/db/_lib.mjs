@@ -33,7 +33,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_valuation_and_backtest.sql',
   'add_live_in_fha_strategy.sql',
   'add_comp_details_and_nal_clues.sql',
-  'add_newsletter_subscribers.sql'
+  'add_newsletter_subscribers.sql',
+  'add_location_intelligence_tables.sql'
 ];
 
 /**
@@ -185,6 +186,29 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       { table: 'newsletter_subscribers', column: 'unsubscribed_at' }
     ],
     indexes: ['idx_newsletter_subscribers_email_lower']
+  },
+  'add_location_intelligence_tables.sql': {
+    tables: [
+      'location_snapshots',
+      'fl_highway_junctions',
+      'school_attendance_zones',
+      'fldoe_school_grades',
+      'fdle_agency_stats'
+    ],
+    columns: [
+      { table: 'location_snapshots', column: 'field_sources' },
+      { table: 'location_snapshots', column: 'getting_around' },
+      { table: 'location_snapshots', column: 'schools' },
+      { table: 'location_snapshots', column: 'people_housing' },
+      { table: 'location_snapshots', column: 'safety' }
+    ],
+    indexes: [
+      'idx_location_snapshots_owner_fetched',
+      'idx_fl_highway_junctions_route_coords',
+      'idx_school_attendance_zones_bbox',
+      'idx_fldoe_school_grades_county_coords',
+      'idx_fdle_agency_stats_lookup'
+    ]
   }
 };
 
