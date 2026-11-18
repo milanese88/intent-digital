@@ -390,7 +390,7 @@ export default function Home({ navigateTo }) {
                   <img
                     src={hero.portrait.src}
                     alt={hero.portrait.alt}
-                    loading="lazy"
+                    fetchPriority="high"
                     decoding="async"
                     className="fl-arch-img"
                     onError={() => setPortraitMissing(true)}

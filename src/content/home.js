@@ -13,7 +13,7 @@ export const HOME_CONTENT = {
     ogTitle: 'Florencia Nuñez — Design & Real Estate, South Florida',
     ogDescription:
       'Half mood board, half spreadsheet. Editorial design sensibility paired with South Florida real estate underwriting.',
-    ogImage: '/images/investor-hero.jpg',
+    ogImage: '/images/florencia/portrait.jpg',
     ogType: 'website'
   },
 
