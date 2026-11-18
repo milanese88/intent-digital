@@ -92,7 +92,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
           if (navigateTo) {
             navigateTo('login', null, currentPath);
           } else {
-            window.location.href = `/?route=login&redirect=${encodeURIComponent(currentPath)}`;
+            window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
           }
           return;
         }

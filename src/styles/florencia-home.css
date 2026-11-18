@@ -261,6 +261,19 @@
   background-color: var(--white);
 }
 
+.fl-login-link--studio {
+  background-color: var(--burgundy);
+  border-color: var(--burgundy);
+  color: #FFFFFF;
+}
+
+.fl-login-link--studio:hover,
+.fl-login-link--studio:focus-visible {
+  background-color: #290D11;
+  border-color: #290D11;
+  color: #FFFFFF;
+}
+
 .fl-menu-btn {
   display: none;
   align-items: center;

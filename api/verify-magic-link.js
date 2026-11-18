@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDb } from './_lib/db.js';
 import { createSession } from './_lib/session.js';
+import { sanitizeAdminNextPath } from '../src/utils/authRedirect.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -71,8 +72,9 @@ export default async function handler(req, res) {
     // Create a new DB-backed session
     await createSession(user.id, res, req);
     
-    // Redirect to the dashboard
-    return res.redirect('/dashboard');
+    // Redirect to /admin (or validated internal /admin?next=... path)
+    const destination = sanitizeAdminNextPath(payload.next || req.query?.next);
+    return res.redirect(destination);
   } catch (error) {
     console.error('Error verifying magic link:', error);
     return res.redirect('/login?error=invalid_link');

@@ -1,7 +1,7 @@
 import cookie from 'cookie';
 const { parse, serialize } = cookie;
 import { getDb } from './_lib/db.js';
-import { hashToken } from './_lib/session.js';
+import { hashToken, isSecureRequest } from './_lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   // Clear cookie
   const cookie = serialize('auth_session', '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureRequest(req),
     sameSite: 'lax',
     maxAge: -1,
     path: '/'

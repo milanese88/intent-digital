@@ -37,8 +37,13 @@ export const HOME_CONTENT = {
     ],
     login: {
       label: 'LOG IN',
-      href: '/?route=login',
+      href: '/login',
       route: 'login'
+    },
+    studio: {
+      label: 'STUDIO →',
+      href: '/admin',
+      route: 'admin'
     }
   },
 

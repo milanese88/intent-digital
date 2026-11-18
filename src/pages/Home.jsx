@@ -32,6 +32,7 @@ function formatJournalDate(rawDate) {
 export default function Home({ navigateTo }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [portraitMissing, setPortraitMissing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Journal posts state (fetched from published blog_posts via /api/news)
   const [journalPosts, setJournalPosts] = useState([]);
@@ -79,6 +80,24 @@ export default function Home({ navigateTo }) {
     upsertMetaTag('name', 'twitter:title', seo.ogTitle || seo.title);
     upsertMetaTag('name', 'twitter:description', seo.ogDescription || seo.description);
   }, [seo]);
+
+  // Check active Owner Portal session so header displays "STUDIO →" when logged in
+  useEffect(() => {
+    let active = true;
+    fetch('/api/verify', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active) {
+          setIsAuthenticated(Boolean(data?.loggedIn));
+        }
+      })
+      .catch(() => {
+        if (active) setIsAuthenticated(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Close mobile menu on Escape
   useEffect(() => {
@@ -210,6 +229,7 @@ export default function Home({ navigateTo }) {
   // Repeat marquee sequence 4x per track for seamless wide-screen loop
   const marqueeLoop = [0, 1, 2, 3];
   const currentYear = new Date().getFullYear();
+  const headerAuthCta = isAuthenticated && header.studio ? header.studio : header.login;
 
   return (
     <div className="florencia-home">
@@ -271,11 +291,11 @@ export default function Home({ navigateTo }) {
 
           <div className="fl-header-right">
             <a
-              href={header.login.href}
-              className="fl-login-link"
-              onClick={(e) => handleAction(e, header.login)}
+              href={headerAuthCta.href}
+              className={`fl-login-link ${isAuthenticated ? 'fl-login-link--studio' : ''}`}
+              onClick={(e) => handleAction(e, headerAuthCta)}
             >
-              {header.login.label}
+              {headerAuthCta.label}
             </a>
 
             <button
@@ -316,11 +336,11 @@ export default function Home({ navigateTo }) {
               </a>
             ))}
             <a
-              href={header.login.href}
+              href={headerAuthCta.href}
               className="fl-mobile-link"
-              onClick={(e) => handleAction(e, header.login)}
+              onClick={(e) => handleAction(e, headerAuthCta)}
             >
-              <span>{header.login.label}</span>
+              <span>{headerAuthCta.label}</span>
               <span aria-hidden="true">&rarr;</span>
             </a>
           </nav>
