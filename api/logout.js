@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   const cookies = parse(req.headers.cookie || '');
   const sessionToken = cookies.auth_session;
 
-  if (sessionToken) {
+  if (sessionToken && !sessionToken.startsWith('st1.')) {
     try {
       const sql = getDb();
       const tokenHash = hashToken(sessionToken);

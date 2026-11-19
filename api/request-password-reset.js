@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
-import { getDb } from './_lib/db.js';
+import { getDb, NEON_QUOTA_MESSAGE, isDatabaseQuotaError } from './_lib/db.js';
+import { getCleanEnv, getSessionSigningSecret } from './_lib/session.js';
 
 // In-memory rate limiting (Note: resets on serverless cold starts)
 const rateLimitMap = new Map();
@@ -51,13 +52,13 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests. Please try again in 15 minutes.' });
   }
 
-  const authSecret = process.env.AUTH_SECRET;
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const signingSecret = getSessionSigningSecret();
+  const resendApiKey = getCleanEnv('RESEND_API_KEY');
+  const adminEmail = getCleanEnv('ADMIN_EMAIL').toLowerCase();
 
-  if (!authSecret || !resendApiKey) {
-    console.error('Server configuration error: AUTH_SECRET or RESEND_API_KEY is missing.');
-    return res.status(500).json({ error: 'Server configuration error' });
+  if (!signingSecret || !resendApiKey) {
+    console.error('Server configuration error: AUTH_SECRET (or ADMIN_PASSWORD) or RESEND_API_KEY is missing.');
+    return res.status(500).json({ error: 'Password reset email is not configured on this server.' });
   }
 
   // Verify email matches admin
@@ -67,12 +68,15 @@ export default async function handler(req, res) {
   } else {
     try {
       const sql = getDb();
-      const users = await sql`SELECT id FROM admin_user WHERE email = ${cleanEmail} LIMIT 1`;
+      const users = await sql`SELECT id FROM admin_user WHERE lower(email) = ${cleanEmail} LIMIT 1`;
       if (users.length > 0) {
         userExists = true;
       }
     } catch (e) {
       console.warn('DB check in request-password-reset:', e.message);
+      if (isDatabaseQuotaError(e)) {
+        return res.status(503).json({ error: NEON_QUOTA_MESSAGE, databaseQuotaExceeded: true });
+      }
     }
   }
 
@@ -85,19 +89,20 @@ export default async function handler(req, res) {
     const payload = JSON.stringify({ email: cleanEmail, exp: expiresAt, type: 'reset_password' });
 
     const signature = crypto
-      .createHmac('sha256', authSecret)
+      .createHmac('sha256', signingSecret)
       .update(payload)
       .digest('base64url');
 
     const tokenPayload = Buffer.from(payload).toString('base64url');
     const token = `${tokenPayload}.${signature}`;
 
-    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
-    const host = req.headers.host;
-    const resetUrl = `${protocol}://${host}/?route=reset-password&token=${token}`;
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const protocol = forwardedProto || (/^(localhost|127\.0\.0\.1)(:|$)/i.test(host) ? 'http' : 'https');
+    const resetUrl = `${protocol}://${host}/?route=reset-password&token=${encodeURIComponent(token)}`;
 
     const resend = new Resend(resendApiKey);
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    const fromAddress = getCleanEnv('RESEND_FROM_EMAIL') || 'onboarding@resend.dev';
 
     await resend.emails.send({
       from: fromAddress,

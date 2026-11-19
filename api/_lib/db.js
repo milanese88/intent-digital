@@ -3,12 +3,36 @@ import { neon } from '@neondatabase/serverless';
 export const MIGRATION_UPDATE_MESSAGE =
   'This feature needs a database update — ask to apply migrations.';
 
+export const NEON_QUOTA_MESSAGE =
+  'Database quota exceeded on Neon (storage or compute limit reached). Upgrade your Neon plan or free up space in the Neon Console.';
+
 export function getDb() {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
+  if (!databaseUrl || databaseUrl.trim() === '[SENSITIVE]') {
     throw new Error('DATABASE_URL is not set');
   }
   return neon(databaseUrl);
+}
+
+/**
+ * Returns true when Neon rejects queries with HTTP 402 / plan quota exceeded.
+ */
+export function isDatabaseQuotaError(err) {
+  if (!err) return false;
+  const msg = String(err.message || '') + ' ' + String(err.sourceError?.message || '');
+  return /\bHTTP status 402\b|exceeded the quota|quota exceeded/i.test(msg);
+}
+
+/**
+ * Returns true when Neon / Postgres cannot be reached due to quota suspension or network failure.
+ */
+export function isDatabaseUnavailableError(err) {
+  if (!err) return false;
+  if (isDatabaseQuotaError(err)) return true;
+  const code = String(err.code || err.sourceError?.code || err.sourceError?.cause?.code || '');
+  if (/^(ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN)$/.test(code)) return true;
+  const msg = String(err.message || '');
+  return /DATABASE_URL is not set|Error connecting to database|fetch failed|connect ECONN/i.test(msg);
 }
 
 /**
@@ -69,6 +93,13 @@ export function sendSafeApiError(
   }
 
   console.error(`${context}:`, err);
+
+  if (isDatabaseQuotaError(err)) {
+    return res.status(503).json({
+      error: NEON_QUOTA_MESSAGE,
+      databaseQuotaExceeded: true
+    });
+  }
 
   if (err?.code === '57014' || /statement_timeout/i.test(String(err?.message || ''))) {
     return res.status(504).json({

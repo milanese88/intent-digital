@@ -4,9 +4,8 @@ import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 
-// Load environment variables for local dev
+// Load environment variables for local dev (never load .env.production.local, which contains [SENSITIVE] placeholders)
 dotenv.config({ path: '.env.local' });
-dotenv.config({ path: '.env.production.local' });
 dotenv.config();
 
 // Simple Vite middleware to mimic Vercel Serverless Functions locally

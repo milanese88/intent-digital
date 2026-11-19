@@ -61,6 +61,10 @@ export default function Login({ navigateTo }) {
         setError('The magic link is invalid or has already been used.');
       } else if (err === 'expired_link') {
         setError('Your magic link has expired. Please request a new one.');
+      } else if (err === 'db_quota') {
+        setError('Database quota exceeded on Neon (storage or compute limit reached). Upgrade your Neon plan or free up space in the Neon Console.');
+      } else if (err === 'db_unreachable') {
+        setError('Database is temporarily unreachable. Please check your Neon database status and try again.');
       }
       
       if (err) {
@@ -153,6 +157,8 @@ export default function Login({ navigateTo }) {
         body: JSON.stringify({ email, password })
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
         const dest = resolvePostLoginDestination(window.location.search);
         if (navigateTo) {
@@ -160,12 +166,22 @@ export default function Login({ navigateTo }) {
         } else {
           window.location.assign(dest);
         }
+      } else if (res.status === 401) {
+        setError('Wrong credentials. Please try again.');
+      } else if (res.status === 429) {
+        setError('Too many attempts. Please wait a few minutes and try again.');
+      } else if (res.status === 503) {
+        setError(
+          data.error ||
+            'Database is temporarily unavailable. Please check your Neon database status and try again.'
+        );
+      } else if (res.status === 500) {
+        setError(
+          data.error ||
+            'Server configuration error: Authentication is not properly configured.'
+        );
       } else {
-        if (res.status === 500) {
-          setError('Server configuration error: Authentication is not properly configured.');
-        } else {
-          setError('Wrong credentials. Please try again.');
-        }
+        setError(data.error || 'Unable to sign in right now. Please try again.');
       }
     } catch {
       setError('A network failure occurred. Please check your connection and try again.');
