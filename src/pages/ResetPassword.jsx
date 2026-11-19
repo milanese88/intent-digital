@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import '../styles/home.css';
 
 export default function ResetPassword({ token: propToken, navigateTo }) {
   const [token, setToken] = useState(propToken || '');
@@ -54,6 +55,7 @@ export default function ResetPassword({ token: propToken, navigateTo }) {
     try {
       const res = await fetch('/api/reset-password', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword })
       });
@@ -64,9 +66,9 @@ export default function ResetPassword({ token: propToken, navigateTo }) {
         setSuccess(true);
         setTimeout(() => {
           if (navigateTo) {
-            navigateTo('admin');
+            navigateTo('admin', null, '/admin');
           } else {
-            window.location.href = '/dashboard';
+            window.location.href = '/admin';
           }
         }, 1500);
       } else {

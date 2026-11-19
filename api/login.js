@@ -1,73 +1,122 @@
 import bcrypt from 'bcryptjs';
-import { getDb } from './_lib/db.js';
-import { createSession } from './_lib/session.js';
+import {
+  getDb,
+  NEON_QUOTA_MESSAGE,
+  isMissingSchemaError,
+  isDatabaseQuotaError,
+  isDatabaseUnavailableError
+} from './_lib/db.js';
+import {
+  createSession,
+  createStatelessSession,
+  getSessionSigningSecret,
+  verifyOwnerEnvCredentials
+} from './_lib/session.js';
+
+function parseBody(req) {
+  if (!req?.body) return {};
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return req.body;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { email, password } = req.body;
+  const { email, password } = parseBody(req);
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
+  if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Email and password required.' });
   }
+
+  const cleanEmail = email.trim().toLowerCase();
 
   try {
     const sql = getDb();
-    
-    // 1. Check if DB is reachable and if table exists
-    let tableExists = false;
-    try {
-      const check = await sql`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'admin_user'
-        ) as exists
-      `;
-      tableExists = check[0].exists;
-    } catch (e) {
-      return res.status(503).json({ error: 'Database unreachable' });
-    }
 
-    if (!tableExists) {
-      return res.status(500).json({ error: 'No admin account seeded yet' });
-    }
-
-    // 2. Check if admin account exists
-    const usersCount = await sql`SELECT count(*) FROM admin_user`;
-    if (parseInt(usersCount[0].count) === 0) {
-      return res.status(500).json({ error: 'No admin account seeded yet' });
-    }
-    
-    // 3. Find the user by email
     const users = await sql`
-      SELECT id, password_hash FROM admin_user WHERE email = ${email.trim().toLowerCase()} LIMIT 1
+      SELECT id, email, username, full_name, password_hash
+      FROM admin_user
+      WHERE lower(email) = ${cleanEmail}
+      LIMIT 1
     `;
 
     if (users.length === 0) {
-      return res.status(401).json({ error: 'Email not found' });
+      const countRows = await sql`SELECT count(*)::int AS count FROM admin_user`;
+      if (!countRows[0]?.count) {
+        const envCheck = verifyOwnerEnvCredentials(cleanEmail, password);
+        if (envCheck.configured && getSessionSigningSecret()) {
+          if (!envCheck.valid) {
+            return res.status(401).json({ error: 'Wrong credentials. Please try again.' });
+          }
+          createStatelessSession({ email: cleanEmail }, res, req);
+          return res.status(200).json({ success: true, sessionMode: 'stateless' });
+        }
+        return res.status(500).json({ error: 'No admin account has been seeded yet.' });
+      }
+      return res.status(401).json({ error: 'Wrong credentials. Please try again.' });
     }
 
     const user = users[0];
-
-    // 4. Compare password
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const isValid = user.password_hash
+      ? await bcrypt.compare(password, user.password_hash)
+      : false;
 
     if (!isValid) {
-      return res.status(401).json({ error: 'Wrong password' });
+      return res.status(401).json({ error: 'Wrong credentials. Please try again.' });
     }
 
-    // Create a new session
-    await createSession(user.id, res, req);
-    
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Login error:', error);
-    // If it reaches here, it might be a DB timeout or other issue
-    if (error.message?.includes('connect') || error.code === 'ECONNREFUSED' || error.message?.includes('fetch')) {
-      return res.status(503).json({ error: 'Database unreachable' });
+    try {
+      await createSession(user.id, res, req);
+      return res.status(200).json({ success: true });
+    } catch (sessionErr) {
+      if (isDatabaseUnavailableError(sessionErr) && getSessionSigningSecret()) {
+        console.warn('Session table unavailable during login; issuing signed stateless session:', sessionErr.message);
+        createStatelessSession(user, res, req);
+        return res.status(200).json({
+          success: true,
+          sessionMode: 'stateless',
+          databaseQuotaExceeded: isDatabaseQuotaError(sessionErr)
+        });
+      }
+      throw sessionErr;
     }
-    return res.status(500).json({ error: 'Server error during login' });
+  } catch (error) {
+    console.error('Login error:', error?.message || error);
+
+    if (isDatabaseUnavailableError(error) || isMissingSchemaError(error)) {
+      const envCheck = verifyOwnerEnvCredentials(cleanEmail, password);
+      if (envCheck.configured && getSessionSigningSecret()) {
+        if (!envCheck.valid) {
+          return res.status(401).json({ error: 'Wrong credentials. Please try again.' });
+        }
+        createStatelessSession({ email: cleanEmail }, res, req);
+        return res.status(200).json({
+          success: true,
+          sessionMode: 'stateless',
+          databaseQuotaExceeded: isDatabaseQuotaError(error)
+        });
+      }
+
+      if (isDatabaseQuotaError(error)) {
+        return res.status(503).json({
+          error: NEON_QUOTA_MESSAGE,
+          databaseQuotaExceeded: true
+        });
+      }
+
+      return res.status(503).json({
+        error: 'Database is temporarily unreachable. Please check your Neon database status and try again.'
+      });
+    }
+
+    return res.status(500).json({ error: 'Server error during login.' });
   }
 }

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { getDb } from './_lib/db.js';
-import { createSession } from './_lib/session.js';
+import { getDb, sendSafeApiError } from './_lib/db.js';
+import { createSession, getSessionSigningSecret } from './_lib/session.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,8 +18,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Password must be at least 10 characters long.' });
   }
 
-  const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret) {
+  const signingSecret = getSessionSigningSecret();
+  if (!signingSecret) {
     console.error('Server configuration error: AUTH_SECRET missing.');
     return res.status(500).json({ error: 'Server configuration error.' });
   }
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
 
     // Timing-safe HMAC check
     const expectedSignature = crypto
-      .createHmac('sha256', authSecret)
+      .createHmac('sha256', signingSecret)
       .update(payloadStr)
       .digest('base64url');
 
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
 
     // Find user in DB
     const users = await sql`
-      SELECT id, email FROM admin_user WHERE email = ${cleanEmail} LIMIT 1
+      SELECT id, email FROM admin_user WHERE lower(email) = ${cleanEmail} LIMIT 1
     `;
 
     if (users.length === 0) {
@@ -102,7 +102,11 @@ export default async function handler(req, res) {
       message: 'Your password has been successfully updated.'
     });
   } catch (error) {
-    console.error('Error resetting password:', error);
-    return res.status(500).json({ error: 'Server error while resetting password.' });
+    return sendSafeApiError(
+      res,
+      error,
+      'Error resetting password',
+      'Server error while resetting password.'
+    );
   }
 }

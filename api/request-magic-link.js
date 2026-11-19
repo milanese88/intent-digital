@@ -1,11 +1,17 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
+import {
+  getDb,
+  NEON_QUOTA_MESSAGE,
+  isDatabaseQuotaError,
+  isDatabaseUnavailableError
+} from './_lib/db.js';
+import { getCleanEnv, getSessionSigningSecret } from './_lib/session.js';
 import { sanitizeAdminNextPath } from '../src/utils/authRedirect.js';
 
 // In-memory rate limiting (Note: resets on serverless cold starts)
 const rateLimitMap = new Map();
 
-// Helper to clean up old rate limits
 const cleanupRateLimits = () => {
   const now = Date.now();
   for (const [ip, data] of rateLimitMap.entries()) {
@@ -15,32 +21,47 @@ const cleanupRateLimits = () => {
   }
 };
 
+function parseBody(req) {
+  if (!req?.body) return {};
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return req.body;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // Always return the exact same success message regardless of outcome to prevent email enumeration
-  const sendSuccess = () => res.status(200).json({ success: true, message: 'If the email exists, a magic link has been sent.' });
+  // Always return the exact same success message regardless of email match to prevent enumeration
+  const sendSuccess = () =>
+    res.status(200).json({
+      success: true,
+      message: 'If the email exists, a magic link has been sent.'
+    });
 
-  const { email, next: rawNext } = req.body || {};
+  const { email, next: rawNext } = parseBody(req);
   const safeNext = sanitizeAdminNextPath(rawNext);
-  
+
   if (!email || typeof email !== 'string') {
-    return sendSuccess(); // Fail silently
+    return sendSuccess();
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-  
+  const adminEmail = getCleanEnv('ADMIN_EMAIL').toLowerCase();
+
   // Rate Limiting Logic: 3 requests per 15 minutes per IP
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
   cleanupRateLimits();
 
   const now = Date.now();
   const rateData = rateLimitMap.get(ip) || { count: 0, timestamp: now };
-  
-  // Reset window if 15 minutes passed
+
   if (now - rateData.timestamp > 15 * 60 * 1000) {
     rateData.count = 0;
     rateData.timestamp = now;
@@ -50,53 +71,68 @@ export default async function handler(req, res) {
   rateLimitMap.set(ip, rateData);
 
   if (rateData.count > 3) {
-    // We could return 429, but returning generic success masks the rate limit state from attackers slightly, 
-    // or we can return a 429 so the UI knows. The prompt asks to "always return the same success response 
-    // regardless of whether the email matched". A 429 might be useful for the UI, but let's stick to the secure approach.
-    // Actually, UI needs to know if rate-limited to avoid confusion. The prompt specifically said:
-    // "always return the same success response regardless of whether the email matched".
-    // It also said "Rate-limit to 3 requests per 15 minutes per IP".
-    // I will return a 429 if rate limited to allow the UI to say "Too many requests".
     return res.status(429).json({ error: 'Too many requests. Please try again in 15 minutes.' });
   }
 
-  // Verify email matches the admin email
-  if (!adminEmail || cleanEmail !== adminEmail) {
+  const signingSecret = getSessionSigningSecret();
+  const resendApiKey = getCleanEnv('RESEND_API_KEY');
+
+  if (!signingSecret || !resendApiKey) {
+    console.error('Server configuration error: AUTH_SECRET (or ADMIN_PASSWORD) or RESEND_API_KEY is missing.');
+    return res.status(500).json({
+      error: 'Magic-link email is not configured on this server. Please sign in with your password instead.'
+    });
+  }
+
+  // Verify email matches owner (via ADMIN_EMAIL env first, or DB fallback when ADMIN_EMAIL is unset)
+  let emailAllowed = false;
+  if (adminEmail) {
+    emailAllowed = cleanEmail === adminEmail;
+  } else {
+    try {
+      const sql = getDb();
+      const users = await sql`SELECT id FROM admin_user WHERE lower(email) = ${cleanEmail} LIMIT 1`;
+      emailAllowed = users.length > 0;
+    } catch (dbErr) {
+      console.error('DB check failed in request-magic-link:', dbErr?.message || dbErr);
+      if (isDatabaseQuotaError(dbErr)) {
+        return res.status(503).json({ error: NEON_QUOTA_MESSAGE, databaseQuotaExceeded: true });
+      }
+      if (isDatabaseUnavailableError(dbErr)) {
+        return res.status(503).json({
+          error: 'Database is temporarily unreachable. Please check your Neon database status and try again.'
+        });
+      }
+      return res.status(500).json({ error: 'Unable to verify account right now.' });
+    }
+  }
+
+  if (!emailAllowed) {
     return sendSuccess();
   }
 
-  const authSecret = process.env.AUTH_SECRET;
-  const resendApiKey = process.env.RESEND_API_KEY;
-
-  if (!authSecret || !resendApiKey) {
-    console.error('Server configuration error: AUTH_SECRET or RESEND_API_KEY is missing.');
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
   try {
-    // Generate stateless token
-    // Expiry: 15 minutes in the future
     const expiresAt = now + 15 * 60 * 1000;
     const payload = JSON.stringify({ email: cleanEmail, exp: expiresAt, next: safeNext });
-    
+
     const signature = crypto
-      .createHmac('sha256', authSecret)
+      .createHmac('sha256', signingSecret)
       .update(payload)
       .digest('base64url');
 
     const tokenPayload = Buffer.from(payload).toString('base64url');
     const token = `${tokenPayload}.${signature}`;
 
-    // Determine exact preview or production origin from forwarded headers
     const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
     const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
     const protocol = forwardedProto || (/^(localhost|127\.0\.0\.1)(:|$)/i.test(host) ? 'http' : 'https');
     const magicLink = `${protocol}://${host}/auth/verify?token=${encodeURIComponent(token)}`;
 
     const resend = new Resend(resendApiKey);
-    
+    const fromAddress = getCleanEnv('RESEND_FROM_EMAIL') || 'onboarding@resend.dev';
+
     await resend.emails.send({
-      from: 'onboarding@resend.dev',
+      from: fromAddress,
       to: cleanEmail,
       subject: 'Your Secure Login Link',
       html: `
@@ -112,6 +148,6 @@ export default async function handler(req, res) {
     return sendSuccess();
   } catch (error) {
     console.error('Error sending magic link:', error);
-    return res.status(500).json({ error: 'Failed to send email' });
+    return res.status(500).json({ error: 'Failed to send email.' });
   }
 }
