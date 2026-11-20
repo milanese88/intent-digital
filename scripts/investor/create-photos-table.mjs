@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getDb } from '../../api/_lib/db.js';
+import { getScriptDb } from '../../api/_lib/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_investor_property_photos_owner ON investor_proper
 `;
 
 export async function runMigration() {
-  const sql = getDb();
+  const sql = getScriptDb();
   console.log('Applying investor_property_photos migration...');
   await sql.unsafe(PHOTOS_TABLE_SQL);
   console.log('investor_property_photos table created successfully!');

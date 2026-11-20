@@ -1,35 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import { neon } from '@neondatabase/serverless';
-import dotenv from 'dotenv';
+import { createEnvLocalSqlClient } from '../db/_lib.mjs';
 
-// Strictly read ONLY .env.local (never fall back to .env, .env.production.local, or shell env)
-const envLocalPath = path.resolve(process.cwd(), '.env.local');
-if (!fs.existsSync(envLocalPath)) {
-  console.error('Missing .env.local file. Refusing to run against any other environment.');
-  process.exit(1);
-}
-
-const parsedEnvLocal = dotenv.parse(fs.readFileSync(envLocalPath, 'utf8'));
-const databaseUrl = parsedEnvLocal.DATABASE_URL;
-if (!databaseUrl) {
-  console.error('Missing DATABASE_URL inside .env.local.');
-  process.exit(1);
-}
-
-const sql = neon(databaseUrl);
+const { sql, host: dbHost } = createEnvLocalSqlClient();
 
 async function run() {
   const migrationPath = path.resolve(process.cwd(), 'migrations/add_live_in_fha_strategy.sql');
   const rawSql = fs.readFileSync(migrationPath, 'utf8');
-
-  const dbHost = (() => {
-    try {
-      return new URL(databaseUrl).host;
-    } catch {
-      return '(parsed host unavailable)';
-    }
-  })();
 
   console.log(`Applying migrations/add_live_in_fha_strategy.sql against .env.local host: ${dbHost}...`);
 
@@ -130,7 +107,9 @@ async function run() {
   console.log(`Migration complete (${rawSql.length} bytes source, 0 test rows inserted).`);
 }
 
-run().catch((err) => {
-  console.error('Migration failed:', err);
-  process.exit(1);
-});
+run()
+  .catch((err) => {
+    console.error('Migration failed:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => sql.end({ timeout: 2 }));

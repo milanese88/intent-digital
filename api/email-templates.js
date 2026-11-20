@@ -46,9 +46,9 @@ export default async function handler(req, res) {
         }
         
         // Execute both queries in a transaction
-        await sql.transaction([
-          sql`UPDATE email_templates SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE category = ${category}`,
-          sql`UPDATE email_templates SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = ${id}`
+        await sql.transaction((tx) => [
+          tx`UPDATE email_templates SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE category = ${category}`,
+          tx`UPDATE email_templates SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = ${id}`
         ]);
         
         return res.status(200).json({ success: true });

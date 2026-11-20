@@ -1,6 +1,5 @@
-import { neon } from '@neondatabase/serverless';
 import { getUserFromSession } from './_lib/session.js';
-import { sendSafeApiError } from './_lib/db.js';
+import { getDb, sendSafeApiError } from './_lib/db.js';
 
 const generateSlug = (title) => {
   return title
@@ -16,7 +15,7 @@ export default async function handler(req, res) {
     const user = await getUserFromSession(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const sql = neon(process.env.DATABASE_URL);
+    const sql = getDb();
     const { action } = req.method === 'GET' ? req.query : req.body;
 
     if (req.method === 'GET') {

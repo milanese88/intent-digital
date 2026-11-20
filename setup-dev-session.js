@@ -1,10 +1,10 @@
-import { getDb } from './api/_lib/db.js';
+import { getScriptDb } from './api/_lib/db.js';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 async function run() {
   try {
-    const sql = getDb();
+    const sql = getScriptDb();
     const users = await sql`SELECT id FROM admin_user LIMIT 1`;
     if (users.length > 0) {
       const userId = users[0].id;

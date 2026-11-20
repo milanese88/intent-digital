@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
+import { createPostgresClient } from '../../api/_lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -213,7 +213,8 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
 };
 
 /**
- * Loads DATABASE_URL strictly from .env.local (never falls back to shell env or .env.production).
+ * Loads SUPABASE_DATABASE_URL (port 5432 session pooler, falling back to DATABASE_URL)
+ * strictly from .env.local (never falls back to shell env or .env.production).
  */
 export function loadEnvLocalDatabaseUrl(projectRoot = PROJECT_ROOT) {
   const envLocalPath = path.resolve(projectRoot, '.env.local');
@@ -221,9 +222,9 @@ export function loadEnvLocalDatabaseUrl(projectRoot = PROJECT_ROOT) {
     throw new Error(`Missing .env.local at ${envLocalPath}. Refusing to run against any other database.`);
   }
   const parsed = dotenv.parse(fs.readFileSync(envLocalPath, 'utf8'));
-  const databaseUrl = parsed.DATABASE_URL;
+  const databaseUrl = parsed.SUPABASE_DATABASE_URL || parsed.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL is not set inside .env.local.');
+    throw new Error('SUPABASE_DATABASE_URL (or DATABASE_URL) is not set inside .env.local.');
   }
   let host = '(unknown host)';
   try {
@@ -237,7 +238,7 @@ export function loadEnvLocalDatabaseUrl(projectRoot = PROJECT_ROOT) {
 export function createEnvLocalSqlClient(projectRoot = PROJECT_ROOT) {
   const { databaseUrl, host, envLocalPath } = loadEnvLocalDatabaseUrl(projectRoot);
   return {
-    sql: neon(databaseUrl),
+    sql: createPostgresClient(databaseUrl, { mode: 'script' }),
     databaseUrl,
     host,
     envLocalPath

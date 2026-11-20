@@ -19,6 +19,9 @@ import {
 } from '../../api/_lib/session.js';
 import {
   NEON_QUOTA_MESSAGE,
+  attachSqlAdapters,
+  resolveScriptDatabaseUrl,
+  isDatabaseError,
   isDatabaseQuotaError,
   sendSafeApiError
 } from '../../api/_lib/db.js';
@@ -242,4 +245,53 @@ test('Login -> Verify -> Logout round-trip succeeds with signed stateless sessio
       else process.env[k] = v;
     }
   }
+});
+
+test('postgres.js shared client adapters preserve sql.query, sql.transaction, session-pooler script routing, and PostgresError classification', async () => {
+  const calls = [];
+  const fakeSql = Object.assign(
+    (strings, ...vals) => Promise.resolve([{ tpl: strings.join('?'), vals }]),
+    {
+      unsafe(text, params) {
+        calls.push({ text, params });
+        return Promise.resolve([{ ok: true }]);
+      },
+      async begin(fn) {
+        const tx = Object.assign(
+          (strings, ...vals) => Promise.resolve({ txSql: strings.join('?'), vals }),
+          { unsafe: fakeSql.unsafe }
+        );
+        return fn(tx);
+      }
+    }
+  );
+
+  attachSqlAdapters(fakeSql);
+  await fakeSql.query('SELECT 1');
+  await fakeSql.query('SELECT $1::int', [42]);
+  assert.deepEqual(calls, [
+    { text: 'SELECT 1', params: undefined },
+    { text: 'SELECT $1::int', params: [42] }
+  ]);
+
+  const txOut = await fakeSql.transaction((tx) => [tx`UPDATE a SET x = ${1}`, tx`UPDATE b SET y = ${2}`]);
+  assert.equal(txOut.length, 2);
+
+  // Script URL routing prefers SUPABASE_DATABASE_URL (5432) over DATABASE_URL (6543)
+  const prevSupa = process.env.SUPABASE_DATABASE_URL;
+  const prevDb = process.env.DATABASE_URL;
+  try {
+    process.env.SUPABASE_DATABASE_URL = 'postgresql://u:p@example.pooler:5432/postgres';
+    process.env.DATABASE_URL = 'postgresql://u:p@example.pooler:6543/postgres';
+    assert.ok(resolveScriptDatabaseUrl().includes(':5432/'));
+    assert.ok(resolveScriptDatabaseUrl(process.env.DATABASE_URL).includes(':5432/'));
+  } finally {
+    if (prevSupa === undefined) delete process.env.SUPABASE_DATABASE_URL;
+    else process.env.SUPABASE_DATABASE_URL = prevSupa;
+    if (prevDb === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = prevDb;
+  }
+
+  const pgErr = Object.assign(new Error('duplicate key value'), { name: 'PostgresError', code: '23505' });
+  assert.equal(isDatabaseError(pgErr), true);
 });

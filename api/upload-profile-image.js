@@ -1,7 +1,6 @@
 import { handleUpload } from '@vercel/blob/client';
-import { neon } from '@neondatabase/serverless';
 import { getUserFromSession } from './_lib/session.js';
-import { sendSafeApiError } from './_lib/db.js';
+import { getDb, sendSafeApiError } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,7 +24,7 @@ export default async function handler(req, res) {
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         // Update database using the payload we passed
         const payload = JSON.parse(tokenPayload);
-        const sql = neon(process.env.DATABASE_URL);
+        const sql = getDb();
         await sql`
           UPDATE admin_user SET profile_image_url = ${blob.url}, updated_at = CURRENT_TIMESTAMP
           WHERE id = ${payload.userId}

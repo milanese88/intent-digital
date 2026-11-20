@@ -58,8 +58,8 @@ async function main() {
   }
 
   if (!isDryRun) {
-    const { Pool } = await import('@neondatabase/serverless');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const { createScriptPool } = await import('../../api/_lib/db.js');
+    const pool = createScriptPool();
     try {
       await pool.query('VACUUM (ANALYZE) county_parcels;');
       const sizeRes = await pool.query(`

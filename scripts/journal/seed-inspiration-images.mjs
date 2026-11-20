@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getDb } from '../../api/_lib/db.js';
+import { getScriptDb } from '../../api/_lib/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -10,7 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env.production.local') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 async function seed() {
-  const sql = getDb();
+  const sql = getScriptDb();
   const manifestPath = path.resolve(__dirname, '../../public/images/inspiration/manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 

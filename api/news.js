@@ -1,5 +1,4 @@
-import { neon } from '@neondatabase/serverless';
-import { sendSafeApiError } from './_lib/db.js';
+import { getDb, sendSafeApiError } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const sql = neon(process.env.DATABASE_URL);
+    const sql = getDb();
     const { slug } = req.query;
 
     // Safety net: Promote any due scheduled posts to 'published'
