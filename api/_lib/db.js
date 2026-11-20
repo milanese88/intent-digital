@@ -80,6 +80,7 @@ export function createPostgresClient(connectionString, { mode = 'app', max, idle
   const sql = postgres(url, {
     prepare: false,
     max: max ?? (isScript ? 2 : 1),
+    max_pipeline: 1,
     idle_timeout: idleTimeout ?? (isScript ? 2 : 20),
     connect_timeout: isScript ? 30 : 15,
     ssl: 'require',
