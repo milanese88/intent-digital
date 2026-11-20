@@ -1198,3 +1198,4 @@ export default function ValuationReportPage({ propertyId, navigateTo }) {
     </div>
   );
 }
+

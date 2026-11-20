@@ -126,3 +126,4 @@ export function resolvePropertyPricing(property = {}, countyData = null) {
     dealPurchaseLabel
   };
 }
+

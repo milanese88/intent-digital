@@ -322,3 +322,4 @@ test('Migration add_price_source_and_subject_meta.sql is registered, idempotent,
   assert.ok(/ADD COLUMN IF NOT EXISTS construction_detail/i.test(sqlText));
   assert.ok(!/\bINSERT\s+INTO\b/i.test(sqlText), 'Migration must contain zero test rows');
 });
+

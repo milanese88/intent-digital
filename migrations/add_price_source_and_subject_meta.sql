@@ -12,3 +12,4 @@ ALTER TABLE investor_properties
   ADD COLUMN IF NOT EXISTS price_source text,
   ADD COLUMN IF NOT EXISTS offer_price numeric,
   ADD COLUMN IF NOT EXISTS construction_detail text;
+
