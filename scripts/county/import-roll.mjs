@@ -140,26 +140,23 @@ async function main() {
 
   let pool = null;
   if (!isDryRun) {
-    const dbUrl = process.env.DATABASE_URL;
+    const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
     if (!dbUrl) {
-      console.error(`\n[!] Error: DATABASE_URL is not set in .env.local\n`);
-      console.error(`To populate DATABASE_URL in .env.local:`);
-      console.error(`  1. Pull from Vercel:    vercel env pull .env.local`);
-      console.error(`  2. Or add to .env.local: DATABASE_URL=postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require\n`);
-      console.error(`To test file parsing without connecting to Neon, run with: --dry-run`);
+      console.error(`\n[!] Error: SUPABASE_DATABASE_URL (or DATABASE_URL) is not set in .env.local\n`);
+      console.error(`To test file parsing without connecting to Postgres, run with: --dry-run`);
       process.exit(1);
     }
 
     try {
-      const { Pool } = await import('@neondatabase/serverless');
-      pool = new Pool({ connectionString: dbUrl });
+      const { createScriptPool } = await import('../../api/_lib/db.js');
+      pool = createScriptPool(dbUrl);
       const testClient = await pool.connect();
       await testClient.query('SELECT 1');
       testClient.release();
-      console.log(`[✓] Successfully connected to Neon PostgreSQL database.`);
+      console.log(`[✓] Successfully connected to PostgreSQL session pooler.`);
     } catch (err) {
-      console.error(`\n[!] Failed to connect to Neon database:`, err.message);
-      console.error(`Please verify DATABASE_URL in .env.local.\n`);
+      console.error(`\n[!] Failed to connect to database:`, err.message);
+      console.error(`Please verify SUPABASE_DATABASE_URL in .env.local.\n`);
       process.exit(1);
     }
   }

@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getDb } from '../../api/_lib/db.js';
+import { getScriptDb } from '../../api/_lib/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -60,7 +60,7 @@ function splitStatements(sql) {
 }
 
 export async function runMigration() {
-  const sql = getDb();
+  const sql = getScriptDb();
   const migrationPath = path.resolve(__dirname, '../../migrations/studio_journal_tables.sql');
   const migrationSql = fs.readFileSync(migrationPath, 'utf8');
 

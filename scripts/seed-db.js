@@ -1,18 +1,18 @@
-import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { getScriptDb } from '../api/_lib/db.js';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 async function seed() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error('Error: DATABASE_URL is not set.');
+  let sql;
+  try {
+    sql = getScriptDb();
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
     process.exit(1);
   }
-
-  const sql = neon(databaseUrl);
 
   try {
     console.log('Creating tables...');
@@ -77,7 +77,9 @@ async function seed() {
     console.log('Database seeded successfully!');
   } catch (error) {
     console.error('Seed failed:', error);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    await sql.end({ timeout: 2 });
   }
 }
 

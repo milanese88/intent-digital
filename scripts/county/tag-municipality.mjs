@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { getDb } from '../../api/_lib/db.js';
+import { getScriptDb } from '../../api/_lib/db.js';
 
 // Load environment variables from .env.local
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -176,7 +176,7 @@ async function main() {
     process.exit(1);
   }
 
-  const sql = getDb();
+  const sql = getScriptDb();
 
   console.log('\nFetching all Broward parcels with coordinates from county_parcels...');
   const parcels = await sql`

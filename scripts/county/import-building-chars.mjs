@@ -295,13 +295,13 @@ async function runCli() {
     return;
   }
 
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error('DATABASE_URL is not set in .env.local');
+    throw new Error('SUPABASE_DATABASE_URL (or DATABASE_URL) is not set in .env.local');
   }
 
-  const { Pool } = await import('@neondatabase/serverless');
-  const pool = new Pool({ connectionString: dbUrl });
+  const { createScriptPool } = await import('../../api/_lib/db.js');
+  const pool = createScriptPool(dbUrl);
   const records = Array.from(byFolio.values());
   const BATCH_SIZE = 5000;
   let updatedTotal = 0;

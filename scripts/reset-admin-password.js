@@ -1,6 +1,6 @@
-import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { getScriptDb } from '../api/_lib/db.js';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
@@ -15,17 +15,17 @@ async function resetPassword() {
   const email = args[0].trim().toLowerCase();
   const newPassword = args[1];
 
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error('Error: DATABASE_URL is not set in your environment or .env.local.');
+  let sql;
+  try {
+    sql = getScriptDb();
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
     process.exit(1);
   }
 
-  const sql = neon(databaseUrl);
-
   try {
     console.log(`Looking up admin_user for email: ${email}`);
-    const users = await sql`SELECT id FROM admin_user WHERE email = ${email} LIMIT 1`;
+    const users = await sql`SELECT id FROM admin_user WHERE lower(email) = ${email} LIMIT 1`;
     
     if (users.length === 0) {
       console.error(`Error: No admin account found for email ${email}.`);
@@ -49,6 +49,8 @@ async function resetPassword() {
   } catch (error) {
     console.error('Password reset failed:', error);
     process.exit(1);
+  } finally {
+    await sql.end({ timeout: 2 });
   }
 }
 

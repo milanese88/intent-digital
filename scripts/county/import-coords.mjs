@@ -6,7 +6,7 @@ import shapefile from 'shapefile';
 import proj4 from 'proj4';
 import polylabel from 'polylabel';
 import { parse } from 'csv-parse';
-import { getDb } from '../../api/_lib/db.js';
+import { getScriptDb } from '../../api/_lib/db.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -221,7 +221,7 @@ async function run() {
   console.log(`PRJ Coordinate System:\n  ${prjWkt.slice(0, 100)}...`);
   const transformer = proj4(prjWkt, 'WGS84');
 
-  const sql = getDb();
+  const sql = getScriptDb();
   let residentialSet = new Set();
 
   try {

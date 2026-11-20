@@ -1,7 +1,7 @@
-import { getDb } from '../api/_lib/db.js';
+import { getScriptDb } from '../api/_lib/db.js';
 
 export async function runBackfill() {
-  const sql = getDb();
+  const sql = getScriptDb();
   console.log('--- 1. Applying DDL columns if not present ---');
   await sql`ALTER TABLE county_parcels ADD COLUMN IF NOT EXISTS situs_number text;`;
   await sql`ALTER TABLE county_parcels ADD COLUMN IF NOT EXISTS situs_street_norm text;`;
