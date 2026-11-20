@@ -94,29 +94,6 @@ export default async function handler(req, res) {
     // ("Other" / unknown / "all" searches all supported counties).
     const counties = resolveSearchCounties(queryCounty === 'all' ? null : queryCounty);
 
-    // Check if new normalized columns exist AND have been populated
-    let hasNormColumns = false;
-    try {
-      const colCheck = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public'
-          AND table_name = 'county_parcels'
-          AND column_name = 'situs_street_norm';
-      `;
-      if (colCheck.length > 0) {
-        const popCheck = await sql`
-          SELECT 1
-          FROM county_parcels
-          WHERE situs_street_norm IS NOT NULL
-          LIMIT 1;
-        `;
-        hasNormColumns = popCheck.length > 0;
-      }
-    } catch {
-      hasNormColumns = false;
-    }
-
     // Helper to send formatted response
     const sendResponse = (status, results, matchType, requiresConfirmation, message) => {
       const decorated = results.map(r => ({
@@ -138,26 +115,10 @@ export default async function handler(req, res) {
     };
 
     // Same house number + street condition, optionally zip-filtered, across all searched counties.
-    // Uses idx_county_parcels_norm_lookup (county, situs_number, situs_street_norm) via county = ANY().
+    // Always uses idx_county_parcels_addr_pattern (county, lower(address) text_pattern_ops) via
+    // county = ANY(): it is populated for every county, whereas situs_number/situs_street_norm
+    // are only filled for some counties (mixing the two would silently miss Broward/Palm Beach).
     const queryByStreet = async ({ streetEq = null, streetLike = null, zip = null, limit = 5 }) => {
-      if (hasNormColumns) {
-        const streetCond = streetEq != null
-          ? sql`situs_street_norm = ${streetEq}`
-          : sql`situs_street_norm LIKE ${streetLike}`;
-        const zipCond = zip ? sql`AND zip = ${zip}` : sql``;
-        return sql`
-          SELECT county, parcel_id, address, city, zip, use_code,
-                 living_sqft, year_built, eff_year_built, land_sqft, units, just_value, lat, lng
-          FROM county_parcels
-          WHERE county = ANY(${counties})
-            AND situs_number = ${targetNumber}
-            AND ${streetCond}
-            ${zipCond}
-          ORDER BY situs_street_norm ASC
-          LIMIT ${limit};
-        `;
-      }
-      // Fallback to text_pattern_ops index on lower(address)
       const addrCond = streetEq != null
         ? sql`lower(address) = ${`${targetNumber} ${streetEq}`.toLowerCase()}`
         : sql`lower(address) LIKE ${`${targetNumber} ${streetLike}`.toLowerCase()}`;

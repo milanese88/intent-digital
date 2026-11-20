@@ -124,6 +124,10 @@ test('Radius / ZIP market and comps queries cross county lines (no single-county
   const search = read('api/county/search.js');
   assert.equal(search.includes(": ['Broward', 'Palm Beach']"), false);
   assert.ok(search.includes('county = ANY(${counties})'));
+  // Address match must use lower(address) (populated for every county), never the partially
+  // populated situs_street_norm column — otherwise Broward/Palm Beach lookups silently miss.
+  assert.equal(search.includes('situs_street_norm ='), false);
+  assert.ok(search.includes('lower(address) = '));
 
   const marketCard = read('src/components/investor/MarketCard.jsx');
   assert.equal(marketCard.includes("subLat >= 26.33 ? 'Palm Beach' : 'Broward'"), false);
