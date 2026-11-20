@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getDb } from './_lib/db.js';
+import { getDb, resolveAppDatabaseUrl } from './_lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -28,8 +28,7 @@ export default async function handler(req, res) {
   // Generate status object (booleans only)
   const status = {
     env: {
-      SUPABASE_POOLER_URL: !!process.env.SUPABASE_POOLER_URL,
-      DATABASE_URL: !!(process.env.SUPABASE_POOLER_URL || process.env.DATABASE_URL),
+      DATABASE_URL: !!resolveAppDatabaseUrl(),
       ADMIN_EMAIL: !!process.env.ADMIN_EMAIL,
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
       AUTH_SECRET: !!process.env.AUTH_SECRET,
