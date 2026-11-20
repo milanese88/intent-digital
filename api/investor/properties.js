@@ -2,6 +2,7 @@ import { getUserFromSession } from '../_lib/session.js';
 import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { applyPropertyCountyRules } from '../_lib/countyResolver.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
+import { normalizePriceSource } from '../../src/components/investor/priceSource.js';
 
 const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifamily_2_9', 'other'];
 const ALLOWED_STATUSES = ['watching', 'analyzing', 'offer_sent', 'under_contract', 'passed', 'owned'];
@@ -17,9 +18,27 @@ function normalizePropertyJsonb(row) {
       : (row.parcel_land_value != null && row.parcel_land_value !== ''
           ? Number(row.parcel_land_value)
           : (subjectDetails.land_value != null ? Number(subjectDetails.land_value) : null));
+  const offerVal =
+    row.offer_price != null && row.offer_price !== ''
+      ? Number(row.offer_price)
+      : (subjectDetails.offer_price != null && subjectDetails.offer_price !== ''
+          ? Number(subjectDetails.offer_price)
+          : null);
+  const rawPriceSource = row.price_source ?? subjectDetails.price_source ?? 'list_price';
+  const rawConstDetail =
+    row.construction_detail ??
+    asIs.construction_detail ??
+    subjectDetails.construction_detail ??
+    null;
+
   return {
     ...row,
     subject_details: subjectDetails,
+    price_source: normalizePriceSource(rawPriceSource),
+    offer_price: Number.isFinite(offerVal) && offerVal > 0 ? offerVal : null,
+    construction_detail: rawConstDetail && String(rawConstDetail).trim() !== '' ? String(rawConstDetail).trim() : null,
+    sketch_areas: subjectDetails.sketch_areas || asIs.sketch_areas || null,
+    recent_improvements: subjectDetails.recent_improvements || asIs.recent_improvements || null,
     just_value: row.just_value != null && row.just_value !== '' ? Number(row.just_value) : null,
     land_value: Number.isFinite(landVal) ? landVal : null,
     quality: row.quality !== undefined
@@ -55,6 +74,18 @@ async function syncPropertyExtraColumns(sql, cleanEmail, id, data) {
         quality = ${data.quality},
         boat_lift = ${data.boat_lift},
         land_value = ${data.land_value}
+      WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+    `;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+  }
+  try {
+    await sql`
+      UPDATE investor_properties
+      SET
+        price_source = ${data.price_source},
+        offer_price = ${data.offer_price},
+        construction_detail = ${data.construction_detail}
       WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
     `;
   } catch (err) {
@@ -267,8 +298,48 @@ function validateProperty(body) {
     body.construction_type !== undefined
       ? body.construction_type
       : body.subject_details?.as_is?.construction_type;
-  const normConstruction = normalizeCompDetails({ construction_type: rawConstruction }).construction_type;
+  const rawConstructionDetail =
+    body.construction_detail !== undefined
+      ? body.construction_detail
+      : (body.subject_details?.as_is?.construction_detail ?? body.subject_details?.construction_detail ?? null);
+  const construction_detail =
+    rawConstructionDetail != null && String(rawConstructionDetail).trim() !== ''
+      ? String(rawConstructionDetail).trim().slice(0, 140)
+      : null;
+  const normConstruction = normalizeCompDetails({
+    construction_type: rawConstruction,
+    construction_detail: construction_detail ?? ''
+  }).construction_type;
   let construction_type = normConstruction !== 'unknown' ? normConstruction : null;
+
+  const rawPriceSource =
+    body.price_source !== undefined
+      ? body.price_source
+      : (body.subject_details?.price_source ?? 'list_price');
+  const price_source = normalizePriceSource(rawPriceSource);
+  const offer_price = parseNumField(
+    body.offer_price !== undefined ? body.offer_price : body.subject_details?.offer_price,
+    'offer_price',
+    'My offer price'
+  );
+
+  const rawSketchAreas =
+    body.sketch_areas !== undefined
+      ? body.sketch_areas
+      : (body.subject_details?.sketch_areas ?? body.subject_details?.as_is?.sketch_areas ?? null);
+  const sketch_areas =
+    rawSketchAreas != null && String(rawSketchAreas).trim() !== ''
+      ? String(rawSketchAreas).trim().slice(0, 400)
+      : null;
+
+  const rawRecentImp =
+    body.recent_improvements !== undefined
+      ? body.recent_improvements
+      : (body.subject_details?.recent_improvements ?? body.subject_details?.as_is?.recent_improvements ?? null);
+  const recent_improvements =
+    rawRecentImp != null && String(rawRecentImp).trim() !== ''
+      ? String(rawRecentImp).trim().slice(0, 600)
+      : null;
 
   const rawQuality =
     body.quality !== undefined
@@ -284,8 +355,21 @@ function validateProperty(body) {
   );
 
   let subject_details = {};
+  const hasPricingOrMeta =
+    price_source !== 'list_price' ||
+    offer_price != null ||
+    construction_detail != null ||
+    sketch_areas != null ||
+    recent_improvements != null;
+
   if (body.subject_details && typeof body.subject_details === 'object') {
-    const nextSubjectDetails = {};
+    const nextSubjectDetails = {
+      price_source,
+      ...(offer_price != null ? { offer_price } : {}),
+      ...(construction_detail != null ? { construction_detail } : {}),
+      ...(sketch_areas != null ? { sketch_areas } : {}),
+      ...(recent_improvements != null ? { recent_improvements } : {})
+    };
     if (body.subject_details.as_is && typeof body.subject_details.as_is === 'object') {
       nextSubjectDetails.as_is = normalizeCompDetails({
         ...body.subject_details.as_is,
@@ -294,6 +378,9 @@ function validateProperty(body) {
         ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft } : {}),
         ...(body.boat_lift !== undefined ? { boat_lift } : {}),
         ...(body.construction_type !== undefined ? { construction_type: construction_type ?? 'unknown' } : {}),
+        ...(body.construction_detail !== undefined ? { construction_detail: construction_detail ?? '' } : {}),
+        ...(body.sketch_areas !== undefined ? { sketch_areas: sketch_areas ?? '' } : {}),
+        ...(body.recent_improvements !== undefined ? { recent_improvements: recent_improvements ?? '' } : {}),
         ...(body.quality !== undefined ? { quality: quality ?? 'unknown' } : {})
       });
       const legacy = detailsToLegacyColumns(nextSubjectDetails.as_is);
@@ -305,7 +392,7 @@ function validateProperty(body) {
       if (boat_lift === null && legacy.boat_lift !== null) boat_lift = legacy.boat_lift;
       if (construction_type == null && legacy.construction_type != null) construction_type = legacy.construction_type;
       if (quality == null && legacy.quality != null) quality = legacy.quality;
-    } else if (boat_dock !== null || boat_dock_sqft != null || boat_lift !== null || construction_type != null || quality != null) {
+    } else if (boat_dock !== null || boat_dock_sqft != null || boat_lift !== null || construction_type != null || construction_detail != null || quality != null) {
       nextSubjectDetails.as_is = normalizeCompDetails({
         beds,
         baths,
@@ -319,6 +406,9 @@ function validateProperty(body) {
         boat_dock_sqft,
         boat_lift,
         construction_type: construction_type ?? 'unknown',
+        construction_detail: construction_detail ?? '',
+        sketch_areas: sketch_areas ?? '',
+        recent_improvements: recent_improvements ?? '',
         hoa_name: hoa_name ?? ''
       });
     }
@@ -330,6 +420,9 @@ function validateProperty(body) {
           (!body.subject_details.after_rehab.construction_type || body.subject_details.after_rehab.construction_type === 'unknown')
           ? { construction_type: construction_type ?? 'unknown' }
           : {}),
+        ...(body.construction_detail !== undefined && !body.subject_details.after_rehab.construction_detail
+          ? { construction_detail: construction_detail ?? '' }
+          : {}),
         ...(body.quality !== undefined &&
           (!body.subject_details.after_rehab.quality || body.subject_details.after_rehab.quality === 'unknown')
           ? { quality: quality ?? 'unknown' }
@@ -340,8 +433,13 @@ function validateProperty(body) {
       nextSubjectDetails.land_value = land_value;
     }
     subject_details = nextSubjectDetails;
-  } else if (boat_dock !== null || boat_dock_sqft != null || boat_lift !== null || construction_type != null || quality != null || land_value != null) {
+  } else if (boat_dock !== null || boat_dock_sqft != null || boat_lift !== null || construction_type != null || quality != null || land_value != null || hasPricingOrMeta) {
     subject_details = {
+      price_source,
+      ...(offer_price != null ? { offer_price } : {}),
+      ...(construction_detail != null ? { construction_detail } : {}),
+      ...(sketch_areas != null ? { sketch_areas } : {}),
+      ...(recent_improvements != null ? { recent_improvements } : {}),
       ...(land_value != null ? { land_value } : {}),
       as_is: normalizeCompDetails({
         beds,
@@ -356,6 +454,9 @@ function validateProperty(body) {
         boat_dock_sqft,
         boat_lift,
         construction_type: construction_type ?? 'unknown',
+        construction_detail: construction_detail ?? '',
+        sketch_areas: sketch_areas ?? '',
+        recent_improvements: recent_improvements ?? '',
         hoa_name: hoa_name ?? ''
       })
     };
@@ -379,6 +480,8 @@ function validateProperty(body) {
       lot_sqft,
       year_built,
       list_price,
+      price_source,
+      offer_price,
       status,
       strategy,
       condition,
@@ -401,6 +504,9 @@ function validateProperty(body) {
       boat_dock_sqft,
       boat_lift,
       construction_type,
+      construction_detail,
+      sketch_areas,
+      recent_improvements,
       quality,
       land_value,
       subject_details
@@ -472,9 +578,16 @@ export default async function handler(req, res) {
               cp.imp_qual,
               cp.eff_year_built,
               cp.just_value,
+              cp.land_value AS parcel_land_value,
               p.pool,
               p.garage,
               p.waterfront,
+              p.boat_dock,
+              p.boat_dock_sqft,
+              p.boat_lift,
+              p.construction_type,
+              p.quality,
+              p.land_value,
               COALESCE(p.subject_details, '{}'::jsonb) AS subject_details,
               COALESCE(p.is_studying, false) AS is_studying,
               ipp.blob_url AS cover_photo_url,
@@ -635,9 +748,16 @@ export default async function handler(req, res) {
             cp.imp_qual,
             cp.eff_year_built,
             cp.just_value,
+            cp.land_value AS parcel_land_value,
             p.pool,
             p.garage,
             p.waterfront,
+            p.boat_dock,
+            p.boat_dock_sqft,
+            p.boat_lift,
+            p.construction_type,
+            p.quality,
+            p.land_value,
             COALESCE(p.subject_details, '{}'::jsonb) AS subject_details,
             COALESCE(p.is_studying, false) AS is_studying,
             ipp.blob_url AS cover_photo_url,
@@ -895,6 +1015,11 @@ export default async function handler(req, res) {
         rows[0].boat_dock_sqft = data.boat_dock_sqft;
         rows[0].boat_lift = data.boat_lift;
         rows[0].construction_type = data.construction_type;
+        rows[0].construction_detail = data.construction_detail;
+        rows[0].price_source = data.price_source;
+        rows[0].offer_price = data.offer_price;
+        rows[0].sketch_areas = data.sketch_areas;
+        rows[0].recent_improvements = data.recent_improvements;
         rows[0].quality = data.quality;
         rows[0].land_value = data.land_value;
       }
@@ -1061,6 +1186,11 @@ export default async function handler(req, res) {
       rows[0].boat_dock_sqft = data.boat_dock_sqft;
       rows[0].boat_lift = data.boat_lift;
       rows[0].construction_type = data.construction_type;
+      rows[0].construction_detail = data.construction_detail;
+      rows[0].price_source = data.price_source;
+      rows[0].offer_price = data.offer_price;
+      rows[0].sketch_areas = data.sketch_areas;
+      rows[0].recent_improvements = data.recent_improvements;
       rows[0].quality = data.quality;
       rows[0].land_value = data.land_value;
 
@@ -1250,6 +1380,11 @@ export default async function handler(req, res) {
         rows[0].boat_dock_sqft = data.boat_dock_sqft;
         rows[0].boat_lift = data.boat_lift;
         rows[0].construction_type = data.construction_type;
+        rows[0].construction_detail = data.construction_detail;
+        rows[0].price_source = data.price_source;
+        rows[0].offer_price = data.offer_price;
+        rows[0].sketch_areas = data.sketch_areas;
+        rows[0].recent_improvements = data.recent_improvements;
         rows[0].quality = data.quality;
         rows[0].land_value = data.land_value;
       }

@@ -259,7 +259,7 @@ export function normalizeConstructionType(raw) {
   const s = String(raw).trim().toLowerCase();
   if (!s || s === 'unknown') return 'unknown';
   if (s === 'cbs' || s.includes('cbs') || s.includes('masonry') || s.includes('concrete') || s === 'block') return 'cbs';
-  if (s === 'wood_frame' || s === 'wood' || s.includes('wood') || s.includes('frame')) return 'wood_frame';
+  if (s === 'wood_frame' || s === 'wood' || s.includes('wood') || s.includes('frame') || s.includes('hardi')) return 'wood_frame';
   if (s === 'other' || s.includes('steel') || s.includes('metal') || s.includes('manufactured')) return 'other';
   return 'unknown';
 }
@@ -525,8 +525,28 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
   const boat_dock_sqft = boat_dock === false ? null : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? rawBoatDockSqft : null);
   const boat_lift = boat_dock === false ? false : rawBoatLift;
 
-  // Construction (CBS / wood frame / other / unknown)
-  const construction_type = normalizeConstructionType(pick('construction_type'));
+  // Construction (CBS / wood frame / other / unknown) + optional county detail label (e.g. "Wood frame / Hardi-plank")
+  const rawConstructionDetail = pick('construction_detail');
+  const construction_detail = rawConstructionDetail != null && String(rawConstructionDetail).trim() !== ''
+    ? String(rawConstructionDetail).trim().slice(0, 140)
+    : '';
+  let construction_type = normalizeConstructionType(pick('construction_type'));
+  if (construction_type === 'unknown' && construction_detail) {
+    const inferredFromDetail = normalizeConstructionType(construction_detail);
+    if (inferredFromDetail !== 'unknown') {
+      construction_type = inferredFromDetail;
+    }
+  }
+
+  const rawSketchAreas = pick('sketch_areas');
+  const sketch_areas = rawSketchAreas != null && String(rawSketchAreas).trim() !== ''
+    ? String(rawSketchAreas).trim().slice(0, 400)
+    : '';
+
+  const rawRecentImprovements = pick('recent_improvements');
+  const recent_improvements = rawRecentImprovements != null && String(rawRecentImprovements).trim() !== ''
+    ? String(rawRecentImprovements).trim().slice(0, 600)
+    : '';
 
   const rawNotes = pick('notes');
   const notes = rawNotes != null && String(rawNotes).trim() !== '' ? String(rawNotes).trim() : '';
@@ -563,6 +583,9 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     boat_dock_sqft,
     boat_lift,
     construction_type,
+    construction_detail,
+    sketch_areas,
+    recent_improvements,
     hoa_name,
     notes,
     source,
@@ -611,6 +634,7 @@ export function detailsToLegacyColumns(details = {}) {
     boat_dock_sqft: norm.boat_dock_sqft,
     boat_lift: norm.boat_lift,
     construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
+    construction_detail: norm.construction_detail || null,
     hoa_name: norm.hoa_name || null,
     comp_details_json: norm
   };
@@ -920,6 +944,8 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
 /**
  * Resolves Subject property details for a given mode ('as_is' | 'arv').
  * Falls back cleanly to top-level property fields when subject_details hasn't been customized yet.
+ * - Default subject quality is Q4 when unknown (never Q5).
+ * - Subject construction comes from confirmed value or county CONST_CLASS (never defaults to CBS).
  */
 export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
   const subjectDetailsObj = unwrapJsonObj(subject?.subject_details);
@@ -931,6 +957,39 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
 
   const liveOverrides = unwrapJsonObj(subject?.appraisal_overrides);
 
+  // County construction fallback (never default to CBS)
+  const countyConstType = mapConstClassToConstructionType(subject?.const_class);
+  const rawConstDetail =
+    asIsRaw?.construction_detail ||
+    subject?.construction_detail ||
+    subjectDetailsObj?.construction_detail ||
+    '';
+
+  // Explicit quality -> county IMP_QUAL -> default Q4 (never default to Q5)
+  const explicitAsIsQuality = normalizeQualityKey(
+    (mode !== 'arv' ? liveOverrides.quality : null) ??
+    asIsRaw?.quality ??
+    subject?.quality
+  );
+  const countyMappedQuality = mapImpQualToUadQuality(subject?.imp_qual);
+  const resolvedAsIsQuality =
+    explicitAsIsQuality !== 'unknown'
+      ? explicitAsIsQuality
+      : (countyMappedQuality !== 'unknown' && countyMappedQuality !== 'q5' && countyMappedQuality !== 'q6'
+          ? countyMappedQuality
+          : 'q4');
+
+  const explicitAsIsConst = normalizeConstructionType(
+    (mode !== 'arv' ? liveOverrides.construction_type : null) ??
+    asIsRaw?.construction_type ??
+    subject?.construction_type ??
+    rawConstDetail
+  );
+  const resolvedAsIsConst =
+    explicitAsIsConst !== 'unknown'
+      ? explicitAsIsConst
+      : countyConstType;
+
   // Base fallback from top-level subject columns
   const baseAsIs = normalizeCompDetails({
     beds: subject?.beds,
@@ -938,7 +997,6 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     full_baths: subject?.full_baths,
     half_baths: subject?.half_baths,
     condition: subject?.condition || 'c4',
-    quality: subject?.quality,
     eff_year_built: subject?.eff_year_built,
     roof_year: subject?.roof_year,
     roof_type: subject?.roof_type,
@@ -954,11 +1012,15 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     boat_dock: subject?.boat_dock,
     boat_dock_sqft: subject?.boat_dock_sqft,
     boat_lift: subject?.boat_lift,
-    construction_type: subject?.construction_type,
+    sketch_areas: subjectDetailsObj?.sketch_areas || subject?.sketch_areas || '',
+    recent_improvements: subjectDetailsObj?.recent_improvements || subject?.recent_improvements || '',
     hoa_name: subject?.hoa_name,
     notes: subject?.notes,
     ...(asIsRaw || {}),
-    ...(mode !== 'arv' ? liveOverrides : {})
+    ...(mode !== 'arv' ? liveOverrides : {}),
+    quality: resolvedAsIsQuality,
+    construction_type: resolvedAsIsConst,
+    construction_detail: (mode !== 'arv' && liveOverrides.construction_detail) || asIsRaw?.construction_detail || rawConstDetail
   });
 
   if (mode !== 'arv') {
@@ -966,12 +1028,20 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
   }
 
   // For ARV ('after_rehab'): inherit physical layout from as_is unless overridden in after_rehab,
-  // and default target condition to Fully renovated (C2) unless user picked another target condition.
+  // default target condition to Fully renovated (C2), and keep quality >= Q4 default (never Q5 when unset).
   if (afterRehabRaw && Object.keys(afterRehabRaw).length > 0) {
+    const explicitArvQuality = normalizeQualityKey(liveOverrides.quality ?? afterRehabRaw.quality);
+    const resolvedArvQuality = explicitArvQuality !== 'unknown' ? explicitArvQuality : baseAsIs.quality;
+    const explicitArvConst = normalizeConstructionType(liveOverrides.construction_type ?? afterRehabRaw.construction_type);
+    const resolvedArvConst = explicitArvConst !== 'unknown' ? explicitArvConst : baseAsIs.construction_type;
+
     return normalizeCompDetails({
       ...baseAsIs,
       ...afterRehabRaw,
       ...liveOverrides,
+      quality: resolvedArvQuality,
+      construction_type: resolvedArvConst,
+      construction_detail: liveOverrides.construction_detail || afterRehabRaw.construction_detail || baseAsIs.construction_detail,
       condition: (liveOverrides.condition || afterRehabRaw.condition) && (liveOverrides.condition || afterRehabRaw.condition) !== 'unknown'
         ? (liveOverrides.condition || afterRehabRaw.condition)
         : 'c2'
@@ -982,6 +1052,9 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     ...baseAsIs,
     condition: 'c2',
     kitchen_baths_updated: baseAsIs.kitchen_baths_updated ?? true,
-    ...liveOverrides
+    ...liveOverrides,
+    quality: normalizeQualityKey(liveOverrides.quality) !== 'unknown'
+      ? normalizeQualityKey(liveOverrides.quality)
+      : baseAsIs.quality
   });
 }

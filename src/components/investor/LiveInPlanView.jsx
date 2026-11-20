@@ -242,6 +242,7 @@ export default function LiveInPlanView({
   property,
   profile,
   inputs,
+  purchaseBasisLabel = '',
   onChangeInput,
   onBatchChange,
   results,
@@ -595,7 +596,7 @@ export default function LiveInPlanView({
         >
           <LiveInField
             id="livein-purchase-price"
-            label="Purchase price ($)"
+            label={purchaseBasisLabel ? `Purchase price (${purchaseBasisLabel})` : 'Purchase price ($)'}
             prefix="$"
             value={inputs.purchasePrice ?? ''}
             onChange={(val) => onChangeInput('purchasePrice', val)}

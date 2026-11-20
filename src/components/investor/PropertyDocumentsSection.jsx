@@ -7,7 +7,7 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function PropertyDocumentsSection({ property, showToast }) {
+export default function PropertyDocumentsSection({ property, showToast, refreshKey = 0 }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -34,7 +34,7 @@ export default function PropertyDocumentsSection({ property, showToast }) {
 
   useEffect(() => {
     fetchDocuments();
-  }, [propertyId]);
+  }, [propertyId, refreshKey]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -133,7 +133,7 @@ export default function PropertyDocumentsSection({ property, showToast }) {
             textTransform: 'uppercase',
             color: 'var(--secondary-color, #41101B)'
           }}>
-            DOCUMENTS & DEAL REPORTS
+            DOCUMENTS, VALUATIONS &amp; REPORTS
           </span>
           <span style={{
             fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -213,7 +213,7 @@ export default function PropertyDocumentsSection({ property, showToast }) {
             color: 'rgba(52, 41, 42, 0.55)',
             lineHeight: 1.45
           }}>
-            Generate and save a Deal Report from the Deal tab, or upload inspection reports and acquisition files above.
+            Save a Valuation PDF from the Appraisal tab, generate a Deal Report from the Deal tab, or upload inspection reports and acquisition files above.
           </p>
         </div>
       ) : (
@@ -263,16 +263,35 @@ export default function PropertyDocumentsSection({ property, showToast }) {
                   </div>
 
                   <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: 'var(--espresso, #34292A)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {doc.title || 'Deal Report'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: 'var(--espresso, #34292A)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {doc.title || (doc.doc_type === 'valuation_estimate' ? 'Valuation Estimate' : 'Deal Report')}
+                      </div>
+                      {doc.doc_type === 'valuation_estimate' && (
+                        <span style={{
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '9.5px',
+                          fontWeight: 700,
+                          letterSpacing: '0.07em',
+                          textTransform: 'uppercase',
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          backgroundColor: '#BDD3E2',
+                          color: '#34292A',
+                          border: '1px solid #859DCE',
+                          flexShrink: 0
+                        }}>
+                          Valuation PDF
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',

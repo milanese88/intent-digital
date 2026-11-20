@@ -35,6 +35,9 @@ import {
 import { isSameSubdivision } from '../../utils/subdivision.js';
 import { normalizeAddress } from '../../utils/addressNorm.js';
 import { normalizeCountyName } from '../../config/counties.js';
+import { resolvePropertyPricing } from './priceSource.js';
+
+export const MAX_TIME_ADJUSTMENT_PCT = 10; // ±10% cap unless manually overridden
 
 export const DEFAULT_VALUATION_SETTINGS = {
   sizeFactor: 0.5,             // legacy factor kept for backwards-compatible callers/tests
@@ -364,9 +367,17 @@ export function normalizeReconciliationWeights(rawWeights = []) {
 
 export function computeMonthsSinceSale(soldDateStr, effectiveDate = new Date()) {
   if (!soldDateStr) return 0;
-  const raw = String(soldDateStr).trim();
   const effYear = effectiveDate.getFullYear();
   const effMonth = effectiveDate.getMonth() + 1;
+
+  if (soldDateStr instanceof Date && !isNaN(soldDateStr.getTime())) {
+    return Math.max(
+      0,
+      (effYear - soldDateStr.getUTCFullYear()) * 12 + (effMonth - (soldDateStr.getUTCMonth() + 1))
+    );
+  }
+
+  const raw = String(soldDateStr).trim();
 
   // Parse ISO YYYY-MM(-DD) directly to avoid UTC midnight -> local timezone month shift
   const isoMatch = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
@@ -384,6 +395,294 @@ export function computeMonthsSinceSale(soldDateStr, effectiveDate = new Date()) 
     0,
     (effYear - saleD.getUTCFullYear()) * 12 + (effMonth - (saleD.getUTCMonth() + 1))
   );
+}
+
+const SHORT_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatYmShort(year, month) {
+  if (!year || !month || month < 1 || month > 12) return '';
+  return `${SHORT_MONTH_NAMES[month - 1]} ${year}`;
+}
+
+function formatYmRange(buckets = []) {
+  if (!buckets.length) return '';
+  const first = buckets[0];
+  const last = buckets[buckets.length - 1];
+  if (first.year === last.year && first.month === last.month) {
+    return formatYmShort(first.year, first.month);
+  }
+  if (first.year === last.year) {
+    return `${SHORT_MONTH_NAMES[first.month - 1]}–${SHORT_MONTH_NAMES[last.month - 1]} ${last.year}`;
+  }
+  return `${formatYmShort(first.year, first.month)}–${formatYmShort(last.year, last.month)}`;
+}
+
+function parseSoldYearMonth(soldDateStr) {
+  if (!soldDateStr) return null;
+  if (soldDateStr instanceof Date && !isNaN(soldDateStr.getTime())) {
+    const year = soldDateStr.getUTCFullYear();
+    const month = soldDateStr.getUTCMonth() + 1;
+    return { year, month, ym: year * 12 + month };
+  }
+  const raw = String(soldDateStr).trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    if (year > 1900 && month >= 1 && month <= 12) {
+      return { year, month, ym: year * 12 + month };
+    }
+  }
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth() + 1;
+  return { year, month, ym: year * 12 + month };
+}
+
+function roundTimeDollar(val) {
+  if (!Number.isFinite(val) || val === 0) return 0;
+  return Math.abs(val) >= 100 ? Math.round(val / 100) * 100 : Math.round(val);
+}
+
+function weightedBucketValue(buckets, field) {
+  const valid = buckets.filter((b) => Number(b?.[field]) > 0);
+  if (valid.length === 0) return null;
+  let wSum = 0;
+  let totalWeight = 0;
+  for (const b of valid) {
+    const w = Number(b.sales_count) > 0 ? Number(b.sales_count) : 1;
+    wSum += Number(b[field]) * w;
+    totalWeight += w;
+  }
+  return totalWeight > 0 ? wSum / totalWeight : calculateMedian(valid.map((b) => Number(b[field])));
+}
+
+/**
+ * Computes a market-conditions (time) adjustment strictly from measured ZIP/neighborhood
+ * sales trends over the comp's actual holding period (allowing flat or negative trends)
+ * and enforces a hard ±10% cap unless the user overrides the cell.
+ *
+ * When a sale predates the earliest measured county roll month, measures strictly from
+ * the earliest measured 6-month baseline to the latest complete 6-month window (never
+ * linearly extrapolating a short-term slope across unmeasured months).
+ */
+export function computeMeasuredTimeAdjustment({
+  soldDate,
+  soldPrice = 0,
+  monthsSinceSale = 0,
+  zipMarketData = null,
+  fallbackMonthlyTrendPct = 0.25,
+  zipTrendSource = null,
+  maxCapPct = MAX_TIME_ADJUSTMENT_PCT
+} = {}) {
+  const price = Number(soldPrice) || 0;
+  const cap = Number(maxCapPct) > 0 ? Number(maxCapPct) : MAX_TIME_ADJUSTMENT_PCT;
+
+  if (!soldDate || price <= 0 || monthsSinceSale <= 0) {
+    return {
+      amount: 0,
+      measuredPct: 0,
+      appliedPct: 0,
+      wasCapped: false,
+      source: zipTrendSource || null,
+      periodLabel: null,
+      note: ''
+    };
+  }
+
+  const parsedSale = parseSoldYearMonth(soldDate);
+  const summary = zipMarketData?.summary || null;
+  const rawMonthly = Array.isArray(zipMarketData?.monthly) ? zipMarketData.monthly : [];
+  const rawQuarterly = Array.isArray(zipMarketData?.quarterly) ? zipMarketData.quarterly : [];
+
+  const scopeLabel =
+    zipTrendSource ||
+    summary?.mode_label ||
+    (summary?.zip ? `ZIP ${summary.zip}` : null);
+
+  // Path 1: Measured series from /api/county/market
+  if (zipMarketData && (rawMonthly.length > 0 || rawQuarterly.length > 0 || summary)) {
+    const completeMonths = rawMonthly
+      .filter((m) => m && m.is_complete !== false && Number(m.year) > 1900 && Number(m.month) >= 1 && Number(m.month) <= 12)
+      .map((m) => ({ ...m, ym: Number(m.year) * 12 + Number(m.month) }))
+      .sort((a, b) => a.ym - b.ym);
+
+    const ppsfMonths = completeMonths.filter((m) => Number(m.median_price_per_sqft) > 0);
+    const priceMonths = completeMonths.filter((m) => Number(m.median_price) > 0);
+    const usePpsf = ppsfMonths.length >= 2 || Number(summary?.median_ppsf_last_6m) > 0;
+    const metricField = usePpsf ? 'median_price_per_sqft' : 'median_price';
+    const metricMonths = usePpsf ? ppsfMonths : priceMonths;
+
+    const latestCompleteYm = completeMonths.length > 0
+      ? completeMonths[completeMonths.length - 1].ym
+      : null;
+
+    if (parsedSale && latestCompleteYm != null && parsedSale.ym >= latestCompleteYm) {
+      return {
+        amount: 0,
+        measuredPct: 0,
+        appliedPct: 0,
+        wasCapped: false,
+        source: scopeLabel ? `${scopeLabel} measured ${usePpsf ? '$/sf' : 'median price'}` : 'Measured market trend',
+        periodLabel: null,
+        note: `${scopeLabel || 'Market'}: sold in latest measured month (0%)`
+      };
+    }
+
+    // Latest 6-month baseline (ending at last complete month) using the SAME weightedBucketValue estimator
+    // as salePeriodValue so overlapping windows compare apples-to-apples without estimator bias
+    const latest6Buckets = latestCompleteYm != null
+      ? metricMonths.filter((m) => m.ym >= latestCompleteYm - 5 && m.ym <= latestCompleteYm)
+      : metricMonths.slice(-6);
+    const latestValue =
+      weightedBucketValue(latest6Buckets, metricField) ??
+      (usePpsf && Number(summary?.median_ppsf_last_6m) > 0 ? Number(summary.median_ppsf_last_6m) : null) ??
+      (!usePpsf && Number(summary?.median_price_last_6m) > 0 ? Number(summary.median_price_last_6m) : null);
+
+    const latestPeriodLabel =
+      latest6Buckets.length > 0
+        ? formatYmRange(latest6Buckets)
+        : (summary?.complete_through ? `through ${summary.complete_through}` : 'latest 6 mo');
+
+    let salePeriodValue = null;
+    let salePeriodLabel = null;
+    let predatesSeries = false;
+
+    if (parsedSale && metricMonths.length > 0) {
+      const earliestMetricYm = metricMonths[0].ym;
+
+      if (parsedSale.ym < earliestMetricYm) {
+        // Comp predates earliest measured month -> use earliest measured 6-month window (NO linear extrapolation)
+        predatesSeries = true;
+        const earliest6 = metricMonths.filter((m) => m.ym >= earliestMetricYm && m.ym <= earliestMetricYm + 5);
+        salePeriodValue = weightedBucketValue(earliest6, metricField);
+        salePeriodLabel = formatYmRange(earliest6);
+      } else {
+        // Sale occurred inside measured series -> ±2 month window around sale month
+        const aroundSale = metricMonths.filter((m) => Math.abs(m.ym - parsedSale.ym) <= 2);
+        if (aroundSale.length > 0) {
+          salePeriodValue = weightedBucketValue(aroundSale, metricField);
+          salePeriodLabel = formatYmRange(aroundSale);
+        } else {
+          // Fallback to matching or adjacent quarter
+          const saleQ = Math.ceil(parsedSale.month / 3);
+          const saleQIdx = parsedSale.year * 4 + saleQ;
+          const validQuarters = rawQuarterly
+            .filter((q) => Number(q?.[metricField]) > 0 && Number(q.year) > 1900 && Number(q.quarter) >= 1)
+            .map((q) => ({ ...q, qIdx: Number(q.year) * 4 + Number(q.quarter) }))
+            .sort((a, b) => Math.abs(a.qIdx - saleQIdx) - Math.abs(b.qIdx - saleQIdx));
+          if (validQuarters.length > 0 && Math.abs(validQuarters[0].qIdx - saleQIdx) <= 1) {
+            salePeriodValue = Number(validQuarters[0][metricField]);
+            salePeriodLabel = validQuarters[0].label || `${validQuarters[0].year} Q${validQuarters[0].quarter}`;
+          }
+        }
+      }
+    }
+
+    // Secondary measured fallback: summary YoY 6m-vs-prev-6m (only when monthly buckets sparse; NEVER extrapolate >12 mo)
+    if (!(salePeriodValue > 0 && latestValue > 0)) {
+      const summaryPct =
+        summary?.ppsf_change_pct != null && !isNaN(Number(summary.ppsf_change_pct))
+          ? Number(summary.ppsf_change_pct)
+          : (summary?.price_change_pct != null && !isNaN(Number(summary.price_change_pct))
+              ? Number(summary.price_change_pct)
+              : null);
+      if (summaryPct != null) {
+        const clampedMonths = Math.min(monthsSinceSale, 12);
+        const rawMeasuredPct = Math.round(((summaryPct * clampedMonths) / 12) * 10) / 10;
+        const appliedPct = Math.round(Math.max(-cap, Math.min(cap, rawMeasuredPct)) * 10) / 10;
+        const wasCapped = Math.abs(rawMeasuredPct) > cap + 1e-6;
+        const amount = roundTimeDollar(price * (appliedPct / 100));
+        const sign = appliedPct > 0 ? '+' : '';
+        const srcName = scopeLabel || 'ZIP trend';
+        const note = wasCapped
+          ? `${srcName} measured ${rawMeasuredPct > 0 ? '+' : ''}${rawMeasuredPct.toFixed(1)}% → capped ${sign}${appliedPct.toFixed(0)}%`
+          : `${srcName} measured ${sign}${appliedPct.toFixed(1)}% (12-mo YoY)`;
+        return {
+          amount,
+          measuredPct: rawMeasuredPct,
+          appliedPct,
+          wasCapped,
+          source: `${srcName} measured 12-mo YoY`,
+          periodLabel: '12-mo YoY',
+          note
+        };
+      }
+
+      // Insufficient measured ZIP sales -> flat 0% (never invent appreciation)
+      return {
+        amount: 0,
+        measuredPct: 0,
+        appliedPct: 0,
+        wasCapped: false,
+        source: scopeLabel ? `${scopeLabel} (insufficient sales — flat 0%)` : 'Insufficient market data (0%)',
+        periodLabel: null,
+        note: `${scopeLabel || 'Market'}: insufficient sales (0% flat)`
+      };
+    }
+
+    const rawMeasuredPct = Math.round((((latestValue - salePeriodValue) / salePeriodValue) * 100) * 10) / 10;
+    const appliedPct = Math.round(Math.max(-cap, Math.min(cap, rawMeasuredPct)) * 10) / 10;
+    const wasCapped = Math.abs(rawMeasuredPct) > cap + 1e-6;
+    const amount = roundTimeDollar(price * (appliedPct / 100));
+
+    const metricLabel = usePpsf ? '$/sf' : 'price';
+    const srcName = scopeLabel || 'ZIP';
+    const signApplied = appliedPct > 0 ? '+' : appliedPct < 0 ? '\u2212' : '';
+    const signRaw = rawMeasuredPct > 0 ? '+' : rawMeasuredPct < 0 ? '\u2212' : '';
+    const periodText = salePeriodLabel && latestPeriodLabel
+      ? `${predatesSeries ? 'earliest ' : ''}${salePeriodLabel} \u2192 ${latestPeriodLabel}`
+      : '';
+    const pctText = appliedPct === 0
+      ? '0.0% (flat)'
+      : wasCapped
+        ? `${signRaw}${Math.abs(rawMeasuredPct).toFixed(1)}% \u2192 capped ${signApplied}${Math.abs(appliedPct).toFixed(0)}%`
+        : `${signApplied}${Math.abs(appliedPct).toFixed(1)}%`;
+
+    return {
+      amount,
+      measuredPct: rawMeasuredPct,
+      appliedPct,
+      wasCapped,
+      source: `${srcName} measured ${metricLabel}${summary?.complete_through ? ` (through ${summary.complete_through})` : ''}`,
+      periodLabel: periodText || null,
+      note: `${srcName} ${pctText}${periodText ? ` (${periodText})` : ''}`
+    };
+  }
+
+  // Path 2: Fallback linear monthly rate (when full zipMarketData series is not supplied), still strictly capped at ±10%
+  const ratePct = Number(fallbackMonthlyTrendPct);
+  if (!Number.isFinite(ratePct) || ratePct === 0) {
+    return {
+      amount: 0,
+      measuredPct: 0,
+      appliedPct: 0,
+      wasCapped: false,
+      source: scopeLabel || 'Library default',
+      periodLabel: null,
+      note: ''
+    };
+  }
+
+  const rawLinearPct = ratePct * monthsSinceSale;
+  const appliedPct = Math.max(-cap, Math.min(cap, rawLinearPct));
+  const wasCapped = Math.abs(rawLinearPct) > cap + 1e-6;
+  const amount = roundTimeDollar(price * (appliedPct / 100));
+  const trendSign = ratePct > 0 ? '+' : '';
+  const appliedSign = appliedPct > 0 ? '+' : appliedPct < 0 ? '\u2212' : '';
+
+  return {
+    amount,
+    measuredPct: Math.round(rawLinearPct * 10) / 10,
+    appliedPct: Math.round(appliedPct * 10) / 10,
+    wasCapped,
+    source: scopeLabel || 'Library monthly trend',
+    periodLabel: `${monthsSinceSale} mo`,
+    note: wasCapped
+      ? `${trendSign}${ratePct}%/mo → capped ${appliedSign}${Math.abs(appliedPct).toFixed(0)}%`
+      : `${trendSign}${ratePct}%/mo`
+  };
 }
 
 function formatBathDisplay(details) {
@@ -620,6 +919,7 @@ export function computeAppraisalGrid({
   sizeMethod = 'auto',  // 'auto' | 'improvement_value' | 'local_35' | 'library'
   library: rawLibrary = {},
   customWeights = null, // optional { [compId]: number (percentage 0..100) }
+  zipMarketData = null, // optional full /api/county/market payload { summary, monthly, quarterly }
   zipTrendMonthlyPct = null,
   zipTrendSource = null,
   zipRatioStats = null,
@@ -627,6 +927,7 @@ export function computeAppraisalGrid({
 } = {}) {
   const library = mergeAdjustmentLibrary(rawLibrary);
   const effYear = effectiveDate.getFullYear();
+  const subjectPricing = resolvePropertyPricing(subject);
 
   // Valid comps with a sale price
   const validComps = comps.filter((c) => c && Number(c.sold_price) > 0);
@@ -707,7 +1008,7 @@ export function computeAppraisalGrid({
   ].filter(Boolean).join(' + ');
 
   // Auto-detect South Florida Tier (Guide Section 6)
-  const tier = detectSouthFloridaTier(medianUnadjustedPrice, subject?.list_price);
+  const tier = detectSouthFloridaTier(medianUnadjustedPrice, subjectPricing.referencePrice || subject?.list_price);
   const tierScale = library.tierScaleEnabled !== false ? tier.multiplier : 1.0;
 
   // Determine GLA $/sf rate, active method & transparent source label
@@ -899,23 +1200,22 @@ export function computeAppraisalGrid({
       };
     };
 
-    // 1. Time / Market Conditions (monthly ZIP trend applies to every comp)
-    const monthlyDecimal = effectiveRates.monthlyTrendPct / 100;
-    const exactTimeAdj = soldPrice > 0 && monthsSinceSale > 0
-      ? soldPrice * monthlyDecimal * monthsSinceSale
-      : 0;
-    const rawTimeAdj = Math.abs(exactTimeAdj) >= 100
-      ? Math.round(exactTimeAdj / 100) * 100
-      : Math.round(exactTimeAdj);
-    const trendSign = effectiveRates.monthlyTrendPct > 0 ? '+' : '';
+    // 1. Time / Market Conditions (measured ZIP/neighborhood trend over actual period, capped at ±10% unless overridden)
+    const timeCalc = computeMeasuredTimeAdjustment({
+      soldDate: comp.sold_date,
+      soldPrice,
+      monthsSinceSale,
+      zipMarketData,
+      fallbackMonthlyTrendPct: effectiveRates.monthlyTrendPct,
+      zipTrendSource: zipTrendSource || zipMarketData?.summary?.mode_label || (subject?.zip ? `ZIP ${subject.zip}` : null)
+    });
     const timeCell = resolveCell(
       'time',
-      rawTimeAdj,
+      timeCalc.amount,
       comp.sold_date ? (monthsSinceSale === 0 ? 'this mo' : `${monthsSinceSale} mo ago`) : 'Date n/a',
       {
-        note: comp.sold_date && monthsSinceSale > 0 && effectiveRates.monthlyTrendPct !== 0
-          ? `${trendSign}${effectiveRates.monthlyTrendPct}%/mo`
-          : ''
+        note: timeCalc.note,
+        flag: timeCalc.wasCapped ? `Capped ±${MAX_TIME_ADJUSTMENT_PCT}%` : null
       }
     );
 
@@ -1727,9 +2027,23 @@ export function computeAppraisalGrid({
     };
   }
 
+  const referencePriceAnchor = subjectPricing.referencePrice > 0
+    ? {
+        priceSource: subjectPricing.priceSource,
+        label: subjectPricing.shortLabel,
+        price: subjectPricing.referencePrice,
+        ppsf: subjectSqft > 0 ? Math.round(subjectPricing.referencePrice / subjectSqft) : null,
+        deltaPctVsReconciled:
+          reconciledValue && subjectPricing.referencePrice
+            ? Math.round(((reconciledValue - subjectPricing.referencePrice) / subjectPricing.referencePrice) * 1000) / 10
+            : null
+      }
+    : null;
+
   const sanityAnchors = {
     countyJustValueAnchor,
-    nearestSameStreetSale
+    nearestSameStreetSale,
+    referencePriceAnchor
   };
 
   let justValueCheck = null;
@@ -1895,6 +2209,25 @@ export function computeAppraisalGrid({
 
   const subjectDetailsProgress = computeDetailsProgress(subjectDetails);
 
+  // Build transparent time trend source summary
+  const timeTrendSource = (() => {
+    if (zipMarketData?.summary) {
+      const scope = zipTrendSource || zipMarketData.summary.mode_label || (zipMarketData.summary.zip ? `ZIP ${zipMarketData.summary.zip}` : 'Market');
+      const through = zipMarketData.summary.complete_through ? `through ${zipMarketData.summary.complete_through}` : 'measured series';
+      return `${scope} measured $/sf (${through} · capped ±${MAX_TIME_ADJUSTMENT_PCT}%)`;
+    }
+    if (zipTrendSource) {
+      return `${zipTrendSource} (capped ±${MAX_TIME_ADJUSTMENT_PCT}%)`;
+    }
+    return `Library default (${effectiveRates.monthlyTrendPct > 0 ? '+' : ''}${effectiveRates.monthlyTrendPct}%/mo · capped ±${MAX_TIME_ADJUSTMENT_PCT}%)`;
+  })();
+
+  const resolvedSubjectConstDetail =
+    subjectDetails.construction_detail ||
+    subject?.construction_detail ||
+    subject?.subject_details?.construction_detail ||
+    null;
+
   return {
     mode,
     sizeMethod: effectiveSizeMethod,
@@ -1908,6 +2241,8 @@ export function computeAppraisalGrid({
     library,
     effectiveRates,
     zipTrendSource,
+    timeTrendSource,
+    timeAdjustmentCapPct: MAX_TIME_ADJUSTMENT_PCT,
     medianUnadjustedPrice,
     localMedianPpsf: localMedianPpsf ? Math.round(localMedianPpsf) : null,
     subjectDetails,
@@ -1915,6 +2250,13 @@ export function computeAppraisalGrid({
     subjectSummary: {
       address: subject?.address || 'Subject Property',
       listPrice: Number(subject?.list_price) > 0 ? Number(subject.list_price) : null,
+      pricing: subjectPricing,
+      priceSource: subjectPricing.priceSource,
+      priceSourceLabel: subjectPricing.shortLabel,
+      headerPriceLabel: subjectPricing.headerPriceLabel,
+      priceColumnText: subjectPricing.subjectColumnText,
+      unadjustedRowText: subjectPricing.unadjustedRowText,
+      offerPrice: subjectPricing.offerPrice,
       justValue: subjectJustValue > 0 ? subjectJustValue : null,
       landValue: subjectImpMetrics?.landVal ?? null,
       improvementValue: subjectImpMetrics?.improvementVal ?? null,
@@ -1937,13 +2279,17 @@ export function computeAppraisalGrid({
         : (mode === 'arv' && subjectDetails.condition === 'c2' ? 'Renovated (ARV · C2)' : subjectCondMeta.shortLabel),
       windowsLabel: formatWindowsLabel(subjectDetails.windows),
       roofLabel: formatRoofSpecLabel(subjectDetails),
+      constructionDetail: resolvedSubjectConstDetail,
       constructionLabel: (() => {
+        if (resolvedSubjectConstDetail) return resolvedSubjectConstDetail;
         const ct =
           subjectDetails.construction_type && subjectDetails.construction_type !== 'unknown'
             ? subjectDetails.construction_type
             : mapConstClassToConstructionType(subject?.const_class);
         return ct !== 'unknown' ? formatConstructionTypeLabel(ct) : null;
       })(),
+      sketchAreas: subjectDetails.sketch_areas || subject?.sketch_areas || subject?.subject_details?.sketch_areas || null,
+      recentImprovements: subjectDetails.recent_improvements || subject?.recent_improvements || subject?.subject_details?.recent_improvements || null,
       poolLabel: formatPoolSpecLabel(subjectDetails),
       garageLabel: formatGarageSpecLabel(subjectDetails),
       subdivisionName: subject?.subdivision_name || null,
