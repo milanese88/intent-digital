@@ -23,3 +23,4 @@ ALTER TABLE comp_details
   ADD COLUMN IF NOT EXISTS boat_dock boolean,
   ADD COLUMN IF NOT EXISTS boat_dock_sqft int,
   ADD COLUMN IF NOT EXISTS construction_type text;
+
