@@ -81,3 +81,4 @@ export function getCountyAppraiserLabel(county) {
   const name = normalizeCountyName(county);
   return name ? COUNTY_META[name].appraiser : 'County Property Appraiser';
 }
+

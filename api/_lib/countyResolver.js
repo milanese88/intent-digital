@@ -84,3 +84,4 @@ export async function applyPropertyCountyRules(sql, data) {
   }
   return data;
 }
+

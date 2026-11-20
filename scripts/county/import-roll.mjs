@@ -106,6 +106,23 @@ function buildBatchInsert(table, columns, rows, onConflictClause) {
 }
 
 /**
+ * Mirrors scripts/backfill_county_parcels.js so newly imported parcels are searchable by
+ * "Find county record" (idx_county_parcels_norm_lookup on county, situs_number, situs_street_norm).
+ */
+export function computeSitusNorm(address) {
+  const addr = address == null ? '' : String(address).trim();
+  if (!addr) return { situs_number: null, situs_street_norm: null };
+  if (!/^[0-9]+/.test(addr)) return { situs_number: null, situs_street_norm: addr };
+  const situsNumber = addr.split(' ')[0];
+  const rest = (addr.match(/^[0-9]+[^ ]*\s*(.*)$/) || [])[1] || '';
+  const street = rest
+    .replace(/\b([0-9]+)(ST|ND|RD|TH)\b/gi, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { situs_number: situsNumber, situs_street_norm: street };
+}
+
+/**
  * Helper to format bytes into readable MB / GB string.
  */
 function formatBytes(bytes) {
