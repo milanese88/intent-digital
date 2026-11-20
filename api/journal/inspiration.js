@@ -175,7 +175,7 @@ export default async function handler(req, res) {
           ${alt},
           ${notice},
           ${try_it},
-          ${JSON.stringify(palette || [])},
+          ${sql.json(palette || [])},
           'upload',
           ${active !== false}
         )
@@ -210,7 +210,7 @@ export default async function handler(req, res) {
           alt = ${alt !== undefined ? alt : existing[0].alt},
           notice = ${notice !== undefined ? notice : existing[0].notice},
           try_it = ${try_it !== undefined ? try_it : existing[0].try_it},
-          palette = ${palette !== undefined ? JSON.stringify(palette) : JSON.stringify(existing[0].palette)},
+          palette = ${palette !== undefined ? sql.json(palette) : sql.json(existing[0].palette || [])},
           active = ${active !== undefined ? Boolean(active) : existing[0].active}
         WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
         RETURNING *

@@ -132,7 +132,7 @@ export default async function handler(req, res) {
           ${cleanRoomType},
           ${style ? String(style).trim() : null},
           ${brief ? String(brief).trim() : null},
-          ${JSON.stringify(palette || [])},
+          ${sql.json(palette || [])},
           ${nextOrder}
         )
         RETURNING *;
@@ -180,7 +180,7 @@ export default async function handler(req, res) {
           room_type = COALESCE(${cleanRoomType}, room_type),
           style = ${style !== undefined ? (style ? String(style).trim() : null) : sql`style`},
           brief = ${brief !== undefined ? (brief ? String(brief).trim() : null) : sql`brief`},
-          palette = ${palette !== undefined ? JSON.stringify(palette) : sql`palette`},
+          palette = ${palette !== undefined ? sql.json(palette) : sql`palette`},
           sort_order = COALESCE(${sort_order !== undefined ? Number(sort_order) : null}, sort_order)
         WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
         RETURNING *;

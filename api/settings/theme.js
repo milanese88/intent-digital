@@ -113,8 +113,8 @@ export default async function handler(req, res) {
           INSERT INTO portal_theme (owner_email, colors, fonts, apply_to_login, updated_at)
           VALUES (
             ${cleanEmail},
-            ${JSON.stringify(sanitizedColors)},
-            ${JSON.stringify(sanitizedFonts)},
+            ${sql.json(sanitizedColors)},
+            ${sql.json(sanitizedFonts)},
             ${applyToLogin},
             now()
           )

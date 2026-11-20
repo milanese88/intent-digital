@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import {
   DEFAULT_COMP_FILTERS,
   sanitizeProfileCompFilters
@@ -191,19 +191,23 @@ export default async function handler(req, res) {
           return res.status(200).json(getDefaultProfile(cleanEmail));
         }
 
-        // Ensure rate_sheet, valuation_defaults, and financing_overrides have all defaults populated
+        // Ensure rate_sheet, valuation_defaults, and financing_overrides are clean objects
+        const rawRateSheet = parseJsonbObject(profile.rate_sheet, { stripNumericKeys: true });
+        const rawValDefaults = parseJsonbObject(profile.valuation_defaults, { stripNumericKeys: true });
+        const rawFinOverrides = parseJsonbObject(profile.financing_overrides, { stripNumericKeys: true });
+
         const mergedRateSheet = {
           ...DEFAULT_RATE_SHEET,
-          ...(profile.rate_sheet || {})
+          ...rawRateSheet
         };
         const cleanFinancingOverrides = sanitizeFinancingOverrides(
-          profile.financing_overrides || profile.valuation_defaults?.financing_overrides || {}
+          Object.keys(rawFinOverrides).length > 0 ? rawFinOverrides : (rawValDefaults.financing_overrides || {})
         );
         const mergedValuationDefaults = {
           ...DEFAULT_VALUATION_DEFAULTS,
-          ...(profile.valuation_defaults || {}),
+          ...rawValDefaults,
           comp_search_filters: sanitizeProfileCompFilters(
-            profile.valuation_defaults?.comp_search_filters
+            rawValDefaults.comp_search_filters
           ),
           financing_overrides: cleanFinancingOverrides
         };
@@ -269,12 +273,16 @@ export default async function handler(req, res) {
             ? Math.max(0, Math.round(Number(existingRow.reserve_months)))
             : 6);
 
+      const existingRateSheet = parseJsonbObject(existingRow?.rate_sheet, { stripNumericKeys: true });
+      const existingValDefaults = parseJsonbObject(existingRow?.valuation_defaults, { stripNumericKeys: true });
+      const existingFinRaw = parseJsonbObject(existingRow?.financing_overrides, { stripNumericKeys: true });
+
       const rateSheet = typeof body.rate_sheet === 'object' && body.rate_sheet !== null
-        ? { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}), ...body.rate_sheet }
-        : { ...DEFAULT_RATE_SHEET, ...(existingRow?.rate_sheet || {}) };
+        ? { ...DEFAULT_RATE_SHEET, ...existingRateSheet, ...body.rate_sheet }
+        : { ...DEFAULT_RATE_SHEET, ...existingRateSheet };
 
       const existingFinOverrides = sanitizeFinancingOverrides(
-        existingRow?.financing_overrides || existingRow?.valuation_defaults?.financing_overrides || {}
+        Object.keys(existingFinRaw).length > 0 ? existingFinRaw : (existingValDefaults.financing_overrides || {})
       );
       const financingOverrides =
         body.financing_overrides !== undefined
@@ -284,12 +292,12 @@ export default async function handler(req, res) {
       const mergedRawValDefaults = typeof body.valuation_defaults === 'object' && body.valuation_defaults !== null
         ? {
             ...DEFAULT_VALUATION_DEFAULTS,
-            ...(existingRow?.valuation_defaults || {}),
-            ...body.valuation_defaults
+            ...existingValDefaults,
+            ...parseJsonbObject(body.valuation_defaults, { stripNumericKeys: true })
           }
         : {
             ...DEFAULT_VALUATION_DEFAULTS,
-            ...(existingRow?.valuation_defaults || {})
+            ...existingValDefaults
           };
 
       const valuationDefaults = {
@@ -316,9 +324,9 @@ export default async function handler(req, res) {
               ${creditTier},
               ${liquidCash},
               ${reserveMonths},
-              ${JSON.stringify(rateSheet)}::jsonb,
-              ${JSON.stringify(valuationDefaults)}::jsonb,
-              ${JSON.stringify(financingOverrides)}::jsonb,
+              ${sql.json(rateSheet)},
+              ${sql.json(valuationDefaults)},
+              ${sql.json(financingOverrides)},
               CURRENT_TIMESTAMP
             )
             ON CONFLICT (owner_email) DO UPDATE SET
@@ -356,8 +364,8 @@ export default async function handler(req, res) {
                   ${creditTier},
                   ${liquidCash},
                   ${reserveMonths},
-                  ${JSON.stringify(rateSheet)}::jsonb,
-                  ${JSON.stringify(valuationDefaults)}::jsonb,
+                  ${sql.json(rateSheet)},
+                  ${sql.json(valuationDefaults)},
                   CURRENT_TIMESTAMP
                 )
                 ON CONFLICT (owner_email) DO UPDATE SET
@@ -392,7 +400,7 @@ export default async function handler(req, res) {
                     ${creditTier},
                     ${liquidCash},
                     ${reserveMonths},
-                    ${JSON.stringify(rateSheet)}::jsonb,
+                    ${sql.json(rateSheet)},
                     CURRENT_TIMESTAMP
                   )
                   ON CONFLICT (owner_email) DO UPDATE SET
@@ -427,9 +435,9 @@ export default async function handler(req, res) {
           credit_tier: rows[0].credit_tier,
           liquid_cash: Number(rows[0].liquid_cash) || 0,
           reserve_months: Number(rows[0].reserve_months) || 6,
-          rate_sheet: rows[0].rate_sheet,
-          valuation_defaults: rows[0].valuation_defaults || valuationDefaults,
-          financing_overrides: rows[0].financing_overrides || financingOverrides,
+          rate_sheet: parseJsonbObject(rows[0].rate_sheet, { stripNumericKeys: true }),
+          valuation_defaults: parseJsonbObject(rows[0].valuation_defaults, { stripNumericKeys: true }) || valuationDefaults,
+          financing_overrides: parseJsonbObject(rows[0].financing_overrides, { stripNumericKeys: true }) || financingOverrides,
           updated_at: rows[0].updated_at
         });
       } catch (dbErr) {

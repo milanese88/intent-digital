@@ -714,9 +714,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         body: JSON.stringify(bodyPayload)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = new Error(data.error || 'Failed to save comp details.');
+        const msg = data.error || `Failed to save comp details (HTTP ${res.status}).`;
+        showToast(msg);
+        const err = new Error(msg);
         err.errors = data.errors || null;
         throw err;
       }
@@ -729,6 +731,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
       setIsCompPanelOpen(false);
       showToast('Comp details saved');
+    } catch (err) {
+      if (!err?.errors) {
+        showToast(err?.message || 'Failed to save comp details.');
+      }
+      throw err;
     } finally {
       setIsCompSaving(false);
     }
@@ -741,9 +748,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       const asIsLegacy = detailsToLegacyColumns(subjectDetailsMap?.as_is || {});
       const patchBody = {
         id: activeProperty.id,
-        beds: asIsLegacy.beds ?? activeProperty.beds,
-        baths: asIsLegacy.baths ?? activeProperty.baths,
-        roof_year: asIsLegacy.roof_year ?? activeProperty.roof_year,
+        beds: asIsLegacy.beds,
+        baths: asIsLegacy.baths,
+        roof_year: asIsLegacy.roof_year,
         pool: asIsLegacy.pool,
         garage: asIsLegacy.garage,
         waterfront: asIsLegacy.waterfront,
@@ -757,15 +764,44 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         body: JSON.stringify(patchBody)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save subject property details.');
+        const msg = data.error || `Failed to save subject property details (HTTP ${res.status}).`;
+        showToast(msg);
+        throw new Error(msg);
       }
 
       setProperties((prev) => prev.map((p) => (p.id === data.id ? { ...p, ...data } : p)));
       setSubjectAppraisalOverrides({});
+
+      // Clear any stale legacy subjectOverrides stored on saved_appraisals so page refresh
+      // always reads the newly saved subject_details instead of stale toggles
+      const existingSavedAppraisal = buyingProfile?.valuation_defaults?.saved_appraisals?.[activeProperty.id];
+      if (existingSavedAppraisal?.subjectOverrides && Object.keys(existingSavedAppraisal.subjectOverrides).length > 0) {
+        const nextSavedAppraisals = {
+          ...(buyingProfile?.valuation_defaults?.saved_appraisals || {}),
+          [activeProperty.id]: {
+            ...existingSavedAppraisal,
+            subjectOverrides: {}
+          }
+        };
+        const nextDefaults = {
+          ...(buyingProfile?.valuation_defaults || {}),
+          saved_appraisals: nextSavedAppraisals
+        };
+        setBuyingProfile((prev) => (prev ? { ...prev, valuation_defaults: nextDefaults } : prev));
+        fetch('/api/investor/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valuation_defaults: nextDefaults })
+        }).catch(() => {});
+      }
+
       setIsCompPanelOpen(false);
       showToast('Subject details saved');
+    } catch (err) {
+      showToast(err?.message || 'Failed to save subject property details.');
+      throw err;
     } finally {
       setIsCompSaving(false);
     }

@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { normalizeCountyName } from '../../src/config/counties.js';
 import {
   VALID_CONDITIONS,
@@ -330,11 +330,12 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
   }
 
   return rawRows.map((row) => {
-    const adj = row.adjustments && typeof row.adjustments === 'object' ? row.adjustments : {};
+    const adj = parseJsonbObject(row.adjustments);
+    const parsedCompDetailsJson = parseJsonbObject(row.comp_details_json);
     const fallbackJson =
-      row.comp_details_json && typeof row.comp_details_json === 'object' && Object.keys(row.comp_details_json).length > 0
-        ? row.comp_details_json
-        : (adj.comp_details_json && typeof adj.comp_details_json === 'object' ? adj.comp_details_json : {});
+      Object.keys(parsedCompDetailsJson).length > 0
+        ? parsedCompDetailsJson
+        : parseJsonbObject(adj.comp_details_json);
 
     const county = normalizeCountyName(row.parcel_county) || 'Broward';
     const pid = row.parcel_id ? String(row.parcel_id).trim() : '';
@@ -350,6 +351,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
     const merged = mergeCompWithSavedDetails(
       {
         ...row,
+        adjustments: adj,
         comp_details_json: fallbackJson,
         is_outlier: Boolean(row.is_outlier || adj.is_outlier)
       },
@@ -584,8 +586,8 @@ export default async function handler(req, res) {
             ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
             ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${data.condition},
             ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.hoa_name}, ${data.notes},
-            ${JSON.stringify(data.adjustments)}::jsonb,
-            ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            ${sql.json(data.adjustments || {})},
+            ${sql.json(data.comp_details_json || {})},
             ${data.is_outlier}
           )
           RETURNING *
@@ -604,7 +606,7 @@ export default async function handler(req, res) {
               ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
               ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${safeCond},
               ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.notes},
-              ${JSON.stringify(data.adjustments)}::jsonb
+              ${sql.json(data.adjustments || {})}
             )
             RETURNING *
           `;
@@ -633,7 +635,10 @@ export default async function handler(req, res) {
           parcel_id: data.parcel_id,
           sold_date: data.sold_date,
           comp_details_json: data.comp_details_json
-        }).catch(() => null);
+        }).catch((err) => {
+          console.error('[Comp Details Sync Error on POST]', err?.code, err?.message);
+          return null;
+        });
       }
 
       const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);
@@ -685,11 +690,12 @@ export default async function handler(req, res) {
       }
 
       const body = req.body || {};
-      const currentAdj = currentComp.adjustments && typeof currentComp.adjustments === 'object' ? currentComp.adjustments : {};
+      const currentAdj = parseJsonbObject(currentComp.adjustments);
+      const parsedCurrentDetails = parseJsonbObject(currentComp.comp_details_json);
       const currentDetailsJson =
-        currentComp.comp_details_json && typeof currentComp.comp_details_json === 'object' && Object.keys(currentComp.comp_details_json).length > 0
-          ? currentComp.comp_details_json
-          : (currentAdj.comp_details_json && typeof currentAdj.comp_details_json === 'object' ? currentAdj.comp_details_json : {});
+        Object.keys(parsedCurrentDetails).length > 0
+          ? parsedCurrentDetails
+          : parseJsonbObject(currentAdj.comp_details_json);
 
       // Merge partial update cleanly over existing comp + comp_details_json
       const mergedInput = {
@@ -779,8 +785,8 @@ export default async function handler(req, res) {
             lot_sqft = ${data.lot_sqft},
             hoa_name = ${data.hoa_name},
             notes = ${data.notes},
-            adjustments = ${JSON.stringify(data.adjustments)}::jsonb,
-            comp_details_json = ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            adjustments = ${sql.json(data.adjustments || {})},
+            comp_details_json = ${sql.json(data.comp_details_json || {})},
             is_outlier = ${data.is_outlier}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -813,7 +819,7 @@ export default async function handler(req, res) {
               waterfront = ${data.waterfront},
               lot_sqft = ${data.lot_sqft},
               notes = ${data.notes},
-              adjustments = ${JSON.stringify(data.adjustments)}::jsonb
+              adjustments = ${sql.json(data.adjustments || {})}
             WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
             RETURNING *
           `;
@@ -843,7 +849,10 @@ export default async function handler(req, res) {
           parcel_id: data.parcel_id,
           sold_date: data.sold_date,
           comp_details_json: data.comp_details_json
-        }).catch(() => null);
+        }).catch((err) => {
+          console.error('[Comp Details Sync Error on PUT]', err?.code, err?.message);
+          return null;
+        });
       }
 
       const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);

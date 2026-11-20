@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { applyPropertyCountyRules } from '../_lib/countyResolver.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 
@@ -7,19 +7,28 @@ const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifami
 const ALLOWED_STATUSES = ['watching', 'analyzing', 'offer_sent', 'under_contract', 'passed', 'owned'];
 const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
 
+function normalizePropertyJsonb(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    ...row,
+    subject_details: parseJsonbObject(row.subject_details)
+  };
+}
+
 async function attachParcelSubdivisionFields(sql, row) {
-  if (!row || !row.parcel_id) return row;
-  const county = row.parcel_county || row.county || 'Broward';
+  const normalized = normalizePropertyJsonb(row);
+  if (!normalized || !normalized.parcel_id) return normalized;
+  const county = normalized.parcel_county || normalized.county || 'Broward';
   try {
     const pRows = await sql`
       SELECT s_legal, subdivision_name, subdivision_code, nbrhd_cd, mkt_ar
       FROM county_parcels
-      WHERE county = ${county} AND parcel_id = ${row.parcel_id}
+      WHERE county = ${county} AND parcel_id = ${normalized.parcel_id}
       LIMIT 1
     `;
     if (pRows.length > 0) {
       return {
-        ...row,
+        ...normalized,
         s_legal: pRows[0].s_legal ?? null,
         subdivision_name: pRows[0].subdivision_name ?? null,
         subdivision_code: pRows[0].subdivision_code ?? null,
@@ -30,7 +39,7 @@ async function attachParcelSubdivisionFields(sql, row) {
   } catch {
     // Graceful fallback if county_parcels columns aren't available
   }
-  return row;
+  return normalized;
 }
 
 function validateProperty(body) {
@@ -402,7 +411,7 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Property not found.' });
         }
 
-        return res.status(200).json(rows[0]);
+        return res.status(200).json(normalizePropertyJsonb(rows[0]));
       }
 
       let properties = [];
@@ -559,7 +568,7 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json(properties);
+      return res.status(200).json(properties.map(normalizePropertyJsonb));
     }
 
     // POST: Create a new property
@@ -750,7 +759,7 @@ export default async function handler(req, res) {
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
-            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
+            subject_details = ${sql.json(data.subject_details || {})},
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -796,7 +805,7 @@ export default async function handler(req, res) {
               before_offer_checklist = jsonb_set(
                 COALESCE(before_offer_checklist, '{}'::jsonb),
                 '{subject_details}',
-                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                ${sql.json(data.subject_details || {})},
                 true
               ),
               is_studying = ${data.is_studying}
@@ -872,12 +881,12 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
+      const parsedCurrentSubjectDetails = parseJsonbObject(current[0].subject_details);
+      const parsedChecklist = parseJsonbObject(current[0].before_offer_checklist);
       const prevSubjectDetails =
-        current[0].subject_details && typeof current[0].subject_details === 'object' && Object.keys(current[0].subject_details).length > 0
-          ? current[0].subject_details
-          : (current[0].before_offer_checklist?.subject_details && typeof current[0].before_offer_checklist.subject_details === 'object'
-              ? current[0].before_offer_checklist.subject_details
-              : {});
+        Object.keys(parsedCurrentSubjectDetails).length > 0
+          ? parsedCurrentSubjectDetails
+          : parseJsonbObject(parsedChecklist.subject_details);
 
       const merged = {
         ...current[0],
@@ -885,7 +894,7 @@ export default async function handler(req, res) {
         subject_details: req.body?.subject_details !== undefined
           ? {
               ...prevSubjectDetails,
-              ...(req.body.subject_details && typeof req.body.subject_details === 'object' ? req.body.subject_details : {})
+              ...parseJsonbObject(req.body.subject_details)
             }
           : prevSubjectDetails
       };
@@ -934,7 +943,7 @@ export default async function handler(req, res) {
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
-            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
+            subject_details = ${sql.json(data.subject_details || {})},
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -980,7 +989,7 @@ export default async function handler(req, res) {
               before_offer_checklist = jsonb_set(
                 COALESCE(before_offer_checklist, '{}'::jsonb),
                 '{subject_details}',
-                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                ${sql.json(data.subject_details || {})},
                 true
               ),
               is_studying = ${data.is_studying}

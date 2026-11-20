@@ -3,6 +3,35 @@ import postgres from 'postgres';
 export const MIGRATION_UPDATE_MESSAGE =
   'This feature needs a database update — ask to apply migrations.';
 
+/**
+ * Safely normalizes a JSONB column value into a plain JS object.
+ * Unwraps any legacy double-encoded JSONB strings (from passing JSON.stringify()
+ * into ::jsonb under postgres.js), and optionally strips numeric character-index
+ * keys ("0","1",...) caused by spreading a stringified object.
+ */
+export function parseJsonbObject(val, { stripNumericKeys = false } = {}) {
+  let cur = val;
+  for (let i = 0; i < 4 && typeof cur === 'string'; i++) {
+    const trimmed = cur.trim();
+    if (!trimmed) return {};
+    try {
+      cur = JSON.parse(trimmed);
+    } catch {
+      return {};
+    }
+  }
+  if (!cur || typeof cur !== 'object' || Array.isArray(cur)) {
+    return {};
+  }
+  if (!stripNumericKeys) return cur;
+  const cleaned = {};
+  for (const [k, v] of Object.entries(cur)) {
+    if (/^\d+$/.test(k)) continue;
+    cleaned[k] = v;
+  }
+  return cleaned;
+}
+
 export const DATABASE_QUOTA_MESSAGE =
   'Database quota exceeded (storage or compute limit reached). Upgrade your database plan or free up space.';
 

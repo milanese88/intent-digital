@@ -415,11 +415,12 @@ function formatGarageSpecLabel(details) {
   return bays > 0 ? `${bays}-Car` : 'None';
 }
 
-function formatWaterfrontSpecLabel(details, lotSqft) {
+export const WEIGHT_FORMULA_SUMMARY =
+  'Weight ∝ Gross Adj Factor (steep cliff >25% gross) × Size Parity (steep penalty >±20% GLA diff) × Recency (penalty >6 mo) × Distance × Verified (×0.75 if unverified) × Detail Completeness (×0.86 per missing feature) × Condition Parity, normalized to 100%.';
+
+function formatWaterfrontOnlyLabel(details) {
   const wfObj = WATERFRONT_VIEW_OPTIONS.find((o) => o.id === details.waterfront_view && o.id !== 'unknown');
-  const lotPart = lotSqft > 0 ? `${lotSqft.toLocaleString()} sf` : null;
-  if (!wfObj && !lotPart) return 'Unknown';
-  return [wfObj ? wfObj.label : 'View n/a', lotPart].filter(Boolean).join(' · ');
+  return wfObj ? wfObj.label : 'Unknown';
 }
 
 /**
@@ -633,18 +634,27 @@ export function computeAppraisalGrid({
       }
     );
 
-    // 2. Gross Living Area (GLA) with South Florida minimum threshold
+    // 2. Gross Living Area (GLA) with South Florida minimum threshold & ±20% size check
     const sqftDiff = subjectSqft > 0 && compSqft > 0 ? subjectSqft - compSqft : 0;
+    const sizeDiffPctExact = subjectSqft > 0 && compSqft > 0
+      ? (Math.abs(compSqft - subjectSqft) / subjectSqft) * 100
+      : 0;
+    const sizeDiffPct = Math.round(sizeDiffPctExact);
+    const isPoorSizeComp = subjectSqft > 0 && compSqft > 0 && sizeDiffPctExact > 20;
+    const sizeFlagLabel = isPoorSizeComp ? `Size differs ${sizeDiffPct}% — poor comp` : null;
     const withinGlaThreshold = subjectSqft > 0 && compSqft > 0 && Math.abs(sqftDiff) < effectiveRates.minGlaThreshold;
     const rawGlaAdj = (subjectSqft > 0 && compSqft > 0 && !withinGlaThreshold)
       ? Math.round((sqftDiff * effectiveRates.glaRate) / 100) * 100
       : 0;
+    const glaNote = withinGlaThreshold && sqftDiff !== 0
+      ? `<${effectiveRates.minGlaThreshold} sf threshold`
+      : (sizeFlagLabel || '');
     const glaCell = resolveCell(
       'gla',
       rawGlaAdj,
       compSqft > 0 ? `${compSqft.toLocaleString()} sf` : '—',
       {
-        note: withinGlaThreshold && sqftDiff !== 0 ? `<${effectiveRates.minGlaThreshold} sf threshold` : ''
+        note: glaNote
       }
     );
 
@@ -801,21 +811,45 @@ export function computeAppraisalGrid({
       { note: subdivNote }
     );
 
-    // 10. Location / Waterfront & View / Lot Size
+    // 10. Waterfront & View (strictly $0 + "Needs info" when comp view is Unknown — never guess)
     const isWaterfrontUnknown = compDetails.waterfront_view === 'unknown';
-    const compLotSqft = Number(comp.lot_sqft) || 0;
-    const lotDiff = subjectLotSqft > 0 && compLotSqft > 0 ? subjectLotSqft - compLotSqft : 0;
-    const lotAdjPart = Math.abs(lotDiff) >= effectiveRates.lotMinThreshold
-      ? Math.round((lotDiff * effectiveRates.lotSqftRate) / 500) * 500
-      : 0;
     const waterAdjPart = (!isWaterfrontUnknown && subjectDetails.waterfront_view !== 'unknown')
       ? waterfrontContributory(subjectDetails.waterfront_view) - waterfrontContributory(compDetails.waterfront_view)
       : 0;
     const locationSiteCell = resolveCell(
       'location_site',
-      lotAdjPart + waterAdjPart,
-      formatWaterfrontSpecLabel(compDetails, compLotSqft),
-      { needsInfo: isWaterfrontUnknown && compLotSqft <= 0 }
+      waterAdjPart,
+      isWaterfrontUnknown ? 'Unknown' : formatWaterfrontOnlyLabel(compDetails),
+      {
+        note: isWaterfrontUnknown
+          ? 'View unknown ($0)'
+          : (subjectDetails.waterfront_view === 'unknown' ? 'Set subject view to adjust' : ''),
+        needsInfo: isWaterfrontUnknown
+      }
+    );
+
+    // 11. Lot Size (separate row so site area never masquerades as a waterfront/view adjustment)
+    // CIA/CBS sign: subjectLotSqft - compLotSqft -> larger comp lot is superior (CBS -> subtract -)
+    const compLotSqft = Number(comp.lot_sqft) || 0;
+    const lotDiff = subjectLotSqft > 0 && compLotSqft > 0 ? subjectLotSqft - compLotSqft : 0;
+    const lotWithinThreshold = subjectLotSqft > 0 && compLotSqft > 0 && Math.abs(lotDiff) < effectiveRates.lotMinThreshold;
+    const lotAdjPart = (subjectLotSqft > 0 && compLotSqft > 0 && !lotWithinThreshold)
+      ? Math.round((lotDiff * effectiveRates.lotSqftRate) / 500) * 500
+      : 0;
+    const lotDiffSign = lotDiff > 0 ? '+' : '\u2212';
+    const lotNote = (subjectLotSqft > 0 && compLotSqft > 0)
+      ? (lotWithinThreshold
+          ? `Within \u00B1${effectiveRates.lotMinThreshold.toLocaleString()} sf threshold`
+          : `${lotDiffSign}${Math.abs(Math.round(lotDiff)).toLocaleString()} sf @ $${effectiveRates.lotSqftRate}/sf`)
+      : '';
+    const lotSizeCell = resolveCell(
+      'lot_size',
+      lotAdjPart,
+      compLotSqft > 0 ? `${Math.round(compLotSqft).toLocaleString()} sf` : 'Unknown',
+      {
+        note: lotNote,
+        needsInfo: compLotSqft <= 0
+      }
     );
 
     const cells = {
@@ -828,7 +862,8 @@ export function computeAppraisalGrid({
       pool: poolCell,
       garage: garageCell,
       location_subdivision: locationSubdivisionCell,
-      location_site: locationSiteCell
+      location_site: locationSiteCell,
+      lot_size: lotSizeCell
     };
 
     const cellList = Object.values(cells);
@@ -844,29 +879,67 @@ export function computeAppraisalGrid({
     const isHighNet = netAdjustmentPct > 15;
     const isHighGross = grossAdjustmentPct > 25;
 
-    // Count unknown core features (condition, windows, roof, pool, garage) -> reduce weight
+    // Count unknown core features (condition, windows, roof, pool, garage, waterfront) -> reduce weight
     const unknownFeatureKeys = [
       isConditionUnknown ? 'condition' : null,
       isWindowsUnknown ? 'windows' : null,
       isRoofUnknown ? 'roof' : null,
       isPoolUnknown ? 'pool' : null,
-      isGarageUnknown ? 'garage' : null
+      isGarageUnknown ? 'garage' : null,
+      isWaterfrontUnknown ? 'waterfront' : null
     ].filter(Boolean);
     const unknownFeatureCount = unknownFeatureKeys.length;
-    const wCompleteness = Math.pow(0.80, unknownFeatureCount);
 
-    // Auto-weight score (higher for closer, more recent, lower gross %, condition match, and verified features;
-    // comps older than 6 months and comps with unknown features have reduced reconciliation weight)
+    // Auto-weight score:
+    // Monotonically falls as gross adjustment % rises (with steep cliff >25% Fannie Mae limit),
+    // penalizes >±20% GLA size mismatch, older sales (>6 mo), unverified comps, and missing details.
+    const wGrossBase = 1 / (1 + Math.pow(grossAdjustmentPct / 12, 1.5));
+    const wGross = isHighGross
+      ? wGrossBase * Math.pow(25 / grossAdjustmentPct, 2)
+      : wGrossBase;
+
+    const wSizeBase = 1 / (1 + sizeDiffPctExact / 25);
+    const wSize = isPoorSizeComp
+      ? wSizeBase * Math.pow(20 / sizeDiffPctExact, 1.5)
+      : wSizeBase;
+
     const distMi = comp.distance_mi != null && !isNaN(Number(comp.distance_mi)) ? Number(comp.distance_mi) : 0.5;
     const wRecency = (1 / (1 + monthsSinceSale / 6)) * (isOlderThan6Months ? 0.55 : 1.0);
-    const wDistance = 1 / (1 + distMi / 0.5);
-    const wGross = 1 / (1 + grossAdjustmentPct / 12);
+    const wDistance = 1 / (1 + distMi / 0.75);
+    const isVerified = Boolean(compDetails.verified);
+    const wVerified = isVerified ? 1.0 : 0.75;
+    const wCompleteness = Math.pow(0.86, unknownFeatureCount);
     const wConditionParity = isConditionUnknown
-      ? 0.85
-      : ((mode === 'arv' ? condMeta.isRenovated : !condMeta.isRenovated) ? 1.25 : 0.8);
+      ? 0.9
+      : ((mode === 'arv' ? condMeta.isRenovated : !condMeta.isRenovated) ? 1.12 : 0.88);
+
     const rawAutoScore = isUsed
-      ? Math.max(0.005, wRecency * wDistance * wGross * wConditionParity * wCompleteness)
+      ? Math.max(0.00001, wGross * wSize * wRecency * wDistance * wVerified * wCompleteness * wConditionParity)
       : 0;
+
+    const weightReasons = [];
+    if (isHighGross) weightReasons.push(`${grossAdjustmentPct.toFixed(1)}% gross adj (>25%)`);
+    if (isPoorSizeComp) weightReasons.push(`Size differs ${sizeDiffPct}% (>±20%)`);
+    if (isOlderThan6Months) weightReasons.push(`${monthsSinceSale} mo old (>6 mo)`);
+    if (!isVerified) weightReasons.push('Unverified');
+    if (unknownFeatureCount > 0) {
+      weightReasons.push(`${unknownFeatureCount} ${unknownFeatureCount === 1 ? 'detail' : 'details'} missing`);
+    }
+
+    const weightBreakdown = {
+      wGross: Math.round(wGross * 10000) / 10000,
+      wSize: Math.round(wSize * 1000) / 1000,
+      wRecency: Math.round(wRecency * 1000) / 1000,
+      wDistance: Math.round(wDistance * 1000) / 1000,
+      wVerified,
+      wCompleteness: Math.round(wCompleteness * 1000) / 1000,
+      wConditionParity
+    };
+
+    const weightTooltip = [
+      `Formula: ${WEIGHT_FORMULA_SUMMARY}`,
+      `This comp: Gross ${grossAdjustmentPct.toFixed(1)}% (×${wGross.toFixed(3)}) · Size ${sizeDiffPct}% diff (×${wSize.toFixed(2)}) · Age ${monthsSinceSale} mo (×${wRecency.toFixed(2)}) · Dist ${distMi} mi (×${wDistance.toFixed(2)}) · ${isVerified ? 'Verified (×1.00)' : 'Unverified (×0.75)'} · ${unknownFeatureCount} missing (×${wCompleteness.toFixed(2)}) · Cond (×${wConditionParity.toFixed(2)})`
+    ].join('\n');
 
     return {
       ...comp,
@@ -876,6 +949,10 @@ export function computeAppraisalGrid({
       soldPrice,
       compSqft,
       compPpsf,
+      sizeDiffPct,
+      sizeDiffPctExact: Math.round(sizeDiffPctExact * 10) / 10,
+      isPoorSizeComp,
+      sizeFlagLabel,
       monthsSinceSale,
       isOlderThan6Months,
       distanceMi: distMi,
@@ -896,6 +973,9 @@ export function computeAppraisalGrid({
       isHighNet,
       isHighGross,
       rawAutoScore,
+      weightBreakdown,
+      weightReasons,
+      weightTooltip,
       autoWeight: 0,
       weight: 0,
       weightPct: 0
@@ -961,6 +1041,10 @@ export function computeAppraisalGrid({
   const renovatedUsedCount = usedEvaluated.filter((c) => c.conditionMeta.isRenovated).length;
   const highNetComps = usedEvaluated.filter((c) => c.isHighNet);
   const highGrossComps = usedEvaluated.filter((c) => c.isHighGross);
+  const poorSizeComps = usedEvaluated.filter((c) => c.isPoorSizeComp);
+  const maxSizeDiffPct = poorSizeComps.length > 0
+    ? Math.max(...poorSizeComps.map((c) => c.sizeDiffPct))
+    : 0;
   const compsMissingInfo = usedEvaluated.filter((c) => c.unknownFeatureCount > 0);
 
   const usedSqfts = usedEvaluated.map((c) => c.compSqft).filter((s) => s > 0);
@@ -1074,6 +1158,24 @@ export function computeAppraisalGrid({
           : `${highNetComps.length > 0 ? `${highNetComps.length} >15% net` : ''}${highNetComps.length > 0 && highGrossComps.length > 0 ? ' · ' : ''}${highGrossComps.length > 0 ? `${highGrossComps.length} >25% gross` : ''} — reduce weight on dissimilar comps`)
     },
     {
+      id: 'size_similarity',
+      status: subjectSqft <= 0 || usedEvaluated.length === 0
+        ? 'warn'
+        : poorSizeComps.length === 0
+          ? 'pass'
+          : poorSizeComps.length === usedEvaluated.length
+            ? 'fail'
+            : 'warn',
+      label: 'Size Match (±20% Living Area)',
+      detail: subjectSqft <= 0
+        ? 'Enter subject living sqft to verify ±20% comp size similarity'
+        : usedEvaluated.length === 0
+          ? 'Add comps within ±20% of subject living area'
+          : poorSizeComps.length === 0
+            ? `All USED comps within ±20% of ${subjectSqft.toLocaleString()} sf subject`
+            : `${poorSizeComps.length} of ${usedEvaluated.length} USED ${poorSizeComps.length === 1 ? 'comp differs' : 'comps differ'} >20% from ${subjectSqft.toLocaleString()} sf subject (up to ${maxSizeDiffPct}%) — weight reduced. Switch the comps filter to ±20% size and widen the radius to find closer matches.`
+    },
+    {
       id: 'gla_bracketing',
       status: usedSqfts.length < 2 ? 'warn' : (isBracketedGla ? 'pass' : 'warn'),
       label: 'GLA Bracketing & Min Threshold',
@@ -1162,9 +1264,13 @@ export function computeAppraisalGrid({
       nbrhdCd: subject?.nbrhd_cd || null,
       hoaName: subject?.hoa_name || subjectDetails.hoa_name || null,
       locationSubdivisionLabel: subject?.subdivision_name || 'Not set',
-      locationSiteLabel: formatWaterfrontSpecLabel(subjectDetails, subjectLotSqft),
+      locationSiteLabel: formatWaterfrontOnlyLabel(subjectDetails),
+      lotSqft: subjectLotSqft,
+      lotSizeLabel: subjectLotSqft > 0 ? `${Math.round(subjectLotSqft).toLocaleString()} sf` : 'Add lot sf',
       detailsProgress: subjectDetailsProgress
     },
+    weightFormulaSummary: WEIGHT_FORMULA_SUMMARY,
+    poorSizeCompsCount: poorSizeComps.length,
     comps: evaluatedComps,
     usedComps: usedEvaluated,
     renovatedUsedCount,

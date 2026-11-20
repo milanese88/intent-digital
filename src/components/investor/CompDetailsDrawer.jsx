@@ -1301,6 +1301,24 @@ export default function CompDetailsDrawer({
               backgroundColor: '#FAF8F5'
             }}
           >
+            {formError && (
+              <div
+                role="alert"
+                style={{
+                  backgroundColor: 'rgba(138, 42, 30, 0.08)',
+                  border: '1px solid rgba(138, 42, 30, 0.35)',
+                  borderRadius: '8px',
+                  padding: '9px 12px',
+                  color: '#8A2A1E',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginBottom: '12px',
+                  lineHeight: 1.4
+                }}
+              >
+                {formError}
+              </div>
+            )}
             {entityType === 'comp' && isDeleteConfirming ? (
               <div
                 style={{

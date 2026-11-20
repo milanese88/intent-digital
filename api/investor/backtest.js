@@ -243,8 +243,8 @@ export default async function handler(req, res) {
             ${medianApe},
             ${pctWithin5},
             ${pctWithin10},
-            ${JSON.stringify(byZipSummary)}::jsonb,
-            ${JSON.stringify(priceBandSummary)}::jsonb,
+            ${sql.json(byZipSummary)},
+            ${sql.json(priceBandSummary)},
             NOW()
           );
         `;

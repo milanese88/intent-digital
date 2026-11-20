@@ -84,8 +84,8 @@ export default async function handler(req, res) {
           VALUES (
             ${cleanEmail},
             ${name},
-            ${JSON.stringify(sanitizedColors)},
-            ${JSON.stringify(sanitizedFonts)}
+            ${sql.json(sanitizedColors)},
+            ${sql.json(sanitizedFonts)}
           )
           RETURNING id, owner_email, name, colors, fonts, created_at;
         `;

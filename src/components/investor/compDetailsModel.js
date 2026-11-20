@@ -264,15 +264,30 @@ export function splitBathsToFullAndHalf(bathsVal, explicitFull = null, explicitH
   };
 }
 
+function unwrapJsonObj(val) {
+  let cur = val;
+  for (let i = 0; i < 4 && typeof cur === 'string'; i++) {
+    const trimmed = cur.trim();
+    if (!trimmed) return {};
+    try {
+      cur = JSON.parse(trimmed);
+    } catch {
+      return {};
+    }
+  }
+  return cur && typeof cur === 'object' && !Array.isArray(cur) ? cur : {};
+}
+
 /**
  * Normalizes a raw details object or comp entity into the canonical Comp/Subject Details shape.
  * Never infers impact windows or roof age from year_built.
  */
 export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBooleansAsUnknown = false } = {}) {
-  const src = raw && typeof raw === 'object' ? raw : {};
-  const nested = src.comp_details_json && typeof src.comp_details_json === 'object'
-    ? src.comp_details_json
-    : (src.comp_details && typeof src.comp_details === 'object' ? src.comp_details : {});
+  const src = raw && typeof raw === 'object' ? raw : unwrapJsonObj(raw);
+  const parsedNested = unwrapJsonObj(src.comp_details_json);
+  const nested = Object.keys(parsedNested).length > 0
+    ? parsedNested
+    : unwrapJsonObj(src.comp_details);
 
   const pick = (key) => (nested[key] !== undefined ? nested[key] : src[key]);
 
@@ -714,20 +729,14 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
  * Falls back cleanly to top-level property fields when subject_details hasn't been customized yet.
  */
 export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
-  const subjectDetailsObj = subject?.subject_details && typeof subject.subject_details === 'object'
-    ? subject.subject_details
-    : {};
+  const subjectDetailsObj = unwrapJsonObj(subject?.subject_details);
 
-  const asIsRaw = subjectDetailsObj.as_is && typeof subjectDetailsObj.as_is === 'object'
-    ? subjectDetailsObj.as_is
-    : null;
-  const afterRehabRaw = subjectDetailsObj.after_rehab && typeof subjectDetailsObj.after_rehab === 'object'
-    ? subjectDetailsObj.after_rehab
-    : null;
+  const parsedAsIs = unwrapJsonObj(subjectDetailsObj.as_is);
+  const asIsRaw = Object.keys(parsedAsIs).length > 0 ? parsedAsIs : null;
+  const parsedAfterRehab = unwrapJsonObj(subjectDetailsObj.after_rehab);
+  const afterRehabRaw = Object.keys(parsedAfterRehab).length > 0 ? parsedAfterRehab : null;
 
-  const liveOverrides = subject?.appraisal_overrides && typeof subject.appraisal_overrides === 'object'
-    ? subject.appraisal_overrides
-    : {};
+  const liveOverrides = unwrapJsonObj(subject?.appraisal_overrides);
 
   // Base fallback from top-level subject columns
   const baseAsIs = normalizeCompDetails({
