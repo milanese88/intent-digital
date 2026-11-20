@@ -27,6 +27,8 @@ import {
   WINDOW_OPTIONS,
   WATERFRONT_VIEW_OPTIONS
 } from './compDetailsModel.js';
+import { isSameSubdivision } from '../../utils/subdivision.js';
+import { normalizeCountyName } from '../../config/counties.js';
 
 export const DEFAULT_VALUATION_SETTINGS = {
   sizeFactor: 0.5,             // legacy factor kept for backwards-compatible callers/tests
@@ -251,6 +253,7 @@ export const DEFAULT_ADJUSTMENT_LIBRARY = {
   garageBayAdjustment: 15000,      // Guide: $10,000 – $20,000 / bay
   impactWindowsAdjustment: 25000,  // Guide: $15,000 – $35,000 Full Impact Windows & Doors
   newerRoofAdjustment: 25000,      // Guide: $15,000 – $35,000 Newer Roof (<5 yrs vs older)
+  differentSubdivisionAdjustment: 0, // Location row: Same subdivision / Different (default $0, editable in library)
   waterfrontAdjustment: 75000,     // Dedicated Location / Site / Waterfront adjustment
   lotSqftRate: 5,                  // $/sf for lot size variance beyond ±500 sf
   lotMinThreshold: 500,
@@ -498,6 +501,7 @@ export function computeAppraisalGrid({
     impactWindows: scaleAmt(library.impactWindowsAdjustment),
     shutters: Math.round((scaleAmt(library.impactWindowsAdjustment) * 0.4) / 500) * 500,
     newerRoof: scaleAmt(library.newerRoofAdjustment),
+    differentSubdivision: Math.round(Number(library.differentSubdivisionAdjustment) || 0),
     waterfront: scaleAmt(library.waterfrontAdjustment),
     lotSqftRate: Number(library.lotSqftRate) || 5,
     lotMinThreshold: Number(library.lotMinThreshold) || 500,
@@ -762,7 +766,42 @@ export function computeAppraisalGrid({
       { needsInfo: isGarageUnknown }
     );
 
-    // 9. Location / Waterfront & View / Lot Size
+    // 9. Location — Same subdivision / Different (adjustable $ in library, default $0, clickable per comp)
+    const subCountyNorm = normalizeCountyName(subject?.parcel_county || subject?.county);
+    const compCountyNorm = normalizeCountyName(comp?.parcel_county || comp?.county);
+    const subLocRef = {
+      county: subCountyNorm,
+      subdivision_name: subject?.subdivision_name || null,
+      subdivision_code: subject?.subdivision_code || null
+    };
+    const compLocRef = {
+      county: compCountyNorm,
+      subdivision_name: comp?.subdivision_name || null,
+      subdivision_code: comp?.subdivision_code || null
+    };
+    const hasSubjectSubdiv = Boolean(subLocRef.subdivision_name || subLocRef.subdivision_code);
+    const hasCompSubdiv = Boolean(compLocRef.subdivision_name || compLocRef.subdivision_code);
+    const sameSubdiv = hasSubjectSubdiv && hasCompSubdiv
+      ? isSameSubdivision(subLocRef, compLocRef)
+      : null;
+    const rawSubdivAdj = sameSubdiv === false ? effectiveRates.differentSubdivision : 0;
+    const subdivSpec = sameSubdiv === true
+      ? 'Same subdivision'
+      : sameSubdiv === false
+        ? 'Different'
+        : 'Unknown';
+    const compHoa = compDetails.hoa_name || comp.hoa_name || '';
+    const subdivNote = [compLocRef.subdivision_name, compHoa ? `HOA: ${compHoa}` : null]
+      .filter(Boolean)
+      .join(' · ');
+    const locationSubdivisionCell = resolveCell(
+      'location_subdivision',
+      rawSubdivAdj,
+      subdivSpec,
+      { note: subdivNote }
+    );
+
+    // 10. Location / Waterfront & View / Lot Size
     const isWaterfrontUnknown = compDetails.waterfront_view === 'unknown';
     const compLotSqft = Number(comp.lot_sqft) || 0;
     const lotDiff = subjectLotSqft > 0 && compLotSqft > 0 ? subjectLotSqft - compLotSqft : 0;
@@ -788,6 +827,7 @@ export function computeAppraisalGrid({
       roof: roofCell,
       pool: poolCell,
       garage: garageCell,
+      location_subdivision: locationSubdivisionCell,
       location_site: locationSiteCell
     };
 
@@ -843,6 +883,7 @@ export function computeAppraisalGrid({
       compDetails,
       detailsProgress,
       countyClues,
+      sameSubdivision: sameSubdiv,
       unknownFeatureKeys,
       unknownFeatureCount,
       cells,
@@ -1116,6 +1157,11 @@ export function computeAppraisalGrid({
       roofLabel: formatRoofSpecLabel(subjectDetails),
       poolLabel: formatPoolSpecLabel(subjectDetails),
       garageLabel: formatGarageSpecLabel(subjectDetails),
+      subdivisionName: subject?.subdivision_name || null,
+      subdivisionCode: subject?.subdivision_code || null,
+      nbrhdCd: subject?.nbrhd_cd || null,
+      hoaName: subject?.hoa_name || subjectDetails.hoa_name || null,
+      locationSubdivisionLabel: subject?.subdivision_name || 'Not set',
       locationSiteLabel: formatWaterfrontSpecLabel(subjectDetails, subjectLotSqft),
       detailsProgress: subjectDetailsProgress
     },

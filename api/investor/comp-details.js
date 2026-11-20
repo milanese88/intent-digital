@@ -31,7 +31,7 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
   const progress = computeDetailsProgress(norm);
 
   // Do not create empty placeholder rows if nothing was entered
-  if (progress.filledCount === 0 && !norm.notes && !norm.verified) {
+  if (progress.filledCount === 0 && !norm.notes && !norm.verified && !norm.hoa_name) {
     return null;
   }
 
@@ -57,6 +57,7 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         garage_type,
         garage_bays,
         waterfront_view,
+        hoa_name,
         notes,
         source,
         verified,
@@ -80,6 +81,7 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         ${norm.garage_type},
         ${norm.garage_bays},
         ${norm.waterfront_view},
+        ${norm.hoa_name || null},
         ${norm.notes || null},
         ${norm.source || null},
         ${Boolean(norm.verified)},
@@ -101,6 +103,7 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         garage_type = EXCLUDED.garage_type,
         garage_bays = EXCLUDED.garage_bays,
         waterfront_view = EXCLUDED.waterfront_view,
+        hoa_name = EXCLUDED.hoa_name,
         notes = EXCLUDED.notes,
         source = EXCLUDED.source,
         verified = EXCLUDED.verified,
@@ -129,6 +132,7 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         pool = ${legacy.pool},
         garage = ${legacy.garage},
         waterfront = ${legacy.waterfront},
+        hoa_name = ${legacy.hoa_name},
         notes = COALESCE(${norm.notes || null}, notes),
         comp_details_json = ${JSON.stringify(norm)}::jsonb
       WHERE lower(owner_email) = ${cleanEmail}
@@ -232,7 +236,7 @@ export default async function handler(req, res) {
 
       if (!saved) {
         return res.status(400).json({
-          error: 'Enter at least one detail field or note before saving.'
+          error: 'Enter at least one detail field, HOA name, or note before saving.'
         });
       }
 

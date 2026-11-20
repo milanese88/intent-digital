@@ -3,6 +3,7 @@ import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { getCountyFreshness } from './freshness.js';
 import {
   validateCompSearchParams,
+  parseCompLocationFilters,
   computeSqftBounds,
   computeMonthsAgo,
   computeMonthWindowRange,
@@ -17,6 +18,7 @@ import {
   computeDetailsProgress
 } from '../../src/components/investor/compDetailsModel.js';
 import { SUPPORTED_COUNTIES, normalizeCountyName } from '../../src/config/counties.js';
+import { isSameSubdivision } from '../../src/utils/subdivision.js';
 const MAX_CANDIDATES = 20;
 
 /**
@@ -64,34 +66,73 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: validation.error });
     }
 
+    const locFilters = parseCompLocationFilters(req.query || {});
+    if (!locFilters.ok) {
+      return res.status(400).json({ error: locFilters.error });
+    }
+
     const { months, radius, sizePct, includeDistressed } = validation.params;
+    const { sameSubdivision, sameNeighborhood } = locFilters;
 
     const sql = getDb();
     const cleanEmail = (user.email || '').trim().toLowerCase();
     const now = new Date();
 
     // Fetch subject parcel & cached county freshness in parallel
+    const fetchSubjectParcel = async () => {
+      try {
+        return await sql`
+          SELECT
+            county,
+            parcel_id,
+            address,
+            city,
+            zip,
+            use_code,
+            living_sqft,
+            nbrhd_cd,
+            mkt_ar,
+            s_legal,
+            subdivision_name,
+            subdivision_code,
+            year_built,
+            eff_year_built,
+            units,
+            lat,
+            lng
+          FROM county_parcels
+          WHERE county = ${county} AND parcel_id = ${parcelId}
+          LIMIT 1;
+        `;
+      } catch (colErr) {
+        if (colErr?.code === '42703') {
+          return await sql`
+            SELECT
+              county,
+              parcel_id,
+              address,
+              city,
+              zip,
+              use_code,
+              living_sqft,
+              nbrhd_cd,
+              mkt_ar,
+              year_built,
+              eff_year_built,
+              units,
+              lat,
+              lng
+            FROM county_parcels
+            WHERE county = ${county} AND parcel_id = ${parcelId}
+            LIMIT 1;
+          `;
+        }
+        throw colErr;
+      }
+    };
+
     const [subjects, freshnessMap] = await Promise.all([
-      sql`
-        SELECT
-          county,
-          parcel_id,
-          address,
-          city,
-          zip,
-          use_code,
-          living_sqft,
-          nbrhd_cd,
-          mkt_ar,
-          year_built,
-          eff_year_built,
-          units,
-          lat,
-          lng
-        FROM county_parcels
-        WHERE county = ${county} AND parcel_id = ${parcelId}
-        LIMIT 1;
-      `,
+      fetchSubjectParcel(),
       getCountyFreshness().catch(() => null)
     ]);
 
@@ -121,7 +162,17 @@ export default async function handler(req, res) {
           outlier_count: 0,
           total_matching: 0,
           median_price_per_sqft: null,
+          same_subdivision_median_price_per_sqft: null,
+          same_subdivision_inlier_count: 0,
+          same_subdivision_count: 0,
+          same_neighborhood_count: 0,
           renovated_median_price_per_sqft: null,
+          subject_subdivision_name: subject.subdivision_name || null,
+          subject_subdivision_code: subject.subdivision_code || null,
+          subject_nbrhd_cd: subject.nbrhd_cd || null,
+          subject_mkt_ar: subject.mkt_ar || null,
+          same_subdivision_filter: sameSubdivision,
+          same_neighborhood_filter: sameNeighborhood,
           tier: 1,
           tier_label: tierLabel,
           has_coordinates: hasCoordinates,
@@ -202,6 +253,11 @@ export default async function handler(req, res) {
             p.beds AS county_beds,
             p.full_baths AS county_full_baths,
             p.half_baths AS county_half_baths,
+            p.nbrhd_cd,
+            p.mkt_ar,
+            p.s_legal,
+            p.subdivision_name,
+            p.subdivision_code,
             p.lat,
             p.lng,
             s.sale_price,
@@ -316,8 +372,21 @@ export default async function handler(req, res) {
         subjectSqft
       });
 
+      const rowCounty = row.county || subject.county;
+      const same_subdivision = isSameSubdivision(subject, {
+        county: rowCounty,
+        subdivision_name: row.subdivision_name || null,
+        subdivision_code: row.subdivision_code || null
+      });
+      const same_neighborhood = Boolean(
+        subject.nbrhd_cd &&
+        row.nbrhd_cd &&
+        rowCounty === subject.county &&
+        String(subject.nbrhd_cd).trim() === String(row.nbrhd_cd).trim()
+      );
+
       matched.push({
-        county: row.county || subject.county,
+        county: rowCounty,
         parcel_id: row.parcel_id,
         address: row.address,
         city: row.city,
@@ -331,6 +400,13 @@ export default async function handler(req, res) {
         const_class: county_clues.constClassCode,
         spec_feat_val: county_clues.specFeatVal,
         county_clues,
+        nbrhd_cd: row.nbrhd_cd || null,
+        mkt_ar: row.mkt_ar || null,
+        s_legal: row.s_legal || null,
+        subdivision_name: row.subdivision_name || null,
+        subdivision_code: row.subdivision_code || null,
+        same_subdivision,
+        same_neighborhood,
         lat: row.lat != null ? Number(row.lat) : null,
         lng: row.lng != null ? Number(row.lng) : null,
         distance_mi: distance_mi != null ? Math.round(distance_mi * 10) / 10 : null,
@@ -350,12 +426,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // Sort all matched sales by similarity_score descending first, then cap to MAX_CANDIDATES
-    matched.sort((a, b) => b.similarity_score - a.similarity_score);
-    const totalMatching = matched.length;
-    const candidatePool = matched.slice(0, MAX_CANDIDATES).map(({ raw_distance_mi: _unused, ...rest }) => rest);
+    const totalSameSubdivision = matched.filter((c) => c.same_subdivision).length;
+    const totalSameNeighborhood = matched.filter((c) => c.same_neighborhood).length;
 
-    // Flag $/sf outliers, exclude from median, and sort outliers to the bottom
+    let filtered = matched;
+    if (sameSubdivision) {
+      filtered = filtered.filter((c) => c.same_subdivision);
+    }
+    if (sameNeighborhood) {
+      filtered = filtered.filter((c) => c.same_neighborhood);
+    }
+
+    // Sort same-subdivision sales first, then similarity_score descending, before capping to MAX_CANDIDATES
+    filtered.sort((a, b) => {
+      if (a.same_subdivision !== b.same_subdivision) {
+        return a.same_subdivision ? -1 : 1;
+      }
+      return b.similarity_score - a.similarity_score;
+    });
+    const totalMatching = filtered.length;
+    const candidatePool = filtered.slice(0, MAX_CANDIDATES).map(({ raw_distance_mi: _unused, ...rest }) => rest);
+
+    // Flag $/sf outliers, exclude from median, and sort outliers to the bottom (same-subdivision first)
     const evaluated = evaluateAndSortCompCandidates(candidatePool);
 
     // Attach user's reusable saved comp_details (keyed by county + folio + sale_month_key)
@@ -392,6 +484,7 @@ export default async function handler(req, res) {
       if (!savedRow) {
         return {
           ...cand,
+          hoa_name: null,
           saved_comp_details: null,
           details_filled_count: 0,
           details_progress: null
@@ -401,6 +494,7 @@ export default async function handler(req, res) {
       const progress = computeDetailsProgress(norm);
       return {
         ...cand,
+        hoa_name: norm.hoa_name || savedRow.hoa_name || null,
         saved_comp_details: norm,
         details_filled_count: progress.filledCount,
         details_progress: progress
@@ -414,7 +508,17 @@ export default async function handler(req, res) {
         outlier_count: evaluated.outlier_count,
         total_matching: totalMatching,
         median_price_per_sqft: evaluated.median_price_per_sqft,
+        same_subdivision_median_price_per_sqft: evaluated.same_subdivision_median_price_per_sqft,
+        same_subdivision_inlier_count: evaluated.same_subdivision_inlier_count,
+        same_subdivision_count: totalSameSubdivision,
+        same_neighborhood_count: totalSameNeighborhood,
         renovated_median_price_per_sqft: evaluated.renovated_median_price_per_sqft,
+        subject_subdivision_name: subject.subdivision_name || null,
+        subject_subdivision_code: subject.subdivision_code || null,
+        subject_nbrhd_cd: subject.nbrhd_cd || null,
+        subject_mkt_ar: subject.mkt_ar || null,
+        same_subdivision_filter: sameSubdivision,
+        same_neighborhood_filter: sameNeighborhood,
         tier: 1,
         tier_label: tierLabel,
         has_coordinates: hasCoordinates,

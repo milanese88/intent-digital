@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'csv-parse';
 import dotenv from 'dotenv';
 import { COUNTY_REGISTRY, normalizeCountyName, getCountyConfig, findRollFile, computeSitusNorm } from './_counties.mjs';
+import { deriveSubdivisionName, deriveSubdivisionCode } from '../../src/utils/subdivision.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -274,7 +275,8 @@ async function main() {
     'county', 'parcel_id', 'address', 'city', 'zip', 'use_code',
     'living_sqft', 'year_built', 'eff_year_built', 'land_sqft', 'units',
     'imp_qual', 'const_class', 'spec_feat_val',
-    'just_value', 'nbrhd_cd', 'mkt_ar', 'lat', 'lng', 'roll_year',
+    'just_value', 'nbrhd_cd', 'mkt_ar', 's_legal', 'subdivision_name', 'subdivision_code',
+    'lat', 'lng', 'roll_year',
     'situs_number', 'situs_street_norm'
   ];
   const parcelConflictClause = `
@@ -294,6 +296,9 @@ async function main() {
       just_value = EXCLUDED.just_value,
       nbrhd_cd = EXCLUDED.nbrhd_cd,
       mkt_ar = EXCLUDED.mkt_ar,
+      s_legal = COALESCE(EXCLUDED.s_legal, county_parcels.s_legal),
+      subdivision_name = COALESCE(EXCLUDED.subdivision_name, county_parcels.subdivision_name),
+      subdivision_code = COALESCE(EXCLUDED.subdivision_code, county_parcels.subdivision_code),
       lat = COALESCE(EXCLUDED.lat, county_parcels.lat),
       lng = COALESCE(EXCLUDED.lng, county_parcels.lng),
       roll_year = EXCLUDED.roll_year,
@@ -594,6 +599,11 @@ async function main() {
       const justValue = row[nalMap['JV']] ? parseFloat(row[nalMap['JV']]) || null : null;
       const nbrhdCd = row[nalMap['NBRHD_CD']]?.trim() || null;
       const mktAr = row[nalMap['MKT_AR']]?.trim() || null;
+      const sLegal = nalMap['S_LEGAL'] !== undefined
+        ? (row[nalMap['S_LEGAL']]?.replace(/\s+/g, ' ').trim() || null)
+        : null;
+      const subdivisionName = deriveSubdivisionName(sLegal);
+      const subdivisionCode = deriveSubdivisionCode(parcelId, countyName);
       const rollYear = row[nalMap['ASMNT_YR']] ? parseInt(row[nalMap['ASMNT_YR']], 10) || 2026 : 2026;
 
       let lat = null;
@@ -621,6 +631,9 @@ async function main() {
         just_value: justValue,
         nbrhd_cd: nbrhdCd,
         mkt_ar: mktAr,
+        s_legal: sLegal,
+        subdivision_name: subdivisionName,
+        subdivision_code: subdivisionCode,
         lat: lat,
         lng: lng,
         roll_year: rollYear,

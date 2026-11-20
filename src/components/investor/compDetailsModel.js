@@ -363,6 +363,9 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
   const rawNotes = pick('notes');
   const notes = rawNotes != null && String(rawNotes).trim() !== '' ? String(rawNotes).trim() : '';
 
+  const rawHoaName = pick('hoa_name');
+  const hoa_name = rawHoaName != null && String(rawHoaName).trim() !== '' ? String(rawHoaName).trim() : '';
+
   const rawSource = pick('detail_source') ?? pick('source');
   const sourceStr = rawSource != null ? String(rawSource).trim() : '';
   const allowedSources = new Set(['MLS', 'listing_photos', 'agent', 'drive_by', 'county_hint']);
@@ -386,6 +389,7 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     garage_type,
     garage_bays,
     waterfront_view,
+    hoa_name,
     notes,
     source,
     verified
@@ -428,6 +432,7 @@ export function detailsToLegacyColumns(details = {}) {
     pool: poolBool,
     garage: garageBool,
     waterfront: waterfrontBool,
+    hoa_name: norm.hoa_name || null,
     comp_details_json: norm
   };
 }
@@ -669,6 +674,7 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         garage_type: savedRow.garage_type,
         garage_bays: savedRow.garage_bays,
         waterfront_view: savedRow.waterfront_view,
+        hoa_name: savedRow.hoa_name ?? comp.hoa_name ?? '',
         notes: savedRow.notes ?? comp.notes,
         source: savedRow.source ?? comp.source,
         verified: savedRow.verified
@@ -686,7 +692,13 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
   return {
     ...comp,
     ...legacyCols,
+    hoa_name: normalizedDetails.hoa_name || savedRow?.hoa_name || comp.hoa_name || null,
     notes: normalizedDetails.notes || comp.notes || null,
+    s_legal: countyParcel?.s_legal ?? comp.s_legal ?? null,
+    subdivision_name: countyParcel?.subdivision_name ?? comp.subdivision_name ?? null,
+    subdivision_code: countyParcel?.subdivision_code ?? comp.subdivision_code ?? null,
+    nbrhd_cd: countyParcel?.nbrhd_cd ?? comp.nbrhd_cd ?? null,
+    mkt_ar: countyParcel?.mkt_ar ?? comp.mkt_ar ?? null,
     eff_year_built: cluesSource.eff_year_built,
     spec_feat_val: cluesSource.spec_feat_val,
     units: cluesSource.units,
@@ -735,6 +747,7 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     garage_bays: subject?.garage_bays,
     waterfront: subject?.waterfront,
     waterfront_view: subject?.waterfront_view,
+    hoa_name: subject?.hoa_name,
     notes: subject?.notes,
     ...(asIsRaw || {}),
     ...(mode !== 'arv' ? liveOverrides : {})
