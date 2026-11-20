@@ -5,7 +5,7 @@
  *
  * Orchestrates applying migrations/add_comp_details_and_nal_clues.sql and running
  * the batched DOR NAL clues backfill (--backfill-clues) for Broward and Palm Beach,
- * followed by VACUUM (ANALYZE) and a final Neon PostgreSQL storage report (< 1 GB).
+ * followed by VACUUM (ANALYZE) and a final Supabase PostgreSQL storage report.
  *
  * Usage:
  *   node scripts/county/backfill-nal-clues.mjs --dry-run
@@ -69,9 +69,9 @@ async function main() {
       `);
       const row = sizeRes.rows[0] || {};
       console.log('===============================================================================');
-      console.log('FINAL NEON STORAGE CHECK AFTER VACUUM (ANALYZE):');
+      console.log('FINAL DATABASE STORAGE CHECK AFTER VACUUM (ANALYZE):');
       console.log(`- county_parcels total (heap + indexes): ${formatBytes(row.parcels_bytes)}`);
-      console.log(`- Total Neon database size:              ${formatBytes(row.db_bytes)} (limit: 1.00 GB)`);
+      console.log(`- Total Supabase database size:          ${formatBytes(row.db_bytes)}`);
       console.log('===============================================================================');
     } finally {
       await pool.end();

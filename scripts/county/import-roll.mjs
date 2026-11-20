@@ -4,7 +4,7 @@
  * import-roll.mjs
  * 
  * Production ETL script to import Florida Department of Revenue (FDOR) property rolls
- * into Neon PostgreSQL for Intent Digital.
+ * into Supabase PostgreSQL for Intent Digital.
  * 
  * Features:
  * - RFC-4180 compliant CSV streaming parser (csv-parse) handling embedded commas,
@@ -133,7 +133,7 @@ async function main() {
   }
 
   console.log(`===============================================================================`);
-  console.log(`INTENT DIGITAL — COUNTY ROLL ${isBackfillClues ? 'CLUES BACKFILL' : 'IMPORT'} TO NEON POSTGRESQL`);
+  console.log(`INTENT DIGITAL — COUNTY ROLL ${isBackfillClues ? 'CLUES BACKFILL' : 'IMPORT'} TO SUPABASE POSTGRESQL`);
   console.log(`Target County: [${countyName}] | Execution Mode: [${isDryRun ? 'DRY-RUN (Simulate only)' : (isBackfillClues ? 'NAL CLUES BACKFILL' : 'PRODUCTION IMPORT')}]`);
   console.log(`CSV Engine: RFC-4180 streaming parser (csv-parse) with header-based mapping`);
   console.log(`===============================================================================`);
@@ -878,7 +878,7 @@ async function main() {
   if (!isDryRun && pool) {
     try {
       const client = await pool.connect();
-      console.log(`\n--- ACTUAL NEON DATABASE SIZES ---`);
+      console.log(`\n--- ACTUAL SUPABASE DATABASE SIZES ---`);
       
       const sizeQuery = `
         SELECT 
@@ -918,7 +918,7 @@ async function main() {
     const estSalesBytes = uniqueSalesKeys.size * 135;
     const estTotalBytes = estParcelBytes + estSalesBytes;
 
-    console.log(`\n--- ESTIMATED NEON STORAGE FOOTPRINT ---`);
+    console.log(`\n--- ESTIMATED SUPABASE STORAGE FOOTPRINT ---`);
     console.log(`- county_parcels (${totalResidentialParcels.toLocaleString()} rows): ~${formatBytes(estParcelBytes)} (table + 4 B-Tree indexes)`);
     console.log(`- county_sales   (${uniqueSalesKeys.size.toLocaleString()} rows): ~${formatBytes(estSalesBytes)} (table + 2 B-Tree indexes)`);
     console.log(`- county_sale_codes (33 reference rows): < 0.1 MB`);

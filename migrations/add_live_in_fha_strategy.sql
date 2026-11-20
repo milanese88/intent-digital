@@ -4,7 +4,7 @@
 --              optional HOA fields on investor_properties for Live-in fit checks,
 --              and editable FHA/financing overrides on investor_profile.
 --              Strictly schema-only (NO test rows). 100% idempotent (IF NOT EXISTS).
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- ==============================================================================
 
 -- 1. Expand investor_properties.strategy CHECK constraint to include 'live_in'

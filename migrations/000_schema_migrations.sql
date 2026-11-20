@@ -4,7 +4,7 @@
 --              migrations can be checked via scripts/db/check.mjs and applied
 --              in deterministic order via scripts/db/migrate.mjs.
 -- Strictly schema-only (NO test rows). 100% idempotent (IF NOT EXISTS).
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS schema_migrations (

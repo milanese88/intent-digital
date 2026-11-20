@@ -447,7 +447,7 @@ async function run() {
   if (isDryRun) {
     console.log(`\n[DRY RUN COMPLETE] No data was written to the database.`);
   } else {
-    console.log(`\n[SUCCESS] Coordinates updated in Neon database.`);
+    console.log(`\n[SUCCESS] Coordinates updated in Supabase database.`);
   }
 
   process.exit(0);

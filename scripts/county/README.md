@@ -1,6 +1,6 @@
 # Florida County Property Tax Roll Pipeline (Phase 2)
 
-This directory contains standalone, non-deployed Node.js scripts for inspecting, reprojecting coordinates from GIS shapefiles, and importing Florida Department of Revenue (FDOR) Property Tax Oversight (PTO) property tax rolls into Neon PostgreSQL.
+This directory contains standalone, non-deployed Node.js scripts for inspecting, reprojecting coordinates from GIS shapefiles, and importing Florida Department of Revenue (FDOR) Property Tax Oversight (PTO) property tax rolls into Supabase PostgreSQL.
 
 ---
 
@@ -32,14 +32,11 @@ This directory contains standalone, non-deployed Node.js scripts for inspecting,
 
 ## 2. Environment Configuration
 
-The import scripts read `DATABASE_URL` from `.env.local`:
+The import scripts read `SUPABASE_DATABASE_URL` (port 5432 session pooler, falling back to `DATABASE_URL`) from `.env.local`:
 
 ```bash
-# Option A: Pull environment from linked Vercel project
-vercel env pull .env.local
-
-# Option B: Add directly to .env.local (never commit .env.local)
-echo "DATABASE_URL=postgresql://neondb_owner:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require" >> .env.local
+# Set your Supabase connection strings in .env.local (never commit .env.local)
+SUPABASE_DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 ```
 
 ---
@@ -81,7 +78,7 @@ Confirm:
 - Known benchmark parcel coordinates and sales match expectations
 
 ### Step 4: Run the Real Import
-Execute the one-pass production import into Neon PostgreSQL:
+Execute the one-pass production import into Supabase PostgreSQL:
 
 ```bash
 # Broward Real Import
@@ -94,7 +91,7 @@ node scripts/county/import-roll.mjs --county="Palm Beach"
 ### Step 5: Post-Refresh Maintenance (Vacuum & Analyze)
 After updating or refreshing hundreds of thousands of rows, reclaim any dead tuples, rebuild table statistics, and verify total database size:
 
-1. In the **Neon SQL Editor** or via `psql`, run:
+1. In the **Supabase SQL Editor** or via `psql`, run:
 ```sql
 VACUUM (FULL, ANALYZE) county_parcels;
 VACUUM (FULL, ANALYZE) county_sales;

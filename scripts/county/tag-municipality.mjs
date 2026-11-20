@@ -245,7 +245,7 @@ async function main() {
     const batch = taggedRows.slice(i, i + BATCH_SIZE);
 
     // Build parameterized values string
-    // Neon postgres supports bulk unnest or multi-row insert
+    // PostgreSQL supports bulk unnest or multi-row insert
     await sql`
       INSERT INTO parcel_jurisdiction (county, parcel_id, municipality)
       SELECT * FROM json_to_recordset(${JSON.stringify(batch)}::json)

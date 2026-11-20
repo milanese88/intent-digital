@@ -18,6 +18,7 @@ import {
   verifyStatelessSessionToken
 } from '../../api/_lib/session.js';
 import {
+  DATABASE_QUOTA_MESSAGE,
   NEON_QUOTA_MESSAGE,
   attachSqlAdapters,
   validateDatabaseUrl,
@@ -131,7 +132,7 @@ test('Homepage header config exposes STUDIO -> /admin when authenticated, Login 
   assert.equal(verifyMagicSrc.includes('sanitizeAdminNextPath'), true);
 });
 
-test('Neon HTTP 402 quota errors map to friendly 503 NEON_QUOTA_MESSAGE and [SENSITIVE] placeholders are ignored', () => {
+test('Database HTTP 402 quota errors map to friendly 503 DATABASE_QUOTA_MESSAGE and [SENSITIVE] placeholders are ignored', () => {
   const quotaErr = new Error(
     'Server error (HTTP status 402): {"message":"Your account or project has exceeded the quota. Upgrade your plan to increase limits."}'
   );
@@ -140,6 +141,7 @@ test('Neon HTTP 402 quota errors map to friendly 503 NEON_QUOTA_MESSAGE and [SEN
   const res = createMockRes();
   sendSafeApiError(res, quotaErr, 'Test quota error');
   assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, DATABASE_QUOTA_MESSAGE);
   assert.equal(res.body.error, NEON_QUOTA_MESSAGE);
   assert.equal(res.body.databaseQuotaExceeded, true);
 
@@ -282,7 +284,7 @@ test('postgres.js shared client adapters preserve sql.query, sql.transaction, se
   const txOut = await fakeSql.transaction((tx) => [tx`UPDATE a SET x = ${1}`, tx`UPDATE b SET y = ${2}`]);
   assert.equal(txOut.length, 2);
 
-  // App URL routing prefers SUPABASE_POOLER_URL over Vercel's Neon-managed DATABASE_URL,
+  // App URL routing prefers SUPABASE_POOLER_URL over legacy DATABASE_URL,
   // and script URL routing prefers SUPABASE_DATABASE_URL (5432) over both.
   const prevSupa = process.env.SUPABASE_DATABASE_URL;
   const prevPooler = process.env.SUPABASE_POOLER_URL;
@@ -290,7 +292,7 @@ test('postgres.js shared client adapters preserve sql.query, sql.transaction, se
   try {
     process.env.SUPABASE_DATABASE_URL = 'postgresql://u:p@example.pooler:5432/postgres';
     process.env.SUPABASE_POOLER_URL = 'postgresql://u:p@example.pooler:6543/postgres';
-    process.env.DATABASE_URL = 'postgresql://u:p@legacy-neon.example:5432/neondb';
+    process.env.DATABASE_URL = 'postgresql://u:p@legacy-db.example:5432/postgres';
     assert.equal(resolveAppDatabaseUrl(), 'postgresql://u:p@example.pooler:6543/postgres');
     assert.ok(resolveScriptDatabaseUrl().includes(':5432/'));
     assert.ok(resolveScriptDatabaseUrl(process.env.DATABASE_URL).includes(':5432/'));

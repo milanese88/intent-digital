@@ -1,10 +1,10 @@
 -- ==============================================================================
--- Migration: Designer Hub Tables (Neon Postgres)
+-- Migration: Designer Hub Tables (Supabase Postgres)
 -- Created: 2026-11-09
 -- Description: Creates tables for Designer Hub (interior design studio):
 --              projects, rooms, room images, line items, sourcing products,
 --              trade contacts, and portfolio entries.
--- Target Database: Neon Serverless Postgres
+-- Target Database: Supabase PostgreSQL
 -- Auth Model: Authenticated admin session validation via server-side /api routes
 -- ==============================================================================
 

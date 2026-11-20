@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Migration: Studio Journal Tables (Neon Postgres)
+-- Migration: Studio Journal Tables (Supabase Postgres)
 -- Created: 2026-11-10
 -- Description: Creates inspiration_images and learning_notes tables, and adds
 --              is_studying flag to investor_properties.

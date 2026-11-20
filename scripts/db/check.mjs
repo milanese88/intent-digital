@@ -3,7 +3,7 @@
 /**
  * scripts/db/check.mjs
  *
- * Strictly READ-ONLY check against .env.local's Neon PostgreSQL database.
+ * Strictly READ-ONLY check against .env.local's Supabase PostgreSQL database.
  * Compares every .sql file in migrations/ against schema_migrations (if present)
  * and information_schema / pg_catalog, then reports pending migrations.
  *

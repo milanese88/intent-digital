@@ -13,7 +13,7 @@
  * - Categorizes parcels by DOR Land-Use Code (DOR_UC) into standard residential groupings.
  * - Analyzes sales history and categorizes arm's-length market sales ('01' and '02') vs disqualified transfers.
  * - Privacy-safe: Whitelists strictly non-PII property fields for sample preview. NEVER prints owner names or mailing addresses.
- * - Estimates Postgres / Neon database storage size and index overhead for residential parcels and sales.
+ * - Estimates Postgres / Supabase database storage size and index overhead for residential parcels and sales.
  * 
  * Usage:
  *   node scripts/county/inspect-roll.mjs [--county=Broward] [path_to_data_folder_or_file]
@@ -437,14 +437,14 @@ async function inspectRollFile(filePath) {
 }
 
 /**
- * Calculates estimated PostgreSQL / Neon database storage size for residential parcels and sales.
+ * Calculates estimated PostgreSQL / Supabase database storage size for residential parcels and sales.
  */
 function printDatabaseSizeEstimate(nalStats, sdfStats) {
   const parcelCount = nalStats?.targetResidentialCount || (nalStats?.totalRows ? Math.round(nalStats.totalRows * 0.85) : 672710);
   const salesCount = sdfStats?.totalSales || 118950;
 
   console.log(`\n===============================================================================`);
-  console.log(`DATABASE STORAGE ESTIMATION (Neon PostgreSQL)`);
+  console.log(`DATABASE STORAGE ESTIMATION (Supabase PostgreSQL)`);
   console.log(`===============================================================================`);
   console.log(`Target Residential Scope: Codes 000 (Vacant), 001 (SF), 002 (Mobile), 004 (Condo), 008 (Multi < 10)`);
   console.log(`Parcels Count: ~${parcelCount.toLocaleString('en-US')}  |  Sales Records: ~${salesCount.toLocaleString('en-US')}\n`);
@@ -475,8 +475,8 @@ function printDatabaseSizeEstimate(nalStats, sdfStats) {
   console.log(`\n-------------------------------------------------------------------------------`);
   console.log(`>> TOTAL ESTIMATED DATABASE FOOTPRINT: ~${grandTotalMb.toFixed(1)} MB (${grandTotalGb} GB)`);
   console.log(`-------------------------------------------------------------------------------`);
-  console.log(`Neon Serverless Compatibility:`);
-  console.log(`- Fits comfortably in Neon storage tiers (sub-1GB total footprint).`);
+  console.log(`Supabase Database Compatibility:`);
+  console.log(`- Fits comfortably in Supabase storage tiers.`);
   console.log(`- Query performance: B-Tree index searches on parcel_id and address will run in < 15ms.`);
   console.log(`- Zero unindexed table scans on large valuation joins.`);
   console.log(`===============================================================================\n`);

@@ -2,7 +2,7 @@
 -- Migration: add_newsletter_subscribers.sql
 -- Description: Stores public homepage newsletter signups for Florencia Nuñez.
 -- Strictly schema-only (NO test rows). 100% idempotent (IF NOT EXISTS).
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS newsletter_subscribers (
