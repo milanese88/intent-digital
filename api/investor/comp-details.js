@@ -35,7 +35,9 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
     Boolean(norm.hoa_name) ||
     norm.boat_dock !== null ||
     norm.boat_dock_sqft != null ||
-    (norm.construction_type && norm.construction_type !== 'unknown');
+    norm.boat_lift !== null ||
+    (norm.construction_type && norm.construction_type !== 'unknown') ||
+    (norm.quality && norm.quality !== 'unknown');
   if (progress.filledCount === 0 && !norm.notes && !norm.verified && !hasExtraAttr) {
     return null;
   }
@@ -182,6 +184,23 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
     }
   }
 
+  // Best-effort sync of appraisal v2 columns (quality, boat_lift) on comp_details
+  if (savedRow?.id) {
+    try {
+      await sql`
+        UPDATE comp_details
+        SET
+          quality = ${norm.quality !== 'unknown' ? norm.quality : null},
+          boat_lift = ${norm.boat_lift}
+        WHERE id = ${savedRow.id};
+      `;
+      savedRow.quality = norm.quality !== 'unknown' ? norm.quality : null;
+      savedRow.boat_lift = norm.boat_lift;
+    } catch (v2Err) {
+      if (v2Err?.code !== '42703') throw v2Err;
+    }
+  }
+
   // Synchronize any other investor_comps rows owned by this user referencing the same county sale
   try {
     const legacy = detailsToLegacyColumns(norm);
@@ -233,6 +252,24 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
             OR to_char(sold_date, 'YYYY-MM') = ${saleMonthKey}
           );
       `;
+    }
+    try {
+      await sql`
+        UPDATE investor_comps
+        SET
+          quality = ${legacy.quality},
+          boat_lift = ${legacy.boat_lift}
+        WHERE lower(owner_email) = ${cleanEmail}
+          AND parcel_id = ${parcelId}
+          AND COALESCE(parcel_county, 'Broward') = ${county}
+          AND (
+            ${saleMonthKey} = ''
+            OR sold_date IS NULL
+            OR to_char(sold_date, 'YYYY-MM') = ${saleMonthKey}
+          );
+      `;
+    } catch (v2SyncErr) {
+      if (v2SyncErr?.code !== '42703') throw v2SyncErr;
     }
   } catch {
     // Ignore if investor_comps columns haven't been migrated yet

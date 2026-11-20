@@ -36,7 +36,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_newsletter_subscribers.sql',
   'add_location_intelligence_tables.sql',
   'add_subdivision_and_hoa_fields.sql',
-  'add_boat_dock_and_construction.sql'
+  'add_boat_dock_and_construction.sql',
+  'add_appraisal_v2_columns.sql'
 ];
 
 /**
@@ -213,6 +214,18 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       { table: 'comp_details', column: 'boat_dock' },
       { table: 'comp_details', column: 'boat_dock_sqft' },
       { table: 'comp_details', column: 'construction_type' }
+    ]
+  },
+  'add_appraisal_v2_columns.sql': {
+    columns: [
+      { table: 'county_parcels', column: 'land_value' },
+      { table: 'investor_properties', column: 'quality' },
+      { table: 'investor_properties', column: 'boat_lift' },
+      { table: 'investor_properties', column: 'land_value' },
+      { table: 'investor_comps', column: 'quality' },
+      { table: 'investor_comps', column: 'boat_lift' },
+      { table: 'comp_details', column: 'quality' },
+      { table: 'comp_details', column: 'boat_lift' }
     ]
   },
   'add_location_intelligence_tables.sql': {

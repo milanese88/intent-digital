@@ -275,7 +275,7 @@ async function main() {
     'county', 'parcel_id', 'address', 'city', 'zip', 'use_code',
     'living_sqft', 'year_built', 'eff_year_built', 'land_sqft', 'units',
     'imp_qual', 'const_class', 'spec_feat_val',
-    'just_value', 'nbrhd_cd', 'mkt_ar', 's_legal', 'subdivision_name', 'subdivision_code',
+    'just_value', 'land_value', 'nbrhd_cd', 'mkt_ar', 's_legal', 'subdivision_name', 'subdivision_code',
     'lat', 'lng', 'roll_year',
     'situs_number', 'situs_street_norm'
   ];
@@ -294,6 +294,7 @@ async function main() {
       const_class = EXCLUDED.const_class,
       spec_feat_val = EXCLUDED.spec_feat_val,
       just_value = EXCLUDED.just_value,
+      land_value = COALESCE(EXCLUDED.land_value, county_parcels.land_value),
       nbrhd_cd = EXCLUDED.nbrhd_cd,
       mkt_ar = EXCLUDED.mkt_ar,
       s_legal = COALESCE(EXCLUDED.s_legal, county_parcels.s_legal),
@@ -318,14 +319,15 @@ async function main() {
     let idx = 2;
 
     for (const r of rows) {
-      placeholders.push(`($${idx++}::text, $${idx++}::int, $${idx++}::int, $${idx++}::text, $${idx++}::text, $${idx++}::bigint)`);
+      placeholders.push(`($${idx++}::text, $${idx++}::int, $${idx++}::int, $${idx++}::text, $${idx++}::text, $${idx++}::bigint, $${idx++}::numeric)`);
       values.push(
         r.parcel_id,
         r.eff_year_built,
         r.units,
         r.imp_qual,
         r.const_class,
-        r.spec_feat_val
+        r.spec_feat_val,
+        r.land_value
       );
     }
 
@@ -336,10 +338,11 @@ async function main() {
         units = COALESCE(v.units, p.units),
         imp_qual = v.imp_qual,
         const_class = v.const_class,
-        spec_feat_val = v.spec_feat_val
+        spec_feat_val = v.spec_feat_val,
+        land_value = COALESCE(v.land_value, p.land_value)
       FROM (
         VALUES ${placeholders.join(', ')}
-      ) AS v(parcel_id, eff_year_built, units, imp_qual, const_class, spec_feat_val)
+      ) AS v(parcel_id, eff_year_built, units, imp_qual, const_class, spec_feat_val, land_value)
       WHERE p.county = $1
         AND p.parcel_id = v.parcel_id
         AND (
@@ -348,6 +351,7 @@ async function main() {
           OR p.spec_feat_val IS DISTINCT FROM v.spec_feat_val
           OR (v.eff_year_built IS NOT NULL AND p.eff_year_built IS DISTINCT FROM v.eff_year_built)
           OR (v.units IS NOT NULL AND p.units IS DISTINCT FROM v.units)
+          OR (v.land_value IS NOT NULL AND p.land_value IS DISTINCT FROM v.land_value)
         );
     `;
 
@@ -597,6 +601,10 @@ async function main() {
         : null;
 
       const justValue = row[nalMap['JV']] ? parseFloat(row[nalMap['JV']]) || null : null;
+      const rawLandVal = nalMap['LND_VAL'] !== undefined ? row[nalMap['LND_VAL']]?.trim() : '';
+      const landValue = rawLandVal !== '' && rawLandVal != null && !isNaN(Number(rawLandVal))
+        ? Math.max(0, Math.round(Number(rawLandVal)))
+        : null;
       const nbrhdCd = row[nalMap['NBRHD_CD']]?.trim() || null;
       const mktAr = row[nalMap['MKT_AR']]?.trim() || null;
       const sLegal = nalMap['S_LEGAL'] !== undefined
@@ -629,6 +637,7 @@ async function main() {
         const_class: constClass,
         spec_feat_val: specFeatVal,
         just_value: justValue,
+        land_value: landValue,
         nbrhd_cd: nbrhdCd,
         mkt_ar: mktAr,
         s_legal: sLegal,

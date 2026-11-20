@@ -185,7 +185,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
   // Appraisal & Sales Comparison Grid State
   const [appraisalMode, setAppraisalMode] = useState('as_is');
-  const [sizeMethod, setSizeMethod] = useState('local_35');
+  const [sizeMethod, setSizeMethod] = useState('auto');
   const [customWeights, setCustomWeights] = useState(null);
   const [subjectAppraisalOverrides, setSubjectAppraisalOverrides] = useState({});
   const [isAdjustmentLibraryOpen, setIsAdjustmentLibraryOpen] = useState(false);
@@ -610,6 +610,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       if (editingProperty.pool !== undefined) payload.pool = editingProperty.pool;
       if (editingProperty.garage !== undefined) payload.garage = editingProperty.garage;
       if (editingProperty.waterfront !== undefined) payload.waterfront = editingProperty.waterfront;
+      if (editingProperty.boat_lift !== undefined) payload.boat_lift = editingProperty.boat_lift;
+      if (editingProperty.quality !== undefined) payload.quality = editingProperty.quality;
+      if (editingProperty.land_value !== undefined) payload.land_value = editingProperty.land_value;
     }
 
     try {
@@ -788,7 +791,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         waterfront: asIsLegacy.waterfront,
         boat_dock: asIsLegacy.boat_dock,
         boat_dock_sqft: asIsLegacy.boat_dock_sqft,
+        boat_lift: asIsLegacy.boat_lift,
         construction_type: asIsLegacy.construction_type,
+        quality: asIsLegacy.quality,
         hoa_name: asIsLegacy.hoa_name,
         subject_details: subjectDetailsMap
       };
@@ -954,14 +959,18 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     const saved = buyingProfile?.valuation_defaults?.saved_appraisals?.[activePropertyId];
     if (saved) {
       if (saved.mode === 'as_is' || saved.mode === 'arv') setAppraisalMode(saved.mode);
-      if (saved.sizeMethod === 'local_35' || saved.sizeMethod === 'library') setSizeMethod(saved.sizeMethod);
+      if (['auto', 'improvement_value', 'local_35', 'library'].includes(saved.sizeMethod)) {
+        setSizeMethod(saved.sizeMethod);
+      } else {
+        setSizeMethod('auto');
+      }
       setCustomWeights(saved.customWeights || null);
       setSubjectAppraisalOverrides(saved.subjectOverrides || {});
       setLastAppraisalSavedAt(saved.savedAt || null);
     } else {
       const defaultMode = ['flip', 'brrrr'].includes((activeProperty?.strategy || '').toLowerCase()) ? 'arv' : 'as_is';
       setAppraisalMode(defaultMode);
-      setSizeMethod('local_35');
+      setSizeMethod('auto');
       setCustomWeights(null);
       setSubjectAppraisalOverrides({});
       setLastAppraisalSavedAt(null);
@@ -1043,7 +1052,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       sqft: activeProperty.sqft || countyData?.living_sqft || null,
       lot_sqft: activeProperty.lot_sqft || countyData?.land_sqft || null,
       year_built: activeProperty.year_built || countyData?.year_built || null,
+      eff_year_built: activeProperty.eff_year_built || countyData?.eff_year_built || null,
       just_value: countyData?.just_value ?? activeProperty.just_value ?? null,
+      land_value: activeProperty.land_value ?? countyData?.land_value ?? null,
+      imp_qual: activeProperty.imp_qual || countyData?.imp_qual || null,
+      nearest_same_street_sale: countyData?.nearest_same_street_sale || null,
       subdivision_name: activeProperty.subdivision_name || countyData?.subdivision_name || null,
       subdivision_code: activeProperty.subdivision_code || countyData?.subdivision_code || null,
       nbrhd_cd: activeProperty.nbrhd_cd || countyData?.nbrhd_cd || null,
@@ -1055,10 +1068,18 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         ? activeProperty.boat_dock
         : (activeProperty.subject_details?.as_is?.boat_dock ?? null),
       boat_dock_sqft: activeProperty.boat_dock_sqft ?? activeProperty.subject_details?.as_is?.boat_dock_sqft ?? null,
+      boat_lift: activeProperty.boat_lift !== undefined && activeProperty.boat_lift !== null
+        ? activeProperty.boat_lift
+        : (activeProperty.subject_details?.as_is?.boat_lift ?? null),
       construction_type:
         activeProperty.construction_type ||
         (activeProperty.subject_details?.as_is?.construction_type && activeProperty.subject_details.as_is.construction_type !== 'unknown'
           ? activeProperty.subject_details.as_is.construction_type
+          : null),
+      quality:
+        activeProperty.quality ||
+        (activeProperty.subject_details?.as_is?.quality && activeProperty.subject_details.as_is.quality !== 'unknown'
+          ? activeProperty.subject_details.as_is.quality
           : null),
       subject_details: activeProperty.subject_details || {},
       appraisal_overrides: subjectAppraisalOverrides,

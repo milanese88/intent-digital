@@ -66,7 +66,10 @@ const STRUCTURED_DETAIL_KEYS = [
   'waterfront_view',
   'boat_dock',
   'boat_dock_sqft',
+  'boat_lift',
   'construction_type',
+  'quality',
+  'eff_year_built',
   'hoa_name',
   'verified'
 ];
@@ -165,11 +168,19 @@ function validateComp(body, isUpdate = false) {
   let garage = parseNullableBool(body.garage);
   let waterfront = parseNullableBool(body.waterfront);
   let boat_dock = parseNullableBool(body.boat_dock !== undefined ? body.boat_dock : body.comp_details_json?.boat_dock);
+  let boat_lift = parseNullableBool(body.boat_lift !== undefined ? body.boat_lift : body.comp_details_json?.boat_lift);
   let boat_dock_sqft = parseNumField(body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : body.comp_details_json?.boat_dock_sqft, true);
-  if (boat_dock === false) boat_dock_sqft = null;
-  if (boat_dock === null && boat_dock_sqft != null && boat_dock_sqft > 0) boat_dock = true;
+  if (boat_dock === false) {
+    boat_dock_sqft = null;
+    boat_lift = false;
+  }
+  if (boat_dock === null && ((boat_dock_sqft != null && boat_dock_sqft > 0) || boat_lift === true)) {
+    boat_dock = true;
+  }
   const rawConstType = body.construction_type !== undefined ? body.construction_type : body.comp_details_json?.construction_type;
   let construction_type = rawConstType != null && String(rawConstType).trim() !== '' ? String(rawConstType).trim().toLowerCase() : null;
+  const rawQuality = body.quality !== undefined ? body.quality : body.comp_details_json?.quality;
+  let quality = rawQuality != null && String(rawQuality).trim() !== '' ? String(rawQuality).trim().toLowerCase() : null;
 
   const rawHoaName =
     body.hoa_name !== undefined
@@ -204,7 +215,9 @@ function validateComp(body, isUpdate = false) {
       waterfront,
       boat_dock,
       boat_dock_sqft,
+      boat_lift,
       construction_type: construction_type ?? 'unknown',
+      quality: quality ?? 'unknown',
       hoa_name: hoa_name ?? '',
       notes: notes ?? '',
       source: source ?? ''
@@ -218,7 +231,9 @@ function validateComp(body, isUpdate = false) {
     waterfront = synced.waterfront;
     boat_dock = synced.boat_dock;
     boat_dock_sqft = synced.boat_dock_sqft;
+    boat_lift = synced.boat_lift;
     construction_type = synced.construction_type;
+    quality = synced.quality;
     hoa_name = synced.hoa_name;
     if (normalizedDetails.notes) {
       notes = normalizedDetails.notes;
@@ -248,7 +263,9 @@ function validateComp(body, isUpdate = false) {
       waterfront,
       boat_dock,
       boat_dock_sqft,
+      boat_lift,
       construction_type,
+      quality,
       hoa_name,
       notes,
       adjustments: rawAdjustments,
@@ -280,29 +297,58 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
   const savedFolioMap = new Map();
 
   if (parcelIds.length > 0) {
-    // 1. Fetch county_parcels clues + subdivision / neighborhood metadata
+    // 1. Fetch county_parcels clues + subdivision / neighborhood + just/land value metadata
     try {
-      const pRows = await sql`
-        SELECT
-          county,
-          parcel_id,
-          year_built,
-          eff_year_built,
-          units,
-          imp_qual,
-          const_class,
-          spec_feat_val,
-          beds,
-          full_baths,
-          half_baths,
-          s_legal,
-          subdivision_name,
-          subdivision_code,
-          nbrhd_cd,
-          mkt_ar
-        FROM county_parcels
-        WHERE parcel_id = ANY(${parcelIds});
-      `;
+      let pRows;
+      try {
+        pRows = await sql`
+          SELECT
+            county,
+            parcel_id,
+            year_built,
+            eff_year_built,
+            units,
+            imp_qual,
+            const_class,
+            spec_feat_val,
+            just_value,
+            land_value,
+            beds,
+            full_baths,
+            half_baths,
+            s_legal,
+            subdivision_name,
+            subdivision_code,
+            nbrhd_cd,
+            mkt_ar
+          FROM county_parcels
+          WHERE parcel_id = ANY(${parcelIds});
+        `;
+      } catch (lvErr) {
+        if (lvErr?.code !== '42703') throw lvErr;
+        pRows = await sql`
+          SELECT
+            county,
+            parcel_id,
+            year_built,
+            eff_year_built,
+            units,
+            imp_qual,
+            const_class,
+            spec_feat_val,
+            just_value,
+            beds,
+            full_baths,
+            half_baths,
+            s_legal,
+            subdivision_name,
+            subdivision_code,
+            nbrhd_cd,
+            mkt_ar
+          FROM county_parcels
+          WHERE parcel_id = ANY(${parcelIds});
+        `;
+      }
       for (const pr of pRows) {
         parcelMap.set(`${pr.county}|${pr.parcel_id}`, pr);
         if (!parcelMap.has(pr.parcel_id)) parcelMap.set(pr.parcel_id, pr);
@@ -311,7 +357,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
       if (err?.code === '42703') {
         try {
           const pRowsFallback = await sql`
-            SELECT county, parcel_id, year_built, eff_year_built, units, nbrhd_cd, mkt_ar
+            SELECT county, parcel_id, year_built, eff_year_built, units, just_value, nbrhd_cd, mkt_ar
             FROM county_parcels
             WHERE parcel_id = ANY(${parcelIds});
           `;
@@ -655,9 +701,22 @@ export default async function handler(req, res) {
         } catch (extErr) {
           if (extErr?.code !== '42703') throw extErr;
         }
+        try {
+          await sql`
+            UPDATE investor_comps
+            SET
+              quality = ${data.quality},
+              boat_lift = ${data.boat_lift}
+            WHERE id = ${rows[0].id} AND lower(owner_email) = ${cleanEmail}
+          `;
+          rows[0].quality = data.quality;
+          rows[0].boat_lift = data.boat_lift;
+        } catch (extErr2) {
+          if (extErr2?.code !== '42703') throw extErr2;
+        }
       }
 
-      // Persist reusable comp_details if county folio + filled details / HOA / dock / construction were provided
+      // Persist reusable comp_details if county folio + filled details / HOA / dock / construction / quality were provided
       if (
         data.parcel_id &&
         data.comp_details_json &&
@@ -665,7 +724,9 @@ export default async function handler(req, res) {
           data.comp_details_json.hoa_name ||
           data.comp_details_json.boat_dock !== null ||
           data.comp_details_json.boat_dock_sqft != null ||
+          data.comp_details_json.boat_lift !== null ||
           (data.comp_details_json.construction_type && data.comp_details_json.construction_type !== 'unknown') ||
+          (data.comp_details_json.quality && data.comp_details_json.quality !== 'unknown') ||
           data.comp_details_json.notes ||
           data.comp_details_json.verified)
       ) {
@@ -762,7 +823,9 @@ export default async function handler(req, res) {
         waterfront: body.waterfront !== undefined ? body.waterfront : currentComp.waterfront,
         boat_dock: body.boat_dock !== undefined ? body.boat_dock : (currentComp.boat_dock ?? currentDetailsJson.boat_dock ?? null),
         boat_dock_sqft: body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : (currentComp.boat_dock_sqft ?? currentDetailsJson.boat_dock_sqft ?? null),
+        boat_lift: body.boat_lift !== undefined ? body.boat_lift : (currentComp.boat_lift ?? currentDetailsJson.boat_lift ?? null),
         construction_type: body.construction_type !== undefined ? body.construction_type : (currentComp.construction_type ?? currentDetailsJson.construction_type ?? 'unknown'),
+        quality: body.quality !== undefined ? body.quality : (currentComp.quality ?? currentDetailsJson.quality ?? 'unknown'),
         hoa_name: body.hoa_name !== undefined ? body.hoa_name : (currentComp.hoa_name ?? currentDetailsJson.hoa_name ?? null),
         notes: body.notes !== undefined ? body.notes : currentComp.notes,
         is_outlier: body.is_outlier !== undefined ? body.is_outlier : Boolean(currentComp.is_outlier || currentAdj.is_outlier),
@@ -785,7 +848,10 @@ export default async function handler(req, res) {
           ...(body.waterfront_view !== undefined ? { waterfront_view: body.waterfront_view } : {}),
           ...(body.boat_dock !== undefined ? { boat_dock: body.boat_dock } : {}),
           ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft: body.boat_dock_sqft } : {}),
+          ...(body.boat_lift !== undefined ? { boat_lift: body.boat_lift } : {}),
           ...(body.construction_type !== undefined ? { construction_type: body.construction_type } : {}),
+          ...(body.quality !== undefined ? { quality: body.quality } : {}),
+          ...(body.eff_year_built !== undefined ? { eff_year_built: body.eff_year_built } : {}),
           ...(body.hoa_name !== undefined ? { hoa_name: body.hoa_name } : {}),
           ...(body.verified !== undefined ? { verified: body.verified } : {}),
           ...(body.detail_source !== undefined ? { source: body.detail_source } : {})
@@ -897,6 +963,19 @@ export default async function handler(req, res) {
         rows[0].construction_type = data.construction_type;
       } catch (extErr) {
         if (extErr?.code !== '42703') throw extErr;
+      }
+      try {
+        await sql`
+          UPDATE investor_comps
+          SET
+            quality = ${data.quality},
+            boat_lift = ${data.boat_lift}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+        `;
+        rows[0].quality = data.quality;
+        rows[0].boat_lift = data.boat_lift;
+      } catch (extErr2) {
+        if (extErr2?.code !== '42703') throw extErr2;
       }
 
       // Persist reusable comp_details per county sale (folio + sale month) when edited
