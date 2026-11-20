@@ -20,6 +20,8 @@ import {
 import {
   NEON_QUOTA_MESSAGE,
   attachSqlAdapters,
+  validateDatabaseUrl,
+  formatSafeDbError,
   resolveAppDatabaseUrl,
   resolveScriptDatabaseUrl,
   isDatabaseError,
@@ -304,4 +306,62 @@ test('postgres.js shared client adapters preserve sql.query, sql.transaction, se
 
   const pgErr = Object.assign(new Error('duplicate key value'), { name: 'PostgresError', code: '23505' });
   assert.equal(isDatabaseError(pgErr), true);
+});
+
+test('validateDatabaseUrl catches Vercel paste mistakes and formatSafeDbError never leaks URLs or passwords', () => {
+  // Valid URI
+  assert.equal(
+    validateDatabaseUrl('postgresql://postgres.ref:secret123@example.pooler:6543/postgres', 'SUPABASE_POOLER_URL').valid,
+    true
+  );
+
+  // Wrapped in DATABASE_URL="..."
+  const prefixCheck = validateDatabaseUrl(
+    'DATABASE_URL="postgresql://postgres.ref:secret123@example.pooler:6543/postgres"',
+    'SUPABASE_POOLER_URL'
+  );
+  assert.equal(prefixCheck.valid, false);
+  assert.equal(prefixCheck.code, 'INVALID_DATABASE_URL');
+  assert.ok(prefixCheck.reason.includes('KEY='));
+  assert.equal(prefixCheck.reason.includes('secret123'), false);
+
+  // Wrapped in quotes
+  const quoteCheck = validateDatabaseUrl(
+    '"postgresql://postgres.ref:secret123@example.pooler:6543/postgres"',
+    'SUPABASE_POOLER_URL'
+  );
+  assert.equal(quoteCheck.valid, false);
+  assert.ok(quoteCheck.reason.includes('quote'));
+
+  // Trailing newline / whitespace
+  const spaceCheck = validateDatabaseUrl(
+    'postgresql://postgres.ref:secret123@example.pooler:6543/postgres\n',
+    'SUPABASE_POOLER_URL'
+  );
+  assert.equal(spaceCheck.valid, false);
+  assert.ok(spaceCheck.reason.includes('whitespace'));
+
+  // Wrong scheme
+  const schemeCheck = validateDatabaseUrl('https://example.supabase.co', 'SUPABASE_POOLER_URL');
+  assert.equal(schemeCheck.valid, false);
+  assert.ok(schemeCheck.reason.includes('postgresql://'));
+
+  // Safe error formatting scrubs secrets while keeping code + message
+  const prevPooler = process.env.SUPABASE_POOLER_URL;
+  try {
+    process.env.SUPABASE_POOLER_URL = 'postgresql://postgres.myref:mySuperSecretPass@myhost.pooler:6543/postgres';
+    const authErr = Object.assign(
+      new Error('password authentication failed for user "postgres" at postgresql://postgres.myref:mySuperSecretPass@myhost.pooler:6543/postgres'),
+      { code: '28P01' }
+    );
+    const diag = formatSafeDbError(authErr);
+    assert.equal(diag.code, '28P01');
+    assert.equal(diag.source, 'SUPABASE_POOLER_URL');
+    assert.equal(diag.message.includes('mySuperSecretPass'), false);
+    assert.equal(diag.message.includes('myhost.pooler'), false);
+    assert.ok(diag.message.includes('password authentication failed'));
+  } finally {
+    if (prevPooler === undefined) delete process.env.SUPABASE_POOLER_URL;
+    else process.env.SUPABASE_POOLER_URL = prevPooler;
+  }
 });

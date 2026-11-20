@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getDb } from './db.js';
+import { getDb, formatSafeDbError } from './db.js';
 import cookie from 'cookie';
 const { parse, serialize } = cookie;
 
@@ -229,7 +229,10 @@ export async function getUserFromSession(req) {
 
     return users[0];
   } catch (e) {
-    console.error('Error getting user from session', e);
+    const diag = formatSafeDbError(e);
+    console.error(
+      `[DB Session Error] code=${diag.code} source=${diag.source} message="${diag.message}"`
+    );
     return null;
   }
 }

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import {
   getDb,
   NEON_QUOTA_MESSAGE,
+  formatSafeDbError,
   isMissingSchemaError,
   isDatabaseQuotaError,
   isDatabaseUnavailableError
@@ -78,7 +79,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     } catch (sessionErr) {
       if (isDatabaseUnavailableError(sessionErr) && getSessionSigningSecret()) {
-        console.warn('Session table unavailable during login; issuing signed stateless session:', sessionErr.message);
+        const sDiag = formatSafeDbError(sessionErr);
+        console.warn(
+          `[DB Login Warning] Session insert unavailable (code=${sDiag.code} source=${sDiag.source}): "${sDiag.message}"`
+        );
         createStatelessSession(user, res, req);
         return res.status(200).json({
           success: true,
@@ -89,7 +93,10 @@ export default async function handler(req, res) {
       throw sessionErr;
     }
   } catch (error) {
-    console.error('Login error:', error?.message || error);
+    const diag = formatSafeDbError(error);
+    console.error(
+      `[DB Login Error] code=${diag.code} source=${diag.source} message="${diag.message}"`
+    );
 
     if (isDatabaseUnavailableError(error) || isMissingSchemaError(error)) {
       const envCheck = verifyOwnerEnvCredentials(cleanEmail, password);
@@ -113,7 +120,7 @@ export default async function handler(req, res) {
       }
 
       return res.status(503).json({
-        error: 'Database is temporarily unreachable. Please check your Neon database status and try again.'
+        error: 'Database is temporarily unreachable. Please check your database status and try again.'
       });
     }
 
