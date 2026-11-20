@@ -16,8 +16,7 @@ import {
   normalizeCompDetails,
   computeDetailsProgress
 } from '../../src/components/investor/compDetailsModel.js';
-
-const ALLOWED_COUNTIES = new Set(['Broward', 'Palm Beach']);
+import { SUPPORTED_COUNTIES, normalizeCountyName } from '../../src/config/counties.js';
 const MAX_CANDIDATES = 20;
 
 /**
@@ -50,10 +49,10 @@ export default async function handler(req, res) {
     }
 
     const rawCounty = req.query?.county ? String(req.query.county).trim() : 'Broward';
-    if (!ALLOWED_COUNTIES.has(rawCounty)) {
-      return res.status(400).json({ error: 'Invalid county parameter. Allowed values: Broward, Palm Beach.' });
+    const county = normalizeCountyName(rawCounty);
+    if (!county) {
+      return res.status(400).json({ error: `Invalid county parameter. Allowed values: ${SUPPORTED_COUNTIES.join(', ')}.` });
     }
-    const county = rawCounty;
 
     const parcelId = req.query?.parcel_id ? String(req.query.parcel_id).trim() : '';
     if (!parcelId) {
@@ -163,6 +162,9 @@ export default async function handler(req, res) {
       : sql`p.living_sqft > 0`;
 
     let locationWhere = null;
+    // Radius and ZIP searches cross county lines (e.g. Palm Beach / Martin border);
+    // DOR neighborhood codes are county-specific, so that tier stays in the subject county.
+    let countyWhere = sql`s.county = ANY(${SUPPORTED_COUNTIES}) AND p.county = ANY(${SUPPORTED_COUNTIES})`;
     if (hasCoordinates) {
       const deltaLat = radius / 69.0;
       const cosLat = Math.max(0.1, Math.cos((subLat * Math.PI) / 180));
@@ -174,6 +176,7 @@ export default async function handler(req, res) {
       locationWhere = sql`p.lat BETWEEN ${minLat} AND ${maxLat} AND p.lng BETWEEN ${minLng} AND ${maxLng}`;
     } else if (subject.nbrhd_cd) {
       locationWhere = sql`p.nbrhd_cd = ${subject.nbrhd_cd}`;
+      countyWhere = sql`s.county = ${subject.county}`;
     } else if (subject.zip) {
       locationWhere = sql`p.zip = ${subject.zip}`;
     }
@@ -183,6 +186,7 @@ export default async function handler(req, res) {
       try {
         rows = await sql`
           SELECT DISTINCT ON (s.county, s.parcel_id)
+            s.county,
             s.parcel_id,
             p.address,
             p.city,
@@ -210,9 +214,9 @@ export default async function handler(req, res) {
           FROM county_sales s
           JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
           LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-          WHERE s.county = ${subject.county}
+          WHERE ${countyWhere}
             AND p.use_code = ${subject.use_code}
-            AND s.parcel_id <> ${subject.parcel_id}
+            AND NOT (s.county = ${subject.county} AND s.parcel_id = ${subject.parcel_id})
             AND ${locationWhere}
             AND ${sqftCondition}
             AND s.sale_price > 10000
@@ -225,6 +229,7 @@ export default async function handler(req, res) {
         if (colErr?.code === '42703') {
           rows = await sql`
             SELECT DISTINCT ON (s.county, s.parcel_id)
+              s.county,
               s.parcel_id,
               p.address,
               p.city,
@@ -246,9 +251,9 @@ export default async function handler(req, res) {
             FROM county_sales s
             JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
             LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-            WHERE s.county = ${subject.county}
+            WHERE ${countyWhere}
               AND p.use_code = ${subject.use_code}
-              AND s.parcel_id <> ${subject.parcel_id}
+              AND NOT (s.county = ${subject.county} AND s.parcel_id = ${subject.parcel_id})
               AND ${locationWhere}
               AND ${sqftCondition}
               AND s.sale_price > 10000
@@ -312,6 +317,7 @@ export default async function handler(req, res) {
       });
 
       matched.push({
+        county: row.county || subject.county,
         parcel_id: row.parcel_id,
         address: row.address,
         city: row.city,
@@ -362,14 +368,15 @@ export default async function handler(req, res) {
           SELECT *
           FROM comp_details
           WHERE lower(owner_email) = ${cleanEmail}
-            AND county = ${subject.county}
+            AND county = ANY(${[...new Set(evaluated.candidates.map((c) => c.county || subject.county))]})
             AND parcel_id = ANY(${candidateParcelIds})
           ORDER BY updated_at DESC;
         `;
         for (const dr of detailRows) {
-          const exactKey = `${dr.parcel_id}|${dr.sale_month_key || ''}`;
+          const exactKey = `${dr.county}|${dr.parcel_id}|${dr.sale_month_key || ''}`;
+          const folioKey = `${dr.county}|${dr.parcel_id}`;
           if (!savedByKey.has(exactKey)) savedByKey.set(exactKey, dr);
-          if (!savedByFolio.has(dr.parcel_id)) savedByFolio.set(dr.parcel_id, dr);
+          if (!savedByFolio.has(folioKey)) savedByFolio.set(folioKey, dr);
         }
       } catch (err) {
         if (err?.code !== '42P01') {
@@ -380,7 +387,8 @@ export default async function handler(req, res) {
 
     const enrichedCandidates = evaluated.candidates.map((cand) => {
       const monthKey = buildSaleMonthKey(cand.sale_year, cand.sale_month);
-      const savedRow = savedByKey.get(`${cand.parcel_id}|${monthKey}`) || savedByFolio.get(cand.parcel_id) || null;
+      const candCounty = cand.county || subject.county;
+      const savedRow = savedByKey.get(`${candCounty}|${cand.parcel_id}|${monthKey}`) || savedByFolio.get(`${candCounty}|${cand.parcel_id}`) || null;
       if (!savedRow) {
         return {
           ...cand,
@@ -415,7 +423,8 @@ export default async function handler(req, res) {
         size_pct: sizePct,
         sqft_min: minSqft,
         sqft_max: maxSqft,
-        data_note: dataNote
+        data_note: dataNote,
+        counties_in_results: [...new Set(enrichedCandidates.map((c) => c.county).filter(Boolean))]
       },
       candidates: enrichedCandidates
     });

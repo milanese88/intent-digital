@@ -7,6 +7,7 @@ import {
   sanitizePeopleHousingCard
 } from './locationCardGuards.js';
 import { formatNiceAddress, toTitleCase } from './AddressAutocomplete.jsx';
+import { resolvePropertyCounty, getCountyAppraiserLabel } from '../../config/counties.js';
 
 /**
  * Format sale date to "MMM YYYY" (e.g. "Aug 2026")
@@ -55,10 +56,11 @@ export default function MarketCard({
   const subLat = property?.lat != null ? Number(property.lat) : null;
   const subLng = property?.lng != null ? Number(property.lng) : null;
   const hasCoords = subLat != null && subLng != null && !Number.isNaN(subLat) && !Number.isNaN(subLng);
-  const county =
-    property?.parcel_county ||
-    property?.county ||
-    (hasCoords && subLat >= 26.33 ? 'Palm Beach' : 'Broward');
+  // County from the linked parcel / saved county, else coordinates (server resolves
+  // ambiguous border points against parcel data and returns summary.county).
+  const propertyCounty = resolvePropertyCounty(property);
+  const [apiCounty, setApiCounty] = useState(null);
+  const county = propertyCounty || apiCounty || '';
   const zip = property?.zip || '';
   const propertyType = property?.property_type || 'single_family';
   const propertyAddress = buildPropertyAddressLine(property);
@@ -80,8 +82,8 @@ export default function MarketCard({
     setError(null);
 
     try {
-      let url = `/api/county/market?county=${encodeURIComponent(county)}&zip=${encodeURIComponent(zip)}&type=${encodeURIComponent(propertyType)}&mode=${marketScope}`;
-      if (hasCoords && marketScope === '1mi') {
+      let url = `/api/county/market?county=${encodeURIComponent(propertyCounty || '')}&zip=${encodeURIComponent(zip)}&type=${encodeURIComponent(propertyType)}&mode=${marketScope}`;
+      if (hasCoords) {
         url += `&lat=${subLat}&lng=${subLng}`;
       }
 
@@ -92,6 +94,7 @@ export default function MarketCard({
       }
       const resData = await res.json();
       setData(resData);
+      if (resData?.summary?.county) setApiCounty(resData.summary.county);
     } catch (err) {
       console.error('Error fetching market trends:', err);
       setError(err.message || 'Unable to load market trends');
@@ -99,7 +102,7 @@ export default function MarketCard({
     } finally {
       setLoading(false);
     }
-  }, [county, zip, propertyType, marketScope, hasCoords, subLat, subLng]);
+  }, [propertyCounty, zip, propertyType, marketScope, hasCoords, subLat, subLng]);
 
   // Fetch candidate sales within 1 mile from /api/county/comps
   const fetchCompsCandidates = useCallback(async () => {
@@ -110,7 +113,7 @@ export default function MarketCard({
 
     setCompsLoading(true);
     try {
-      const url = `/api/county/comps?county=${encodeURIComponent(county)}&parcel_id=${encodeURIComponent(property.parcel_id)}&radius=1&months=12`;
+      const url = `/api/county/comps?county=${encodeURIComponent(property.parcel_county || county)}&parcel_id=${encodeURIComponent(property.parcel_id)}&radius=1&months=12`;
       const res = await fetch(url);
       if (res.ok) {
         const cJson = await res.json();
@@ -123,7 +126,7 @@ export default function MarketCard({
     } finally {
       setCompsLoading(false);
     }
-  }, [county, property?.parcel_id]);
+  }, [county, property?.parcel_id, property?.parcel_county]);
 
   // Fetch real Location Snapshot for this property
   const fetchLocationSnapshot = useCallback(
@@ -226,7 +229,7 @@ export default function MarketCard({
         source: 'Property appraiser',
         included: true,
         parcel_id: candidate.parcel_id,
-        parcel_county: county
+        parcel_county: candidate.county || county
       };
 
       const res = await fetch('/api/investor/comps', {
@@ -624,7 +627,7 @@ export default function MarketCard({
                   borderRadius: '6px'
                 }}
               >
-                {marketScope === '1mi' ? '1-mile radius' : zip ? `ZIP ${zip}` : county} &middot;{' '}
+                {summary.mode === '1mi' ? '1-mile radius' : zip ? `ZIP ${zip}` : county} &middot;{' '}
                 {summary.type_label || 'Single-family'}
               </span>
             </div>
@@ -636,7 +639,7 @@ export default function MarketCard({
                 margin: '6px 0 0 0'
               }}
             >
-              Qualified arm&rsquo;s-length market sales recorded by the {county} County Property Appraiser.
+              Qualified arm&rsquo;s-length market sales recorded by the {(summary.counties_in_results?.length > 1 ? summary.counties_in_results : [county]).map((c) => getCountyAppraiserLabel(c)).join(' and ')}.
             </p>
           </div>
 
@@ -1002,7 +1005,7 @@ export default function MarketCard({
 
         {data && (
           <div style={{ borderTop: '1px solid #E4DDD3', paddingTop: '14px', fontSize: '11px', color: 'rgba(52, 41, 42, 0.55)', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}>
-            Data for: {propertyAddress || `ZIP ${zip}`} &middot; Source: {county} County Property Appraiser (2026 Final Roll &amp; recorded qualified sales).
+            Data for: {propertyAddress || `ZIP ${zip}`} &middot; Source: {(data?.summary?.counties_in_results?.length > 1 ? data.summary.counties_in_results : [county]).map((c) => getCountyAppraiserLabel(c)).join(' and ')} (2026 Final Roll &amp; recorded qualified sales).
           </div>
         )}
       </div>

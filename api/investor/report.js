@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { resolvePropertyCounty } from '../../src/config/counties.js';
 
 export default async function handler(req, res) {
   try {
@@ -56,7 +57,7 @@ export default async function handler(req, res) {
 
     // 3. Fetch county parcel record (strictly non-PII, no owner names or mailing addresses)
     let countyData = null;
-    const county = property.parcel_county || property.county || 'Broward';
+    const county = resolvePropertyCounty(property) || 'Broward';
     if (property.parcel_id) {
       const parcels = await sql`
         SELECT 

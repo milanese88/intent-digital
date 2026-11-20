@@ -17,6 +17,7 @@ import { getCmaStaticMapUrl, getMapboxAerialUrl } from '../../components/investo
 import { getUseCodeLabel, toTitleCase, formatNiceAddress } from '../../components/investor/AddressAutocomplete.jsx';
 import { getFloodPillStyle } from '../../components/investor/SiteZoningCard.jsx';
 import { BRAND_NAME, DEAL_REPORT_FOOTER } from '../../config/legal.js';
+import { resolvePropertyCounty, getPropertyCountyLabel, getCountyAppraiserLabel } from '../../config/counties.js';
 
 const REPORT_HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
 const REPORT_BODY_FONT = 'var(--font-sans, "Montserrat", sans-serif)';
@@ -163,7 +164,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       const fallbackInputs = {
         ...inputs,
         purchasePrice: inputs.purchasePrice || property.list_price || 0,
-        county: inputs.county || property.county || property.parcel_county || 'Broward',
+        county: inputs.county || resolvePropertyCounty(property) || 'Broward',
         mySavings:
           inputs.mySavings != null
             ? inputs.mySavings
@@ -906,7 +907,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
                   JURISDICTION
                 </span>
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                  {property.county || 'Broward'} County, FL
+                  {getPropertyCountyLabel(property, 'Unknown')} County, FL
                 </span>
               </div>
               <div style={{ borderLeft: '1px solid rgba(52, 41, 42, 0.1)', paddingLeft: '18px' }}>
@@ -1088,7 +1089,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
               fontStyle: 'italic',
               textAlign: 'right'
             }}>
-              Source: {property.county || 'Broward'} County Property Appraiser (2026 Final Roll) · Non-PII public record
+              Source: {getCountyAppraiserLabel(resolvePropertyCounty(property))} (2026 Final Roll) · Non-PII public record
             </div>
           </section>
         )}
@@ -2468,7 +2469,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             lineHeight: 1.45,
             width: '100%'
           }}>
-            Data Sources (Attribution only): {property.county || 'Broward'} County Property Appraiser DOR data, Florida Department of Revenue (DOR), FEMA National Flood Hazard Layer (NFHL), Mapbox Satellite & Geocoding. Public records referenced for attribution only; no claim of ownership or copyright over public domain data.
+            Data Sources (Attribution only): {getCountyAppraiserLabel(resolvePropertyCounty(property))} DOR data, Florida Department of Revenue (DOR), FEMA National Flood Hazard Layer (NFHL), Mapbox Satellite & Geocoding. Public records referenced for attribution only; no claim of ownership or copyright over public domain data.
             <br />
             <strong>Private internal investment analysis only. Not an appraisal.</strong> All pro forma projections, return estimates, and construction budgets are internal models subject to independent due diligence, contractor bids, and lender qualification.
           </div>

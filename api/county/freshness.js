@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { SUPPORTED_COUNTIES } from '../../src/config/counties.js';
 
 // 10-minute in-memory cache to keep response times sub-millisecond
 let cachedFreshness = null;
@@ -77,22 +78,27 @@ export async function getCountyFreshness() {
     });
   }
 
-  const freshnessData = {
-    'Broward': {
-      county: 'Broward',
-      roll_year: rollMap['Broward'] || 2026,
-      latest_sale_month: 'Sep 2026',
-      complete_through: 'Aug 2026',
-      label: 'County data through Sep 2026 (complete through Aug 2026) · 2026 final roll'
-    },
-    'Palm Beach': {
-      county: 'Palm Beach',
-      roll_year: rollMap['Palm Beach'] || 2026,
-      latest_sale_month: 'Sep 2026',
-      complete_through: 'Aug 2026',
-      label: 'County data through Sep 2026 (complete through Aug 2026) · 2026 final roll'
-    }
-  };
+  // Defaults for every supported county; replaced below by real sale-month data when present
+  // (a county with no imported sales yet says so instead of borrowing another county's dates).
+  const freshnessData = {};
+  for (const county of SUPPORTED_COUNTIES) {
+    const hasParcels = rollMap[county] != null;
+    freshnessData[county] = hasParcels
+      ? {
+          county,
+          roll_year: rollMap[county] || 2026,
+          latest_sale_month: 'Sep 2026',
+          complete_through: 'Aug 2026',
+          label: 'County data through Sep 2026 (complete through Aug 2026) · 2026 final roll'
+        }
+      : {
+          county,
+          roll_year: null,
+          latest_sale_month: null,
+          complete_through: null,
+          label: `${county} County data not imported yet`
+        };
+  }
 
   for (const [county, list] of countyMonths.entries()) {
     if (list.length === 0) continue;
