@@ -24,7 +24,7 @@ function formatShortSoldDate(dStr) {
 const CONDITION_CYCLE = ['c4', 'c3', 'c2', 'unknown'];
 
 const GRID_ROWS = [
-  { key: 'time', label: 'Sale Date / Time', sub: 'Monthly ZIP trend' },
+  { key: 'time', label: 'Sale Date / Time', sub: 'Measured ZIP trend (cap ±10%)' },
   { key: 'gla', label: 'Living Area (GLA)', sub: 'Size differential' },
   { key: 'age', label: 'Year Built / Eff. Age', sub: 'Actual & effective age' },
   { key: 'bed_bath', label: 'Beds & Baths', sub: 'Baths capped at beds + 1' },
@@ -44,6 +44,7 @@ const GRID_ROWS = [
 export default function AppraisalGridSection({
   grid,
   mode,
+  hasRenovationBudget = false,
   onModeChange,
   sizeMethod,
   onSizeMethodChange,
@@ -64,6 +65,9 @@ export default function AppraisalGridSection({
   onSaveAppraisal,
   isSavingAppraisal = false,
   lastSavedAt = null,
+  onDownloadValuationPdf,
+  onSaveValuationPdf,
+  isSavingValuationPdf = false,
   onOpenLibraryModal,
   onOpenLearningLabLesson
 }) {
@@ -229,15 +233,14 @@ export default function AppraisalGridSection({
   const renderSubjectRowValue = (rowKey) => {
     switch (rowKey) {
       case 'time': {
-        const trendSign = effectiveRates.monthlyTrendPct > 0 ? '+' : '';
         return (
           <span>
-            <span style={{ opacity: 0.9 }}>
-              Current ({trendSign}{effectiveRates.monthlyTrendPct}%/mo)
+            <span style={{ opacity: 0.92 }}>
+              Current baseline
             </span>
-            {grid.zipTrendSource && (
-              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.65)' }}>
-                {grid.zipTrendSource}
+            {(grid.timeTrendSource || grid.zipTrendSource) && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.7)' }}>
+                {grid.timeTrendSource || grid.zipTrendSource}
               </span>
             )}
           </span>
@@ -625,18 +628,33 @@ export default function AppraisalGridSection({
             </div>
           </div>
 
-          {/* Right: As-Is / ARV Toggle + Size-Method Toggle + Add Comp */}
+          {/* Right: Estimated current value / ARV Toggle (ARV only when rehab budget entered) + Size-Method Toggle + Add Comp */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            {/* As-Is / ARV Toggle */}
-            <SegmentedControl
-              size="sm"
-              value={mode}
-              onChange={onModeChange}
-              options={[
-                { id: 'as_is', label: 'As-Is' },
-                { id: 'arv', label: 'ARV' }
-              ]}
-            />
+            {hasRenovationBudget ? (
+              <SegmentedControl
+                size="sm"
+                value={mode}
+                onChange={onModeChange}
+                options={[
+                  { id: 'as_is', label: 'Est. current value' },
+                  { id: 'arv', label: 'ARV' }
+                ]}
+              />
+            ) : (
+              <Pill
+                variant="neutral"
+                title="Comps reconcile the Estimated current value. Enter a renovation budget in Deal or Designer Hub to enable ARV mode."
+                style={{
+                  backgroundColor: 'rgba(189, 211, 226, 0.35)',
+                  border: '1px solid #859DCE',
+                  color: '#34292A',
+                  textTransform: 'none',
+                  fontWeight: 700
+                }}
+              >
+                Estimated current value
+              </Pill>
+            )}
 
             {/* Size-Method Toggle: Improvement $/sf (default when land >50%) vs 35% local $/sf vs Library rate */}
             <SegmentedControl
@@ -837,7 +855,7 @@ export default function AppraisalGridSection({
                       FEATURE / METRIC
                     </span>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--espresso)' }}>
-                      {mode === 'arv' ? 'Post-Rehab Target' : 'As-Is Baseline'}
+                      {mode === 'arv' && hasRenovationBudget ? 'Post-Rehab Target (ARV)' : 'Current Baseline'}
                     </span>
                   </th>
 
@@ -874,11 +892,11 @@ export default function AppraisalGridSection({
                           textTransform: 'uppercase',
                           padding: '2px 8px',
                           borderRadius: '999px',
-                          backgroundColor: mode === 'arv' ? 'rgba(98, 163, 107, 0.25)' : 'rgba(250, 248, 245, 0.14)',
+                          backgroundColor: mode === 'arv' && hasRenovationBudget ? 'rgba(98, 163, 107, 0.25)' : 'rgba(250, 248, 245, 0.14)',
                           color: '#FAF8F5'
                         }}
                       >
-                        {mode === 'arv' ? 'ARV TARGET' : 'AS-IS'}
+                        {mode === 'arv' && hasRenovationBudget ? 'ARV TARGET' : 'CURRENT'}
                       </span>
                     </div>
                     <div
@@ -893,11 +911,11 @@ export default function AppraisalGridSection({
                     >
                       {subjectSummary.address}
                     </div>
-                    <div style={{ fontSize: '11px', fontWeight: 400, color: 'rgba(250, 248, 245, 0.72)' }}>
-                      {subjectSummary.listPrice
-                        ? `Ask ${formatDollar(subjectSummary.listPrice)}`
+                    <div style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(250, 248, 245, 0.8)' }}>
+                      {subjectSummary.priceColumnText
+                        ? subjectSummary.priceColumnText
                         : subjectSummary.justValue
-                          ? `Just Val ${formatDollar(subjectSummary.justValue)}`
+                          ? `County val. ${formatDollar(subjectSummary.justValue)}`
                           : 'Unadjusted anchor'}
                     </div>
                     <div
@@ -1254,7 +1272,7 @@ export default function AppraisalGridSection({
                       fontWeight: 600
                     }}
                   >
-                    {subjectSummary.listPrice ? `${formatDollar(subjectSummary.listPrice)} (Ask)` : '—'}
+                    {subjectSummary.unadjustedRowText || '—'}
                   </td>
                   {comps.map((comp) => (
                     <td
@@ -1763,7 +1781,7 @@ export default function AppraisalGridSection({
                   color: 'rgba(250, 248, 245, 0.65)'
                 }}
               >
-                {mode === 'arv' ? 'RECONCILED ARV (POST-REHAB)' : 'RECONCILED AS-IS VALUE'}
+                {mode === 'arv' && hasRenovationBudget ? 'RECONCILED ARV (POST-REHAB)' : 'ESTIMATED CURRENT VALUE'}
               </span>
 
               <span
@@ -1924,6 +1942,7 @@ export default function AppraisalGridSection({
         {(() => {
           const jvAnchor = sanityAnchors?.countyJustValueAnchor || null;
           const streetAnchor = sanityAnchors?.nearestSameStreetSale || null;
+          const refAnchor = sanityAnchors?.referencePriceAnchor || null;
           const formatDeltaChip = (deltaPct) => {
             if (deltaPct == null || isNaN(Number(deltaPct))) return null;
             const sign = deltaPct > 0 ? '+' : '';
@@ -2093,6 +2112,35 @@ export default function AppraisalGridSection({
                       </div>
                     )}
                   </div>
+
+                  {/* Anchor 3: Off-market estimate / active price source */}
+                  {refAnchor && (
+                    <div
+                      style={{
+                        padding: '13px 15px',
+                        borderRadius: '14px',
+                        backgroundColor: '#FAF8F5',
+                        border: '1px solid rgba(52, 41, 42, 0.1)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                          {refAnchor.label}
+                        </span>
+                        {formatDeltaChip(refAnchor.deltaPctVsReconciled)}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: '#34292A', lineHeight: 1.15 }}>
+                          {formatDollar(refAnchor.price)}
+                        </span>
+                        {refAnchor.ppsf && (
+                          <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                            ${refAnchor.ppsf}/sf
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2511,6 +2559,31 @@ export default function AppraisalGridSection({
           >
             {isSavingAppraisal ? 'Saving appraisal…' : 'Save appraisal'}
           </Button>
+
+          {onDownloadValuationPdf && (
+            <Button
+              variant="secondary"
+              disabled={comps.length === 0}
+              onClick={onDownloadValuationPdf}
+              style={{
+                backgroundColor: '#BDD3E2',
+                borderColor: '#859DCE',
+                color: '#34292A'
+              }}
+            >
+              Download valuation PDF
+            </Button>
+          )}
+
+          {onSaveValuationPdf && (
+            <Button
+              variant="secondary"
+              disabled={isSavingValuationPdf || comps.length === 0}
+              onClick={onSaveValuationPdf}
+            >
+              {isSavingValuationPdf ? 'Saving PDF…' : 'Save to property'}
+            </Button>
+          )}
 
           <Button
             variant="secondary"

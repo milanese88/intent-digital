@@ -34,6 +34,8 @@ import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
 import { resolvePropertyCounty, getPropertyCountyLabel, normalizeCountyName } from '../../config/counties.js';
 import { isSameSubdivision } from '../../utils/subdivision.js';
+import { PRICE_SOURCE_OPTIONS, getPriceSourceMeta, resolvePropertyPricing } from './priceSource.js';
+import { buildValuationEstimatePdfBase64 } from '../../utils/valuationPdfBuilder.js';
 import {
   Button,
   Pill,
@@ -146,6 +148,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     lot_sqft: '',
     year_built: '',
     list_price: '',
+    price_source: 'list_price',
+    offer_price: '',
     status: 'watching',
     strategy: '',
     condition: '',
@@ -159,7 +163,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     hoa_name: '',
     boat_dock: null,
     boat_dock_sqft: '',
-    construction_type: ''
+    construction_type: '',
+    construction_detail: '',
+    sketch_areas: '',
+    recent_improvements: ''
   });
 
   // Split Map State (List view)
@@ -468,6 +475,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lot_sqft: '',
       year_built: '',
       list_price: '',
+      price_source: 'list_price',
+      offer_price: '',
       status: 'watching',
       strategy: '',
       condition: '',
@@ -482,6 +491,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       boat_dock: null,
       boat_dock_sqft: '',
       construction_type: '',
+      construction_detail: '',
+      sketch_areas: '',
+      recent_improvements: '',
       is_studying: false
     });
     setPropFormErrors({});
@@ -507,6 +519,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lot_sqft: p.lot_sqft != null ? p.lot_sqft : '',
       year_built: p.year_built != null ? p.year_built : '',
       list_price: p.list_price != null ? formatCurrencyInput(p.list_price) : '',
+      price_source: p.price_source || p.subject_details?.price_source || 'list_price',
+      offer_price: (p.offer_price ?? p.subject_details?.offer_price) != null
+        ? formatCurrencyInput(p.offer_price ?? p.subject_details?.offer_price)
+        : '',
       status: p.status || 'watching',
       strategy: p.strategy || '',
       condition: p.condition || '',
@@ -529,6 +545,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         (p.subject_details?.as_is?.construction_type && p.subject_details.as_is.construction_type !== 'unknown'
           ? p.subject_details.as_is.construction_type
           : ''),
+      construction_detail:
+        p.construction_detail ||
+        p.subject_details?.as_is?.construction_detail ||
+        p.subject_details?.construction_detail ||
+        '',
+      sketch_areas: p.sketch_areas || p.subject_details?.sketch_areas || '',
+      recent_improvements: p.recent_improvements || p.subject_details?.recent_improvements || '',
       is_studying: Boolean(p.is_studying)
     });
     setPropFormErrors({});
@@ -573,6 +596,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lot_sqft: propFormData.lot_sqft !== '' && propFormData.lot_sqft != null ? Number(String(propFormData.lot_sqft).replace(/[^\d]/g, '')) : null,
       year_built: propFormData.year_built !== '' && propFormData.year_built != null ? Number(String(propFormData.year_built).replace(/[^\d]/g, '')) : null,
       list_price: propFormData.list_price ? Number(String(propFormData.list_price).replace(/[^\d]/g, '')) : null,
+      price_source: propFormData.price_source || 'list_price',
+      offer_price: propFormData.offer_price ? Number(String(propFormData.offer_price).replace(/[^\d]/g, '')) : null,
       status: propFormData.status || 'watching',
       strategy: propFormData.strategy || null,
       condition: propFormData.condition.trim() || null,
@@ -598,6 +623,15 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
             : null,
       construction_type: propFormData.construction_type && propFormData.construction_type !== 'unknown'
         ? propFormData.construction_type
+        : null,
+      construction_detail: propFormData.construction_detail && String(propFormData.construction_detail).trim() !== ''
+        ? String(propFormData.construction_detail).trim()
+        : null,
+      sketch_areas: propFormData.sketch_areas && String(propFormData.sketch_areas).trim() !== ''
+        ? String(propFormData.sketch_areas).trim()
+        : null,
+      recent_improvements: propFormData.recent_improvements && String(propFormData.recent_improvements).trim() !== ''
+        ? String(propFormData.recent_improvements).trim()
         : null,
       is_studying: propFormData.is_studying !== undefined ? Boolean(propFormData.is_studying) : (editingProperty ? Boolean(editingProperty.is_studying) : false)
     };
@@ -793,9 +827,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         boat_dock_sqft: asIsLegacy.boat_dock_sqft,
         boat_lift: asIsLegacy.boat_lift,
         construction_type: asIsLegacy.construction_type,
+        construction_detail: asIsLegacy.construction_detail,
         quality: asIsLegacy.quality,
         hoa_name: asIsLegacy.hoa_name,
-        subject_details: subjectDetailsMap
+        subject_details: {
+          ...(activeProperty.subject_details || {}),
+          ...subjectDetailsMap
+        }
       };
 
       const res = await fetch('/api/investor/properties', {
@@ -977,15 +1015,19 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
   }, [activePropertyId, Boolean(buyingProfile?.valuation_defaults?.saved_appraisals?.[activePropertyId])]);
 
-  // Fetch monthly ZIP market trend for the active property so APPRAISAL time adjustment uses live county ZIP trend
-  const [zipMarketSummary, setZipMarketSummary] = useState(null);
+  // Fetch full ZIP market series for the active property so APPRAISAL time adjustment measures actual period trend (capped ±10%)
+  const [zipMarketData, setZipMarketData] = useState(null);
+  const zipMarketSummary = zipMarketData?.summary || null;
+  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
+  const [isSavingValuationPdf, setIsSavingValuationPdf] = useState(false);
+
   const activeSubjectZip = String(activeProperty?.zip || countyData?.zip || '').trim();
   const activeSubjectCounty = resolvePropertyCounty(activeProperty) || countyData?.county || 'Broward';
   const activeSubjectType = activeProperty?.property_type || 'single_family';
 
   useEffect(() => {
     if (!/^\d{5}$/.test(activeSubjectZip)) {
-      setZipMarketSummary(null);
+      setZipMarketData(null);
       return;
     }
     let cancelled = false;
@@ -998,11 +1040,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       .then((res) => (res.ok ? res.json() : null))
       .then((mData) => {
         if (!cancelled) {
-          setZipMarketSummary(mData?.summary || null);
+          setZipMarketData(mData || null);
         }
       })
       .catch(() => {
-        if (!cancelled) setZipMarketSummary(null);
+        if (!cancelled) setZipMarketData(null);
       });
     return () => {
       cancelled = true;
@@ -1076,6 +1118,15 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         (activeProperty.subject_details?.as_is?.construction_type && activeProperty.subject_details.as_is.construction_type !== 'unknown'
           ? activeProperty.subject_details.as_is.construction_type
           : null),
+      construction_detail:
+        activeProperty.construction_detail ||
+        activeProperty.subject_details?.as_is?.construction_detail ||
+        activeProperty.subject_details?.construction_detail ||
+        null,
+      sketch_areas: activeProperty.sketch_areas || activeProperty.subject_details?.sketch_areas || null,
+      recent_improvements: activeProperty.recent_improvements || activeProperty.subject_details?.recent_improvements || null,
+      price_source: activeProperty.price_source || activeProperty.subject_details?.price_source || 'list_price',
+      offer_price: activeProperty.offer_price ?? activeProperty.subject_details?.offer_price ?? null,
       quality:
         activeProperty.quality ||
         (activeProperty.subject_details?.as_is?.quality && activeProperty.subject_details.as_is.quality !== 'unknown'
@@ -1087,6 +1138,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     };
   }, [activeProperty, countyData, subjectAppraisalOverrides]);
 
+  // ARV only appears when a renovation budget is entered
+  const hasRenovationBudget = Boolean(
+    Number(activeProperty?.rehab_budget) > 0 ||
+    Number(underwriteSummary?.inputs?.rehabBudget) > 0
+  );
+  const effectiveAppraisalMode = hasRenovationBudget ? appraisalMode : 'as_is';
+
   // Compute South Florida Sales Comparison Grid
   const appraisalGrid = useMemo(() => {
     const zipMonthlyPct =
@@ -1094,41 +1152,42 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         ? Number(zipMarketSummary.monthly_trend_pct) / 100
         : null;
     const zipTrendSource =
-      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+      /^\d{5}$/.test(activeSubjectZip)
         ? `ZIP ${activeSubjectZip}`
         : null;
 
     return computeAppraisalGrid({
       comps,
       subject: subjectForAppraisal,
-      mode: appraisalMode,
+      mode: effectiveAppraisalMode,
       sizeMethod,
       library: buyingProfile?.valuation_defaults?.library || {},
       customWeights,
+      zipMarketData,
       zipTrendMonthlyPct: zipMonthlyPct,
       zipTrendSource
     });
   }, [
     comps,
     subjectForAppraisal,
-    appraisalMode,
+    effectiveAppraisalMode,
     sizeMethod,
     buyingProfile?.valuation_defaults?.library,
     customWeights,
+    zipMarketData,
     zipMarketSummary?.monthly_trend_pct,
     activeSubjectZip
   ]);
 
-  // Always compute both Appraisal As-Is and ARV so Live-in plan defaults valueAfterReno
-  // to As-Is when renovation is $0, and to ARV when renovation > $0
+  // Always compute both Appraisal As-Is (Estimated current value) and ARV
   const appraisalAsIsGrid = useMemo(() => {
-    if (appraisalMode === 'as_is') return appraisalGrid;
+    if (effectiveAppraisalMode === 'as_is') return appraisalGrid;
     const zipMonthlyPct =
       zipMarketSummary?.monthly_trend_pct != null && !isNaN(Number(zipMarketSummary.monthly_trend_pct))
         ? Number(zipMarketSummary.monthly_trend_pct) / 100
         : null;
     const zipTrendSource =
-      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+      /^\d{5}$/.test(activeSubjectZip)
         ? `ZIP ${activeSubjectZip}`
         : null;
 
@@ -1139,29 +1198,31 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       sizeMethod,
       library: buyingProfile?.valuation_defaults?.library || {},
       customWeights,
+      zipMarketData,
       zipTrendMonthlyPct: zipMonthlyPct,
       zipTrendSource
     });
   }, [
-    appraisalMode,
+    effectiveAppraisalMode,
     appraisalGrid,
     comps,
     subjectForAppraisal,
     sizeMethod,
     buyingProfile?.valuation_defaults?.library,
     customWeights,
+    zipMarketData,
     zipMarketSummary?.monthly_trend_pct,
     activeSubjectZip
   ]);
 
   const appraisalArvGrid = useMemo(() => {
-    if (appraisalMode === 'arv') return appraisalGrid;
+    if (effectiveAppraisalMode === 'arv') return appraisalGrid;
     const zipMonthlyPct =
       zipMarketSummary?.monthly_trend_pct != null && !isNaN(Number(zipMarketSummary.monthly_trend_pct))
         ? Number(zipMarketSummary.monthly_trend_pct) / 100
         : null;
     const zipTrendSource =
-      zipMonthlyPct != null && /^\d{5}$/.test(activeSubjectZip)
+      /^\d{5}$/.test(activeSubjectZip)
         ? `ZIP ${activeSubjectZip}`
         : null;
 
@@ -1172,20 +1233,68 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       sizeMethod,
       library: buyingProfile?.valuation_defaults?.library || {},
       customWeights,
+      zipMarketData,
       zipTrendMonthlyPct: zipMonthlyPct,
       zipTrendSource
     });
   }, [
-    appraisalMode,
+    effectiveAppraisalMode,
     appraisalGrid,
     comps,
     subjectForAppraisal,
     sizeMethod,
     buyingProfile?.valuation_defaults?.library,
     customWeights,
+    zipMarketData,
     zipMarketSummary?.monthly_trend_pct,
     activeSubjectZip
   ]);
+
+  const handleDownloadValuationPdf = () => {
+    if (!activeProperty?.id) return;
+    const queryStr = `mode=${encodeURIComponent(effectiveAppraisalMode)}&sizeMethod=${encodeURIComponent(sizeMethod || 'auto')}`;
+    if (navigateTo) {
+      navigateTo('valuation-report', null, activeProperty.id, queryStr);
+    } else if (typeof window !== 'undefined') {
+      window.open(`/admin/investor/valuation-report/${activeProperty.id}?${queryStr}`, '_blank', 'noopener');
+    }
+  };
+
+  const handleSaveValuationPdf = async () => {
+    if (!activeProperty?.id || !appraisalGrid) return;
+    setIsSavingValuationPdf(true);
+    try {
+      const pdfBase64 = buildValuationEstimatePdfBase64({
+        property: activeProperty,
+        countyData,
+        grid: appraisalGrid,
+        hasRenovationBudget
+      });
+      const isoDate = new Date().toISOString().split('T')[0];
+      const title = `Valuation Estimate - ${activeProperty.address} (${isoDate})`;
+      const res = await fetch('/api/investor/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_id: activeProperty.id,
+          title,
+          doc_type: 'valuation_estimate',
+          data: pdfBase64,
+          filename: `${title}.pdf`
+        })
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(resData.error || 'Failed to save valuation PDF.');
+      }
+      setDocumentsRefreshKey((k) => k + 1);
+      showToast('Valuation PDF saved to Photos & Notes');
+    } catch (err) {
+      showToast(err?.message || 'Unable to save valuation PDF.');
+    } finally {
+      setIsSavingValuationPdf(false);
+    }
+  };
 
   const handleSubjectOverrideChange = (key, value) => {
     setSubjectAppraisalOverrides((prev) => ({
@@ -2112,21 +2221,31 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 String(zoningCode).toLowerCase() !== 'unknown'
               );
 
-              // KPI 1: List price & $/sf
-              const listPricePps = (activeProperty.list_price && activeProperty.sqft)
-                ? Math.round(Number(activeProperty.list_price) / Number(activeProperty.sqft))
+              // KPI 1: Reference Price (List price / Off-market estimate / My offer / County value) & $/sf
+              const activePricing = resolvePropertyPricing(activeProperty, countyData);
+              const refPriceNum = activePricing.referencePrice;
+              const listPricePps = (refPriceNum && activeProperty.sqft)
+                ? Math.round(Number(refPriceNum) / Number(activeProperty.sqft))
                 : null;
 
-              // KPI 2: Est. Value range from included comps' min/max $/sf * property sqft
+              // KPI 2: Estimated Current Value (always As-Is reconciled value; ARV only shown when rehab budget > 0)
+              const estCurrentValRaw = appraisalAsIsGrid?.reconciledValue || rawCompValue || null;
+              const estCurrentValFormatted = estCurrentValRaw
+                ? `$${Math.round(estCurrentValRaw).toLocaleString('en-US')}`
+                : '—';
+              const estVsRefDiffPct =
+                estCurrentValRaw && refPriceNum
+                  ? Math.round(((estCurrentValRaw - refPriceNum) / refPriceNum) * 1000) / 10
+                  : null;
+
               const ppsList = includedComps
                 .map(c => c.price_per_sqft != null ? Number(c.price_per_sqft) : (c.sold_price && c.sqft ? Number(c.sold_price) / Number(c.sqft) : null))
                 .filter(n => n != null && !isNaN(n) && n > 0);
 
               let rangeText = 'Add ≥3 comps';
               const formatShort = (v) => v >= 1000000 ? `$${(v / 1000000).toFixed(2)}M` : `$${Math.round(v / 1000)}k`;
-              if (appraisalGrid?.rangeLow && appraisalGrid?.rangeHigh) {
-                const modeTag = appraisalMode === 'arv' ? 'ARV' : 'As-Is';
-                rangeText = `${modeTag} · ${formatShort(appraisalGrid.rangeLow)} – ${formatShort(appraisalGrid.rangeHigh)}`;
+              if (appraisalAsIsGrid?.rangeLow && appraisalAsIsGrid?.rangeHigh) {
+                rangeText = `${formatShort(appraisalAsIsGrid.rangeLow)} – ${formatShort(appraisalAsIsGrid.rangeHigh)}`;
               } else if (ppsList.length > 0 && activeProperty.sqft) {
                 const minPps = Math.min(...ppsList);
                 const maxPps = Math.max(...ppsList);
@@ -2138,7 +2257,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
               // KPI 3: Cash needed
               const cashNeeded = underwriteSummary?.results?.cashToClose?.liquidCashNeeded != null
                 ? Number(underwriteSummary.results.cashToClose.liquidCashNeeded)
-                : (activeProperty.list_price ? Math.round(Number(activeProperty.list_price) * 0.25) : 0);
+                : (activePricing.dealPurchasePrice ? Math.round(Number(activePricing.dealPurchasePrice) * 0.25) : 0);
 
               // KPI 4: Monthly payment (PITI + HOA)
               const totalPiti = underwriteSummary?.results?.monthlyPayment?.totalPiti != null
@@ -2275,34 +2394,35 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
               // Auto-generated checklist items for "What to know"
               const checklistItems = [];
 
-              // 1. Asking price vs comp value
-              if (rawCompValue && activeProperty.list_price) {
-                const listP = Number(activeProperty.list_price);
-                const compVal = Number(rawCompValue);
+              // 1. Reference price vs Estimated current value
+              if (estCurrentValRaw && refPriceNum) {
+                const listP = Number(refPriceNum);
+                const compVal = Number(estCurrentValRaw);
                 const diffPct = ((listP - compVal) / compVal) * 100;
-                const valTab = appraisalGrid?.reconciledValue ? 'appraisal' : 'comps';
-                const valTabLabel = appraisalGrid?.reconciledValue ? 'APPRAISAL →' : 'VALUE & COMPS →';
+                const priceLbl = activePricing.shortLabel;
+                const valTab = appraisalAsIsGrid?.reconciledValue ? 'appraisal' : 'comps';
+                const valTabLabel = appraisalAsIsGrid?.reconciledValue ? 'APPRAISAL →' : 'VALUE & COMPS →';
                 if (Math.abs(diffPct) <= 5) {
                   checklistItems.push({
                     status: 'green',
-                    title: 'Asking Price In Line With Comps',
-                    text: `List price (${formatPrice(listP)}) is within ±5% of comp valuation (${compValueFormatted}, ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%).`,
+                    title: `${priceLbl} In Line With Est. Current Value`,
+                    text: `${priceLbl} (${formatPrice(listP)}) is within ±5% of estimated current value (${estCurrentValFormatted}, ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%).`,
                     tab: valTab,
                     tabLabel: valTabLabel
                   });
                 } else if (diffPct > 5) {
                   checklistItems.push({
                     status: 'amber',
-                    title: 'Asking Price Above Comps',
-                    text: `List price (${formatPrice(listP)}) is ${diffPct.toFixed(1)}% above comp estimate (${compValueFormatted}). May require negotiation.`,
+                    title: `${priceLbl} Above Est. Current Value`,
+                    text: `${priceLbl} (${formatPrice(listP)}) is ${diffPct.toFixed(1)}% above estimated current value (${estCurrentValFormatted}). May require negotiation.`,
                     tab: valTab,
                     tabLabel: valTabLabel
                   });
                 } else {
                   checklistItems.push({
                     status: 'green',
-                    title: 'Asking Price Below Comps',
-                    text: `List price (${formatPrice(listP)}) is ${Math.abs(diffPct).toFixed(1)}% below comp estimate (${compValueFormatted}) — potential built-in equity.`,
+                    title: `${priceLbl} Below Est. Current Value`,
+                    text: `${priceLbl} (${formatPrice(listP)}) is ${Math.abs(diffPct).toFixed(1)}% below estimated current value (${estCurrentValFormatted}) — potential built-in equity.`,
                     tab: valTab,
                     tabLabel: valTabLabel
                   });
@@ -2900,7 +3020,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       justifyContent: 'space-between',
                       alignItems: 'flex-start'
                     }}>
-                      {/* KPI 1: LIST PRICE (+ $/sf) */}
+                      {/* KPI 1: REFERENCE PRICE (follows price_source: LIST PRICE / OFF-MARKET ESTIMATE / MY OFFER / COUNTY VALUE) */}
                       <div style={{ minWidth: '150px', flex: '1 1 160px' }}>
                         <span style={{
                           display: 'block',
@@ -2912,7 +3032,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           color: 'rgba(250, 248, 244, 0.6)',
                           marginBottom: '6px'
                         }}>
-                          LIST PRICE
+                          {activePricing.headerPriceLabel}
                         </span>
                         <div style={{
                           fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
@@ -2922,7 +3042,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           color: '#FAF8F4',
                           marginBottom: '4px'
                         }}>
-                          {activeProperty.list_price ? formatPrice(activeProperty.list_price) : '—'}
+                          {refPriceNum ? formatPrice(refPriceNum) : '—'}
                         </div>
                         <div style={{
                           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -2930,11 +3050,14 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           color: 'rgba(250, 248, 244, 0.7)'
                         }}>
                           {listPricePps ? `$${listPricePps} / sf` : '—'}
+                          {activePricing.offerPrice && activePricing.priceSource !== 'my_offer'
+                            ? ` · My offer ${formatPrice(activePricing.offerPrice)}`
+                            : ''}
                         </div>
                       </div>
 
-                      {/* KPI 2: EST. VALUE (comp value + Range low–high) */}
-                      <div style={{ minWidth: '150px', flex: '1 1 160px' }}>
+                      {/* KPI 2: EST. CURRENT VALUE (+ % difference vs off-market estimate / reference price + range) */}
+                      <div style={{ minWidth: '175px', flex: '1 1 180px' }}>
                         <span style={{
                           display: 'block',
                           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -2945,7 +3068,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           color: 'rgba(250, 248, 244, 0.6)',
                           marginBottom: '6px'
                         }}>
-                          EST. VALUE
+                          EST. CURRENT VALUE
                         </span>
                         <div style={{
                           fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
@@ -2955,14 +3078,28 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           color: '#FAF8F4',
                           marginBottom: '4px'
                         }}>
-                          {compValueFormatted}
+                          {estCurrentValFormatted}
                         </div>
                         <div style={{
                           fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                           fontSize: '11.5px',
-                          color: 'rgba(250, 248, 244, 0.7)'
+                          color: 'rgba(250, 248, 244, 0.75)'
                         }}>
-                          {rangeText}
+                          {estVsRefDiffPct != null && (
+                            <span style={{
+                              color: estVsRefDiffPct >= 0 ? '#A5D6A7' : '#BDD3E2',
+                              fontWeight: 700,
+                              marginRight: '6px'
+                            }}>
+                              {estVsRefDiffPct > 0 ? '+' : ''}{estVsRefDiffPct.toFixed(1)}% vs {activePricing.subjectPrefix.toLowerCase()}
+                            </span>
+                          )}
+                          <span>{estVsRefDiffPct != null ? `· ${rangeText}` : rangeText}</span>
+                          {hasRenovationBudget && appraisalArvGrid?.reconciledValue && (
+                            <span style={{ display: 'block', fontSize: '10.5px', color: '#BDD3E2', marginTop: '2px' }}>
+                              ARV {formatPrice(appraisalArvGrid.reconciledValue)}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -4099,7 +4236,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   >
                     <AppraisalGridSection
                       grid={appraisalGrid}
-                      mode={appraisalMode}
+                      mode={effectiveAppraisalMode}
+                      hasRenovationBudget={hasRenovationBudget}
                       onModeChange={(nextMode) => setAppraisalMode(nextMode)}
                       sizeMethod={sizeMethod}
                       onSizeMethodChange={(nextMethod) => setSizeMethod(nextMethod)}
@@ -4120,6 +4258,9 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       onSaveAppraisal={handleSaveAppraisal}
                       isSavingAppraisal={isSavingAppraisal}
                       lastSavedAt={lastAppraisalSavedAt}
+                      onDownloadValuationPdf={handleDownloadValuationPdf}
+                      onSaveValuationPdf={handleSaveValuationPdf}
+                      isSavingValuationPdf={isSavingValuationPdf}
                       onOpenLibraryModal={() => setIsAdjustmentLibraryOpen(true)}
                       onOpenLearningLabLesson={handleOpenLearningLabLesson}
                     />
@@ -4204,6 +4345,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     <PropertyDocumentsSection
                       property={activeProperty}
                       showToast={showToast}
+                      refreshKey={documentsRefreshKey}
                     />
 
                     {/* Your Notes Card */}
@@ -4520,14 +4662,36 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         {/* Card Info */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
-                            fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                            fontSize: '18px',
-                            fontWeight: 600,
-                            color: 'var(--espresso, #1E1509)',
-                            lineHeight: 1.15,
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: '6px',
+                            flexWrap: 'wrap',
                             marginBottom: '2px'
                           }}>
-                            {formatPrice(p.list_price)}
+                            <span style={{
+                              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                              fontSize: '18px',
+                              fontWeight: 600,
+                              color: 'var(--espresso, #1E1509)',
+                              lineHeight: 1.15
+                            }}>
+                              {formatPrice(p.list_price)}
+                            </span>
+                            {resolvePropertyPricing(p).priceSource !== 'list_price' && (
+                              <span style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '9.5px',
+                                fontWeight: 700,
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                color: '#34292A',
+                                backgroundColor: 'rgba(189, 211, 226, 0.45)',
+                                padding: '1px 6px',
+                                borderRadius: '999px'
+                              }}>
+                                {resolvePropertyPricing(p).subjectPrefix}
+                              </span>
+                            )}
                           </div>
 
                           <div style={{
@@ -4939,14 +5103,36 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       {/* Card Body */}
                       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                         <div style={{
-                          fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-                          fontSize: '24px',
-                          fontWeight: 600,
-                          color: 'var(--espresso, #1E1509)',
-                          marginBottom: '6px',
-                          letterSpacing: '-0.01em'
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                          marginBottom: '6px'
                         }}>
-                          {formatPrice(p.list_price)}
+                          <span style={{
+                            fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+                            fontSize: '24px',
+                            fontWeight: 600,
+                            color: 'var(--espresso, #1E1509)',
+                            letterSpacing: '-0.01em'
+                          }}>
+                            {formatPrice(p.list_price)}
+                          </span>
+                          {resolvePropertyPricing(p).priceSource !== 'list_price' && (
+                            <span style={{
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              color: '#34292A',
+                              backgroundColor: 'rgba(189, 211, 226, 0.45)',
+                              padding: '2px 7px',
+                              borderRadius: '999px'
+                            }}>
+                              {resolvePropertyPricing(p).shortLabel}
+                            </span>
+                          )}
                         </div>
 
                         <div style={{
@@ -5339,18 +5525,53 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 <div>
                   <span className="investor-section-header">THE DEAL</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
-                      <label className="investor-form-label" htmlFor="prop-price">List Price</label>
-                      <FormattedNumberInput
-                        id="prop-price"
-                        value={propFormData.list_price}
-                        onChange={(val) => setPropFormData(prev => ({ ...prev, list_price: val }))}
-                        prefix="$"
-                        formatOnBlur={true}
-                        placeholder="$0"
-                        className="investor-form-input"
-                      />
+                    <div className="investor-form-grid-2">
+                      <div>
+                        <label className="investor-form-label" htmlFor="prop-price-source">Price Source</label>
+                        <select
+                          id="prop-price-source"
+                          value={propFormData.price_source || 'list_price'}
+                          onChange={(e) => setPropFormData(prev => ({ ...prev, price_source: e.target.value }))}
+                          className="investor-form-select"
+                        >
+                          {PRICE_SOURCE_OPTIONS.map((opt) => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="investor-form-label" htmlFor="prop-price">
+                          {getPriceSourceMeta(propFormData.price_source).inputLabel}
+                        </label>
+                        <FormattedNumberInput
+                          id="prop-price"
+                          value={propFormData.list_price}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, list_price: val }))}
+                          prefix="$"
+                          formatOnBlur={true}
+                          placeholder="$0"
+                          className="investor-form-input"
+                        />
+                      </div>
                     </div>
+
+                    {(propFormData.price_source || 'list_price') !== 'my_offer' && (
+                      <div>
+                        <label className="investor-form-label" htmlFor="prop-offer-price">
+                          My Offer Price <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional — Deal tab uses this first when set)</span>
+                        </label>
+                        <FormattedNumberInput
+                          id="prop-offer-price"
+                          value={propFormData.offer_price || ''}
+                          onChange={(val) => setPropFormData(prev => ({ ...prev, offer_price: val }))}
+                          prefix="$"
+                          formatOnBlur={true}
+                          placeholder="Leave blank to use price source above"
+                          className="investor-form-input"
+                        />
+                      </div>
+                    )}
 
                     <div className="investor-form-grid-2">
                       <div>
@@ -5549,6 +5770,21 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     </div>
                   </div>
 
+                  <div style={{ marginTop: '14px' }}>
+                    <label className="investor-form-label" htmlFor="prop-construction-detail">
+                      Construction detail <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional county record label)</span>
+                    </label>
+                    <input
+                      id="prop-construction-detail"
+                      type="text"
+                      maxLength={140}
+                      value={propFormData.construction_detail || ''}
+                      onChange={(e) => setPropFormData((prev) => ({ ...prev, construction_detail: e.target.value }))}
+                      placeholder="e.g. Wood frame / Hardi-plank"
+                      className="investor-form-input"
+                    />
+                  </div>
+
                   {propFormData.boat_dock === true && (
                     <div style={{ marginTop: '14px' }}>
                       <label className="investor-form-label" htmlFor="prop-boat-dock-sqft">
@@ -5565,6 +5801,36 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       />
                     </div>
                   )}
+
+                  <div style={{ marginTop: '14px' }}>
+                    <label className="investor-form-label" htmlFor="prop-sketch-areas">
+                      County sketch areas <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional — shown in Valuation PDF)</span>
+                    </label>
+                    <input
+                      id="prop-sketch-areas"
+                      type="text"
+                      maxLength={400}
+                      value={propFormData.sketch_areas || ''}
+                      onChange={(e) => setPropFormData((prev) => ({ ...prev, sketch_areas: e.target.value }))}
+                      placeholder="e.g. DWELL 2,688 + 416 · DWELL_U 569 · ADDN 598 + 36"
+                      className="investor-form-input"
+                    />
+                  </div>
+
+                  <div style={{ marginTop: '14px' }}>
+                    <label className="investor-form-label" htmlFor="prop-recent-improvements">
+                      Recent improvements <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional — shown in Valuation PDF)</span>
+                    </label>
+                    <textarea
+                      id="prop-recent-improvements"
+                      rows={2}
+                      maxLength={600}
+                      value={propFormData.recent_improvements || ''}
+                      onChange={(e) => setPropFormData((prev) => ({ ...prev, recent_improvements: e.target.value }))}
+                      placeholder="e.g. 2022 metal roof, impact sliders, resurfaced dock pilings..."
+                      className="investor-form-textarea"
+                    />
+                  </div>
                 </div>
 
                 {/* NOTES */}
@@ -5707,6 +5973,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         subjectProperty={activeProperty}
         subjectCountyData={countyData}
         initialSubjectMode={initialSubjectDetailsMode}
+        hasRenovationBudget={hasRenovationBudget}
         onClose={handleCloseCompPanel}
         onSaveComp={handleSaveCompPayload}
         onDeleteComp={handleDeleteComp}

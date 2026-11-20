@@ -20,6 +20,7 @@ import {
   normalizeCreditBand
 } from '../../config/financing.js';
 import LiveInPlanView from './LiveInPlanView.jsx';
+import { resolvePropertyPricing } from './priceSource.js';
 
 // Keyboard-accessible Tooltip for Underwriting Metric Labels
 function MetricTooltip({ text, alignRight = false }) {
@@ -360,8 +361,9 @@ export default function UnderwritePanel({
 
   // Build Default Inputs
   const buildDefaultInputs = (strat, prop, userProfile) => {
-    const listPrice = prop?.list_price != null ? Number(prop.list_price) : '';
-    const estTaxes = listPrice ? Math.round(Number(listPrice) * 0.02) : '';
+    const pricing = resolvePropertyPricing(prop, countyData);
+    const defaultPrice = pricing.dealPurchasePrice != null ? Number(pricing.dealPurchasePrice) : '';
+    const estTaxes = defaultPrice ? Math.round(Number(defaultPrice) * 0.02) : '';
     const initialLoanType = strat === 'flip' ? 'hard_money' : 'conventional_investment';
     const loanCfg = LOAN_TYPES[initialLoanType] || LOAN_TYPES.conventional_investment;
     const defaultRate = getProfileRate(initialLoanType, userProfile);
@@ -370,7 +372,7 @@ export default function UnderwritePanel({
       : '';
 
     const base = {
-      purchasePrice: listPrice,
+      purchasePrice: defaultPrice,
       loanType: initialLoanType,
       downPaymentPct: loanCfg.defaultDownPct,
       interestRatePct: defaultRate,
@@ -389,7 +391,7 @@ export default function UnderwritePanel({
       specialAssessmentsMo: 0,
 
       // Cash to Close customizations
-      earnestMoney: listPrice ? Math.max(5000, Math.round(Number(listPrice) * 0.01)) : 5000,
+      earnestMoney: defaultPrice ? Math.max(5000, Math.round(Number(defaultPrice) * 0.01)) : 5000,
       sellerCredits: 0,
       ownerTitlePaidByBuyer: true,
       escrowMonths: 3,
@@ -485,7 +487,8 @@ export default function UnderwritePanel({
 
   const buildDefaultLiveInInputs = (prop, userProfile, defaultAsIs, defaultArv, cData) => {
     const merged = getMergedFinancingConfig(userProfile);
-    const listPrice = prop?.list_price != null ? Number(prop.list_price) : '';
+    const pricing = resolvePropertyPricing(prop, cData);
+    const defaultPrice = pricing.dealPurchasePrice != null ? Number(pricing.dealPurchasePrice) : '';
     const defaultRehab =
       prop?.rehab_budget != null && prop.rehab_budget !== ''
         ? Math.round(Number(prop.rehab_budget))
@@ -495,13 +498,13 @@ export default function UnderwritePanel({
       rehabVal: defaultRehab,
       asIsVal: defaultAsIs,
       arvVal: defaultArv,
-      purchaseVal: listPrice
+      purchaseVal: defaultPrice
     });
     const resolvedRent = resolveDefaultMarketRentFromData(prop, cData);
     const countyKey = prop?.county || prop?.parcel_county || 'Broward';
 
     return {
-      purchasePrice: listPrice,
+      purchasePrice: defaultPrice,
       units: unitsCount,
       interestRatePct: merged.defaults.fhaInterestRatePct,
       creditScoreBand: normalizeCreditBand(userProfile?.credit_tier),
@@ -556,7 +559,12 @@ export default function UnderwritePanel({
   // Toggle for collapsible plain-English verdict explanations
   const [verdictExpanded, setVerdictExpanded] = useState(false);
 
-  // Reset inputs when property ID changes
+  const propertyPricing = useMemo(
+    () => resolvePropertyPricing(property, countyData),
+    [property, countyData]
+  );
+
+  // Reset inputs when property ID, offer_price, or price_source changes
   useEffect(() => {
     setRentalInputs(buildDefaultInputs('rental', property, profile));
     setFlipInputs(buildDefaultInputs('flip', property, profile));
@@ -564,7 +572,7 @@ export default function UnderwritePanel({
     setLiveInInputs(
       buildDefaultLiveInInputs(property, profile, appraisalAsIs, appraisalArv, countyData)
     );
-  }, [property?.id]);
+  }, [property?.id, property?.offer_price, property?.price_source]);
 
   // Keep Live-in valueAfterReno synced to Appraisal As-Is ($0 reno) or Appraisal ARV (>$0 reno) until manually edited
   useEffect(() => {
@@ -1112,6 +1120,7 @@ export default function UnderwritePanel({
             property={property}
             profile={profile}
             inputs={liveInInputs}
+            purchaseBasisLabel={propertyPricing.dealPurchaseLabel}
             onChangeInput={handleInputChange}
             onBatchChange={handleLiveInBatchChange}
             results={results}
@@ -1133,14 +1142,31 @@ export default function UnderwritePanel({
           <SectionHeader title="PURCHASE & FINANCING" />
 
           {/* Purchase Price */}
-          <InputRow
-            id="underwrite-purchase-price"
-            label="Purchase Price"
-            prefix="$"
-            value={currentInputs.purchasePrice}
-            onChange={(val) => handleInputChange('purchasePrice', val)}
-            placeholder="0"
-          />
+          <div>
+            <InputRow
+              id="underwrite-purchase-price"
+              label={`Purchase Price (${propertyPricing.dealPurchaseLabel})`}
+              prefix="$"
+              value={currentInputs.purchasePrice}
+              onChange={(val) => handleInputChange('purchasePrice', val)}
+              placeholder="0"
+            />
+            {propertyPricing.dealPurchasePrice > 0 && (
+              <div style={{
+                marginTop: '3px',
+                marginBottom: '8px',
+                fontSize: '10.5px',
+                fontWeight: 600,
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                color: 'rgba(52, 41, 42, 0.68)'
+              }}>
+                Defaulted from: <strong style={{ color: '#34292A' }}>{propertyPricing.dealPurchaseLabel}</strong>
+                {propertyPricing.offerPrice && propertyPricing.referencePrice && propertyPricing.priceSource !== 'my_offer'
+                  ? ` (${formatCurrency(propertyPricing.offerPrice)} · ${propertyPricing.shortLabel}: ${formatCurrency(propertyPricing.referencePrice)})`
+                  : ''}
+              </div>
+            )}
+          </div>
 
           {/* Strategy specific purchase items */}
           {(strategy === 'flip' || strategy === 'brrrr' || strategy === 'rental') && (

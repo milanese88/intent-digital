@@ -10,6 +10,7 @@ import AdminDashboard from './pages/AdminDashboard.jsx';
 import LearningLab from './pages/LearningLab.jsx';
 import LegalPage from './pages/LegalPage.jsx';
 import DealReportPage from './pages/investor/DealReportPage.jsx';
+import ValuationReportPage from './pages/investor/ValuationReportPage.jsx';
 import { PortalThemeProvider } from './context/PortalThemeContext.jsx';
 import {
   isAllowedAdminPath,
@@ -21,6 +22,10 @@ function resolveInitialPageFromWindow() {
   if (typeof window === 'undefined') return 'home';
 
   const path = window.location.pathname;
+  if (path.startsWith('/admin/investor/valuation-report/')) {
+    const propId = path.split('/admin/investor/valuation-report/')[1]?.split('?')[0]?.split('/')[0];
+    return propId ? 'valuation-report' : 'admin-not-found';
+  }
   if (path.startsWith('/admin/investor/report/')) {
     const propId = path.split('/admin/investor/report/')[1]?.split('?')[0]?.split('/')[0];
     return propId ? 'deal-report' : 'admin-not-found';
@@ -97,6 +102,8 @@ function App() {
   const [reportPropertyId, setReportPropertyId] = useState(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
+      const valMatch = path.match(/^\/admin\/investor\/valuation-report\/([^/?#]+)/);
+      if (valMatch) return valMatch[1];
       const match = path.match(/^\/admin\/investor\/report\/([^/?#]+)/);
       return match ? match[1] : '';
     }
@@ -112,6 +119,12 @@ function App() {
       const newPath = slug ? `/news/${slug}` : '/news';
       window.history.pushState({}, '', newPath);
       setNewsSlug(slug);
+    } else if (page === 'valuation-report') {
+      const propId = slug || reportPropertyId;
+      const queryPart = token ? `?${token}` : '';
+      const newPath = `/admin/investor/valuation-report/${propId}${queryPart}`;
+      window.history.pushState({}, '', newPath);
+      setReportPropertyId(propId);
     } else if (page === 'deal-report') {
       const propId = slug || reportPropertyId;
       const anIdParam = token ? `?analysis=${encodeURIComponent(token)}` : '';
@@ -120,6 +133,14 @@ function App() {
       setReportPropertyId(propId);
     } else if (page === 'admin') {
       const adminTarget = slug && isAllowedAdminPath(slug) ? slug.trim() : '/admin';
+      const valReportMatch = adminTarget.match(/^\/admin\/investor\/valuation-report\/([^/?#]+)/);
+      if (valReportMatch) {
+        window.history.pushState({}, '', adminTarget);
+        setReportPropertyId(valReportMatch[1]);
+        setCurrentPage('valuation-report');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       const reportMatch = adminTarget.match(/^\/admin\/investor\/report\/([^/?#]+)/);
       if (reportMatch) {
         window.history.pushState({}, '', adminTarget);
@@ -181,9 +202,14 @@ function App() {
       } else {
         setNewsSlug(null);
       }
-      const repMatch = path.match(/^\/admin\/investor\/report\/([^/?#]+)/);
-      if (repMatch) {
-        setReportPropertyId(repMatch[1]);
+      const valRepMatch = path.match(/^\/admin\/investor\/valuation-report\/([^/?#]+)/);
+      if (valRepMatch) {
+        setReportPropertyId(valRepMatch[1]);
+      } else {
+        const repMatch = path.match(/^\/admin\/investor\/report\/([^/?#]+)/);
+        if (repMatch) {
+          setReportPropertyId(repMatch[1]);
+        }
       }
       setCurrentPage(nextPage);
     };
@@ -217,6 +243,14 @@ function App() {
 
   if (currentPage === 'admin') {
     return <AdminDashboard navigateTo={navigateTo} />;
+  }
+
+  if (currentPage === 'valuation-report') {
+    return (
+      <PortalThemeProvider>
+        <ValuationReportPage propertyId={reportPropertyId} navigateTo={navigateTo} />
+      </PortalThemeProvider>
+    );
   }
 
   if (currentPage === 'deal-report') {

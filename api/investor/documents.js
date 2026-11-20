@@ -49,11 +49,17 @@ export default async function handler(req, res) {
 
     // 2. POST: Upload a document (PDF) to Vercel Blob and save record
     if (req.method === 'POST') {
-      const { property_id, title, data, filename } = req.body || {};
+      const { property_id, title, data, doc_type: rawDocType } = req.body || {};
 
       if (!property_id || !data) {
         return res.status(400).json({ error: 'property_id and file data are required' });
       }
+
+      const ALLOWED_DOC_TYPES = new Set(['deal_report', 'valuation_estimate', 'document']);
+      const normalizedDocType =
+        rawDocType && ALLOWED_DOC_TYPES.has(String(rawDocType).trim().toLowerCase())
+          ? String(rawDocType).trim().toLowerCase()
+          : 'deal_report';
 
       // Verify property ownership
       const propCheck = await sql`
@@ -75,8 +81,11 @@ export default async function handler(req, res) {
 
       // Generate random unguessable path
       const randomKey = crypto.randomBytes(16).toString('hex');
-      const safeTitle = (title || 'deal-report').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const blobPath = `deals/reports/${property_id}/${randomKey}-${safeTitle}.pdf`;
+      const defaultTitle = normalizedDocType === 'valuation_estimate' ? 'Valuation Estimate' : 'Deal Report';
+      const resolvedTitle = title && String(title).trim() ? String(title).trim() : defaultTitle;
+      const safeTitle = resolvedTitle.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+      const folder = normalizedDocType === 'valuation_estimate' ? 'valuations' : 'reports';
+      const blobPath = `deals/${folder}/${property_id}/${randomKey}-${safeTitle}.pdf`;
 
       // Upload to Vercel Blob
       const blob = await put(blobPath, buffer, {
@@ -88,8 +97,8 @@ export default async function handler(req, res) {
       let insertedDoc = {
         id: crypto.randomUUID(),
         property_id,
-        title: title || 'Deal Report',
-        doc_type: 'deal_report',
+        title: resolvedTitle,
+        doc_type: normalizedDocType,
         blob_url: blob.url,
         file_size: fileSize,
         created_at: new Date().toISOString()
@@ -107,8 +116,8 @@ export default async function handler(req, res) {
           ) VALUES (
             ${cleanEmail},
             ${property_id},
-            ${title || 'Deal Report'},
-            'deal_report',
+            ${resolvedTitle},
+            ${normalizedDocType},
             ${blob.url},
             ${fileSize}
           )

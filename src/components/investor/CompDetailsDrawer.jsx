@@ -119,6 +119,7 @@ export default function CompDetailsDrawer({
   subjectProperty = null,
   subjectCountyData = null,
   initialSubjectMode = 'as_is', // 'as_is' | 'after_rehab'
+  hasRenovationBudget = false,
   onClose,
   onSaveComp,
   onDeleteComp,
@@ -126,7 +127,9 @@ export default function CompDetailsDrawer({
   isSaving = false,
   isDeleting = false
 }) {
-  const [subjectTab, setSubjectTab] = useState(initialSubjectMode === 'after_rehab' ? 'after_rehab' : 'as_is');
+  const [subjectTab, setSubjectTab] = useState(
+    hasRenovationBudget && initialSubjectMode === 'after_rehab' ? 'after_rehab' : 'as_is'
+  );
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
@@ -190,7 +193,7 @@ export default function CompDetailsDrawer({
     setIsDeleteConfirming(false);
 
     if (entityType === 'subject' && subjectProperty) {
-      const nextMode = initialSubjectMode === 'after_rehab' ? 'after_rehab' : 'as_is';
+      const nextMode = hasRenovationBudget && initialSubjectMode === 'after_rehab' ? 'after_rehab' : 'as_is';
       setSubjectTab(nextMode);
       const baseAsIs = resolveSubjectDetailsForMode(subjectProperty, 'as_is');
       const baseAfterRehab = resolveSubjectDetailsForMode(subjectProperty, 'arv');
@@ -711,8 +714,8 @@ export default function CompDetailsDrawer({
             </div>
           </div>
 
-          {/* Subject Mode Switcher: As-is vs After-rehab */}
-          {entityType === 'subject' && (
+          {/* Subject Mode Switcher: As-is vs After-rehab (ARV only shown when renovation budget entered) */}
+          {entityType === 'subject' && hasRenovationBudget && (
             <div
               style={{
                 marginTop: '14px',
@@ -726,7 +729,7 @@ export default function CompDetailsDrawer({
               <SegmentedControl
                 size="sm"
                 options={[
-                  { id: 'as_is', label: 'As-is' },
+                  { id: 'as_is', label: 'Current (As-is)' },
                   { id: 'after_rehab', label: 'After-rehab (ARV)' }
                 ]}
                 value={subjectTab}
@@ -1203,6 +1206,15 @@ export default function CompDetailsDrawer({
                   value={activeDetails.construction_type || 'unknown'}
                   suggestedValue={hintSuggestedFields.construction_type || null}
                   onChange={(id) => updateActiveDetails({ construction_type: id })}
+                />
+                <input
+                  type="text"
+                  maxLength={140}
+                  value={activeDetails.construction_detail || ''}
+                  onChange={(e) => updateActiveDetails({ construction_detail: e.target.value })}
+                  placeholder="Optional county record label (e.g. Wood frame / Hardi-plank)"
+                  className="investor-form-input"
+                  style={{ marginTop: '8px', fontSize: '12px' }}
                 />
               </div>
 
