@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migration: add_size_to_design_room_images.sql
 -- Description: Add size column to design_room_images ('small' default, 'wide', 'large')
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- Safe to execute repeatedly (Additive: ADD COLUMN IF NOT EXISTS)
 -- ============================================================================
 

@@ -1,9 +1,9 @@
 -- ==============================================================================
--- Migration: Investor Studio Tables (Neon Postgres)
+-- Migration: Investor Studio Tables (Supabase Postgres)
 -- Created: 2026-11-06
 -- Description: Creates 4 private tables for real estate investor tracking,
 --              comps, watched locations, and deal underwriting analyses.
--- Target Database: Neon Serverless Postgres
+-- Target Database: Supabase PostgreSQL
 -- Auth Model: Authenticated admin session validation via server-side /api routes
 -- ==============================================================================
 

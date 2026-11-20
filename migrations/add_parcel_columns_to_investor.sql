@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migration: add_parcel_columns_to_investor.sql
 -- Description: Add nullable parcel_id and parcel_county to investor_properties and investor_comps
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- Safe to execute repeatedly (Additive: ADD COLUMN IF NOT EXISTS)
 -- ============================================================================
 

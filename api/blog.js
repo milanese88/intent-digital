@@ -72,7 +72,7 @@ export default async function handler(req, res) {
             }
           } catch (err) {
             // Check if it's a unique constraint violation on slug (Postgres error code 23505)
-            // Wait, for neon serverless the error code is exposed as err.code.
+            // Postgres error code is exposed as err.code.
             if (err.code === '23505' && err.message.includes('slug')) {
               counter++;
               slug = `${baseSlug}-${counter}`;

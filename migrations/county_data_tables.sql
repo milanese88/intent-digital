@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migration: county_data_tables.sql
 -- Description: Create county parcels, sales, and sales qualification codes tables
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- Safe to execute repeatedly (Idempotent: CREATE IF NOT EXISTS / ON CONFLICT)
 -- ============================================================================
 

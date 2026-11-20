@@ -3,7 +3,7 @@
 -- Description: Rigorous valuation attributes, profile adjustment defaults,
 --              per-property Before-You-Offer checklist, and back-test results table.
 --              Does NOT modify county_sales or county_parcels.
--- Target: Neon PostgreSQL (idempotent)
+-- Target: Supabase PostgreSQL (idempotent)
 -- ==============================================================================
 
 -- 1. Comp condition, physical attributes, notes & per-comp adjustment overrides

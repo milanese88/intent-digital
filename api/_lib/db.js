@@ -3,8 +3,10 @@ import postgres from 'postgres';
 export const MIGRATION_UPDATE_MESSAGE =
   'This feature needs a database update — ask to apply migrations.';
 
-export const NEON_QUOTA_MESSAGE =
+export const DATABASE_QUOTA_MESSAGE =
   'Database quota exceeded (storage or compute limit reached). Upgrade your database plan or free up space.';
+
+export const NEON_QUOTA_MESSAGE = DATABASE_QUOTA_MESSAGE;
 
 // Cache serverless client per URL within a warm lambda / dev process (max: 1 connection)
 const appClientCache = new Map();
@@ -168,8 +170,7 @@ export function scrubDbMessage(rawMsg) {
   for (const key of [
     'SUPABASE_POOLER_URL',
     'SUPABASE_DATABASE_URL',
-    'DATABASE_URL',
-    'NEON_DATABASE_URL'
+    'DATABASE_URL'
   ]) {
     const val = process.env[key];
     if (val && typeof val === 'string' && val.trim() && val.trim() !== '[SENSITIVE]') {
@@ -307,7 +308,7 @@ export function createPostgresClient(
 
 /**
  * Resolves the App/API database URL, preferring SUPABASE_POOLER_URL over DATABASE_URL
- * so Vercel's Neon-managed DATABASE_URL cannot override Supabase.
+ * so legacy DATABASE_URL cannot override Supabase.
  */
 export function resolveAppDatabaseUrl() {
   if (!isUnsetOrPlaceholder(process.env.SUPABASE_POOLER_URL)) {
@@ -501,7 +502,7 @@ export function sendSafeApiError(
 
   if (isDatabaseQuotaError(err)) {
     return res.status(503).json({
-      error: NEON_QUOTA_MESSAGE,
+      error: DATABASE_QUOTA_MESSAGE,
       databaseQuotaExceeded: true
     });
   }

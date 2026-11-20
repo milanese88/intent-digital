@@ -62,9 +62,9 @@ export default function Login({ navigateTo }) {
       } else if (err === 'expired_link') {
         setError('Your magic link has expired. Please request a new one.');
       } else if (err === 'db_quota') {
-        setError('Database quota exceeded on Neon (storage or compute limit reached). Upgrade your Neon plan or free up space in the Neon Console.');
+        setError('Database quota exceeded on Supabase (storage or compute limit reached). Upgrade your plan or free up space in the Supabase Dashboard.');
       } else if (err === 'db_unreachable') {
-        setError('Database is temporarily unreachable. Please check your Neon database status and try again.');
+        setError('Database is temporarily unreachable. Please check your Supabase database status and try again.');
       }
       
       if (err) {
@@ -173,7 +173,7 @@ export default function Login({ navigateTo }) {
       } else if (res.status === 503) {
         setError(
           data.error ||
-            'Database is temporarily unavailable. Please check your Neon database status and try again.'
+            'Database is temporarily unavailable. Please check your Supabase database status and try again.'
         );
       } else if (res.status === 500) {
         setError(

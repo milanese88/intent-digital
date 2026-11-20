@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 import crypto from 'crypto';
 import {
   getDb,
-  NEON_QUOTA_MESSAGE,
+  DATABASE_QUOTA_MESSAGE,
   isDatabaseQuotaError,
   isDatabaseUnavailableError
 } from './_lib/db.js';
@@ -96,11 +96,11 @@ export default async function handler(req, res) {
     } catch (dbErr) {
       console.error('DB check failed in request-magic-link:', dbErr?.message || dbErr);
       if (isDatabaseQuotaError(dbErr)) {
-        return res.status(503).json({ error: NEON_QUOTA_MESSAGE, databaseQuotaExceeded: true });
+        return res.status(503).json({ error: DATABASE_QUOTA_MESSAGE, databaseQuotaExceeded: true });
       }
       if (isDatabaseUnavailableError(dbErr)) {
         return res.status(503).json({
-          error: 'Database is temporarily unreachable. Please check your Neon database status and try again.'
+          error: 'Database is temporarily unreachable. Please check your Supabase database status and try again.'
         });
       }
       return res.status(500).json({ error: 'Unable to verify account right now.' });

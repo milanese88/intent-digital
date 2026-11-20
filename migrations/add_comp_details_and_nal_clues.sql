@@ -13,7 +13,7 @@
 --   4. Adds subject_details JSONB (as_is & after_rehab) on investor_properties.
 --
 -- Strictly schema-only (NO test rows). 100% idempotent (IF NOT EXISTS).
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- ==============================================================================
 
 -- 1. DOR NAL clue columns + optional public-records building columns on county_parcels

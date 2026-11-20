@@ -160,7 +160,7 @@ export async function forwardGeocodeMapbox(addressQuery, token = MAPBOX_TOKEN, s
 
 /**
  * Reusable Address Autocomplete Combobox
- * Priority 1: County Records (from Neon county_parcels)
+ * Priority 1: County Records (from Supabase county_parcels)
  * Priority 2: Mapbox Search Box suggestions ("OTHER ADDRESSES")
  */
 export default function AddressAutocomplete({

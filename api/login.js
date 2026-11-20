@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import {
   getDb,
-  NEON_QUOTA_MESSAGE,
+  DATABASE_QUOTA_MESSAGE,
   formatSafeDbError,
   isMissingSchemaError,
   isDatabaseQuotaError,
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
 
       if (isDatabaseQuotaError(error)) {
         return res.status(503).json({
-          error: NEON_QUOTA_MESSAGE,
+          error: DATABASE_QUOTA_MESSAGE,
           databaseQuotaExceeded: true
         });
       }

@@ -4,7 +4,7 @@
  * import-roll.mjs
  * 
  * Production ETL script to import Florida Department of Revenue (FDOR) property rolls
- * into Neon PostgreSQL for Intent Digital.
+ * into Supabase PostgreSQL for Intent Digital.
  * 
  * Features:
  * - RFC-4180 compliant CSV streaming parser (csv-parse) handling embedded commas,
@@ -33,6 +33,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'csv-parse';
 import dotenv from 'dotenv';
+import { COUNTY_REGISTRY, normalizeCountyName, getCountyConfig, findRollFile } from './_counties.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,16 +125,16 @@ async function main() {
   const isDryRun = args.includes('--dry-run');
   const isBackfillClues = args.includes('--backfill-clues');
 
-  // Normalize county name
-  let countyName = rawCountyArg.trim();
-  if (/palm/i.test(countyName)) {
-    countyName = 'Palm Beach';
-  } else if (/broward/i.test(countyName)) {
-    countyName = 'Broward';
+  // Normalize county name (Broward 16, Palm Beach 60, Martin 53)
+  const countyName = normalizeCountyName(rawCountyArg);
+  const countyConfig = getCountyConfig(countyName);
+  if (!countyConfig) {
+    console.error(`\n[!] Unsupported county "${rawCountyArg}". Supported: ${Object.keys(COUNTY_REGISTRY).join(', ')}\n`);
+    process.exit(1);
   }
 
   console.log(`===============================================================================`);
-  console.log(`INTENT DIGITAL — COUNTY ROLL ${isBackfillClues ? 'CLUES BACKFILL' : 'IMPORT'} TO NEON POSTGRESQL`);
+  console.log(`INTENT DIGITAL — COUNTY ROLL ${isBackfillClues ? 'CLUES BACKFILL' : 'IMPORT'} TO SUPABASE POSTGRESQL`);
   console.log(`Target County: [${countyName}] | Execution Mode: [${isDryRun ? 'DRY-RUN (Simulate only)' : (isBackfillClues ? 'NAL CLUES BACKFILL' : 'PRODUCTION IMPORT')}]`);
   console.log(`CSV Engine: RFC-4180 streaming parser (csv-parse) with header-based mapping`);
   console.log(`===============================================================================`);
@@ -191,22 +192,19 @@ async function main() {
     }
   }
 
-  // Locate County NAL and SDF files in data/county/
-  const files = fs.readdirSync(DEFAULT_DATA_DIR);
-  const countySearchToken = countyName.toLowerCase().replace(/[\s_-]+/g, '');
-  
-  const nalFile = files.find(f => f.toLowerCase().replace(/[\s_-]+/g, '').includes(countySearchToken) && f.toUpperCase().includes('NAL'));
-  const sdfFile = files.find(f => f.toLowerCase().replace(/[\s_-]+/g, '').includes(countySearchToken) && f.toUpperCase().includes('SDF'));
+  // Locate County NAL and SDF files in data/county/ or data/county/<county>/
+  const nalPath = findRollFile(DEFAULT_DATA_DIR, countyName, 'NAL');
+  const sdfPath = findRollFile(DEFAULT_DATA_DIR, countyName, 'SDF');
 
-  if (!nalFile || (!isBackfillClues && !sdfFile)) {
+  if (!nalPath || (!isBackfillClues && !sdfPath)) {
     console.error(`\n[!] Missing roll file(s) for ${countyName} in ${DEFAULT_DATA_DIR}`);
-    if (!nalFile) console.error(`  - Missing NAL file for ${countyName}`);
-    if (!isBackfillClues && !sdfFile) console.error(`  - Missing SDF file for ${countyName}`);
+    if (!nalPath) console.error(`  - Missing NAL file for ${countyName}`);
+    if (!isBackfillClues && !sdfPath) console.error(`  - Missing SDF file for ${countyName}`);
     process.exit(1);
   }
 
-  const nalPath = path.join(DEFAULT_DATA_DIR, nalFile);
-  const sdfPath = sdfFile ? path.join(DEFAULT_DATA_DIR, sdfFile) : null;
+  const nalFile = path.relative(DEFAULT_DATA_DIR, nalPath);
+  const sdfFile = sdfPath ? path.relative(DEFAULT_DATA_DIR, sdfPath) : null;
 
   console.log(`Found Source Archives:`);
   console.log(`  - NAL: ${nalFile} (${(fs.statSync(nalPath).size / (1024 * 1024)).toFixed(1)} MB)`);
@@ -261,7 +259,7 @@ async function main() {
   }
 
   // Known target parcel for sanity verification
-  const knownTargetId = countyName === 'Palm Beach' ? '74434307010000010' : '504209040280';
+  const knownTargetId = countyConfig.knownParcel.id;
   let knownParcelRecord = null;
   const knownParcelSales = [];
 
@@ -625,7 +623,7 @@ async function main() {
         roll_year: rollYear
       };
 
-      if (parcelId === knownTargetId || (address && address.toUpperCase().includes(countyName === 'Palm Beach' ? '1901 EMBASSY' : '924 SW 15 TER'))) {
+      if (parcelId === knownTargetId || (address && address.toUpperCase().includes(countyConfig.knownParcel.addressIncludes))) {
         knownParcelRecord = { ...parcelRecord };
       }
 
@@ -878,7 +876,7 @@ async function main() {
   if (!isDryRun && pool) {
     try {
       const client = await pool.connect();
-      console.log(`\n--- ACTUAL NEON DATABASE SIZES ---`);
+      console.log(`\n--- ACTUAL SUPABASE DATABASE SIZES ---`);
       
       const sizeQuery = `
         SELECT 
@@ -918,7 +916,7 @@ async function main() {
     const estSalesBytes = uniqueSalesKeys.size * 135;
     const estTotalBytes = estParcelBytes + estSalesBytes;
 
-    console.log(`\n--- ESTIMATED NEON STORAGE FOOTPRINT ---`);
+    console.log(`\n--- ESTIMATED SUPABASE STORAGE FOOTPRINT ---`);
     console.log(`- county_parcels (${totalResidentialParcels.toLocaleString()} rows): ~${formatBytes(estParcelBytes)} (table + 4 B-Tree indexes)`);
     console.log(`- county_sales   (${uniqueSalesKeys.size.toLocaleString()} rows): ~${formatBytes(estSalesBytes)} (table + 2 B-Tree indexes)`);
     console.log(`- county_sale_codes (33 reference rows): < 0.1 MB`);

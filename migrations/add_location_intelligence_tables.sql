@@ -14,7 +14,7 @@
 --
 -- Strictly additive & idempotent (IF NOT EXISTS). Zero DROP/DELETE/TRUNCATE/UPDATE.
 -- Strictly schema-only (NO test rows).
--- Target: Neon PostgreSQL
+-- Target: Supabase PostgreSQL
 -- ==============================================================================
 
 -- 1. Cached per-property Location Snapshots with per-field source provenance

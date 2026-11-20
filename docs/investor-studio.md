@@ -1,6 +1,6 @@
-# Investor Studio Database Schema (Neon Postgres)
+# Investor Studio Database Schema (Supabase Postgres)
 
-This schema establishes the persistence layer for the **Investor Studio** real estate investor toolkit on **Neon Serverless Postgres**.
+This schema establishes the persistence layer for the **Investor Studio** real estate investor toolkit on **Supabase Postgres**.
 
 ---
 
@@ -30,30 +30,28 @@ All 4 tables include `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`, `owner_ema
 
 ## 2. Security & Access Model
 
-- **Server-Side Protection:** The database connection string (`DATABASE_URL`) is strictly server-side and never exposed to the browser.
+- **Server-Side Protection:** The database connection strings (`SUPABASE_POOLER_URL`, `SUPABASE_DATABASE_URL`) are strictly server-side and never exposed to the browser.
 - **Admin Verification:** All database reads and writes are performed through serverless `/api/*` functions that verify the caller's identity via `getUserFromSession(req)` using the HTTP-only `auth_session` cookie.
 - **Data Isolation:** Queries always filter or insert using the authenticated admin's email (`user.email`), ensuring row-level data isolation via the `owner_email` column.
 
 ---
 
-## 3. How to Apply this Migration to your Neon Database
+## 3. How to Apply this Migration to your Supabase Database
 
-You can apply this SQL directly into your Neon Postgres database using the Vercel dashboard or the Neon console.
+You can apply this SQL directly into your Supabase database using the Supabase dashboard or the migration script.
 
-### Option A: Via Vercel Dashboard (Fastest if Neon is connected through Vercel)
-1. Go to your **[Vercel Dashboard](https://vercel.com)**.
-2. Select your `intent-digital` project.
-3. Click on the **Storage** tab.
-4. Click on your connected **Neon Postgres** database.
-5. In the database management interface, click **Query** or **SQL Editor**.
-6. Copy the entire SQL from [`migrations/investor_studio_tables.sql`](../migrations/investor_studio_tables.sql).
-7. Paste the SQL into the query editor and click **Run**.
-8. You will see a success message, and the 4 tables will appear in your database schema.
+### Option A: Via the Project Migration CLI (Recommended)
+1. Ensure `SUPABASE_DATABASE_URL` is set in `.env.local`.
+2. Run:
+   ```bash
+   node scripts/db/check.mjs
+   node scripts/db/migrate.mjs
+   ```
 
-### Option B: Via the Neon Console Directly
-1. Log in to the **[Neon Console](https://console.neon.tech)**.
-2. Select your project.
+### Option B: Via the Supabase Dashboard SQL Editor
+1. Log in to the **[Supabase Dashboard](https://supabase.com/dashboard)**.
+2. Select your `Intent-Digital` project.
 3. In the left navigation menu, click **SQL Editor**.
 4. Paste the SQL from [`migrations/investor_studio_tables.sql`](../migrations/investor_studio_tables.sql).
-5. Click **Run** (or `Cmd + Enter`).
-6. Confirm the 4 tables (`investor_properties`, `investor_comps`, `investor_locations`, `investor_analyses`) now appear under the **Tables** sidebar.
+5. Click **Run**.
+6. Confirm the tables (`investor_properties`, `investor_comps`, `investor_locations`, `investor_analyses`) appear under the **Database -> Tables** sidebar.

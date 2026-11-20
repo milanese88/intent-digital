@@ -42,7 +42,7 @@ export async function runBackfill() {
       WHERE p.county = b.county AND p.parcel_id = b.parcel_id;
     `;
 
-    // Neon serverless returns count or array
+    // PostgreSQL driver returns count or array
     const updatedInBatch = result.count !== undefined ? result.count : (Array.isArray(result) ? result.length : 50000);
     totalUpdated += updatedInBatch;
     const batchElapsed = ((performance.now() - batchStart) / 1000).toFixed(2);

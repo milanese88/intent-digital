@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
-import { getDb, NEON_QUOTA_MESSAGE, isDatabaseQuotaError } from './_lib/db.js';
+import { getDb, DATABASE_QUOTA_MESSAGE, isDatabaseQuotaError } from './_lib/db.js';
 import { getCleanEnv, getSessionSigningSecret } from './_lib/session.js';
 
 // In-memory rate limiting (Note: resets on serverless cold starts)
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn('DB check in request-password-reset:', e.message);
       if (isDatabaseQuotaError(e)) {
-        return res.status(503).json({ error: NEON_QUOTA_MESSAGE, databaseQuotaExceeded: true });
+        return res.status(503).json({ error: DATABASE_QUOTA_MESSAGE, databaseQuotaExceeded: true });
       }
     }
   }

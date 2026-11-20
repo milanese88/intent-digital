@@ -99,7 +99,7 @@ function setSessionCookie(token, res, req) {
 
 /**
  * Issues a cryptographically signed HMAC session cookie when the database is unavailable
- * (e.g. Neon Free Tier quota suspension) after owner credentials or magic link are verified.
+ * (e.g. database quota suspension or network maintenance) after owner credentials or magic link are verified.
  */
 export function createStatelessSession(userInfo, res, req) {
   const secret = getSessionSigningSecret();
