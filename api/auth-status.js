@@ -28,7 +28,8 @@ export default async function handler(req, res) {
   // Generate status object (booleans only)
   const status = {
     env: {
-      DATABASE_URL: !!process.env.DATABASE_URL,
+      SUPABASE_POOLER_URL: !!process.env.SUPABASE_POOLER_URL,
+      DATABASE_URL: !!(process.env.SUPABASE_POOLER_URL || process.env.DATABASE_URL),
       ADMIN_EMAIL: !!process.env.ADMIN_EMAIL,
       ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD,
       AUTH_SECRET: !!process.env.AUTH_SECRET,

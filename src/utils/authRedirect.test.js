@@ -20,6 +20,7 @@ import {
 import {
   NEON_QUOTA_MESSAGE,
   attachSqlAdapters,
+  resolveAppDatabaseUrl,
   resolveScriptDatabaseUrl,
   isDatabaseError,
   isDatabaseQuotaError,
@@ -152,6 +153,7 @@ test('Neon HTTP 402 quota errors map to friendly 503 NEON_QUOTA_MESSAGE and [SEN
 
 test('Login -> Verify -> Logout round-trip succeeds with signed stateless session when DB is unavailable and rejects wrong credentials', async () => {
   const saved = {
+    SUPABASE_POOLER_URL: process.env.SUPABASE_POOLER_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
@@ -159,6 +161,7 @@ test('Login -> Verify -> Logout round-trip succeeds with signed stateless sessio
   };
 
   try {
+    process.env.SUPABASE_POOLER_URL = '[SENSITIVE]';
     process.env.DATABASE_URL = '[SENSITIVE]';
     process.env.ADMIN_EMAIL = 'owner-test@example.com';
     process.env.ADMIN_PASSWORD = 'correct-horse-battery-staple';
@@ -277,17 +280,24 @@ test('postgres.js shared client adapters preserve sql.query, sql.transaction, se
   const txOut = await fakeSql.transaction((tx) => [tx`UPDATE a SET x = ${1}`, tx`UPDATE b SET y = ${2}`]);
   assert.equal(txOut.length, 2);
 
-  // Script URL routing prefers SUPABASE_DATABASE_URL (5432) over DATABASE_URL (6543)
+  // App URL routing prefers SUPABASE_POOLER_URL over Vercel's Neon-managed DATABASE_URL,
+  // and script URL routing prefers SUPABASE_DATABASE_URL (5432) over both.
   const prevSupa = process.env.SUPABASE_DATABASE_URL;
+  const prevPooler = process.env.SUPABASE_POOLER_URL;
   const prevDb = process.env.DATABASE_URL;
   try {
     process.env.SUPABASE_DATABASE_URL = 'postgresql://u:p@example.pooler:5432/postgres';
-    process.env.DATABASE_URL = 'postgresql://u:p@example.pooler:6543/postgres';
+    process.env.SUPABASE_POOLER_URL = 'postgresql://u:p@example.pooler:6543/postgres';
+    process.env.DATABASE_URL = 'postgresql://u:p@legacy-neon.example:5432/neondb';
+    assert.equal(resolveAppDatabaseUrl(), 'postgresql://u:p@example.pooler:6543/postgres');
     assert.ok(resolveScriptDatabaseUrl().includes(':5432/'));
     assert.ok(resolveScriptDatabaseUrl(process.env.DATABASE_URL).includes(':5432/'));
+    assert.ok(resolveScriptDatabaseUrl(process.env.SUPABASE_POOLER_URL).includes(':5432/'));
   } finally {
     if (prevSupa === undefined) delete process.env.SUPABASE_DATABASE_URL;
     else process.env.SUPABASE_DATABASE_URL = prevSupa;
+    if (prevPooler === undefined) delete process.env.SUPABASE_POOLER_URL;
+    else process.env.SUPABASE_POOLER_URL = prevPooler;
     if (prevDb === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = prevDb;
   }

@@ -84,6 +84,7 @@ export function createPostgresClient(connectionString, { mode = 'app', max, idle
     idle_timeout: idleTimeout ?? (isScript ? 2 : 20),
     connect_timeout: isScript ? 30 : 15,
     ssl: 'require',
+    channel_binding: 'prefer',
     fetch_types: false,
     transform: { undefined: null },
     onnotice: () => {}
@@ -93,10 +94,19 @@ export function createPostgresClient(connectionString, { mode = 'app', max, idle
 }
 
 /**
- * Shared serverless / API database client using DATABASE_URL (Supabase Transaction Pooler, port 6543).
+ * Resolves the App/API database URL, preferring SUPABASE_POOLER_URL over DATABASE_URL
+ * so Vercel's Neon-managed DATABASE_URL cannot override Supabase.
+ */
+export function resolveAppDatabaseUrl() {
+  return cleanUrl(process.env.SUPABASE_POOLER_URL) || cleanUrl(process.env.DATABASE_URL);
+}
+
+/**
+ * Shared serverless / API database client using SUPABASE_POOLER_URL || DATABASE_URL
+ * (Supabase Transaction Pooler, port 6543).
  */
 export function getDb() {
-  const databaseUrl = cleanUrl(process.env.DATABASE_URL);
+  const databaseUrl = resolveAppDatabaseUrl();
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is not set');
   }
@@ -115,13 +125,14 @@ export function getDb() {
 export function resolveScriptDatabaseUrl(explicitUrl) {
   const explicit = cleanUrl(explicitUrl);
   const sessionUrl = cleanUrl(process.env.SUPABASE_DATABASE_URL);
+  const poolerUrl = cleanUrl(process.env.SUPABASE_POOLER_URL);
   const fallbackUrl = cleanUrl(process.env.DATABASE_URL);
 
   // Always prefer SUPABASE_DATABASE_URL (port 5432 session pooler) for scripts unless an explicit non-default URL was passed
-  if (explicit && explicit !== fallbackUrl) {
+  if (explicit && explicit !== fallbackUrl && explicit !== poolerUrl) {
     return explicit;
   }
-  return sessionUrl || explicit || fallbackUrl;
+  return sessionUrl || explicit || poolerUrl || fallbackUrl;
 }
 
 /**
