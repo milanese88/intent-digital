@@ -386,7 +386,7 @@ export default async function handler(req, res) {
       );
 
       matched.push({
-        county: rowCounty,
+        county: row.county || subject.county,
         parcel_id: row.parcel_id,
         address: row.address,
         city: row.city,

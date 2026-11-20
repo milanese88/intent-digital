@@ -32,6 +32,7 @@ const GRID_ROWS = [
   { key: 'roof', label: 'Roof', sub: 'Material & roof year' },
   { key: 'pool', label: 'Pool & Outdoor', sub: 'Standard / resort · screen' },
   { key: 'garage', label: 'Garage & Parking', sub: 'Bays / carport / converted' },
+  { key: 'location_subdivision', label: 'Location', sub: 'Same subdivision / Different' },
   { key: 'location_site', label: 'Waterfront & View', sub: 'Water / view & lot sf' }
 ];
 
@@ -383,6 +384,34 @@ export default function AppraisalGridSection({
           </button>
         );
       }
+      case 'location_subdivision':
+        return (
+          <span>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 9px',
+                borderRadius: '999px',
+                backgroundColor: subjectSummary.subdivisionName
+                  ? 'rgba(189, 211, 226, 0.24)'
+                  : 'rgba(250, 248, 245, 0.1)',
+                border: subjectSummary.subdivisionName
+                  ? '1px solid rgba(189, 211, 226, 0.5)'
+                  : '1px solid rgba(250, 248, 245, 0.22)',
+                color: '#FAF8F5',
+                fontSize: '11px',
+                fontWeight: 600
+              }}
+            >
+              {subjectSummary.locationSubdivisionLabel || 'Not set'}
+            </span>
+            {subjectSummary.hoaName && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                HOA: {subjectSummary.hoaName}
+              </span>
+            )}
+          </span>
+        );
       case 'location_site':
         return (
           <button
@@ -614,7 +643,7 @@ export default function AppraisalGridSection({
                 margin: '0 0 18px 0'
               }}
             >
-              Pick verified Palm Beach &amp; Broward sales in the Value &amp; Comps tab, or add an MLS sale manually.
+              Pick verified Broward, Palm Beach &amp; Martin sales in the Value &amp; Comps tab, or add an MLS sale manually.
             </p>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
               {onGoToCompsTab && (

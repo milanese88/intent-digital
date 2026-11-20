@@ -167,7 +167,7 @@ export default function AdjustmentLibraryModal({
                 marginBottom: '6px'
               }}
             >
-              PALM BEACH &amp; BROWARD CONTRIBUTORY VALUE GUIDE
+              SOUTH FLORIDA CONTRIBUTORY VALUE GUIDE (BROWARD · PALM BEACH · MARTIN)
             </span>
             <h2
               style={{
@@ -418,7 +418,13 @@ export default function AdjustmentLibraryModal({
                   { key: 'garageBayAdjustment', label: 'Garage Bay Differential', guide: 'Guide: $10k–$20k / bay' },
                   { key: 'impactWindowsAdjustment', label: 'Full Impact Windows/Doors', guide: 'Guide: $15k–$35k HVHZ' },
                   { key: 'newerRoofAdjustment', label: 'Newer Tile / Metal Roof', guide: 'Guide: $15k–$35k (<5 yrs)' },
-                  { key: 'waterfrontAdjustment', label: 'Waterfront / Canal Frontage', guide: 'Dedicated Location/Site row' }
+                  { key: 'waterfrontAdjustment', label: 'Waterfront / Canal Frontage', guide: 'Dedicated Location/Site row' },
+                  {
+                    key: 'differentSubdivisionAdjustment',
+                    label: 'Location · Different Subdivision',
+                    guide: 'Default $0 · comps outside subject subdivision (+ or −)',
+                    allowSigned: true
+                  }
                 ].map((item) => (
                   <div
                     key={item.key}
@@ -452,21 +458,53 @@ export default function AdjustmentLibraryModal({
                       }}
                     >
                       <span style={{ fontSize: '11.5px', color: 'var(--muted)', marginRight: '3px' }}>$</span>
-                      <FormattedNumberInput
-                        value={form[item.key]}
-                        onChange={(v) => setField(item.key, v)}
-                        formatOnBlur={true}
-                        style={{
-                          border: 'none',
-                          outline: 'none',
-                          width: '100%',
-                          textAlign: 'right',
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          color: 'var(--espresso)'
-                        }}
-                      />
+                      {item.allowSigned ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={form[item.key] === '' || form[item.key] == null ? '' : String(form[item.key])}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, '');
+                            setForm((prev) => ({
+                              ...prev,
+                              [item.key]: raw === '' || raw === '-' ? raw : Number(raw)
+                            }));
+                          }}
+                          onBlur={() => {
+                            const v = form[item.key];
+                            if (v === '' || v === '-' || isNaN(Number(v))) {
+                              setForm((prev) => ({ ...prev, [item.key]: 0 }));
+                            }
+                          }}
+                          placeholder="0"
+                          style={{
+                            border: 'none',
+                            outline: 'none',
+                            width: '100%',
+                            textAlign: 'right',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: 'var(--espresso)'
+                          }}
+                        />
+                      ) : (
+                        <FormattedNumberInput
+                          value={form[item.key]}
+                          onChange={(v) => setField(item.key, v)}
+                          formatOnBlur={true}
+                          style={{
+                            border: 'none',
+                            outline: 'none',
+                            width: '100%',
+                            textAlign: 'right',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: 'var(--espresso)'
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}

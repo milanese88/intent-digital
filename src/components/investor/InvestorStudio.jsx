@@ -29,7 +29,8 @@ import {
 import { formatCurrency, evaluateLiveInFit } from './underwriting.js';
 import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
-import { resolvePropertyCounty, getPropertyCountyLabel } from '../../config/counties.js';
+import { resolvePropertyCounty, getPropertyCountyLabel, normalizeCountyName } from '../../config/counties.js';
+import { isSameSubdivision } from '../../utils/subdivision.js';
 import {
   Button,
   Pill,
@@ -149,7 +150,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     listing_url: '',
     notes: '',
     parcel_id: null,
-    parcel_county: null
+    parcel_county: null,
+    has_hoa: null,
+    hoa_monthly: '',
+    hoa_name: ''
   });
 
   // Split Map State (List view)
@@ -466,6 +470,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       parcel_county: null,
       has_hoa: null,
       hoa_monthly: '',
+      hoa_name: '',
       is_studying: false
     });
     setPropFormErrors({});
@@ -501,6 +506,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       parcel_county: p.parcel_county || null,
       has_hoa: p.has_hoa ?? null,
       hoa_monthly: p.hoa_monthly != null ? p.hoa_monthly : '',
+      hoa_name: p.hoa_name || p.subject_details?.as_is?.hoa_name || '',
       is_studying: Boolean(p.is_studying)
     });
     setPropFormErrors({});
@@ -558,11 +564,20 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         propFormData.hoa_monthly !== '' && propFormData.hoa_monthly != null
           ? Number(String(propFormData.hoa_monthly).replace(/[^\d.]/g, ''))
           : null,
+      hoa_name: propFormData.hoa_name && String(propFormData.hoa_name).trim() !== ''
+        ? String(propFormData.hoa_name).trim()
+        : null,
       is_studying: propFormData.is_studying !== undefined ? Boolean(propFormData.is_studying) : (editingProperty ? Boolean(editingProperty.is_studying) : false)
     };
 
     if (editingProperty) {
       payload.id = editingProperty.id;
+      if (editingProperty.subject_details && typeof editingProperty.subject_details === 'object') {
+        payload.subject_details = editingProperty.subject_details;
+      }
+      if (editingProperty.pool !== undefined) payload.pool = editingProperty.pool;
+      if (editingProperty.garage !== undefined) payload.garage = editingProperty.garage;
+      if (editingProperty.waterfront !== undefined) payload.waterfront = editingProperty.waterfront;
     }
 
     try {
@@ -732,6 +747,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         pool: asIsLegacy.pool,
         garage: asIsLegacy.garage,
         waterfront: asIsLegacy.waterfront,
+        hoa_name: asIsLegacy.hoa_name,
         subject_details: subjectDetailsMap
       };
 
@@ -957,6 +973,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lot_sqft: activeProperty.lot_sqft || countyData?.land_sqft || null,
       year_built: activeProperty.year_built || countyData?.year_built || null,
       just_value: countyData?.just_value ?? activeProperty.just_value ?? null,
+      subdivision_name: activeProperty.subdivision_name || countyData?.subdivision_name || null,
+      subdivision_code: activeProperty.subdivision_code || countyData?.subdivision_code || null,
+      nbrhd_cd: activeProperty.nbrhd_cd || countyData?.nbrhd_cd || null,
+      mkt_ar: activeProperty.mkt_ar || countyData?.mkt_ar || null,
+      s_legal: activeProperty.s_legal || countyData?.s_legal || null,
+      hoa_name: activeProperty.hoa_name || activeProperty.subject_details?.as_is?.hoa_name || null,
       subject_details: activeProperty.subject_details || {},
       appraisal_overrides: subjectAppraisalOverrides,
       ...subjectAppraisalOverrides
@@ -2621,6 +2643,48 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             </span>
                           )}
 
+                          {/* Subdivision Chip */}
+                          {subjectForAppraisal.subdivision_name && (
+                            <span
+                              title={[
+                                `Subdivision: ${subjectForAppraisal.subdivision_name}`,
+                                subjectForAppraisal.nbrhd_cd ? `Nbrhd ${subjectForAppraisal.nbrhd_cd}` : null,
+                                subjectForAppraisal.mkt_ar ? `Mkt area ${subjectForAppraisal.mkt_ar}` : null
+                              ].filter(Boolean).join(' · ')}
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: 'rgba(189, 211, 226, 0.42)',
+                                color: '#34292A',
+                                border: '1px solid #859DCE'
+                              }}
+                            >
+                              {subjectForAppraisal.subdivision_name}
+                            </span>
+                          )}
+
+                          {/* HOA / Association Chip right next to subdivision */}
+                          {subjectForAppraisal.hoa_name && (
+                            <span
+                              title="HOA / Association name"
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: '#FAF8F5',
+                                color: '#34292A',
+                                border: '1px solid rgba(52, 41, 42, 0.22)'
+                              }}
+                            >
+                              HOA: {subjectForAppraisal.hoa_name}
+                            </span>
+                          )}
+
                           {/* FLOOD Tag */}
                           <span
                             style={{
@@ -3176,6 +3240,18 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             { label: 'Year built', value: activeProperty.year_built || '—' },
                             { label: 'Condition', value: activeProperty.condition ? `${activeProperty.condition}${activeProperty.roof_year ? ` (roof ${activeProperty.roof_year})` : ''}` : '—' },
                             { label: 'County / Folio', value: `${getPropertyCountyLabel(activeProperty)} · ${activeProperty.parcel_id || 'Not linked'}` },
+                            ...(subjectForAppraisal.subdivision_name
+                              ? [{
+                                  label: 'Subdivision',
+                                  value: [
+                                    subjectForAppraisal.subdivision_name,
+                                    subjectForAppraisal.nbrhd_cd ? `Nbrhd ${subjectForAppraisal.nbrhd_cd}` : null
+                                  ].filter(Boolean).join(' · ')
+                                }]
+                              : []),
+                            ...(subjectForAppraisal.hoa_name
+                              ? [{ label: 'HOA / Association', value: subjectForAppraisal.hoa_name }]
+                              : []),
                             { label: 'Jurisdiction', value: siteData?.zoningData?.municipality || activeProperty.city || '—' },
                             { label: 'Strategy', value: activeProperty.strategy ? (activeProperty.strategy.toUpperCase()) : '—' }
                           ].map((row, idx) => (
@@ -3336,7 +3412,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         activeProperty
                           ? {
                               ...activeProperty,
-                              sqft: activeProperty.sqft || countyData?.living_sqft || null
+                              sqft: activeProperty.sqft || countyData?.living_sqft || null,
+                              subdivision_name: subjectForAppraisal.subdivision_name,
+                              subdivision_code: subjectForAppraisal.subdivision_code,
+                              nbrhd_cd: subjectForAppraisal.nbrhd_cd,
+                              mkt_ar: subjectForAppraisal.mkt_ar,
+                              s_legal: subjectForAppraisal.s_legal,
+                              hoa_name: subjectForAppraisal.hoa_name
                             }
                           : activeProperty
                       }
@@ -3422,6 +3504,23 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                   const clues = c.county_clues || formatCountyClues(c);
                                   const isOutlier = Boolean(c.is_outlier || c.adjustments?.is_outlier);
                                   const isVerified = Boolean(c.comp_details_json?.verified);
+                                  const compHoaName = c.hoa_name || c.comp_details_json?.hoa_name || null;
+                                  const sameSubdivMatch = Boolean(
+                                    (subjectForAppraisal.subdivision_name || subjectForAppraisal.subdivision_code) &&
+                                    (c.subdivision_name || c.subdivision_code) &&
+                                    isSameSubdivision(
+                                      {
+                                        county: normalizeCountyName(subjectForAppraisal.parcel_county || subjectForAppraisal.county),
+                                        subdivision_name: subjectForAppraisal.subdivision_name,
+                                        subdivision_code: subjectForAppraisal.subdivision_code
+                                      },
+                                      {
+                                        county: normalizeCountyName(c.parcel_county || c.county),
+                                        subdivision_name: c.subdivision_name,
+                                        subdivision_code: c.subdivision_code
+                                      }
+                                    )
+                                  );
 
                                   return (
                                     <tr key={c.id} className={`investor-comp-row ${!isIncluded ? 'excluded' : ''}`}>
@@ -3448,6 +3547,54 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                       <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                           <span style={{ fontWeight: 600 }}>{c.address}</span>
+                                          {c.subdivision_name && (
+                                            <span
+                                              title={[
+                                                sameSubdivMatch ? 'Same subdivision as subject' : 'Different subdivision',
+                                                c.s_legal ? `Legal: ${c.s_legal}` : null,
+                                                c.nbrhd_cd ? `Nbrhd: ${c.nbrhd_cd}` : null
+                                              ].filter(Boolean).join(' · ')}
+                                              style={
+                                                sameSubdivMatch
+                                                  ? {
+                                                      fontSize: '10px',
+                                                      fontWeight: 700,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: 'rgba(189, 211, 226, 0.48)',
+                                                      border: '1px solid #859DCE',
+                                                      color: '#34292A'
+                                                    }
+                                                  : {
+                                                      fontSize: '10px',
+                                                      fontWeight: 500,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: '#FAF8F5',
+                                                      border: '1px solid rgba(52, 41, 42, 0.16)',
+                                                      color: 'rgba(52, 41, 42, 0.78)'
+                                                    }
+                                              }
+                                            >
+                                              {sameSubdivMatch ? `✓ ${c.subdivision_name}` : c.subdivision_name}
+                                            </span>
+                                          )}
+                                          {compHoaName && (
+                                            <span
+                                              title="Manual HOA / association name"
+                                              style={{
+                                                fontSize: '10px',
+                                                fontWeight: 600,
+                                                padding: '1.5px 8px',
+                                                borderRadius: '999px',
+                                                backgroundColor: '#FFFFFF',
+                                                border: '1px solid rgba(52, 41, 42, 0.2)',
+                                                color: '#34292A'
+                                              }}
+                                            >
+                                              HOA: {compHoaName}
+                                            </span>
+                                          )}
                                           {isOutlier && (
                                             <span
                                               title={c.adjustments?.outlier_reason || '$/sf outlier — excluded by default in grid'}
@@ -4974,6 +5121,21 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           className="investor-form-input"
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="investor-form-label" htmlFor="prop-hoa-name">
+                        HOA / association name <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                      </label>
+                      <input
+                        id="prop-hoa-name"
+                        type="text"
+                        maxLength={140}
+                        value={propFormData.hoa_name || ''}
+                        onChange={(e) => setPropFormData((prev) => ({ ...prev, hoa_name: e.target.value }))}
+                        placeholder="e.g. River Ridge HOA"
+                        className="investor-form-input"
+                      />
                     </div>
 
                     <div>

@@ -7,6 +7,32 @@ const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifami
 const ALLOWED_STATUSES = ['watching', 'analyzing', 'offer_sent', 'under_contract', 'passed', 'owned'];
 const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
 
+async function attachParcelSubdivisionFields(sql, row) {
+  if (!row || !row.parcel_id) return row;
+  const county = row.parcel_county || row.county || 'Broward';
+  try {
+    const pRows = await sql`
+      SELECT s_legal, subdivision_name, subdivision_code, nbrhd_cd, mkt_ar
+      FROM county_parcels
+      WHERE county = ${county} AND parcel_id = ${row.parcel_id}
+      LIMIT 1
+    `;
+    if (pRows.length > 0) {
+      return {
+        ...row,
+        s_legal: pRows[0].s_legal ?? null,
+        subdivision_name: pRows[0].subdivision_name ?? null,
+        subdivision_code: pRows[0].subdivision_code ?? null,
+        nbrhd_cd: pRows[0].nbrhd_cd ?? null,
+        mkt_ar: pRows[0].mkt_ar ?? null
+      };
+    }
+  } catch {
+    // Graceful fallback if county_parcels columns aren't available
+  }
+  return row;
+}
+
 function validateProperty(body) {
   const errors = {};
 
@@ -121,7 +147,7 @@ function validateProperty(body) {
   const rehab_budget_updated_at = body.rehab_budget_updated_at != null && String(body.rehab_budget_updated_at).trim() !== '' ? new Date(body.rehab_budget_updated_at).toISOString() : null;
   const is_studying = body.is_studying !== undefined ? Boolean(body.is_studying) : false;
 
-  // Optional HOA fields for Live-in fit rental restriction check
+  // Optional HOA fields for Live-in fit rental restriction check & manual HOA / association name
   const has_hoa =
     body.has_hoa === true || body.has_hoa === 'true'
       ? true
@@ -129,6 +155,14 @@ function validateProperty(body) {
       ? false
       : null;
   const hoa_monthly = parseNumField(body.hoa_monthly, 'hoa_monthly', 'HOA monthly');
+  const rawHoaName =
+    body.hoa_name !== undefined
+      ? body.hoa_name
+      : (body.subject_details?.as_is?.hoa_name ?? null);
+  const hoa_name =
+    rawHoaName != null && String(rawHoaName).trim() !== ''
+      ? String(rawHoaName).trim().slice(0, 140)
+      : null;
 
   // Optional subject_details (as_is & after_rehab) + nullable amenity booleans
   const parseTriBool = (v) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : null);
@@ -140,14 +174,20 @@ function validateProperty(body) {
   if (body.subject_details && typeof body.subject_details === 'object') {
     const nextSubjectDetails = {};
     if (body.subject_details.as_is && typeof body.subject_details.as_is === 'object') {
-      nextSubjectDetails.as_is = normalizeCompDetails(body.subject_details.as_is);
+      nextSubjectDetails.as_is = normalizeCompDetails({
+        ...body.subject_details.as_is,
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {})
+      });
       const legacy = detailsToLegacyColumns(nextSubjectDetails.as_is);
       if (pool === null && legacy.pool !== null) pool = legacy.pool;
       if (garage === null && legacy.garage !== null) garage = legacy.garage;
       if (waterfront === null && legacy.waterfront !== null) waterfront = legacy.waterfront;
     }
     if (body.subject_details.after_rehab && typeof body.subject_details.after_rehab === 'object') {
-      nextSubjectDetails.after_rehab = normalizeCompDetails(body.subject_details.after_rehab);
+      nextSubjectDetails.after_rehab = normalizeCompDetails({
+        ...body.subject_details.after_rehab,
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {})
+      });
     }
     subject_details = nextSubjectDetails;
   }
@@ -184,6 +224,7 @@ function validateProperty(body) {
       is_studying,
       has_hoa,
       hoa_monthly,
+      hoa_name,
       pool,
       garage,
       waterfront,
@@ -246,6 +287,12 @@ export default async function handler(req, res) {
               p.rehab_budget_updated_at,
               p.has_hoa,
               p.hoa_monthly,
+              p.hoa_name,
+              cp.s_legal,
+              cp.subdivision_name,
+              cp.subdivision_code,
+              cp.nbrhd_cd,
+              cp.mkt_ar,
               p.pool,
               p.garage,
               p.waterfront,
@@ -258,6 +305,9 @@ export default async function handler(req, res) {
             LEFT JOIN parcel_site_info psi 
               ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
              AND psi.parcel_id = p.parcel_id
+            LEFT JOIN county_parcels cp
+              ON cp.county = COALESCE(p.parcel_county, p.county, 'Broward')
+             AND cp.parcel_id = p.parcel_id
             LEFT JOIN LATERAL (
               SELECT blob_url FROM investor_property_photos
               WHERE property_id = p.id
@@ -396,6 +446,12 @@ export default async function handler(req, res) {
             p.rehab_budget_updated_at,
             p.has_hoa,
             p.hoa_monthly,
+            p.hoa_name,
+            cp.s_legal,
+            cp.subdivision_name,
+            cp.subdivision_code,
+            cp.nbrhd_cd,
+            cp.mkt_ar,
             p.pool,
             p.garage,
             p.waterfront,
@@ -408,6 +464,9 @@ export default async function handler(req, res) {
           LEFT JOIN parcel_site_info psi 
             ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
            AND psi.parcel_id = p.parcel_id
+          LEFT JOIN county_parcels cp
+            ON cp.county = COALESCE(p.parcel_county, p.county, 'Broward')
+           AND cp.parcel_id = p.parcel_id
           LEFT JOIN LATERAL (
             SELECT blob_url FROM investor_property_photos
             WHERE property_id = p.id
@@ -542,7 +601,8 @@ export default async function handler(req, res) {
             parcel_id,
             parcel_county,
             has_hoa,
-            hoa_monthly
+            hoa_monthly,
+            hoa_name
           ) VALUES (
             ${cleanEmail},
             ${data.address},
@@ -569,7 +629,8 @@ export default async function handler(req, res) {
             ${data.parcel_id},
             ${data.parcel_county},
             ${data.has_hoa},
-            ${data.hoa_monthly}
+            ${data.hoa_monthly},
+            ${data.hoa_name}
           )
           RETURNING *
         `;
@@ -629,10 +690,12 @@ export default async function handler(req, res) {
         if (rows[0]) {
           rows[0].parcel_id = data.parcel_id || null;
           rows[0].parcel_county = data.parcel_county || null;
+          rows[0].hoa_name = data.hoa_name || null;
         }
       }
 
-      return res.status(200).json(rows[0]);
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // PUT: Update an existing property
@@ -683,6 +746,7 @@ export default async function handler(req, res) {
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
             has_hoa = ${data.has_hoa},
             hoa_monthly = ${data.hoa_monthly},
+            hoa_name = ${data.hoa_name},
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
@@ -777,6 +841,7 @@ export default async function handler(req, res) {
             rows[0].rehab_budget = data.rehab_budget || null;
             rows[0].rehab_budget_source = data.rehab_budget_source || null;
             rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].hoa_name = data.hoa_name || null;
             rows[0].subject_details = data.subject_details || {};
           }
         }
@@ -786,7 +851,8 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
-      return res.status(200).json(rows[0]);
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // PATCH: Partial update (for discrepancy sync or linking folio)
@@ -864,6 +930,7 @@ export default async function handler(req, res) {
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
             has_hoa = ${data.has_hoa},
             hoa_monthly = ${data.hoa_monthly},
+            hoa_name = ${data.hoa_name},
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
@@ -958,12 +1025,14 @@ export default async function handler(req, res) {
             rows[0].rehab_budget = data.rehab_budget || null;
             rows[0].rehab_budget_source = data.rehab_budget_source || null;
             rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].hoa_name = data.hoa_name || null;
             rows[0].subject_details = data.subject_details || {};
           }
         }
       }
 
-      return res.status(200).json(rows[0]);
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // DELETE: Delete a property

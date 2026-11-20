@@ -999,6 +999,72 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 {formatCurrency(countyData.just_value)}
               </div>
             </div>
+
+            {/* SUBDIVISION */}
+            {countyData.subdivision_name && (
+              <div>
+                <div className="investor-stat-label" style={{ marginBottom: '4px' }}>
+                  SUBDIVISION
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: 'var(--espresso, #1E1509)'
+                  }}
+                >
+                  {countyData.subdivision_name}
+                </div>
+                {countyData.subdivision_code && (
+                  <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.55)', marginTop: '2px' }}>
+                    Code {countyData.subdivision_code}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* NEIGHBORHOOD / MARKET AREA */}
+            {(countyData.nbrhd_cd || countyData.mkt_ar) && (
+              <div>
+                <div className="investor-stat-label" style={{ marginBottom: '4px' }}>
+                  NEIGHBORHOOD
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: 'var(--espresso, #1E1509)'
+                  }}
+                >
+                  {[
+                    countyData.nbrhd_cd ? `Code ${countyData.nbrhd_cd}` : null,
+                    countyData.mkt_ar ? `Area ${countyData.mkt_ar}` : null
+                  ].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+            )}
+
+            {/* SHORT LEGAL DESCRIPTION */}
+            {countyData.s_legal && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div className="investor-stat-label" style={{ marginBottom: '4px' }}>
+                  SHORT LEGAL DESCRIPTION
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: 'rgba(52, 41, 42, 0.78)',
+                    letterSpacing: '0.01em'
+                  }}
+                >
+                  {countyData.s_legal}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. Sales on record list */}

@@ -45,6 +45,8 @@ export default function SuggestedCompsPanel({
   const [filters, setFilters] = useState(() =>
     savedFilters ? sanitizeProfileCompFilters(savedFilters) : { ...DEFAULT_COMP_FILTERS }
   );
+  const [sameSubdivision, setSameSubdivision] = useState(false);
+  const [sameNeighborhood, setSameNeighborhood] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -53,6 +55,12 @@ export default function SuggestedCompsPanel({
 
   const userTouchedFiltersRef = useRef(false);
   const saveTimerRef = useRef(null);
+
+  // Reset per-property subdivision / neighborhood toggles when switching properties
+  useEffect(() => {
+    setSameSubdivision(false);
+    setSameNeighborhood(false);
+  }, [property?.parcel_id]);
 
   // Hydrate filters from investor profile once loaded (unless user already interacted)
   useEffect(() => {
@@ -153,6 +161,12 @@ export default function SuggestedCompsPanel({
         if (includeDistressed) {
           params.set('include_distressed', '1');
         }
+        if (sameSubdivision) {
+          params.set('same_subdivision', '1');
+        }
+        if (sameNeighborhood) {
+          params.set('same_neighborhood', '1');
+        }
 
         const res = await fetch(`/api/county/comps?${params.toString()}`, { signal });
         if (!res.ok) {
@@ -176,7 +190,7 @@ export default function SuggestedCompsPanel({
         }
       }
     },
-    [property?.parcel_id, property?.parcel_county, property?.county, months, radius, sizePct, includeDistressed]
+    [property?.parcel_id, property?.parcel_county, property?.county, months, radius, sizePct, includeDistressed, sameSubdivision, sameNeighborhood]
   );
 
   useEffect(() => {
@@ -236,6 +250,7 @@ export default function SuggestedCompsPanel({
         source: savedDetails?.source || 'Property appraiser',
         notes: savedDetails?.notes || null,
         ...prefilledColumns,
+        hoa_name: prefilledColumns.hoa_name || candidate.hoa_name || null,
         included: isOutlier ? false : true,
         is_outlier: isOutlier,
         adjustments: isOutlier
@@ -359,6 +374,14 @@ export default function SuggestedCompsPanel({
   const summary = data?.summary || {};
   const candidates = data?.candidates || [];
 
+  const subjectSubdivisionName = summary.subject_subdivision_name || property?.subdivision_name || null;
+  const subjectSubdivisionCode = summary.subject_subdivision_code || property?.subdivision_code || null;
+  const subjectNbrhdCd = summary.subject_nbrhd_cd || property?.nbrhd_cd || null;
+  const subjectMktAr = summary.subject_mkt_ar || property?.mkt_ar || null;
+  const subjectHoaName = property?.hoa_name || property?.subject_details?.as_is?.hoa_name || null;
+  const hasSubjectSubdivision = Boolean(subjectSubdivisionName || subjectSubdivisionCode);
+  const hasSubjectNbrhd = Boolean(subjectNbrhdCd);
+
   // Fallback client-side sqft bounds while loading so filter summary responds instantaneously
   const fallbackBounds = computeSqftBounds(property?.sqft, sizePct);
   const minSqft = summary.sqft_min !== undefined ? summary.sqft_min : fallbackBounds.minSqft;
@@ -382,6 +405,8 @@ export default function SuggestedCompsPanel({
     activeLocationLabel,
     `last ${months} months`,
     sqftRangeStr,
+    sameSubdivision ? 'Same subdivision' : null,
+    sameNeighborhood ? `Neighborhood ${subjectNbrhdCd || ''}`.trim() : null,
     salesCountPart
   ]
     .filter(Boolean)
@@ -394,9 +419,11 @@ export default function SuggestedCompsPanel({
       countyFreshness
     });
 
-  // Median $/sf text (outliers excluded)
+  // Median $/sf text (outliers excluded) — shows "Same subdivision" vs "All" when both exist
   const inlierCount = summary.inlier_count ?? candidates.filter((c) => !c.is_outlier).length;
   const outlierCount = summary.outlier_count ?? candidates.filter((c) => c.is_outlier).length;
+  const sameSubdivMedian = summary.same_subdivision_median_price_per_sqft;
+  const sameSubdivInliers = summary.same_subdivision_inlier_count ?? 0;
 
   let medianText = null;
   if (summary.median_price_per_sqft != null && inlierCount > 0) {
@@ -405,7 +432,20 @@ export default function SuggestedCompsPanel({
       outlierCount > 0
         ? `, ${outlierCount} ${outlierCount === 1 ? 'outlier' : 'outliers'} excluded`
         : '';
-    medianText = `Median $${summary.median_price_per_sqft}/sf (${inlierCount} ${inlierWord}${outlierSuffix})`;
+    const hasBothSubdivAndOther =
+      !sameSubdivision &&
+      sameSubdivMedian != null &&
+      sameSubdivInliers > 0 &&
+      inlierCount > sameSubdivInliers;
+
+    if (hasBothSubdivAndOther) {
+      const subWord = sameSubdivInliers === 1 ? 'sale' : 'sales';
+      medianText = `Same subdivision: $${sameSubdivMedian}/sf (${sameSubdivInliers} ${subWord}) · All: $${summary.median_price_per_sqft}/sf (${inlierCount} ${inlierWord}${outlierSuffix})`;
+    } else if (sameSubdivMedian != null && sameSubdivInliers > 0 && sameSubdivInliers === inlierCount) {
+      medianText = `Same subdivision median $${sameSubdivMedian}/sf (${inlierCount} ${inlierWord}${outlierSuffix})`;
+    } else {
+      medianText = `Median $${summary.median_price_per_sqft}/sf (${inlierCount} ${inlierWord}${outlierSuffix})`;
+    }
   }
 
   const renoMedianText =
@@ -445,17 +485,78 @@ export default function SuggestedCompsPanel({
     >
       {/* Header & Summary */}
       <div style={{ marginBottom: '14px' }}>
-        <h3
-          style={{
-            fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
-            fontSize: '20px',
-            fontWeight: 500,
-            color: 'var(--espresso, #34292A)',
-            margin: '0 0 4px 0'
-          }}
-        >
-          Suggested from county records
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: '4px' }}>
+          <h3
+            style={{
+              fontFamily: 'var(--font-display, "Atelier Fleur", Georgia, serif)',
+              fontSize: '20px',
+              fontWeight: 500,
+              color: 'var(--espresso, #34292A)',
+              margin: 0
+            }}
+          >
+            Suggested from county records
+          </h3>
+
+          {/* Subject Subdivision & HOA Chips */}
+          {(subjectSubdivisionName || subjectHoaName || subjectNbrhdCd) && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+              {subjectSubdivisionName && (
+                <Pill
+                  variant="neutral"
+                  size="sm"
+                  title={[
+                    `Subject subdivision: ${subjectSubdivisionName}`,
+                    subjectSubdivisionCode ? `Code ${subjectSubdivisionCode}` : null,
+                    subjectNbrhdCd ? `NBRHD ${subjectNbrhdCd}` : null,
+                    subjectMktAr ? `MKT AR ${subjectMktAr}` : null
+                  ].filter(Boolean).join(' · ')}
+                  style={{
+                    backgroundColor: 'rgba(189, 211, 226, 0.42)',
+                    border: '1px solid rgba(133, 157, 206, 0.55)',
+                    color: '#34292A',
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  Subject: {subjectSubdivisionName}
+                </Pill>
+              )}
+              {subjectHoaName && (
+                <Pill
+                  variant="neutral"
+                  size="sm"
+                  title="Subject property HOA / association name"
+                  style={{
+                    backgroundColor: '#FAF8F5',
+                    border: '1px solid rgba(52, 41, 42, 0.2)',
+                    color: '#34292A',
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  HOA: {subjectHoaName}
+                </Pill>
+              )}
+              {subjectNbrhdCd && !subjectSubdivisionName && (
+                <Pill
+                  variant="neutral"
+                  size="sm"
+                  title="County Property Appraiser neighborhood code"
+                  style={{
+                    backgroundColor: '#FAF8F5',
+                    border: '1px solid rgba(52, 41, 42, 0.16)',
+                    color: 'rgba(52, 41, 42, 0.78)',
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  Nbrhd {subjectNbrhdCd}
+                </Pill>
+              )}
+            </div>
+          )}
+        </div>
         <div
           style={{
             fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
@@ -483,10 +584,8 @@ export default function SuggestedCompsPanel({
       <div
         style={{
           display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px 16px',
+          flexDirection: 'column',
+          gap: '10px',
           padding: '12px 14px',
           backgroundColor: '#FAF8F5',
           border: '1px solid rgba(52, 41, 42, 0.08)',
@@ -494,71 +593,166 @@ export default function SuggestedCompsPanel({
           marginBottom: '16px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px 16px' }}>
-          {/* 1. Sale date: 3 / 6 / 9 / 12 months */}
-          <div>
-            <span style={filterLabelStyle}>Sale date</span>
-            <SegmentedControl
-              size="sm"
-              options={MONTH_OPTIONS}
-              value={months}
-              onChange={(val) => updateFilters({ months: Number(val) })}
-            />
-          </div>
-
-          {/* 2. Radius: 0.25 / 0.5 / 1 / 2 mi */}
-          <div>
-            <span style={filterLabelStyle}>Radius</span>
-            <SegmentedControl
-              size="sm"
-              options={RADIUS_OPTIONS}
-              value={radius}
-              onChange={(val) => updateFilters({ radius: Number(val) })}
-            />
-          </div>
-
-          {/* 3. Size: ±20% / ±30% / Any */}
-          <div>
-            <span style={filterLabelStyle}>Size</span>
-            <SegmentedControl
-              size="sm"
-              options={SIZE_OPTIONS}
-              value={sizePct}
-              onChange={(val) => updateFilters({ sizePct: String(val) })}
-            />
-          </div>
-        </div>
-
-        {/* 4. Include distressed sales toggle */}
-        <label
+        <div
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '12px',
-            fontWeight: 500,
-            color: 'var(--espresso, #34292A)',
-            cursor: 'pointer',
-            userSelect: 'none',
-            backgroundColor: '#ffffff',
-            padding: '7px 12px',
-            borderRadius: '999px',
-            border: '1px solid rgba(52, 41, 42, 0.12)',
-            minHeight: '36px'
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px 16px'
           }}
         >
-          <input
-            type="checkbox"
-            checked={includeDistressed}
-            onChange={(e) => updateFilters({ includeDistressed: e.target.checked })}
-            style={{
-              accentColor: 'var(--secondary-color, #41101B)',
-              cursor: 'pointer'
-            }}
-          />
-          <span>Include distressed sales</span>
-        </label>
+          <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px 16px' }}>
+            {/* 1. Sale date: 3 / 6 / 9 / 12 months */}
+            <div>
+              <span style={filterLabelStyle}>Sale date</span>
+              <SegmentedControl
+                size="sm"
+                options={MONTH_OPTIONS}
+                value={months}
+                onChange={(val) => updateFilters({ months: Number(val) })}
+              />
+            </div>
+
+            {/* 2. Radius: 0.25 / 0.5 / 1 / 2 mi */}
+            <div>
+              <span style={filterLabelStyle}>Radius</span>
+              <SegmentedControl
+                size="sm"
+                options={RADIUS_OPTIONS}
+                value={radius}
+                onChange={(val) => updateFilters({ radius: Number(val) })}
+              />
+            </div>
+
+            {/* 3. Size: ±20% / ±30% / Any */}
+            <div>
+              <span style={filterLabelStyle}>Size</span>
+              <SegmentedControl
+                size="sm"
+                options={SIZE_OPTIONS}
+                value={sizePct}
+                onChange={(val) => updateFilters({ sizePct: String(val) })}
+              />
+            </div>
+          </div>
+
+          {/* 4. Toggle pills: Same subdivision, Same neighborhood code, Include distressed */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <label
+              title={
+                hasSubjectSubdivision
+                  ? `Show only sales in ${subjectSubdivisionName || subjectSubdivisionCode}`
+                  : 'Subject parcel has no subdivision name on the county roll'
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12px',
+                fontWeight: sameSubdivision ? 600 : 500,
+                color: hasSubjectSubdivision ? 'var(--espresso, #34292A)' : 'rgba(52, 41, 42, 0.42)',
+                cursor: hasSubjectSubdivision ? 'pointer' : 'not-allowed',
+                userSelect: 'none',
+                backgroundColor: sameSubdivision ? 'rgba(189, 211, 226, 0.45)' : '#ffffff',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: sameSubdivision
+                  ? '1px solid #859DCE'
+                  : '1px solid rgba(52, 41, 42, 0.12)',
+                minHeight: '34px'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sameSubdivision}
+                disabled={!hasSubjectSubdivision}
+                onChange={(e) => setSameSubdivision(e.target.checked)}
+                style={{
+                  accentColor: '#34292A',
+                  cursor: hasSubjectSubdivision ? 'pointer' : 'not-allowed'
+                }}
+              />
+              <span>
+                Same subdivision
+                {summary.same_subdivision_count != null && !loading ? ` (${summary.same_subdivision_count})` : ''}
+              </span>
+            </label>
+
+            <label
+              title={
+                hasSubjectNbrhd
+                  ? `Show only sales in appraiser neighborhood code ${subjectNbrhdCd}`
+                  : 'Subject parcel has no neighborhood code on the county roll'
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12px',
+                fontWeight: sameNeighborhood ? 600 : 500,
+                color: hasSubjectNbrhd ? 'var(--espresso, #34292A)' : 'rgba(52, 41, 42, 0.42)',
+                cursor: hasSubjectNbrhd ? 'pointer' : 'not-allowed',
+                userSelect: 'none',
+                backgroundColor: sameNeighborhood ? 'rgba(189, 211, 226, 0.45)' : '#ffffff',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: sameNeighborhood
+                  ? '1px solid #859DCE'
+                  : '1px solid rgba(52, 41, 42, 0.12)',
+                minHeight: '34px'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sameNeighborhood}
+                disabled={!hasSubjectNbrhd}
+                onChange={(e) => setSameNeighborhood(e.target.checked)}
+                style={{
+                  accentColor: '#34292A',
+                  cursor: hasSubjectNbrhd ? 'pointer' : 'not-allowed'
+                }}
+              />
+              <span>
+                Same neighborhood code
+                {subjectNbrhdCd ? ` (${subjectNbrhdCd})` : ''}
+                {summary.same_neighborhood_count != null && !loading ? ` · ${summary.same_neighborhood_count}` : ''}
+              </span>
+            </label>
+
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '12px',
+                fontWeight: 500,
+                color: 'var(--espresso, #34292A)',
+                cursor: 'pointer',
+                userSelect: 'none',
+                backgroundColor: '#ffffff',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: '1px solid rgba(52, 41, 42, 0.12)',
+                minHeight: '34px'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={includeDistressed}
+                onChange={(e) => updateFilters({ includeDistressed: e.target.checked })}
+                style={{
+                  accentColor: 'var(--secondary-color, #41101B)',
+                  cursor: 'pointer'
+                }}
+              />
+              <span>Include distressed sales</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* Summary Medians Line */}
@@ -624,6 +818,24 @@ export default function SuggestedCompsPanel({
           </span>
 
           <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            {sameSubdivision && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSameSubdivision(false)}
+              >
+                Show all subdivisions
+              </Button>
+            )}
+            {sameNeighborhood && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSameNeighborhood(false)}
+              >
+                All neighborhoods
+              </Button>
+            )}
             {nextMonths != null && (
               <Button
                 variant="secondary"
@@ -738,6 +950,57 @@ export default function SuggestedCompsPanel({
                         }}
                       >
                         {c.county}
+                      </Pill>
+                    )}
+
+                    {/* Subdivision chip (highlighted in Quietude/Periwinkle when same subdivision as subject) */}
+                    {c.subdivision_name && (
+                      <Pill
+                        variant="neutral"
+                        size="sm"
+                        title={[
+                          c.same_subdivision ? 'Same subdivision as subject' : 'Different subdivision',
+                          c.s_legal ? `Legal: ${c.s_legal}` : null,
+                          c.nbrhd_cd ? `Nbrhd: ${c.nbrhd_cd}` : null,
+                          c.mkt_ar ? `Mkt area: ${c.mkt_ar}` : null
+                        ].filter(Boolean).join(' · ')}
+                        style={
+                          c.same_subdivision
+                            ? {
+                                backgroundColor: 'rgba(189, 211, 226, 0.48)',
+                                border: '1px solid #859DCE',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 700
+                              }
+                            : {
+                                backgroundColor: '#ffffff',
+                                border: '1px solid rgba(52, 41, 42, 0.14)',
+                                color: 'rgba(52, 41, 42, 0.78)',
+                                textTransform: 'none',
+                                fontWeight: 500
+                              }
+                        }
+                      >
+                        {c.same_subdivision ? `✓ ${c.subdivision_name}` : c.subdivision_name}
+                      </Pill>
+                    )}
+
+                    {/* HOA / Association name chip shown right next to subdivision when known */}
+                    {(c.hoa_name || c.saved_comp_details?.hoa_name) && (
+                      <Pill
+                        variant="neutral"
+                        size="sm"
+                        title="Manual HOA / association name from saved comp details"
+                        style={{
+                          backgroundColor: '#FAF8F5',
+                          border: '1px solid rgba(52, 41, 42, 0.2)',
+                          color: '#34292A',
+                          textTransform: 'none',
+                          fontWeight: 600
+                        }}
+                      >
+                        HOA: {c.hoa_name || c.saved_comp_details?.hoa_name}
                       </Pill>
                     )}
 

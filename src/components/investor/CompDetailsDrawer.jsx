@@ -297,13 +297,22 @@ export default function CompDetailsDrawer({
     });
 
     if (entityType === 'subject') {
-      setSubjectDetailsMap((prev) => ({
-        ...prev,
-        [subjectTab]: normalizeCompDetails({
+      setSubjectDetailsMap((prev) => {
+        const nextTab = normalizeCompDetails({
           ...prev[subjectTab],
           ...patch
-        })
-      }));
+        });
+        const otherTabKey = subjectTab === 'as_is' ? 'after_rehab' : 'as_is';
+        const nextOther =
+          patch.hoa_name !== undefined
+            ? normalizeCompDetails({ ...prev[otherTabKey], hoa_name: patch.hoa_name })
+            : prev[otherTabKey];
+        return {
+          ...prev,
+          [subjectTab]: nextTab,
+          [otherTabKey]: nextOther
+        };
+      });
     } else {
       setCompDetails((prev) =>
         normalizeCompDetails({
@@ -453,6 +462,7 @@ export default function CompDetailsDrawer({
       pool: legacy.pool,
       garage: legacy.garage,
       waterfront: legacy.waterfront,
+      hoa_name: legacy.hoa_name,
       notes: compDetails.notes ? compDetails.notes.trim() : null,
       source: compDetails.source || editingComp?.source || 'MLS',
       comp_details_json: compDetails,
@@ -476,6 +486,15 @@ export default function CompDetailsDrawer({
           .filter(Boolean)
           .join(' · ')
       : null;
+
+  const activeSubdivisionName =
+    entityType === 'subject'
+      ? (subjectProperty?.subdivision_name || subjectCountyData?.subdivision_name || null)
+      : (editingComp?.subdivision_name || null);
+  const activeNbrhdCd =
+    entityType === 'subject'
+      ? (subjectProperty?.nbrhd_cd || subjectCountyData?.nbrhd_cd || null)
+      : (editingComp?.nbrhd_cd || null);
 
   const activeConditionOption =
     UAD_CONDITION_OPTIONS.find((o) => o.id === activeDetails.condition) || UAD_CONDITION_OPTIONS[6];
@@ -534,21 +553,54 @@ export default function CompDetailsDrawer({
                   {subjectProperty.address}
                 </div>
               )}
-              {saleMonthBadge && (
+              {(saleMonthBadge || activeSubdivisionName || activeDetails.hoa_name) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                  <span
-                    style={{
-                      fontSize: '10.5px',
-                      fontWeight: 600,
-                      padding: '2px 9px',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(189, 211, 226, 0.35)',
-                      border: '1px solid rgba(133, 157, 206, 0.45)',
-                      color: '#34292A'
-                    }}
-                  >
-                    Saved per county sale · {saleMonthBadge}
-                  </span>
+                  {activeSubdivisionName && (
+                    <span
+                      title={activeNbrhdCd ? `County subdivision · Nbrhd ${activeNbrhdCd}` : 'County subdivision'}
+                      style={{
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        padding: '2px 9px',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(189, 211, 226, 0.45)',
+                        border: '1px solid #859DCE',
+                        color: '#34292A'
+                      }}
+                    >
+                      {activeSubdivisionName}
+                    </span>
+                  )}
+                  {activeDetails.hoa_name && (
+                    <span
+                      style={{
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        padding: '2px 9px',
+                        borderRadius: '999px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(52, 41, 42, 0.2)',
+                        color: '#34292A'
+                      }}
+                    >
+                      HOA: {activeDetails.hoa_name}
+                    </span>
+                  )}
+                  {saleMonthBadge && (
+                    <span
+                      style={{
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        padding: '2px 9px',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(189, 211, 226, 0.35)',
+                        border: '1px solid rgba(133, 157, 206, 0.45)',
+                        color: '#34292A'
+                      }}
+                    >
+                      Saved per county sale · {saleMonthBadge}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -1181,6 +1233,21 @@ export default function CompDetailsDrawer({
                   options={WATERFRONT_VIEW_OPTIONS}
                   value={activeDetails.waterfront_view}
                   onChange={(id) => updateActiveDetails({ waterfront_view: id })}
+                />
+              </div>
+
+              <div>
+                <label className="investor-form-label" htmlFor="detail-hoa-name">
+                  HOA / association name <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                </label>
+                <input
+                  id="detail-hoa-name"
+                  type="text"
+                  maxLength={140}
+                  value={activeDetails.hoa_name || ''}
+                  onChange={(e) => updateActiveDetails({ hoa_name: e.target.value })}
+                  placeholder="e.g. River Ridge HOA"
+                  className="investor-form-input"
                 />
               </div>
             </div>
