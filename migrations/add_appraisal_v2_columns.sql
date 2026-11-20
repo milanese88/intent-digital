@@ -27,3 +27,4 @@ ALTER TABLE investor_comps
 ALTER TABLE comp_details
   ADD COLUMN IF NOT EXISTS quality text,
   ADD COLUMN IF NOT EXISTS boat_lift boolean;
+
