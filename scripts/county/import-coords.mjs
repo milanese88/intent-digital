@@ -5,8 +5,14 @@ import dotenv from 'dotenv';
 import shapefile from 'shapefile';
 import proj4 from 'proj4';
 import polylabel from 'polylabel';
-import { parse } from 'csv-parse';
 import { getScriptDb } from '../../api/_lib/db.js';
+import {
+  COUNTY_REGISTRY,
+  normalizeCountyName,
+  findRollFile,
+  createRollCsvStream,
+  normalizeParcelKey
+} from './_counties.mjs';
 
 dotenv.config({ path: '.env.local' });
 
@@ -14,7 +20,11 @@ dotenv.config({ path: '.env.local' });
 const args = process.argv.slice(2);
 const isDryRun = args.includes('--dry-run');
 const countyArg = args.find(a => a.startsWith('--county='));
-const county = countyArg ? countyArg.split('=')[1] : 'Broward';
+const county = normalizeCountyName(countyArg ? countyArg.split('=')[1] : 'Broward');
+if (!COUNTY_REGISTRY[county]) {
+  console.error(`Unsupported county "${county}". Supported: ${Object.keys(COUNTY_REGISTRY).join(', ')}`);
+  process.exit(1);
+}
 const batchSizeArg = args.find(a => a.startsWith('--batch-size='));
 const batchSize = batchSizeArg ? parseInt(batchSizeArg.split('=')[1], 10) : 2000;
 
@@ -222,60 +232,58 @@ async function run() {
   const transformer = proj4(prjWkt, 'WGS84');
 
   const sql = getScriptDb();
-  let residentialSet = new Set();
+  // Normalized parcel key (separators stripped) -> parcel_id exactly as stored / in the NAL
+  // (Martin parcel IDs are dashed in both NAL and PIN shapefile; Broward/Palm Beach are not).
+  const residentialMap = new Map();
 
   try {
     console.log(`Checking existing residential parcels for ${county} in county_parcels...`);
     const rows = await sql`SELECT parcel_id FROM county_parcels WHERE county = ${county}`;
-    residentialSet = new Set(rows.map(r => String(r.parcel_id).trim()));
-    if (residentialSet.size > 0) {
-      console.log(`Loaded ${residentialSet.size.toLocaleString()} residential parcels for ${county} from DB.`);
+    for (const r of rows) {
+      const id = String(r.parcel_id).trim();
+      residentialMap.set(normalizeParcelKey(id), id);
+    }
+    if (residentialMap.size > 0) {
+      console.log(`Loaded ${residentialMap.size.toLocaleString()} residential parcels for ${county} from DB.`);
     }
   } catch (err) {
     // If DB query fails or table empty, fall through to NAL file
   }
 
   // If no parcels in DB for this county, load target residential parcel IDs directly from NAL file
-  if (residentialSet.size === 0) {
+  if (residentialMap.size === 0) {
     console.log(`No parcels in DB for ${county}. Streaming target residential parcels from NAL file...`);
-    const dataDir = path.resolve('data/county');
-    const nalFiles = fs.readdirSync(dataDir);
-    const countyLower = county.toLowerCase();
-    const nalFile = nalFiles.find(f => f.toLowerCase().includes(countyLower) && f.toUpperCase().includes('NAL'));
-    if (!nalFile) {
+    const nalPath = findRollFile(path.resolve('data/county'), county, 'NAL');
+    if (!nalPath) {
       throw new Error(`Neither DB parcels nor NAL file found for ${county}.`);
     }
-    const nalPath = path.resolve(dataDir, nalFile);
-    console.log(`Streaming NAL file: ${nalFile}...`);
-    const child = spawn('unzip', ['-p', nalPath]);
-    const parser = parse({ relax_column_count: true, relax_quotes: true, skip_empty_lines: true });
-    child.stdout.pipe(parser);
+    console.log(`Streaming NAL file: ${path.relative(path.resolve('data/county'), nalPath)}...`);
+    const { parser, cleanup } = createRollCsvStream(nalPath);
     const RESIDENTIAL_CODES = new Set(['000', '001', '002', '004', '008']);
     let headers = null;
     let idIdx = -1;
     let useIdx = -1;
-    for await (const row of parser) {
-      if (!headers) {
-        headers = row.map(h => h.trim().toUpperCase());
-        idIdx = headers.indexOf('PARCEL_ID');
-        useIdx = headers.indexOf('DOR_UC');
-        continue;
+    try {
+      for await (const row of parser) {
+        if (!headers) {
+          headers = row.map(h => h.trim().toUpperCase());
+          idIdx = headers.indexOf('PARCEL_ID');
+          useIdx = headers.indexOf('DOR_UC');
+          continue;
+        }
+        const use = row[useIdx]?.trim().padStart(3, '0');
+        if (RESIDENTIAL_CODES.has(use)) {
+          const id = row[idIdx]?.trim();
+          if (id) residentialMap.set(normalizeParcelKey(id), id);
+        }
       }
-      const use = row[useIdx]?.trim().padStart(3, '0');
-      if (RESIDENTIAL_CODES.has(use)) {
-        const id = row[idIdx]?.trim();
-        if (id) residentialSet.add(id);
-      }
+    } finally {
+      cleanup();
     }
-    child.kill();
-    console.log(`Loaded ${residentialSet.size.toLocaleString()} residential parcels from NAL file.`);
+    console.log(`Loaded ${residentialMap.size.toLocaleString()} residential parcels from NAL file.`);
   }
 
-  const knownParcels = {
-    'broward': { id: '504209040280', addr: '924 SW 15 TER, Fort Lauderdale', minLat: 26.05, maxLat: 26.15, minLng: -80.20, maxLng: -80.12, target: '26.11 N, -80.16 W' },
-    'palm beach': { id: '74434307010000010', addr: '1901 EMBASSY DR, West Palm Beach', minLat: 26.68, maxLat: 26.78, minLng: -80.12, maxLng: -80.04, target: '26.73 N, -80.08 W' }
-  };
-  const targetKnown = knownParcels[county.toLowerCase()] || knownParcels['broward'];
+  const targetKnown = COUNTY_REGISTRY[county].knownParcel;
 
   console.log(`Streaming shapefile...`);
   const source = await shapefile.open(files.shp, files.dbf, { encoding: 'utf-8' });
@@ -299,13 +307,16 @@ async function run() {
     if (batch.length === 0 || isDryRun) return;
 
     // UPDATE county_parcels AS p SET lat = v.lat, lng = v.lng FROM (VALUES ...) AS v(parcel_id, lat, lng)
+    // Only fills coordinates that are missing or changed (COALESCE-safe: never writes NULL).
+    const countyParamIdx = batch.length * 3 + 1;
     const valueClauses = batch.map((_, i) => `($${i * 3 + 1}::text, $${i * 3 + 2}::double precision, $${i * 3 + 3}::double precision)`).join(', ');
-    const flatParams = batch.flat();
+    const flatParams = [...batch.flat(), county];
     const query = `
       UPDATE county_parcels AS p
-      SET lat = v.lat, lng = v.lng
+      SET lat = COALESCE(v.lat, p.lat), lng = COALESCE(v.lng, p.lng)
       FROM (VALUES ${valueClauses}) AS v(parcel_id, lat, lng)
-      WHERE p.county = '${county}' AND p.parcel_id = v.parcel_id;
+      WHERE p.county = $${countyParamIdx} AND p.parcel_id = v.parcel_id
+        AND (p.lat IS DISTINCT FROM v.lat OR p.lng IS DISTINCT FROM v.lng);
     `;
 
     await sql.query(query, flatParams);
@@ -323,14 +334,17 @@ async function run() {
 
     // Parcel ID field in DOR shapefile is PARCELNO
     const rawParcelNo = props.PARCELNO || props.parcelno || props.PARCEL_ID || props.parcel_id || '';
-    const parcelId = String(rawParcelNo).trim().replace(/[-_ ]/g, '');
+    const shapeKey = normalizeParcelKey(rawParcelNo);
 
-    if (!parcelId) {
+    if (!shapeKey) {
       unmatchedCount++;
       continue;
     }
 
-    if (residentialSet.has(parcelId)) {
+    // Resolve to the parcel_id exactly as stored in county_parcels / NAL
+    const parcelId = residentialMap.get(shapeKey);
+
+    if (parcelId) {
       const interiorPt = getInteriorPoint(feature.geometry);
       if (interiorPt) {
         // Reproject to WGS84 [lng, lat]
@@ -432,8 +446,8 @@ async function run() {
   console.log(`Unmatched shapes:               ${unmatchedCount.toLocaleString()} (non-residential / rights-of-way)`);
   console.log(`Duplicate shapes resolved:      ${duplicatesCount.toLocaleString()} duplicate shapes encountered (${duplicatesReplacedCount.toLocaleString()} replaced by larger shape; all kept from largest shape by area)`);
 
-  const stillWithout = residentialSet.size - bestParcelsMap.size;
-  const matchPct = ((bestParcelsMap.size / residentialSet.size) * 100).toFixed(2);
+  const stillWithout = residentialMap.size - bestParcelsMap.size;
+  const matchPct = ((bestParcelsMap.size / Math.max(1, residentialMap.size)) * 100).toFixed(2);
   console.log(`Residential parcels without coords: ${stillWithout.toLocaleString()}`);
   console.log(`Coordinate coverage:            ${matchPct}% of residential parcels`);
   console.log(`Inside-polygon check:           ${samplePassedCount.toLocaleString()} / ${sampledCount.toLocaleString()} passed (${passRate}%)`);
