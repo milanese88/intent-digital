@@ -26,14 +26,18 @@ const CONDITION_CYCLE = ['c4', 'c3', 'c2', 'unknown'];
 const GRID_ROWS = [
   { key: 'time', label: 'Sale Date / Time', sub: 'Monthly ZIP trend' },
   { key: 'gla', label: 'Living Area (GLA)', sub: 'Size differential' },
-  { key: 'bed_bath', label: 'Beds & Baths', sub: 'Full & half baths' },
+  { key: 'age', label: 'Year Built / Eff. Age', sub: 'Actual & effective age' },
+  { key: 'bed_bath', label: 'Beds & Baths', sub: 'Baths capped at beds + 1' },
+  { key: 'quality', label: 'Quality (UAD)', sub: 'Q1–Q6 build grade' },
   { key: 'condition', label: 'Condition (UAD)', sub: 'C1–C6 · kitchen & baths' },
+  { key: 'construction', label: 'Construction', sub: 'CBS / wood frame / other' },
   { key: 'windows', label: 'Windows', sub: 'Impact / shutters / none' },
   { key: 'roof', label: 'Roof', sub: 'Material & roof year' },
   { key: 'pool', label: 'Pool & Outdoor', sub: 'Standard / resort · screen' },
   { key: 'garage', label: 'Garage & Parking', sub: 'Bays / carport / converted' },
-  { key: 'location_subdivision', label: 'Location', sub: 'Same subdivision / Different' },
+  { key: 'location_subdivision', label: 'Location', sub: 'Subdivision & NBRHD_CD' },
   { key: 'location_site', label: 'Waterfront & View', sub: 'Canal / lake / golf / dry lot' },
+  { key: 'boat_dock', label: 'Boat Dock / Lift', sub: 'Private dockage & lift' },
   { key: 'lot_size', label: 'Lot Size', sub: 'Site area differential' }
 ];
 
@@ -79,11 +83,19 @@ export default function AppraisalGridSection({
     reconciledPpsf,
     confidencePct,
     confidenceScore,
+    lowConfidenceReasons = [],
+    maxCompWeightPct = 0,
     cvPct,
     avgGrossPct,
+    glaRateSource,
+    improvementGlaRate,
+    isLandHeavySubject,
+    hasNonOutlierUsed = true,
+    sanityAnchors = {},
     checks = []
   } = grid;
 
+  const activeSizeMethod = grid.sizeMethod || sizeMethod || 'local_35';
   const localRatePreview = localMedianPpsf
     ? Math.round(localMedianPpsf * (Number(grid.library?.localPpsfFactor) || 0.35))
     : effectiveRates.glaRate;
@@ -240,12 +252,51 @@ export default function AppraisalGridSection({
             </span>
           </span>
         );
+      case 'age':
+        return (
+          <span>
+            {subjectSummary.ageLabel || 'Unknown'}
+            <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.65)' }}>
+              @${effectiveRates.agePerYear.toLocaleString()}/yr · &plusmn;{effectiveRates.ageMinYearsThreshold} yr
+            </span>
+          </span>
+        );
       case 'bed_bath':
+        return (
+          <span>
+            <button
+              type="button"
+              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+              title="Click to edit Subject beds & baths"
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: onOpenEditSubject ? 'pointer' : 'default'
+              }}
+            >
+              {subjectSummary.bedBathLabel || [
+                subjectSummary.beds != null ? `${subjectSummary.beds} bd` : null,
+                subjectSummary.baths != null ? `${subjectSummary.baths} ba` : null
+              ].filter(Boolean).join(' / ') || 'Add beds/baths'}
+            </button>
+            {subjectSummary.isUnusualBedBathRatio && subjectSummary.bathCap && (
+              <span style={{ display: 'block', fontSize: '10px', color: '#E3B363', marginTop: '3px', fontWeight: 600 }}>
+                Unusual bed/bath ratio (capped at {subjectSummary.bathCap.maxCredited} ba)
+              </span>
+            )}
+          </span>
+        );
+      case 'quality':
         return (
           <button
             type="button"
             onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-            title="Click to edit Subject beds & baths"
+            title="Click to edit Subject UAD Quality (Q1–Q6)"
             style={{
               background: 'rgba(250, 248, 245, 0.12)',
               border: '1px solid rgba(250, 248, 245, 0.24)',
@@ -257,10 +308,7 @@ export default function AppraisalGridSection({
               cursor: onOpenEditSubject ? 'pointer' : 'default'
             }}
           >
-            {subjectSummary.bedBathLabel || [
-              subjectSummary.beds != null ? `${subjectSummary.beds} bd` : null,
-              subjectSummary.baths != null ? `${subjectSummary.baths} ba` : null
-            ].filter(Boolean).join(' / ') || 'Add beds/baths'}
+            {subjectSummary.qualityLabel || 'Unknown'}
           </button>
         );
       case 'condition':
@@ -282,6 +330,26 @@ export default function AppraisalGridSection({
             }}
           >
             {subjectSummary.conditionLabel}
+          </button>
+        );
+      case 'construction':
+        return (
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject construction (CBS / Wood frame / Other)"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
+            }}
+          >
+            {subjectSummary.constructionLabel || 'Unknown'}
           </button>
         );
       case 'windows':
@@ -312,30 +380,23 @@ export default function AppraisalGridSection({
         );
       case 'roof':
         return (
-          <span>
-            <button
-              type="button"
-              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-              title="Click to edit Subject roof & construction"
-              style={{
-                background: 'rgba(250, 248, 245, 0.12)',
-                border: '1px solid rgba(250, 248, 245, 0.24)',
-                color: '#FAF8F5',
-                borderRadius: '999px',
-                padding: '2px 9px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: onOpenEditSubject ? 'pointer' : 'default'
-              }}
-            >
-              {subjectSummary.roofLabel || 'Unknown'}
-            </button>
-            {subjectSummary.constructionLabel && (
-              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
-                Const: {subjectSummary.constructionLabel}
-              </span>
-            )}
-          </span>
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject roof material & roof year"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
+            }}
+          >
+            {subjectSummary.roofLabel || 'Unknown'}
+          </button>
         );
       case 'pool':
         return (
@@ -427,36 +488,49 @@ export default function AppraisalGridSection({
         );
       case 'location_site':
         return (
-          <span>
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenEditSubject) {
-                  onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
-                } else if (onSubjectOverrideChange) {
-                  onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
-                }
-              }}
-              title="Click to edit Subject waterfront, view & boat dock"
-              style={{
-                background: 'rgba(250, 248, 245, 0.12)',
-                border: '1px solid rgba(250, 248, 245, 0.24)',
-                color: '#FAF8F5',
-                borderRadius: '999px',
-                padding: '2px 9px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {subjectSummary.locationSiteLabel}
-            </button>
-            {subjectSummary.boatDockLabel && (
-              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
-                {subjectSummary.boatDockLabel}
-              </span>
-            )}
-          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenEditSubject) {
+                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+              } else if (onSubjectOverrideChange) {
+                onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
+              }
+            }}
+            title="Click to edit Subject waterfront & view"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {subjectSummary.locationSiteLabel}
+          </button>
+        );
+      case 'boat_dock':
+        return (
+          <button
+            type="button"
+            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+            title="Click to edit Subject boat dock & boat lift"
+            style={{
+              background: 'rgba(250, 248, 245, 0.12)',
+              border: '1px solid rgba(250, 248, 245, 0.24)',
+              color: '#FAF8F5',
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: onOpenEditSubject ? 'pointer' : 'default'
+            }}
+          >
+            {subjectSummary.boatDockLabel || 'Unknown'}
+          </button>
         );
       case 'lot_size':
         return (
@@ -564,19 +638,25 @@ export default function AppraisalGridSection({
               ]}
             />
 
-            {/* Size-Method Toggle: 35% of local $/sf vs Library rate */}
+            {/* Size-Method Toggle: Improvement $/sf (default when land >50%) vs 35% local $/sf vs Library rate */}
             <SegmentedControl
               size="sm"
-              value={sizeMethod}
+              value={activeSizeMethod}
               onChange={onSizeMethodChange}
               options={[
+                ...(improvementGlaRate > 0
+                  ? [{
+                      id: 'improvement_value',
+                      label: `Imp. $/sf ($${improvementGlaRate})${isLandHeavySubject ? ' · Default' : ''}`
+                    }]
+                  : []),
                 {
                   id: 'local_35',
                   label: `${Math.round((Number(grid.library?.localPpsfFactor) || 0.35) * 100)}% local $/sf ($${localRatePreview})`
                 },
                 {
                   id: 'library',
-                  label: `Library rate ($${libraryRatePreview}/sf)`
+                  label: `Library ($${libraryRatePreview}/sf)`
                 }
               ]}
             />
@@ -586,6 +666,38 @@ export default function AppraisalGridSection({
             </Button>
           </div>
         </div>
+
+        {/* GLA Rate Source + Sign Legend Strip */}
+        {glaRateSource && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '8px 12px',
+              borderRadius: '10px',
+              backgroundColor: isLandHeavySubject ? 'rgba(189, 211, 226, 0.32)' : '#FAF8F5',
+              border: isLandHeavySubject
+                ? '1px solid #859DCE'
+                : '1px solid rgba(52, 41, 42, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '6px 12px',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '11.5px',
+              color: '#34292A'
+            }}
+          >
+            <span>
+              <strong>GLA rate source:</strong> {glaRateSource}
+            </span>
+            {isLandHeavySubject && (
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#34292A' }}>
+                Waterfront / land-heavy (&gt;50% land value)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Sign Legend Strip */}
         <div
@@ -1257,6 +1369,27 @@ export default function AppraisalGridSection({
                                     Needs info
                                   </button>
                                 )}
+                                {cell.flag && (
+                                  <span
+                                    title={cell.note || cell.flag}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '1px 7px',
+                                      borderRadius: '999px',
+                                      backgroundColor: 'rgba(65, 16, 27, 0.08)',
+                                      border: '1px solid rgba(65, 16, 27, 0.3)',
+                                      color: '#41101B',
+                                      fontFamily: 'var(--font-sans)',
+                                      fontSize: '9.5px',
+                                      fontWeight: 700,
+                                      letterSpacing: '0.02em',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {cell.flag}
+                                  </span>
+                                )}
                               </div>
                               {cell.note && (
                                 <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '1px' }}>
@@ -1522,7 +1655,7 @@ export default function AppraisalGridSection({
                   </td>
                   {comps.map((comp) => {
                     const topPenaltyReasons = (comp.weightReasons || []).slice(0, 2);
-                    const showPenaltyNote = comp.isUsed && (comp.isHighGross || comp.isPoorSizeComp || comp.isOlderThan6Months);
+                    const showPenaltyNote = comp.isUsed && (comp.isOutlier || comp.isWeightCapped || comp.isHighGross || comp.isPoorSizeComp || comp.isOlderThan6Months);
                     return (
                       <td
                         key={comp.id}
@@ -1554,7 +1687,7 @@ export default function AppraisalGridSection({
                                   style={{
                                     height: '100%',
                                     width: `${Math.min(100, comp.weightPct)}%`,
-                                    backgroundColor: comp.isHighGross || comp.isPoorSizeComp
+                                    backgroundColor: comp.isOutlier || comp.isHighGross || comp.isPoorSizeComp
                                       ? 'rgba(138, 42, 30, 0.55)'
                                       : 'var(--burgundy)',
                                     borderRadius: '999px'
@@ -1567,14 +1700,14 @@ export default function AppraisalGridSection({
                                 style={{
                                   fontSize: '10px',
                                   fontWeight: 600,
-                                  color: comp.isHighGross || comp.isPoorSizeComp
+                                  color: comp.isOutlier || comp.isHighGross || comp.isPoorSizeComp
                                     ? 'var(--negative, #8A2A1E)'
                                     : 'var(--muted)',
                                   marginTop: '4px',
                                   lineHeight: 1.3
                                 }}
                               >
-                                Reduced: {topPenaltyReasons.join(' · ')}
+                                {comp.isWeightCapped ? 'Capped ≤25%: ' : 'Reduced: '}{topPenaltyReasons.join(' · ')}
                               </div>
                             )}
                           </div>
@@ -1594,15 +1727,15 @@ export default function AppraisalGridSection({
       </div>
 
       {/* ===================================================================== */}
-      {/* 3. THREE CARDS BELOW: Dark Reconciled Value · Weights · Checks        */}
+      {/* 3A. TOP CARDS: Dark Reconciled Value + Income / Land Sanity Anchors   */}
       {/* ===================================================================== */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(295px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
           gap: '20px',
           alignItems: 'stretch',
-          marginBottom: '22px'
+          marginBottom: '20px'
         }}
       >
         {/* CARD 1: DARK RECONCILED VALUE CARD */}
@@ -1710,7 +1843,7 @@ export default function AppraisalGridSection({
             )}
           </div>
 
-          {/* Confidence Bar */}
+          {/* Confidence Bar + Explicit Low Confidence Reasons */}
           <div
             style={{
               paddingTop: '14px',
@@ -1756,15 +1889,234 @@ export default function AppraisalGridSection({
               />
             </div>
 
-            <div style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.65)', lineHeight: 1.4 }}>
+            <div style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.68)', lineHeight: 1.4 }}>
               {usedComps.length > 0
-                ? `Spread ${cvPct.toFixed(1)}% CV · Avg ${(avgGrossPct || 0).toFixed(1)}% gross adj`
+                ? `Spread ${cvPct.toFixed(1)}% CV · Avg ${(avgGrossPct || 0).toFixed(1)}% gross adj · Max weight ${maxCompWeightPct.toFixed(1)}%`
                 : 'Select ≥ 3 nearby comps for high confidence'}
             </div>
+
+            {lowConfidenceReasons.length > 0 && (
+              <div
+                style={{
+                  marginTop: '10px',
+                  padding: '9px 11px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(217, 123, 115, 0.16)',
+                  border: '1px solid rgba(217, 123, 115, 0.42)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '11px',
+                  color: '#FBEAE8',
+                  lineHeight: 1.45
+                }}
+              >
+                <div style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '9.5px', marginBottom: '3px', color: '#F2B8B3' }}>
+                  Why confidence is Low
+                </div>
+                {lowConfidenceReasons.map((reason, rIdx) => (
+                  <div key={rIdx}>&bull; {reason}</div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* CARD 2: RECONCILIATION WEIGHTS */}
+        {/* CARD 2: INCOME / LAND CHECK SANITY ANCHORS */}
+        {(() => {
+          const jvAnchor = sanityAnchors?.countyJustValueAnchor || null;
+          const streetAnchor = sanityAnchors?.nearestSameStreetSale || null;
+          const formatDeltaChip = (deltaPct) => {
+            if (deltaPct == null || isNaN(Number(deltaPct))) return null;
+            const sign = deltaPct > 0 ? '+' : '';
+            const isClose = Math.abs(deltaPct) <= 15;
+            return (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  backgroundColor: isClose ? 'rgba(63, 90, 58, 0.12)' : 'rgba(189, 211, 226, 0.35)',
+                  border: isClose ? '1px solid rgba(63, 90, 58, 0.28)' : '1px solid #859DCE',
+                  color: '#34292A',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Grid {sign}{deltaPct}% vs anchor
+              </span>
+            );
+          };
+
+          return (
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid var(--border, #E4DDD3)',
+                borderRadius: '20px',
+                padding: '24px 26px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                boxShadow: 'var(--shadow-subtle)'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '14px' }}>
+                  <div>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        color: 'var(--muted)'
+                      }}
+                    >
+                      SANITY ANCHORS · TAX ROLL &amp; STREET
+                    </span>
+                    <h3
+                      style={{
+                        margin: '2px 0 0 0',
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '22px',
+                        fontWeight: 400,
+                        color: 'var(--espresso)'
+                      }}
+                    >
+                      Income / land check
+                    </h3>
+                  </div>
+                  {jvAnchor?.landSharePct != null && (
+                    <Pill
+                      variant="neutral"
+                      size="sm"
+                      style={{
+                        backgroundColor: jvAnchor.landSharePct > 50 ? 'rgba(189, 211, 226, 0.42)' : '#FAF8F5',
+                        border: jvAnchor.landSharePct > 50 ? '1px solid #859DCE' : '1px solid rgba(52, 41, 42, 0.16)',
+                        color: '#34292A',
+                        textTransform: 'none',
+                        fontWeight: 700
+                      }}
+                    >
+                      {Math.round(jvAnchor.landSharePct)}% land share
+                    </Pill>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Anchor 1: County Just Value ÷ 0.85 */}
+                  <div
+                    style={{
+                      padding: '13px 15px',
+                      borderRadius: '14px',
+                      backgroundColor: '#FAF8F5',
+                      border: '1px solid rgba(52, 41, 42, 0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                        County Just Value &divide; 0.85
+                      </span>
+                      {formatDeltaChip(jvAnchor?.deltaPctVsReconciled)}
+                    </div>
+                    {jvAnchor ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: '#34292A', lineHeight: 1.15 }}>
+                            {formatDollar(jvAnchor.impliedMarketValue)}
+                          </span>
+                          <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 500 }}>
+                            Just value {formatDollar(jvAnchor.justValue)}
+                          </span>
+                        </div>
+                        {jvAnchor.landValue != null && jvAnchor.improvementValue != null ? (
+                          <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.72)', marginTop: '5px', lineHeight: 1.4 }}>
+                            Land {formatDollar(jvAnchor.landValue)} ({jvAnchor.landSharePct.toFixed(0)}%) &middot; Improvement {formatDollar(jvAnchor.improvementValue)}
+                            {jvAnchor.improvementPpsf ? ` ($${jvAnchor.improvementPpsf}/sf)` : ''}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                            FL DOR assessment proxy (just value typically ~85% of market)
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+                        Link county record to compute County Just Value &divide; 0.85 anchor.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Anchor 2: Nearest same-street sale */}
+                  <div
+                    style={{
+                      padding: '13px 15px',
+                      borderRadius: '14px',
+                      backgroundColor: '#FAF8F5',
+                      border: '1px solid rgba(52, 41, 42, 0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                        Nearest same-street sale
+                      </span>
+                      {formatDeltaChip(streetAnchor?.deltaPctVsReconciled)}
+                    </div>
+                    {streetAnchor ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '26px', color: '#34292A', lineHeight: 1.15 }}>
+                            {formatDollar(streetAnchor.soldPrice)}
+                          </span>
+                          {streetAnchor.ppsf && (
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--burgundy, #41101B)' }}>
+                              ${streetAnchor.ppsf}/sf
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#34292A', marginTop: '4px' }}>
+                          {streetAnchor.address}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                          {[
+                            streetAnchor.soldDate ? `Sold ${formatShortSoldDate(streetAnchor.soldDate)}` : null,
+                            streetAnchor.sqft ? `${streetAnchor.sqft.toLocaleString()} sf` : null,
+                            streetAnchor.distanceMi != null ? `${streetAnchor.distanceMi} mi` : 'Same street',
+                            streetAnchor.source === 'county_roll' ? 'County roll' : 'From comps'
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+                        No qualified same-street sale found on county roll or added comps.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                Independent reality checks against the weighted comp value — not included in weights.
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 3B. BOTTOM CARDS: Reconciliation Weights + USPAP / Fannie Mae Checks  */}
+      {/* ===================================================================== */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
+          gap: '20px',
+          alignItems: 'stretch',
+          marginBottom: '22px'
+        }}
+      >
+        {/* CARD 3: RECONCILIATION WEIGHTS */}
         <div
           style={{
             backgroundColor: '#FFFFFF',
@@ -1818,10 +2170,12 @@ export default function AppraisalGridSection({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {usedComps.map((comp, idx) => {
-                  const currentPct =
+                  const maxAllowedWeight = comp.isOutlier && hasNonOutlierUsed ? 25 : 100;
+                  const rawCurrentPct =
                     customWeights && customWeights[comp.id] != null
                       ? customWeights[comp.id]
                       : comp.weightPct;
+                  const currentPct = Math.min(maxAllowedWeight, Number(rawCurrentPct) || 0);
 
                   return (
                     <div
@@ -1837,6 +2191,7 @@ export default function AppraisalGridSection({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--espresso)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           C{idx + 1} · {comp.address.split(',')[0]}
+                          {comp.isOutlier ? ' (Outlier ≤25%)' : ''}
                         </span>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--espresso)', flexShrink: 0 }}>
                           {formatDollar(comp.adjustedPrice)}
@@ -1847,10 +2202,10 @@ export default function AppraisalGridSection({
                         <input
                           type="range"
                           min="0"
-                          max="100"
+                          max={maxAllowedWeight}
                           step="1"
-                          value={Number(currentPct) || 0}
-                          onChange={(e) => onWeightChange && onWeightChange(comp.id, Number(e.target.value))}
+                          value={currentPct}
+                          onChange={(e) => onWeightChange && onWeightChange(comp.id, Math.min(maxAllowedWeight, Number(e.target.value)))}
                           style={{ flex: 1, accentColor: 'var(--burgundy)', cursor: 'pointer' }}
                         />
                         <div
@@ -1867,12 +2222,15 @@ export default function AppraisalGridSection({
                           <input
                             type="number"
                             min="0"
-                            max="100"
+                            max={maxAllowedWeight}
                             step="0.5"
                             value={currentPct}
                             onChange={(e) =>
                               onWeightChange &&
-                              onWeightChange(comp.id, e.target.value === '' ? 0 : Number(e.target.value))
+                              onWeightChange(
+                                comp.id,
+                                e.target.value === '' ? 0 : Math.min(maxAllowedWeight, Number(e.target.value))
+                              )
                             }
                             style={{
                               border: 'none',

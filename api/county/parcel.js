@@ -25,7 +25,7 @@ export default async function handler(req, res) {
 
     const sql = getDb();
 
-    // 1. Fetch parcel record (strictly non-PII), including NAL clue columns when migrated
+    // 1. Fetch parcel record (strictly non-PII), including NAL clue + land_value columns when migrated
     let parcels;
     try {
       parcels = await sql`
@@ -48,11 +48,14 @@ export default async function handler(req, res) {
           full_baths,
           half_baths,
           just_value,
+          land_value,
           nbrhd_cd,
           mkt_ar,
           s_legal,
           subdivision_name,
           subdivision_code,
+          situs_number,
+          situs_street_norm,
           lat,
           lng,
           roll_year,
@@ -63,30 +66,72 @@ export default async function handler(req, res) {
       `;
     } catch (colErr) {
       if (colErr?.code === '42703') {
-        parcels = await sql`
-          SELECT 
-            county,
-            parcel_id,
-            address,
-            city,
-            zip,
-            use_code,
-            living_sqft,
-            year_built,
-            eff_year_built,
-            land_sqft,
-            units,
-            just_value,
-            nbrhd_cd,
-            mkt_ar,
-            lat,
-            lng,
-            roll_year,
-            imported_at
-          FROM county_parcels
-          WHERE county = ${county} AND parcel_id = ${parcelId}
-          LIMIT 1;
-        `;
+        try {
+          parcels = await sql`
+            SELECT 
+              county,
+              parcel_id,
+              address,
+              city,
+              zip,
+              use_code,
+              living_sqft,
+              year_built,
+              eff_year_built,
+              land_sqft,
+              units,
+              imp_qual,
+              const_class,
+              spec_feat_val,
+              beds,
+              full_baths,
+              half_baths,
+              just_value,
+              nbrhd_cd,
+              mkt_ar,
+              s_legal,
+              subdivision_name,
+              subdivision_code,
+              situs_number,
+              situs_street_norm,
+              lat,
+              lng,
+              roll_year,
+              imported_at
+            FROM county_parcels
+            WHERE county = ${county} AND parcel_id = ${parcelId}
+            LIMIT 1;
+          `;
+        } catch (colErr2) {
+          if (colErr2?.code === '42703') {
+            parcels = await sql`
+              SELECT 
+                county,
+                parcel_id,
+                address,
+                city,
+                zip,
+                use_code,
+                living_sqft,
+                year_built,
+                eff_year_built,
+                land_sqft,
+                units,
+                just_value,
+                nbrhd_cd,
+                mkt_ar,
+                lat,
+                lng,
+                roll_year,
+                imported_at
+              FROM county_parcels
+              WHERE county = ${county} AND parcel_id = ${parcelId}
+              LIMIT 1;
+            `;
+          } else {
+            throw colErr2;
+          }
+        }
       } else {
         throw colErr;
       }
@@ -126,9 +171,106 @@ export default async function handler(req, res) {
       ORDER BY s.sale_year DESC, s.sale_month DESC NULLS LAST, s.id DESC;
     `;
 
+    // 3. Nearest qualified same-street sale (sanity anchor for Appraisal Income/Land check card)
+    let nearest_same_street_sale = null;
+    if (parcel.situs_street_norm) {
+      try {
+        const streetRows = await sql`
+          SELECT DISTINCT ON (p.parcel_id)
+            p.county,
+            p.parcel_id,
+            p.address,
+            p.city,
+            p.zip,
+            p.living_sqft,
+            p.year_built,
+            p.situs_number,
+            p.lat,
+            p.lng,
+            s.sale_price,
+            s.sale_year,
+            s.sale_month,
+            s.qual_code
+          FROM county_parcels p
+          JOIN county_sales s
+            ON s.county = p.county
+           AND s.parcel_id = p.parcel_id
+          WHERE p.county = ${county}
+            AND p.situs_street_norm = ${parcel.situs_street_norm}
+            AND p.parcel_id <> ${parcelId}
+            AND s.qual_code IN ('01', '02')
+            AND s.sale_price > 10000
+          ORDER BY p.parcel_id, s.sale_year DESC, s.sale_month DESC NULLS LAST
+          LIMIT 60;
+        `;
+
+        if (streetRows.length > 0) {
+          const subLat = parcel.lat != null ? Number(parcel.lat) : null;
+          const subLng = parcel.lng != null ? Number(parcel.lng) : null;
+          const subNum = parcel.situs_number != null ? parseInt(String(parcel.situs_number).replace(/\D/g, ''), 10) : NaN;
+
+          const haversineMi = (lat1, lon1, lat2, lon2) => {
+            if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+            const toRad = (deg) => (deg * Math.PI) / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          };
+
+          const ranked = streetRows
+            .map((r) => {
+              const dist = haversineMi(subLat, subLng, r.lat != null ? Number(r.lat) : null, r.lng != null ? Number(r.lng) : null);
+              const rNum = r.situs_number != null ? parseInt(String(r.situs_number).replace(/\D/g, ''), 10) : NaN;
+              const numDiff = !isNaN(subNum) && !isNaN(rNum) ? Math.abs(subNum - rNum) : Number.MAX_SAFE_INTEGER;
+              const salePrice = Number(r.sale_price);
+              const livingSqft = Number(r.living_sqft) || null;
+              const mo = r.sale_month ? String(r.sale_month).padStart(2, '0') : '01';
+              return {
+                county: r.county,
+                parcel_id: r.parcel_id,
+                address: r.address,
+                city: r.city,
+                zip: r.zip,
+                sold_price: salePrice,
+                sold_date: r.sale_year ? `${r.sale_year}-${mo}-01` : null,
+                sale_year: r.sale_year,
+                sale_month: r.sale_month,
+                sqft: livingSqft,
+                ppsf: livingSqft ? Math.round(salePrice / livingSqft) : null,
+                distance_mi: dist != null ? Math.round(dist * 100) / 100 : null,
+                _distSort: dist != null ? dist : Number.MAX_SAFE_INTEGER,
+                _numDiff: numDiff,
+                _recencySort: (Number(r.sale_year) || 0) * 100 + (Number(r.sale_month) || 0),
+                source: 'county_roll'
+              };
+            })
+            .sort((a, b) => {
+              // Prefer recent sales within 24 months when distance is similar; otherwise closest neighbor
+              if (Math.abs(a._distSort - b._distSort) > 0.03) return a._distSort - b._distSort;
+              if (a._numDiff !== b._numDiff) return a._numDiff - b._numDiff;
+              return b._recencySort - a._recencySort;
+            });
+
+          const best = ranked[0];
+          if (best) {
+            delete best._distSort;
+            delete best._numDiff;
+            delete best._recencySort;
+            nearest_same_street_sale = best;
+          }
+        }
+      } catch {
+        // Non-fatal: omit same-street anchor if schema/index unavailable
+      }
+    }
+
     return res.status(200).json({
       ...parcel,
       county_clues,
+      nearest_same_street_sale,
       sales
     });
   } catch (err) {

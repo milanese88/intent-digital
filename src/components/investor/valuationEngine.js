@@ -26,11 +26,14 @@ import {
   formatConstructionTypeLabel,
   formatBoatDockLabel,
   mapConstClassToConstructionType,
+  getUadQualityMeta,
+  mapImpQualToUadQuality,
   ROOF_TYPE_OPTIONS,
   WINDOW_OPTIONS,
   WATERFRONT_VIEW_OPTIONS
 } from './compDetailsModel.js';
 import { isSameSubdivision } from '../../utils/subdivision.js';
+import { normalizeAddress } from '../../utils/addressNorm.js';
 import { normalizeCountyName } from '../../config/counties.js';
 
 export const DEFAULT_VALUATION_SETTINGS = {
@@ -250,14 +253,22 @@ export const DEFAULT_ADJUSTMENT_LIBRARY = {
   bedAdjustment: 10000,
   fullBathAdjustment: 13000,       // Guide: $8,000 – $18,000 / bath
   halfBathAdjustment: 6000,        // Guide: $4,000 – $8,000 / half bath
+  extraBathFunctionalAdjustment: 0, // Baths above bedrooms + 1 (functional utility, $0 default, editable)
+  ageAdjustmentPerYear: 1500,      // Year built / effective age ($/yr beyond ±5 yr threshold, tier-scaled)
+  ageMinYearsThreshold: 5,
+  qualityStepAdjustment: 25000,    // UAD Quality Q1–Q6 per rating step (tier-scaled)
   conditionUpdatedVsAsIs: 22000,   // Minor kitchen refresh + bath update (C3 vs C4)
   conditionRenovatedVsAsIs: 48000, // Full kitchen ($30k) + baths ($18k) (C2 vs C4)
+  constructionCbsVsFrameAdjustment: 15000, // CBS / Masonry vs Wood Frame (tier-scaled)
   poolAdjustment: 40000,           // Guide: $30,000 – $50,000 Standard In-Ground Pool
   garageBayAdjustment: 15000,      // Guide: $10,000 – $20,000 / bay
   impactWindowsAdjustment: 25000,  // Guide: $15,000 – $35,000 Full Impact Windows & Doors
   newerRoofAdjustment: 25000,      // Guide: $15,000 – $35,000 Newer Roof (<5 yrs vs older)
   differentSubdivisionAdjustment: 0, // Location row: Same subdivision / Different (default $0, editable in library)
+  differentNeighborhoodAdjustment: 0, // Location row: Same subdivision but different NBRHD_CD (default $0, editable)
   waterfrontAdjustment: 75000,     // Dedicated Location / Site / Waterfront adjustment
+  boatDockAdjustment: 25000,       // Private boat dock / seawall dockage (tier-scaled)
+  boatLiftAdjustment: 15000,       // Boat lift contributory value (tier-scaled)
   lotSqftRate: 5,                  // $/sf for lot size variance beyond ±500 sf
   lotMinThreshold: 500,
   monthlyMarketTrendPct: 0.25,     // 0.25% per month default market trend
@@ -419,22 +430,182 @@ function formatGarageSpecLabel(details) {
 }
 
 export const WEIGHT_FORMULA_SUMMARY =
-  'Weight ∝ Gross Adj Factor (steep cliff >25% gross) × Size Parity (steep penalty >±20% GLA diff) × Recency (penalty >6 mo) × Distance × Verified (×0.75 if unverified) × Detail Completeness (×0.86 per missing feature) × Condition Parity, normalized to 100%.';
+  'Weight ∝ Gross Adj Factor (steep cliff >25% gross) × Size Parity (steep penalty >±20% GLA diff) × Recency (penalty >6 mo) × Distance × Verified (×0.75 if unverified) × Detail Completeness (×0.86 per missing feature) × Condition Parity, normalized to 100% (outlier comps >40% from median $/sf capped at 25% max weight when ON).';
+
+export const OUTLIER_MAX_WEIGHT_FRACTION = 0.25;
 
 function formatWaterfrontOnlyLabel(details) {
   const wfObj = WATERFRONT_VIEW_OPTIONS.find((o) => o.id === details.waterfront_view && o.id !== 'unknown');
   return wfObj ? wfObj.label : 'Unknown';
 }
 
+function formatAgeSpecLabel(yearBuilt, effYearBuilt) {
+  const yb = yearBuilt != null && Number(yearBuilt) > 1800 ? Math.round(Number(yearBuilt)) : null;
+  const eff = effYearBuilt != null && Number(effYearBuilt) > 1800 ? Math.round(Number(effYearBuilt)) : null;
+  if (yb != null && eff != null && eff !== yb) return `${yb} (eff. ${eff})`;
+  if (yb != null) return `Built ${yb}`;
+  if (eff != null) return `Eff. ${eff}`;
+  return 'Unknown';
+}
+
+/**
+ * Caps credited baths at bedrooms + 1 so excess baths are treated as functional utility
+ * ($0 by default, editable in adjustment library) and flags "unusual bed/bath ratio".
+ */
+export function capBathsForBedrooms(details = {}) {
+  const beds = details?.beds != null && !isNaN(Number(details.beds)) ? Number(details.beds) : null;
+  const rawFull = details?.full_baths != null && !isNaN(Number(details.full_baths)) ? Number(details.full_baths) : null;
+  const rawHalf = details?.half_baths != null && !isNaN(Number(details.half_baths)) ? Number(details.half_baths) : null;
+  const totalBaths = rawFull != null
+    ? Math.round((rawFull + (rawHalf ?? 0) * 0.5) * 10) / 10
+    : (details?.baths != null && !isNaN(Number(details.baths)) ? Math.round(Number(details.baths) * 10) / 10 : null);
+
+  if (beds == null || totalBaths == null) {
+    return {
+      beds,
+      totalBaths,
+      maxCredited: beds != null ? beds + 1 : null,
+      creditedFull: rawFull,
+      creditedHalf: rawFull != null ? (rawHalf ?? 0) : null,
+      creditedTotal: totalBaths,
+      excessBaths: 0,
+      isUnusualRatio: false
+    };
+  }
+
+  const maxCredited = Math.max(1, beds + 1);
+  if (totalBaths <= maxCredited + 1e-6) {
+    return {
+      beds,
+      totalBaths,
+      maxCredited,
+      creditedFull: rawFull,
+      creditedHalf: rawFull != null ? (rawHalf ?? 0) : null,
+      creditedTotal: totalBaths,
+      excessBaths: 0,
+      isUnusualRatio: false
+    };
+  }
+
+  const excessBaths = Math.round((totalBaths - maxCredited) * 10) / 10;
+  const fullAvail = rawFull != null ? rawFull : Math.floor(totalBaths + 1e-6);
+  const halfAvail = rawFull != null ? (rawHalf ?? 0) : (totalBaths - fullAvail >= 0.25 ? 1 : 0);
+  const creditedFull = Math.min(fullAvail, Math.floor(maxCredited + 1e-6));
+  const remCap = Math.max(0, maxCredited - creditedFull);
+  const creditedHalf = Math.min(halfAvail, Math.floor(remCap / 0.5 + 1e-6));
+  const creditedTotal = Math.round((creditedFull + creditedHalf * 0.5) * 10) / 10;
+
+  return {
+    beds,
+    totalBaths,
+    maxCredited,
+    creditedFull,
+    creditedHalf,
+    creditedTotal,
+    excessBaths,
+    isUnusualRatio: true
+  };
+}
+
+/**
+ * Computes county improvement value (just_value - land_value), land share %, and improvement $/sf.
+ */
+export function computeParcelImprovementMetrics(entity = {}) {
+  const justVal = Number(entity?.just_value);
+  const landVal = Number(entity?.land_value);
+  const sqft = Number(entity?.sqft || entity?.living_sqft);
+  if (!Number.isFinite(justVal) || justVal <= 0 || !Number.isFinite(landVal) || landVal <= 0) {
+    return null;
+  }
+  const improvementVal = Math.max(0, justVal - landVal);
+  const landSharePct = Math.round((landVal / justVal) * 1000) / 10;
+  const impPpsf = sqft > 0 && improvementVal > 0 ? Math.round(improvementVal / sqft) : null;
+  return {
+    justVal: Math.round(justVal),
+    landVal: Math.round(landVal),
+    improvementVal: Math.round(improvementVal),
+    landSharePct,
+    impPpsf
+  };
+}
+
+/**
+ * Enforces a maximum fractional weight (default 25%) on outlier comps when enabled,
+ * redistributing excess weight proportionally across non-outlier comps so weights sum strictly to 1.0.
+ */
+export function applyOutlierWeightCap(usedComps = [], rawWeights = [], cap = OUTLIER_MAX_WEIGHT_FRACTION) {
+  const n = usedComps.length;
+  if (n === 0) return { weights: [], cappedIds: new Set(), cannotCapAllOutliers: false };
+
+  const weights = normalizeReconciliationWeights(rawWeights);
+  const outlierIdx = [];
+  const normalIdx = [];
+  usedComps.forEach((c, i) => {
+    if (c.isOutlier) outlierIdx.push(i);
+    else normalIdx.push(i);
+  });
+
+  if (outlierIdx.length === 0) {
+    return { weights, cappedIds: new Set(), cannotCapAllOutliers: false };
+  }
+
+  // If only outliers are enabled and fewer than 4 exist, summing to 100% while capping each at 25% is infeasible
+  if (normalIdx.length === 0 && outlierIdx.length * cap < 1 - 1e-6) {
+    return { weights, cappedIds: new Set(), cannotCapAllOutliers: true };
+  }
+
+  const capped = new Set();
+  const cappedIds = new Set();
+
+  for (let iter = 0; iter < 12; iter++) {
+    let excess = 0;
+    for (const i of outlierIdx) {
+      if (!capped.has(i) && weights[i] > cap + 1e-9) {
+        excess += weights[i] - cap;
+        weights[i] = cap;
+        capped.add(i);
+        cappedIds.add(usedComps[i].id);
+      }
+    }
+    if (excess <= 1e-9) break;
+
+    const recipients = normalIdx.length > 0
+      ? normalIdx
+      : outlierIdx.filter((i) => !capped.has(i));
+    if (recipients.length === 0) break;
+
+    const recipSum = recipients.reduce((s, i) => s + weights[i], 0);
+    if (recipSum > 0) {
+      for (const i of recipients) {
+        weights[i] += excess * (weights[i] / recipSum);
+      }
+    } else {
+      const share = excess / recipients.length;
+      for (const i of recipients) {
+        weights[i] += share;
+      }
+    }
+  }
+
+  // Final strict normalization check preserving outlier caps
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (Math.abs(total - 1) > 1e-9) {
+    const adjustIdx = normalIdx.length > 0 ? normalIdx[normalIdx.length - 1] : (n - 1);
+    weights[adjustIdx] = Math.max(0, weights[adjustIdx] + (1 - total));
+  }
+
+  return { weights, cappedIds, cannotCapAllOutliers: false };
+}
+
 /**
  * Determines whether a comp is included (USED) in reconciliation.
- * Comps flagged as $/sf outliers default to OFF unless explicitly included === true.
+ * Comps flagged as $/sf outliers (>40% from median) default to OFF unless explicitly included === true.
  */
-export function resolveCompIsIncluded(comp) {
+export function resolveCompIsIncluded(comp, { isComputedOutlier = false } = {}) {
   if (!comp) return false;
   if (comp.included === true) return true;
   if (comp.included === false) return false;
-  return comp.is_outlier ? false : true;
+  return (comp.is_outlier || comp.adjustments?.is_outlier || isComputedOutlier) ? false : true;
 }
 
 /**
@@ -445,10 +616,10 @@ export function resolveCompIsIncluded(comp) {
 export function computeAppraisalGrid({
   comps = [],
   subject = {},
-  mode = 'as_is',          // 'as_is' | 'arv'
-  sizeMethod = 'local_35', // 'local_35' | 'library'
+  mode = 'as_is',       // 'as_is' | 'arv'
+  sizeMethod = 'auto',  // 'auto' | 'improvement_value' | 'local_35' | 'library'
   library: rawLibrary = {},
-  customWeights = null,    // optional { [compId]: number (percentage 0..100) }
+  customWeights = null, // optional { [compId]: number (percentage 0..100) }
   zipTrendMonthlyPct = null,
   zipTrendSource = null,
   zipRatioStats = null,
@@ -459,7 +630,41 @@ export function computeAppraisalGrid({
 
   // Valid comps with a sale price
   const validComps = comps.filter((c) => c && Number(c.sold_price) > 0);
-  const usedCompsRaw = validComps.filter((c) => resolveCompIsIncluded(c));
+
+  // Dynamic $/sf outlier detection (>40% from median $/sf across >=3 valid comps)
+  const allValidPpsf = validComps
+    .map((c) => {
+      if (Number(c.price_per_sqft) > 0) return Number(c.price_per_sqft);
+      if (Number(c.sold_price) > 0 && Number(c.sqft) > 0) return Number(c.sold_price) / Number(c.sqft);
+      return null;
+    })
+    .filter((n) => n != null && n > 0);
+  const allGridMedianPpsf = allValidPpsf.length >= 3 ? calculateMedian(allValidPpsf) : null;
+
+  const computedOutlierMap = new Map();
+  for (const c of validComps) {
+    const cPpsf = Number(c.price_per_sqft) > 0
+      ? Number(c.price_per_sqft)
+      : (Number(c.sold_price) > 0 && Number(c.sqft) > 0 ? Number(c.sold_price) / Number(c.sqft) : null);
+    const isPersistedOutlier = Boolean(c.is_outlier || c.adjustments?.is_outlier);
+    let isComputedPpsfOutlier = false;
+    let computedReason = null;
+    if (allGridMedianPpsf && cPpsf && Math.abs(cPpsf - allGridMedianPpsf) / allGridMedianPpsf > 0.4) {
+      isComputedPpsfOutlier = true;
+      const pct = Math.round(((cPpsf - allGridMedianPpsf) / allGridMedianPpsf) * 100);
+      computedReason = `$/sf ($${Math.round(cPpsf)}/sf) is ${Math.abs(pct)}% ${pct > 0 ? 'above' : 'below'} median ($${Math.round(allGridMedianPpsf)}/sf)`;
+    }
+    computedOutlierMap.set(c, {
+      isOutlier: isPersistedOutlier || isComputedPpsfOutlier,
+      isComputedPpsfOutlier,
+      reason: c.outlier_reason || c.adjustments?.outlier_reason || computedReason
+    });
+  }
+
+  const usedCompsRaw = validComps.filter((c) => {
+    const outInfo = computedOutlierMap.get(c);
+    return resolveCompIsIncluded(c, { isComputedOutlier: Boolean(outInfo?.isComputedPpsfOutlier) });
+  });
 
   // Median unadjusted sale price & local $/sf from USED comps (fallback to all valid comps)
   const pricePool = (usedCompsRaw.length > 0 ? usedCompsRaw : validComps)
@@ -476,29 +681,79 @@ export function computeAppraisalGrid({
     .filter((n) => n != null && n > 0);
   const localMedianPpsf = calculateMedian(ppsfPool);
 
+  // County Improvement Value $/sf (for waterfront / land-heavy properties where land > 50% of market value)
+  const subjectImpMetrics = computeParcelImprovementMetrics(subject);
+  const isLandHeavySubject = Boolean(subjectImpMetrics && subjectImpMetrics.landSharePct > 50);
+
+  const impPoolSources = [];
+  if (subjectImpMetrics?.impPpsf > 0) {
+    impPoolSources.push({ role: 'subject', impPpsf: subjectImpMetrics.impPpsf });
+  }
+  const impCompPool = usedCompsRaw.length > 0 ? usedCompsRaw : validComps;
+  let impCompCount = 0;
+  for (const c of impCompPool) {
+    const cm = computeParcelImprovementMetrics(c);
+    if (cm?.impPpsf > 0) {
+      impPoolSources.push({ role: 'comp', impPpsf: cm.impPpsf });
+      impCompCount++;
+    }
+  }
+  const improvementGlaRate = impPoolSources.length > 0
+    ? Math.round(calculateMedian(impPoolSources.map((x) => x.impPpsf)))
+    : null;
+  const improvementGlaSampleLabel = [
+    subjectImpMetrics?.impPpsf > 0 ? 'subject' : null,
+    impCompCount > 0 ? `${impCompCount} ${impCompCount === 1 ? 'comp' : 'comps'}` : null
+  ].filter(Boolean).join(' + ');
+
   // Auto-detect South Florida Tier (Guide Section 6)
   const tier = detectSouthFloridaTier(medianUnadjustedPrice, subject?.list_price);
   const tierScale = library.tierScaleEnabled !== false ? tier.multiplier : 1.0;
 
-  // Determine GLA $/sf rate & minimum threshold
+  // Determine GLA $/sf rate, active method & transparent source label
   const libraryGlaRate = Number(library.glaRates?.[tier.key]) || tier.defaultGlaRate;
   const minGlaThreshold = Number(library.glaMinThresholds?.[tier.key]) ?? tier.defaultMinSqftThreshold;
   const localFactor = Number(library.localPpsfFactor) > 0 ? Number(library.localPpsfFactor) : 0.35;
 
-  const activeGlaRate = sizeMethod === 'local_35' && localMedianPpsf > 0
-    ? Math.round(localMedianPpsf * localFactor)
-    : Math.round(libraryGlaRate);
+  let effectiveSizeMethod = sizeMethod;
+  if (!['improvement_value', 'local_35', 'library'].includes(effectiveSizeMethod)) {
+    effectiveSizeMethod = isLandHeavySubject && improvementGlaRate > 0 ? 'improvement_value' : 'local_35';
+  }
+  if (effectiveSizeMethod === 'improvement_value' && !(improvementGlaRate > 0)) {
+    effectiveSizeMethod = localMedianPpsf > 0 ? 'local_35' : 'library';
+  }
+
+  let activeGlaRate;
+  let glaRateSource;
+  if (effectiveSizeMethod === 'improvement_value' && improvementGlaRate > 0) {
+    activeGlaRate = improvementGlaRate;
+    const landPart = subjectImpMetrics
+      ? ` · land is ${Math.round(subjectImpMetrics.landSharePct)}% of county market value`
+      : '';
+    glaRateSource = `Median county improvement $/sf ($${improvementGlaRate}/sf from ${improvementGlaSampleLabel || 'county roll'}${landPart})`;
+  } else if (effectiveSizeMethod === 'local_35' && localMedianPpsf > 0) {
+    activeGlaRate = Math.round(localMedianPpsf * localFactor);
+    glaRateSource = `${Math.round(localFactor * 100)}% of local median comp $/sf ($${Math.round(localMedianPpsf)}/sf)`;
+  } else {
+    activeGlaRate = Math.round(libraryGlaRate);
+    glaRateSource = `South FL ${tier.name} library rate ($${Math.round(libraryGlaRate)}/sf)`;
+  }
 
   // Scaled contributory library line items (rounded to nearest $500)
   const scaleAmt = (val) => Math.round((Number(val) * tierScale) / 500) * 500;
   const effectiveRates = {
     glaRate: activeGlaRate,
     minGlaThreshold,
+    agePerYear: Math.round((Number(library.ageAdjustmentPerYear ?? 1500) * tierScale) / 100) * 100,
+    ageMinYearsThreshold: Number(library.ageMinYearsThreshold ?? 5),
     bed: scaleAmt(library.bedAdjustment),
     fullBath: scaleAmt(library.fullBathAdjustment),
     halfBath: scaleAmt(library.halfBathAdjustment),
+    extraBathFunctional: Math.round(Number(library.extraBathFunctionalAdjustment) || 0),
+    qualityStep: scaleAmt(library.qualityStepAdjustment ?? 25000),
     condUpdatedVsAsIs: scaleAmt(library.conditionUpdatedVsAsIs),
     condRenovatedVsAsIs: scaleAmt(library.conditionRenovatedVsAsIs),
+    constructionCbsVsFrame: scaleAmt(library.constructionCbsVsFrameAdjustment ?? 15000),
     pool: scaleAmt(library.poolAdjustment),
     screenEnclosure: scaleAmt(6000),
     garageBay: scaleAmt(library.garageBayAdjustment),
@@ -506,7 +761,10 @@ export function computeAppraisalGrid({
     shutters: Math.round((scaleAmt(library.impactWindowsAdjustment) * 0.4) / 500) * 500,
     newerRoof: scaleAmt(library.newerRoofAdjustment),
     differentSubdivision: Math.round(Number(library.differentSubdivisionAdjustment) || 0),
+    differentNeighborhood: Math.round(Number(library.differentNeighborhoodAdjustment) || 0),
     waterfront: scaleAmt(library.waterfrontAdjustment),
+    boatDock: scaleAmt(library.boatDockAdjustment ?? 25000),
+    boatLift: scaleAmt(library.boatLiftAdjustment ?? 15000),
     lotSqftRate: Number(library.lotSqftRate) || 5,
     lotMinThreshold: Number(library.lotMinThreshold) || 500,
     monthlyTrendPct: zipTrendMonthlyPct != null && !isNaN(Number(zipTrendMonthlyPct))
@@ -521,6 +779,22 @@ export function computeAppraisalGrid({
   const subjectSqft = Number(subject?.sqft) || 0;
   const subjectLotSqft = Number(subject?.lot_sqft) || 0;
   const subjectCondMeta = getConditionMeta(subjectDetails.condition);
+  const subjectQualMeta = getUadQualityMeta(subjectDetails.quality);
+  const subjectBathCap = capBathsForBedrooms(subjectDetails);
+  const subjectYearBuilt = subject?.year_built != null && Number(subject.year_built) > 1800
+    ? Math.round(Number(subject.year_built))
+    : null;
+  const subjectEffYear = (subjectDetails.eff_year_built ?? subject?.eff_year_built) != null &&
+    Number(subjectDetails.eff_year_built ?? subject?.eff_year_built) > 1800
+    ? Math.round(Number(subjectDetails.eff_year_built ?? subject?.eff_year_built))
+    : null;
+  const subjectAnchorYear = subjectEffYear ?? subjectYearBuilt;
+
+  const constructionContributory = (constKey) => {
+    if (constKey === 'cbs') return effectiveRates.constructionCbsVsFrame;
+    if (constKey === 'other') return Math.round((effectiveRates.constructionCbsVsFrame * 0.5) / 500) * 500;
+    return 0;
+  };
 
   // Contributory value functions (only called when BOTH subject and comp values are known)
   const conditionContributory = (condKey) => {
@@ -584,7 +858,12 @@ export function computeAppraisalGrid({
 
   // Evaluate every comp (preserving order)
   const evaluatedComps = comps.map((comp) => {
-    const isUsed = resolveCompIsIncluded(comp) && Number(comp.sold_price) > 0;
+    const outInfo = computedOutlierMap.get(comp) || {
+      isOutlier: Boolean(comp.is_outlier || comp.adjustments?.is_outlier),
+      isComputedPpsfOutlier: false,
+      reason: comp.outlier_reason || comp.adjustments?.outlier_reason || null
+    };
+    const isUsed = resolveCompIsIncluded(comp, { isComputedOutlier: outInfo.isComputedPpsfOutlier }) && Number(comp.sold_price) > 0;
     const soldPrice = Number(comp.sold_price) || 0;
     const compSqft = Number(comp.sqft) || 0;
     const compPpsf = soldPrice > 0 && compSqft > 0 ? Math.round(soldPrice / compSqft) : null;
@@ -597,12 +876,14 @@ export function computeAppraisalGrid({
     const detailsProgress = computeDetailsProgress(compDetails);
     const countyClues = comp.county_clues || formatCountyClues(comp);
     const condMeta = getConditionMeta(compDetails.condition);
+    const qualMeta = getUadQualityMeta(compDetails.quality);
+    const compBathCap = capBathsForBedrooms(compDetails);
 
     const overrides = (comp.adjustments && typeof comp.adjustments === 'object' && comp.adjustments.overrides)
       ? comp.adjustments.overrides
       : {};
 
-    const resolveCell = (rowKey, computedAmount, compSpecLabel, { note = '', needsInfo = false } = {}) => {
+    const resolveCell = (rowKey, computedAmount, compSpecLabel, { note = '', needsInfo = false, flag = null } = {}) => {
       const hasOverride = overrides[rowKey] != null && overrides[rowKey] !== '' && !isNaN(Number(overrides[rowKey]));
       const amount = hasOverride ? Math.round(Number(overrides[rowKey])) : Math.round(computedAmount);
       return {
@@ -611,6 +892,7 @@ export function computeAppraisalGrid({
         computedAmount: Math.round(computedAmount),
         isOverridden: hasOverride,
         needsInfo: Boolean(needsInfo && !hasOverride),
+        flag: flag || null,
         direction: amount > 0 ? 'add' : amount < 0 ? 'subtract' : 'neutral',
         spec: compSpecLabel,
         note
@@ -661,7 +943,44 @@ export function computeAppraisalGrid({
       }
     );
 
-    // 3. Bedrooms & Bathrooms (Full + Half bath awareness)
+    // 3. Year Built / Effective Age (CIA/CBS using eff_year_built || year_built, ±5 yr min threshold)
+    const compYearBuilt = comp?.year_built != null && Number(comp.year_built) > 1800
+      ? Math.round(Number(comp.year_built))
+      : null;
+    const compEffYear = (compDetails.eff_year_built ?? comp?.eff_year_built) != null &&
+      Number(compDetails.eff_year_built ?? comp?.eff_year_built) > 1800
+      ? Math.round(Number(compDetails.eff_year_built ?? comp?.eff_year_built))
+      : null;
+    const compAnchorYear = compEffYear ?? compYearBuilt;
+    const isAgeUnknown = compAnchorYear == null;
+    const yearDiff = subjectAnchorYear != null && compAnchorYear != null
+      ? subjectAnchorYear - compAnchorYear
+      : 0;
+    const ageWithinThreshold = subjectAnchorYear != null && compAnchorYear != null &&
+      Math.abs(yearDiff) < effectiveRates.ageMinYearsThreshold;
+    const rawAgeAdj = (subjectAnchorYear != null && compAnchorYear != null && !ageWithinThreshold)
+      ? Math.round((yearDiff * effectiveRates.agePerYear) / 500) * 500
+      : 0;
+    const ageNote = isAgeUnknown
+      ? ''
+      : subjectAnchorYear == null
+        ? 'Set subject year built'
+        : ageWithinThreshold && yearDiff !== 0
+          ? `Within ±${effectiveRates.ageMinYearsThreshold} yr threshold`
+          : yearDiff !== 0
+            ? `${yearDiff > 0 ? `${yearDiff} yr older` : `${Math.abs(yearDiff)} yr newer`} @ $${effectiveRates.agePerYear.toLocaleString()}/yr`
+            : `Eff. age ${Math.max(0, effYear - compAnchorYear)} yr`;
+    const ageCell = resolveCell(
+      'age',
+      rawAgeAdj,
+      formatAgeSpecLabel(compYearBuilt, compEffYear),
+      {
+        note: ageNote,
+        needsInfo: isAgeUnknown
+      }
+    );
+
+    // 4. Bedrooms & Bathrooms (Full + Half bath awareness, baths credited capped at bedrooms + 1)
     const compBeds = compDetails.beds;
     const subBeds = subjectDetails.beds;
     const compBathUnknown = compDetails.full_baths == null && compDetails.baths == null;
@@ -671,16 +990,23 @@ export function computeAppraisalGrid({
     if (subBeds != null && compBeds != null) {
       rawBedBathAdj += (subBeds - compBeds) * effectiveRates.bed;
     }
-    if (subjectDetails.full_baths != null && compDetails.full_baths != null) {
-      rawBedBathAdj += (subjectDetails.full_baths - compDetails.full_baths) * effectiveRates.fullBath;
-      rawBedBathAdj += ((subjectDetails.half_baths ?? 0) - (compDetails.half_baths ?? 0)) * effectiveRates.halfBath;
-    } else if (subjectDetails.baths != null && compDetails.baths != null) {
-      const bathDiff = subjectDetails.baths - compDetails.baths;
+    if (subjectBathCap.creditedFull != null && compBathCap.creditedFull != null) {
+      rawBedBathAdj += (subjectBathCap.creditedFull - compBathCap.creditedFull) * effectiveRates.fullBath;
+      rawBedBathAdj += ((subjectBathCap.creditedHalf ?? 0) - (compBathCap.creditedHalf ?? 0)) * effectiveRates.halfBath;
+    } else if (subjectBathCap.creditedTotal != null && compBathCap.creditedTotal != null) {
+      const bathDiff = subjectBathCap.creditedTotal - compBathCap.creditedTotal;
       const sign = bathDiff >= 0 ? 1 : -1;
       const absDiff = Math.abs(bathDiff);
       const fullCount = Math.floor(absDiff + 1e-6);
       const hasHalf = Math.abs(absDiff - fullCount - 0.5) < 0.26;
       rawBedBathAdj += sign * (fullCount * effectiveRates.fullBath + (hasHalf ? effectiveRates.halfBath : 0));
+    }
+    // Excess functional baths above beds + 1 ($0 by default, editable in library)
+    if (
+      (subjectBathCap.excessBaths > 0 || compBathCap.excessBaths > 0) &&
+      effectiveRates.extraBathFunctional !== 0
+    ) {
+      rawBedBathAdj += Math.round((subjectBathCap.excessBaths - compBathCap.excessBaths) * effectiveRates.extraBathFunctional);
     }
 
     const bedBathSpec = [
@@ -688,11 +1014,43 @@ export function computeAppraisalGrid({
       formatBathDisplay(compDetails)
     ].filter(Boolean).join(' / ') || 'Unknown';
 
+    const bedBathFlag = compBathCap.isUnusualRatio
+      ? 'Unusual bed/bath ratio'
+      : null;
+    const bedBathNote = compBathCap.isUnusualRatio
+      ? `Credited ${compBathCap.creditedTotal} of ${compBathCap.totalBaths} ba (cap: beds+1 · ${compBathCap.excessBaths} functional @ $${effectiveRates.extraBathFunctional.toLocaleString()})`
+      : (subjectBathCap.isUnusualRatio && compBathCap.creditedTotal != null
+          ? `Subject baths capped at ${subjectBathCap.maxCredited} (beds+1)`
+          : '');
+
     const bedBathCell = resolveCell('bed_bath', rawBedBathAdj, bedBathSpec, {
+      note: bedBathNote,
+      flag: bedBathFlag,
       needsInfo: compBedBathAllUnknown
     });
 
-    // 4. Condition (UAD C1–C6): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 5. Quality (UAD Q1–Q6): Unknown = $0 adjustment + "Needs info" chip (county IMP_QUAL clue shown as hint only)
+    const isQualityUnknown = compDetails.quality === 'unknown';
+    const rawQualityAdj = (!isQualityUnknown && subjectDetails.quality !== 'unknown' && subjectQualMeta.rank != null && qualMeta.rank != null)
+      ? (subjectQualMeta.rank - qualMeta.rank) * effectiveRates.qualityStep
+      : 0;
+    const compImpQualSuggested = mapImpQualToUadQuality(comp.imp_qual ?? countyClues?.impQualCode);
+    const qualityNote = isQualityUnknown
+      ? (compImpQualSuggested !== 'unknown'
+          ? `County clue: ${getUadQualityMeta(compImpQualSuggested).shortLabel}`
+          : '')
+      : (subjectDetails.quality === 'unknown' ? 'Set subject quality' : '');
+    const qualityCell = resolveCell(
+      'quality',
+      rawQualityAdj,
+      isQualityUnknown ? 'Unknown' : qualMeta.shortLabel,
+      {
+        note: qualityNote,
+        needsInfo: isQualityUnknown
+      }
+    );
+
+    // 6. Condition (UAD C1–C6): Unknown = $0 adjustment + "Needs info" chip + weight reduced
     const isConditionUnknown = compDetails.condition === 'unknown';
     const rawCondAdj = (!isConditionUnknown && subjectDetails.condition !== 'unknown')
       ? conditionContributory(subjectDetails.condition) - conditionContributory(compDetails.condition)
@@ -707,7 +1065,30 @@ export function computeAppraisalGrid({
       { note: condNote, needsInfo: isConditionUnknown }
     );
 
-    // 5. Windows (impact / shutters / none): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 7. Construction (CBS / wood frame / other): Unknown = $0 + "Needs info" (county CONST_CLASS shown as clue)
+    const isConstructionUnknown = !compDetails.construction_type || compDetails.construction_type === 'unknown';
+    const subjectConstKnown = Boolean(subjectDetails.construction_type && subjectDetails.construction_type !== 'unknown');
+    const rawConstructionAdj = (!isConstructionUnknown && subjectConstKnown)
+      ? constructionContributory(subjectDetails.construction_type) - constructionContributory(compDetails.construction_type)
+      : 0;
+    const compConstClue = mapConstClassToConstructionType(comp.const_class ?? countyClues?.constClassCode);
+    const compConstructionLabel = !isConstructionUnknown
+      ? formatConstructionTypeLabel(compDetails.construction_type)
+      : (compConstClue !== 'unknown' ? formatConstructionTypeLabel(compConstClue) : null);
+    const constructionNote = isConstructionUnknown
+      ? (compConstClue !== 'unknown' ? `County clue: ${formatConstructionTypeLabel(compConstClue)}` : '')
+      : (!subjectConstKnown ? 'Set subject construction' : '');
+    const constructionCell = resolveCell(
+      'construction',
+      rawConstructionAdj,
+      isConstructionUnknown ? 'Unknown' : formatConstructionTypeLabel(compDetails.construction_type),
+      {
+        note: constructionNote,
+        needsInfo: isConstructionUnknown
+      }
+    );
+
+    // 8. Windows (impact / shutters / none): Unknown = $0 adjustment + "Needs info" chip + weight reduced
     // Never infer impact windows from year_built!
     const isWindowsUnknown = compDetails.windows === 'unknown';
     const rawWindowsAdj = (!isWindowsUnknown && subjectDetails.windows !== 'unknown')
@@ -723,7 +1104,7 @@ export function computeAppraisalGrid({
       }
     );
 
-    // 6. Roof (type + roof year): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 9. Roof (type + roof year): Unknown = $0 adjustment + "Needs info" chip + weight reduced
     // Never infer roof age from year_built!
     const isRoofUnknown = compDetails.roof_type === 'unknown' && compDetails.roof_year == null;
     let rawRoofAdj = 0;
@@ -735,16 +1116,7 @@ export function computeAppraisalGrid({
         rawRoofAdj += roofMaterialContributory(subjectDetails.roof_type) - roofMaterialContributory(compDetails.roof_type);
       }
     }
-    const compConstType =
-      compDetails.construction_type && compDetails.construction_type !== 'unknown'
-        ? compDetails.construction_type
-        : mapConstClassToConstructionType(comp.const_class ?? countyClues?.constClassCode);
-    const compConstructionLabel =
-      compConstType !== 'unknown' ? formatConstructionTypeLabel(compConstType) : null;
-    const roofNote = [
-      !isRoofUnknown && compDetails.roof_year == null ? 'Roof yr not set' : null,
-      compConstructionLabel ? `Const: ${compConstructionLabel}` : null
-    ].filter(Boolean).join(' · ');
+    const roofNote = !isRoofUnknown && compDetails.roof_year == null ? 'Roof yr not set' : '';
     const roofCell = resolveCell(
       'roof',
       rawRoofAdj,
@@ -755,7 +1127,7 @@ export function computeAppraisalGrid({
       }
     );
 
-    // 7. Pool & Outdoor: Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 10. Pool & Outdoor: Unknown = $0 adjustment + "Needs info" chip + weight reduced
     const isPoolUnknown = compDetails.pool_type === 'unknown';
     let rawPoolAdj = 0;
     if (!isPoolUnknown && subjectDetails.pool_type !== 'unknown') {
@@ -777,7 +1149,7 @@ export function computeAppraisalGrid({
       { needsInfo: isPoolUnknown }
     );
 
-    // 8. Garage & Parking: Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 11. Garage & Parking: Unknown = $0 adjustment + "Needs info" chip + weight reduced
     const isGarageUnknown = compDetails.garage_type === 'unknown';
     const rawGarageAdj = (!isGarageUnknown && subjectDetails.garage_type !== 'unknown')
       ? garageContributory(subjectDetails) - garageContributory(compDetails)
@@ -789,7 +1161,7 @@ export function computeAppraisalGrid({
       { needsInfo: isGarageUnknown }
     );
 
-    // 9. Location — Same subdivision / Different (adjustable $ in library, default $0, clickable per comp)
+    // 12. Location — Same subdivision / Different + flag when subdivision matches but NBRHD_CD differs
     const subCountyNorm = normalizeCountyName(subject?.parcel_county || subject?.county);
     const compCountyNorm = normalizeCountyName(comp?.parcel_county || comp?.county);
     const subLocRef = {
@@ -807,17 +1179,29 @@ export function computeAppraisalGrid({
     const sameSubdiv = hasSubjectSubdiv && hasCompSubdiv
       ? isSameSubdivision(subLocRef, compLocRef)
       : null;
-    const rawSubdivAdj = sameSubdiv === false ? effectiveRates.differentSubdivision : 0;
+
+    const subNbrhdCd = subject?.nbrhd_cd ? String(subject.nbrhd_cd).trim() : null;
+    const compNbrhdCd = comp.nbrhd_cd ? String(comp.nbrhd_cd).trim() : null;
+    const sameNbrhd = subNbrhdCd && compNbrhdCd
+      ? (subCountyNorm && compCountyNorm && subCountyNorm !== compCountyNorm ? false : subNbrhdCd === compNbrhdCd)
+      : null;
+    const sameSubdivDifferentNbrhd = Boolean(sameSubdiv === true && sameNbrhd === false);
+
+    const rawSubdivAdj = sameSubdiv === false
+      ? effectiveRates.differentSubdivision
+      : sameSubdivDifferentNbrhd
+        ? effectiveRates.differentNeighborhood
+        : 0;
     const subdivSpec = sameSubdiv === true
       ? 'Same subdivision'
       : sameSubdiv === false
         ? 'Different'
         : 'Unknown';
     const compHoa = compDetails.hoa_name || comp.hoa_name || '';
-    const compNbrhdCd = comp.nbrhd_cd ? String(comp.nbrhd_cd).trim() : null;
     const subdivNote = [
+      sameSubdivDifferentNbrhd ? `Different appraisal neighborhood (${compNbrhdCd} vs ${subNbrhdCd})` : null,
       compLocRef.subdivision_name,
-      compNbrhdCd ? `Nbrhd ${compNbrhdCd}` : null,
+      !sameSubdivDifferentNbrhd && compNbrhdCd ? `Nbrhd ${compNbrhdCd}` : null,
       compHoa ? `HOA: ${compHoa}` : null
     ]
       .filter(Boolean)
@@ -826,21 +1210,20 @@ export function computeAppraisalGrid({
       'location_subdivision',
       rawSubdivAdj,
       subdivSpec,
-      { note: subdivNote }
+      {
+        note: subdivNote,
+        flag: sameSubdivDifferentNbrhd ? 'Different appraisal neighborhood' : null
+      }
     );
 
-    // 10. Waterfront & View (strictly $0 + "Needs info" when comp view is Unknown — never guess)
+    // 13. Waterfront & View (strictly $0 + "Needs info" when comp view is Unknown — never guess)
     const isWaterfrontUnknown = compDetails.waterfront_view === 'unknown';
     const waterAdjPart = (!isWaterfrontUnknown && subjectDetails.waterfront_view !== 'unknown')
       ? waterfrontContributory(subjectDetails.waterfront_view) - waterfrontContributory(compDetails.waterfront_view)
       : 0;
-    const compBoatDockLabel = formatBoatDockLabel(compDetails);
-    const waterfrontNote = [
-      isWaterfrontUnknown
-        ? 'View unknown ($0)'
-        : (subjectDetails.waterfront_view === 'unknown' ? 'Set subject view to adjust' : null),
-      compBoatDockLabel
-    ].filter(Boolean).join(' · ');
+    const waterfrontNote = isWaterfrontUnknown
+      ? 'View unknown ($0)'
+      : (subjectDetails.waterfront_view === 'unknown' ? 'Set subject view to adjust' : '');
     const locationSiteCell = resolveCell(
       'location_site',
       waterAdjPart,
@@ -851,7 +1234,38 @@ export function computeAppraisalGrid({
       }
     );
 
-    // 11. Lot Size (separate row so site area never masquerades as a waterfront/view adjustment)
+    // 14. Boat Dock / Lift: Unknown = $0 + "Needs info" chip
+    const isBoatDockUnknown = compDetails.boat_dock === null;
+    const subjectBoatDockKnown = subjectDetails.boat_dock !== null;
+    let rawBoatDockAdj = 0;
+    if (!isBoatDockUnknown && subjectBoatDockKnown) {
+      const subHasDock = subjectDetails.boat_dock === true ? 1 : 0;
+      const compHasDock = compDetails.boat_dock === true ? 1 : 0;
+      rawBoatDockAdj += (subHasDock - compHasDock) * effectiveRates.boatDock;
+
+      const subLiftBool = subjectDetails.boat_dock === false ? false : subjectDetails.boat_lift;
+      const compLiftBool = compDetails.boat_dock === false ? false : compDetails.boat_lift;
+      if (typeof subLiftBool === 'boolean' && typeof compLiftBool === 'boolean') {
+        rawBoatDockAdj += ((subLiftBool ? 1 : 0) - (compLiftBool ? 1 : 0)) * effectiveRates.boatLift;
+      }
+    }
+    const compBoatDockLabel = formatBoatDockLabel(compDetails);
+    const boatDockNote = isBoatDockUnknown
+      ? ''
+      : !subjectBoatDockKnown
+        ? 'Set subject dock/lift'
+        : (compDetails.boat_dock === true && compDetails.boat_lift === null ? 'Lift unknown' : '');
+    const boatDockCell = resolveCell(
+      'boat_dock',
+      rawBoatDockAdj,
+      isBoatDockUnknown ? 'Unknown' : (compBoatDockLabel || 'Unknown'),
+      {
+        note: boatDockNote,
+        needsInfo: isBoatDockUnknown
+      }
+    );
+
+    // 15. Lot Size (separate row so site area never masquerades as a waterfront/view adjustment)
     // CIA/CBS sign: subjectLotSqft - compLotSqft -> larger comp lot is superior (CBS -> subtract -)
     const compLotSqft = Number(comp.lot_sqft) || 0;
     const lotDiff = subjectLotSqft > 0 && compLotSqft > 0 ? subjectLotSqft - compLotSqft : 0;
@@ -878,14 +1292,18 @@ export function computeAppraisalGrid({
     const cells = {
       time: timeCell,
       gla: glaCell,
+      age: ageCell,
       bed_bath: bedBathCell,
+      quality: qualityCell,
       condition: conditionCell,
+      construction: constructionCell,
       windows: windowsCell,
       roof: roofCell,
       pool: poolCell,
       garage: garageCell,
       location_subdivision: locationSubdivisionCell,
       location_site: locationSiteCell,
+      boat_dock: boatDockCell,
       lot_size: lotSizeCell
     };
 
@@ -941,6 +1359,7 @@ export function computeAppraisalGrid({
       : 0;
 
     const weightReasons = [];
+    if (outInfo.isOutlier) weightReasons.push('Outlier (>40% median $/sf · 25% cap)');
     if (isHighGross) weightReasons.push(`${grossAdjustmentPct.toFixed(1)}% gross adj (>25%)`);
     if (isPoorSizeComp) weightReasons.push(`Size differs ${sizeDiffPct}% (>±20%)`);
     if (isOlderThan6Months) weightReasons.push(`${monthsSinceSale} mo old (>6 mo)`);
@@ -961,14 +1380,16 @@ export function computeAppraisalGrid({
 
     const weightTooltip = [
       `Formula: ${WEIGHT_FORMULA_SUMMARY}`,
-      `This comp: Gross ${grossAdjustmentPct.toFixed(1)}% (×${wGross.toFixed(3)}) · Size ${sizeDiffPct}% diff (×${wSize.toFixed(2)}) · Age ${monthsSinceSale} mo (×${wRecency.toFixed(2)}) · Dist ${distMi} mi (×${wDistance.toFixed(2)}) · ${isVerified ? 'Verified (×1.00)' : 'Unverified (×0.75)'} · ${unknownFeatureCount} missing (×${wCompleteness.toFixed(2)}) · Cond (×${wConditionParity.toFixed(2)})`
+      `This comp: Gross ${grossAdjustmentPct.toFixed(1)}% (×${wGross.toFixed(3)}) · Size ${sizeDiffPct}% diff (×${wSize.toFixed(2)}) · Age ${monthsSinceSale} mo (×${wRecency.toFixed(2)}) · Dist ${distMi} mi (×${wDistance.toFixed(2)}) · ${isVerified ? 'Verified (×1.00)' : 'Unverified (×0.75)'} · ${unknownFeatureCount} missing (×${wCompleteness.toFixed(2)}) · Cond (×${wConditionParity.toFixed(2)})${outInfo.isOutlier ? ' · Outlier max 25%' : ''}`
     ].join('\n');
 
     return {
       ...comp,
       isUsed,
-      isOutlier: Boolean(comp.is_outlier || comp.adjustments?.is_outlier),
-      outlierReason: comp.outlier_reason || comp.adjustments?.outlier_reason || null,
+      isOutlier: outInfo.isOutlier,
+      isComputedPpsfOutlier: outInfo.isComputedPpsfOutlier,
+      outlierReason: outInfo.reason,
+      isWeightCapped: false,
       soldPrice,
       compSqft,
       compPpsf,
@@ -976,14 +1397,19 @@ export function computeAppraisalGrid({
       sizeDiffPctExact: Math.round(sizeDiffPctExact * 10) / 10,
       isPoorSizeComp,
       sizeFlagLabel,
+      isUnusualBedBathRatio: compBathCap.isUnusualRatio,
+      bathCap: compBathCap,
+      sameSubdivDifferentNbrhd,
       monthsSinceSale,
       isOlderThan6Months,
       distanceMi: distMi,
       conditionMeta: condMeta,
+      qualityMeta: qualMeta,
       compDetails,
       detailsProgress,
       countyClues,
       sameSubdivision: sameSubdiv,
+      sameNeighborhood: sameNbrhd,
       nbrhdCd: compNbrhdCd,
       boatDockLabel: compBoatDockLabel,
       constructionLabel: compConstructionLabel,
@@ -1008,34 +1434,67 @@ export function computeAppraisalGrid({
     };
   });
 
-  // Compute auto-weights normalized across USED comps
+  // Compute auto-weights normalized across USED comps with 25% max cap on outlier comps
   const usedEvaluated = evaluatedComps.filter((c) => c.isUsed);
-  const autoNormalized = normalizeReconciliationWeights(usedEvaluated.map((c) => c.rawAutoScore));
+  const {
+    weights: cappedAutoWeights,
+    cappedIds: autoCappedIds,
+    cannotCapAllOutliers
+  } = applyOutlierWeightCap(
+    usedEvaluated,
+    usedEvaluated.map((c) => c.rawAutoScore),
+    OUTLIER_MAX_WEIGHT_FRACTION
+  );
   usedEvaluated.forEach((c, idx) => {
-    c.autoWeight = autoNormalized[idx] || 0;
+    c.autoWeight = cappedAutoWeights[idx] || 0;
   });
 
-  // Apply customWeights if provided, else use autoWeight
+  // Apply customWeights if provided, else use capped autoWeight
   const hasCustomWeights = customWeights && typeof customWeights === 'object' &&
     usedEvaluated.some((c) => customWeights[c.id] != null && customWeights[c.id] !== '');
 
+  const hasNonOutlierUsed = usedEvaluated.some((c) => !c.isOutlier);
+
   if (hasCustomWeights && usedEvaluated.length > 0) {
     usedEvaluated.forEach((c) => {
-      const pct = customWeights[c.id] != null ? Math.max(0, Number(customWeights[c.id]) || 0) : Math.round(c.autoWeight * 1000) / 10;
+      let pct = customWeights[c.id] != null
+        ? Math.max(0, Number(customWeights[c.id]) || 0)
+        : Math.round(c.autoWeight * 1000) / 10;
+      if (c.isOutlier && hasNonOutlierUsed && pct > OUTLIER_MAX_WEIGHT_FRACTION * 100) {
+        pct = OUTLIER_MAX_WEIGHT_FRACTION * 100;
+        c.isWeightCapped = true;
+      }
       c.weightPct = Math.round(pct * 10) / 10;
-      c.weight = pct / 100;
+      c.weight = c.weightPct / 100;
     });
   } else if (usedEvaluated.length > 0) {
-    // Round display percentages cleanly so they sum to 100.0%
-    let runningPct = 0;
-    usedEvaluated.forEach((c, idx) => {
-      if (idx === usedEvaluated.length - 1) {
-        c.weightPct = Math.max(0, Math.round((100 - runningPct) * 10) / 10);
-      } else {
-        c.weightPct = Math.round(c.autoWeight * 1000) / 10;
-        runningPct += c.weightPct;
+    // Round display percentages cleanly to 1 decimal while preserving 25% outlier cap & sum === 100.0%
+    const roundedPcts = usedEvaluated.map((c) => {
+      let p = Math.round(c.autoWeight * 1000) / 10;
+      if (c.isOutlier && !cannotCapAllOutliers && p > 25) {
+        p = 25;
       }
+      return p;
+    });
+    const sumRounded = Math.round(roundedPcts.reduce((a, b) => a + b, 0) * 10) / 10;
+    const residual = Math.round((100 - sumRounded) * 10) / 10;
+    if (Math.abs(residual) > 0) {
+      // Apply rounding residual to a non-outlier comp when possible so outlier stays strictly <= 25.0%
+      let targetIdx = usedEvaluated.length - 1;
+      for (let i = usedEvaluated.length - 1; i >= 0; i--) {
+        if (!usedEvaluated[i].isOutlier) {
+          targetIdx = i;
+          break;
+        }
+      }
+      roundedPcts[targetIdx] = Math.max(0, Math.round((roundedPcts[targetIdx] + residual) * 10) / 10);
+    }
+    usedEvaluated.forEach((c, idx) => {
+      c.weightPct = roundedPcts[idx];
       c.weight = c.weightPct / 100;
+      if (autoCappedIds.has(c.id)) {
+        c.isWeightCapped = true;
+      }
     });
   }
 
@@ -1098,10 +1557,18 @@ export function computeAppraisalGrid({
     cvPct = mean > 0 ? (Math.sqrt(variance) / mean) * 100 : 0;
   }
 
-  // Compute numeric confidencePct (0..100)
+  // Compute numeric confidencePct (0..100) + strict LOW confidence gates with reasons
+  const maxCompWeightPct = usedEvaluated.length > 0
+    ? Math.max(...usedEvaluated.map((c) => Number(c.weightPct) || 0))
+    : 0;
+  const maxWeightComp = usedEvaluated.find((c) => Number(c.weightPct) === maxCompWeightPct) || null;
+  const mostCompsHighGross = usedEvaluated.length > 0 && highGrossComps.length > usedEvaluated.length / 2;
+  const lowConfidenceReasons = [];
+
   let confidencePct = 20;
   if (usedEvaluated.length === 0) {
     confidencePct = 0;
+    lowConfidenceReasons.push('No active comparable sales enabled');
   } else {
     confidencePct = 35;
     if (usedEvaluated.length >= 3) confidencePct += 25;
@@ -1119,24 +1586,152 @@ export function computeAppraisalGrid({
     if (avgMonths != null && avgMonths <= 6) confidencePct += 7;
     else if (avgMonths != null && avgMonths <= 12) confidencePct += 3;
 
-    // Slight confidence deduction if comps still have all 5 features unknown
+    // Slight confidence deduction if comps still have missing core features
     const avgUnknowns = usedEvaluated.reduce((a, c) => a + c.unknownFeatureCount, 0) / usedEvaluated.length;
     if (avgUnknowns >= 4) confidencePct -= 8;
     else if (avgUnknowns >= 2.5) confidencePct -= 4;
 
+    if (maxCompWeightPct > 60) {
+      const compLabel = maxWeightComp?.address ? maxWeightComp.address.split(',')[0] : 'One comp';
+      lowConfidenceReasons.push(
+        `${compLabel} carries ${maxCompWeightPct.toFixed(1)}% of weight (>60%)`
+      );
+    }
+    if (usedEvaluated.length >= 2 && cvPct > 25) {
+      lowConfidenceReasons.push(
+        `Adjusted $/sf spread is ${cvPct.toFixed(1)}% CV (>25%)`
+      );
+    }
+    if (mostCompsHighGross) {
+      lowConfidenceReasons.push(
+        `${highGrossComps.length} of ${usedEvaluated.length} comps exceed 25% gross adjustment`
+      );
+    }
+    if (cannotCapAllOutliers) {
+      lowConfidenceReasons.push('Only $/sf outlier comps are enabled');
+    }
     if (mode === 'arv' && renovatedUsedCount === 0) {
-      confidencePct = Math.min(confidencePct, 42);
+      lowConfidenceReasons.push('0 renovated comps enabled for ARV');
     }
     if (!weightValidation.valid) {
-      confidencePct = Math.min(confidencePct, 30);
+      lowConfidenceReasons.push('Reconciliation weights do not sum to 100%');
     }
+
+    if (lowConfidenceReasons.length > 0) {
+      const hardCap = !weightValidation.valid ? 30 : 38;
+      confidencePct = Math.min(confidencePct, hardCap);
+    }
+
     confidencePct = Math.max(8, Math.min(98, Math.round(confidencePct)));
   }
 
-  const confidenceScore = confidencePct >= 75 ? 'High' : confidencePct >= 50 ? 'Medium' : 'Low';
+  const confidenceScore = lowConfidenceReasons.length > 0
+    ? 'Low'
+    : (confidencePct >= 75 ? 'High' : confidencePct >= 50 ? 'Medium' : 'Low');
 
-  // County Just Value Check
+  // County Just Value & Income/Land Check Sanity Anchors
   const subjectJustValue = Number(subject?.just_value) || 0;
+  const rawJustValueDiv85 = subjectJustValue > 0 ? Math.round(subjectJustValue / 0.85) : null;
+  const justValueDiv85 = rawJustValueDiv85 != null
+    ? roundAppraisalValue(rawJustValueDiv85, library.roundingIncrement)
+    : null;
+  const countyJustValueAnchor = subjectJustValue > 0
+    ? {
+        justValue: Math.round(subjectJustValue),
+        rawImpliedMarketValue: rawJustValueDiv85,
+        impliedMarketValue: justValueDiv85,
+        landValue: subjectImpMetrics?.landVal ?? null,
+        improvementValue: subjectImpMetrics?.improvementVal ?? null,
+        landSharePct: subjectImpMetrics?.landSharePct ?? null,
+        improvementPpsf: subjectImpMetrics?.impPpsf ?? null,
+        deltaPctVsReconciled:
+          reconciledValue && rawJustValueDiv85
+            ? Math.round(((reconciledValue - rawJustValueDiv85) / rawJustValueDiv85) * 100)
+            : null
+      }
+    : null;
+
+  // Nearest same-street sale anchor (combining grid comps + county roll same-street sale)
+  const subAddrNorm = normalizeAddress(subject?.address || '');
+  const subHouseNum = subAddrNorm.number ? parseInt(subAddrNorm.number.replace(/\D/g, ''), 10) : NaN;
+  const sameStreetCandidates = [];
+
+  if (subAddrNorm.street) {
+    for (const c of evaluatedComps) {
+      if (!(c.soldPrice > 0) || !c.address) continue;
+      const cNorm = normalizeAddress(c.address);
+      if (!cNorm.street || cNorm.street !== subAddrNorm.street) continue;
+      if (subject?.parcel_id && c.parcel_id && String(c.parcel_id) === String(subject.parcel_id)) continue;
+      if (subAddrNorm.number && cNorm.number === subAddrNorm.number) continue;
+      const cNum = cNorm.number ? parseInt(cNorm.number.replace(/\D/g, ''), 10) : NaN;
+      const numDiff = !isNaN(subHouseNum) && !isNaN(cNum) ? Math.abs(subHouseNum - cNum) : Number.MAX_SAFE_INTEGER;
+      sameStreetCandidates.push({
+        address: c.address,
+        soldPrice: Math.round(c.soldPrice),
+        soldDate: c.sold_date || null,
+        sqft: c.compSqft > 0 ? Math.round(c.compSqft) : null,
+        ppsf: c.compPpsf || null,
+        distanceMi: c.distance_mi != null && !isNaN(Number(c.distance_mi)) ? Number(c.distance_mi) : null,
+        source: 'comp',
+        _distSort: c.distance_mi != null && !isNaN(Number(c.distance_mi)) ? Number(c.distance_mi) : Number.MAX_SAFE_INTEGER,
+        _numDiff: numDiff,
+        _monthsSort: c.monthsSinceSale ?? 999
+      });
+    }
+  }
+
+  const countyStreetRaw = subject?.nearest_same_street_sale;
+  if (countyStreetRaw && Number(countyStreetRaw.sold_price) > 0 && countyStreetRaw.address) {
+    const cNorm = normalizeAddress(countyStreetRaw.address);
+    const cNum = cNorm.number ? parseInt(cNorm.number.replace(/\D/g, ''), 10) : NaN;
+    const numDiff = !isNaN(subHouseNum) && !isNaN(cNum) ? Math.abs(subHouseNum - cNum) : Number.MAX_SAFE_INTEGER;
+    const salePrice = Math.round(Number(countyStreetRaw.sold_price));
+    const sqft = Number(countyStreetRaw.sqft || countyStreetRaw.living_sqft) || null;
+    const dist = countyStreetRaw.distance_mi != null && !isNaN(Number(countyStreetRaw.distance_mi))
+      ? Number(countyStreetRaw.distance_mi)
+      : null;
+    sameStreetCandidates.push({
+      address: countyStreetRaw.address,
+      soldPrice: salePrice,
+      soldDate: countyStreetRaw.sold_date || null,
+      sqft: sqft ? Math.round(sqft) : null,
+      ppsf: countyStreetRaw.ppsf || (sqft ? Math.round(salePrice / sqft) : null),
+      distanceMi: dist,
+      source: 'county_roll',
+      _distSort: dist != null ? dist : Number.MAX_SAFE_INTEGER,
+      _numDiff: numDiff,
+      _monthsSort: computeMonthsSinceSale(countyStreetRaw.sold_date, effectiveDate)
+    });
+  }
+
+  let nearestSameStreetSale = null;
+  if (sameStreetCandidates.length > 0) {
+    sameStreetCandidates.sort((a, b) => {
+      if (Math.abs(a._distSort - b._distSort) > 0.03) return a._distSort - b._distSort;
+      if (a._numDiff !== b._numDiff) return a._numDiff - b._numDiff;
+      return a._monthsSort - b._monthsSort;
+    });
+    const best = sameStreetCandidates[0];
+    nearestSameStreetSale = {
+      address: best.address,
+      soldPrice: best.soldPrice,
+      soldDate: best.soldDate,
+      sqft: best.sqft,
+      ppsf: best.ppsf,
+      distanceMi: best.distanceMi,
+      source: best.source,
+      deltaPctVsReconciled:
+        reconciledValue && best.soldPrice
+          ? Math.round(((reconciledValue - best.soldPrice) / best.soldPrice) * 100)
+          : null
+    };
+  }
+
+  const sanityAnchors = {
+    countyJustValueAnchor,
+    nearestSameStreetSale
+  };
+
   let justValueCheck = null;
   if (subjectJustValue > 0 && reconciledValue > 0) {
     const ratio = reconciledValue / subjectJustValue;
@@ -1147,9 +1742,12 @@ export function computeAppraisalGrid({
       id: 'just_value',
       status: inRange ? 'pass' : 'warn',
       label: 'County Just Value Sanity Check',
-      detail: `${ratio.toFixed(2)}× county just value ($${Math.round(subjectJustValue).toLocaleString()})${inRange ? ' — within South FL market band' : ' — verify condition/lot premium'}`
+      detail: `${ratio.toFixed(2)}× county just value ($${Math.round(subjectJustValue).toLocaleString()} · JV÷0.85 = $${(justValueDiv85 || rawJustValueDiv85).toLocaleString()})${inRange ? ' — within South FL market band' : ' — verify condition/lot premium'}`
     };
   }
+
+  const unusualRatioComps = usedEvaluated.filter((c) => c.isUnusualBedBathRatio);
+  const diffNbrhdComps = usedEvaluated.filter((c) => c.sameSubdivDifferentNbrhd);
 
   // Structured USPAP / Fannie Mae Checks
   const checks = [
@@ -1161,6 +1759,22 @@ export function computeAppraisalGrid({
         ? `${usedEvaluated.length} active comps USED in reconciliation`
         : `${usedEvaluated.length} of 3 recommended comps USED`
     },
+    ...(maxCompWeightPct > 60
+      ? [{
+          id: 'weight_concentration',
+          status: 'fail',
+          label: 'Single-Comp Weight Concentration',
+          detail: `${maxWeightComp?.address ? maxWeightComp.address.split(',')[0] : 'One comp'} carries ${maxCompWeightPct.toFixed(1)}% (>60% max) — Confidence lowered to Low`
+        }]
+      : []),
+    ...(usedEvaluated.length >= 2 && cvPct > 25
+      ? [{
+          id: 'spread_cv',
+          status: 'fail',
+          label: 'Wide Adjusted $/sf Dispersion',
+          detail: `Spread is ${cvPct.toFixed(1)}% CV (>25%) — Confidence lowered to Low`
+        }]
+      : []),
     {
       id: 'comp_details_completeness',
       status: usedEvaluated.length > 0 && compsMissingInfo.length === 0 ? 'pass' : 'warn',
@@ -1171,11 +1785,36 @@ export function computeAppraisalGrid({
           ? 'Condition, windows, roof, pool & garage confirmed on all USED comps'
           : `${compsMissingInfo.length} USED ${compsMissingInfo.length === 1 ? 'comp has' : 'comps have'} "Needs info" features ($0 adj · weight reduced)`
     },
+    ...(subjectBathCap.isUnusualRatio || unusualRatioComps.length > 0
+      ? [{
+          id: 'bed_bath_ratio',
+          status: 'warn',
+          label: 'Unusual Bed / Bath Ratio',
+          detail: [
+            subjectBathCap.isUnusualRatio
+              ? `Subject (${subjectBathCap.beds} bd / ${subjectBathCap.totalBaths} ba) capped at ${subjectBathCap.maxCredited} baths`
+              : null,
+            unusualRatioComps.length > 0
+              ? `${unusualRatioComps.length} USED ${unusualRatioComps.length === 1 ? 'comp exceeds' : 'comps exceed'} beds+1 baths`
+              : null
+          ].filter(Boolean).join(' · ') + ' — extra baths credited at $' + effectiveRates.extraBathFunctional.toLocaleString() + ' (editable)'
+        }]
+      : []),
+    ...(diffNbrhdComps.length > 0
+      ? [{
+          id: 'different_appraisal_neighborhood',
+          status: 'warn',
+          label: 'Different Appraisal Neighborhood',
+          detail: `${diffNbrhdComps.length} same-subdivision ${diffNbrhdComps.length === 1 ? 'comp has' : 'comps have'} a different NBRHD_CD — review Location adjustment`
+        }]
+      : []),
     {
       id: 'fannie_mae_net_gross',
       status: usedEvaluated.length === 0
         ? 'warn'
-        : (highNetComps.length === 0 && highGrossComps.length === 0 ? 'pass' : 'warn'),
+        : mostCompsHighGross
+          ? 'fail'
+          : (highNetComps.length === 0 && highGrossComps.length === 0 ? 'pass' : 'warn'),
       label: 'Net ≤ 15% · Gross ≤ 25% Guideline',
       detail: usedEvaluated.length === 0
         ? 'Add comps to evaluate adjustment ratios'
@@ -1258,7 +1897,13 @@ export function computeAppraisalGrid({
 
   return {
     mode,
-    sizeMethod,
+    sizeMethod: effectiveSizeMethod,
+    requestedSizeMethod: sizeMethod,
+    glaRateSource,
+    improvementGlaRate,
+    improvementGlaSampleLabel: improvementGlaSampleLabel || null,
+    subjectLandSharePct: subjectImpMetrics?.landSharePct ?? null,
+    isLandHeavySubject,
     tier,
     library,
     effectiveRates,
@@ -1271,13 +1916,22 @@ export function computeAppraisalGrid({
       address: subject?.address || 'Subject Property',
       listPrice: Number(subject?.list_price) > 0 ? Number(subject.list_price) : null,
       justValue: subjectJustValue > 0 ? subjectJustValue : null,
+      landValue: subjectImpMetrics?.landVal ?? null,
+      improvementValue: subjectImpMetrics?.improvementVal ?? null,
+      landSharePct: subjectImpMetrics?.landSharePct ?? null,
       sqft: subjectSqft,
+      yearBuilt: subjectYearBuilt,
+      effYearBuilt: subjectEffYear,
+      ageLabel: formatAgeSpecLabel(subjectYearBuilt, subjectEffYear),
       beds: subjectDetails.beds,
       baths: subjectDetails.baths,
+      bathCap: subjectBathCap,
+      isUnusualBedBathRatio: subjectBathCap.isUnusualRatio,
       bedBathLabel: [
         subjectDetails.beds != null ? `${subjectDetails.beds} bd` : null,
         formatBathDisplay(subjectDetails)
       ].filter(Boolean).join(' / ') || 'Add beds/baths',
+      qualityLabel: subjectDetails.quality === 'unknown' ? 'Unknown' : subjectQualMeta.shortLabel,
       conditionLabel: subjectDetails.condition === 'unknown'
         ? 'Unknown'
         : (mode === 'arv' && subjectDetails.condition === 'c2' ? 'Renovated (ARV · C2)' : subjectCondMeta.shortLabel),
@@ -1305,6 +1959,7 @@ export function computeAppraisalGrid({
     },
     weightFormulaSummary: WEIGHT_FORMULA_SUMMARY,
     poorSizeCompsCount: poorSizeComps.length,
+    hasNonOutlierUsed,
     comps: evaluatedComps,
     usedComps: usedEvaluated,
     renovatedUsedCount,
@@ -1320,10 +1975,13 @@ export function computeAppraisalGrid({
     reconciledPpsf,
     confidencePct,
     confidenceScore,
+    lowConfidenceReasons,
+    maxCompWeightPct: Math.round(maxCompWeightPct * 10) / 10,
     cvPct: Math.round(cvPct * 10) / 10,
     avgGrossPct: avgGrossPct != null ? Math.round(avgGrossPct * 10) / 10 : null,
     avgDist: avgDist != null ? Math.round(avgDist * 100) / 100 : null,
     avgMonths: avgMonths != null ? Math.round(avgMonths * 10) / 10 : null,
+    sanityAnchors,
     checks
   };
 }

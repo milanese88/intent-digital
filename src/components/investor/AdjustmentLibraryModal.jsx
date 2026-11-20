@@ -410,19 +410,36 @@ export default function AdjustmentLibraryModal({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px 18px' }}>
                 {[
                   { key: 'bedAdjustment', label: 'Bedroom Differential', guide: 'Per bedroom' },
-                  { key: 'fullBathAdjustment', label: 'Full Bathroom', guide: 'Guide: $8k–$18k / bath' },
+                  { key: 'fullBathAdjustment', label: 'Full Bathroom', guide: 'Guide: $8k–$18k / bath (capped at beds+1)' },
                   { key: 'halfBathAdjustment', label: 'Half Bath (Powder)', guide: 'Guide: $4k–$8k' },
+                  {
+                    key: 'extraBathFunctionalAdjustment',
+                    label: 'Extra Baths (> Beds + 1)',
+                    guide: 'Functional bath credit · $0 default',
+                    allowSigned: true
+                  },
+                  { key: 'ageAdjustmentPerYear', label: 'Year Built / Eff. Age', guide: 'Per year beyond ±5 yr threshold' },
+                  { key: 'qualityStepAdjustment', label: 'Quality Rating (Q1–Q6)', guide: 'Per UAD Q-rating step' },
                   { key: 'conditionUpdatedVsAsIs', label: 'Updated (C3) vs As-Is', guide: 'Minor kitchen + bath refresh' },
                   { key: 'conditionRenovatedVsAsIs', label: 'Renovated (C2) vs As-Is', guide: 'Full kitchen ($20k–$40k) + baths' },
+                  { key: 'constructionCbsVsFrameAdjustment', label: 'Construction · CBS vs Wood', guide: 'CBS / Masonry vs Wood frame' },
                   { key: 'poolAdjustment', label: 'Standard In-Ground Pool', guide: 'Guide: $30k–$50k' },
                   { key: 'garageBayAdjustment', label: 'Garage Bay Differential', guide: 'Guide: $10k–$20k / bay' },
                   { key: 'impactWindowsAdjustment', label: 'Full Impact Windows/Doors', guide: 'Guide: $15k–$35k HVHZ' },
                   { key: 'newerRoofAdjustment', label: 'Newer Tile / Metal Roof', guide: 'Guide: $15k–$35k (<5 yrs)' },
                   { key: 'waterfrontAdjustment', label: 'Waterfront / Canal Frontage', guide: 'Dedicated Location/Site row' },
+                  { key: 'boatDockAdjustment', label: 'Boat Dock', guide: 'Private dock / seawall dockage' },
+                  { key: 'boatLiftAdjustment', label: 'Boat Lift', guide: 'Contributory value of boat lift' },
                   {
                     key: 'differentSubdivisionAdjustment',
                     label: 'Location · Different Subdivision',
                     guide: 'Default $0 · comps outside subject subdivision (+ or −)',
+                    allowSigned: true
+                  },
+                  {
+                    key: 'differentNeighborhoodAdjustment',
+                    label: 'Location · Diff. Appraisal Nbrhd',
+                    guide: 'Default $0 · same subdiv, diff. NBRHD_CD (+ or −)',
                     allowSigned: true
                   }
                 ].map((item) => (

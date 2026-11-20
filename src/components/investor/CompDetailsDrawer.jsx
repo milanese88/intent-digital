@@ -5,6 +5,7 @@ import FormattedNumberInput from './FormattedNumberInput.jsx';
 import {
   CONDITION_QUICK_PICKS,
   UAD_CONDITION_OPTIONS,
+  UAD_QUALITY_OPTIONS,
   ROOF_TYPE_OPTIONS,
   CONSTRUCTION_TYPE_OPTIONS,
   WINDOW_OPTIONS,
@@ -312,6 +313,12 @@ export default function CompDetailsDrawer({
         ) {
           sharedPatch.construction_type = patch.construction_type;
         }
+        if (
+          patch.quality !== undefined &&
+          (!prev[otherTabKey]?.quality || prev[otherTabKey].quality === 'unknown')
+        ) {
+          sharedPatch.quality = patch.quality;
+        }
         const nextOther =
           Object.keys(sharedPatch).length > 0
             ? normalizeCompDetails({ ...prev[otherTabKey], ...sharedPatch })
@@ -351,6 +358,7 @@ export default function CompDetailsDrawer({
   const handleClearCountySuggestions = () => {
     const resetPatch = {};
     if (hintSuggestedFields.condition) resetPatch.condition = 'unknown';
+    if (hintSuggestedFields.quality) resetPatch.quality = 'unknown';
     if (hintSuggestedFields.pool_type) resetPatch.pool_type = 'unknown';
     if (hintSuggestedFields.construction_type) resetPatch.construction_type = 'unknown';
     if (hintSuggestedFields.beds !== undefined) resetPatch.beds = null;
@@ -469,11 +477,13 @@ export default function CompDetailsDrawer({
       beds: legacy.beds,
       baths: legacy.baths,
       condition: legacy.condition,
+      quality: legacy.quality,
       pool: legacy.pool,
       garage: legacy.garage,
       waterfront: legacy.waterfront,
       boat_dock: legacy.boat_dock,
       boat_dock_sqft: legacy.boat_dock_sqft,
+      boat_lift: legacy.boat_lift,
       construction_type: legacy.construction_type,
       hoa_name: legacy.hoa_name,
       notes: compDetails.notes ? compDetails.notes.trim() : null,
@@ -511,6 +521,8 @@ export default function CompDetailsDrawer({
 
   const activeConditionOption =
     UAD_CONDITION_OPTIONS.find((o) => o.id === activeDetails.condition) || UAD_CONDITION_OPTIONS[6];
+  const activeQualityOption =
+    UAD_QUALITY_OPTIONS.find((o) => o.id === activeDetails.quality) || UAD_QUALITY_OPTIONS[6];
 
   return (
     <>
@@ -1146,6 +1158,24 @@ export default function CompDetailsDrawer({
               </div>
 
               <div>
+                <label className="investor-form-label">
+                  Quality (UAD Q1–Q6) {hintSuggestedFields.quality ? '(Suggested from county hint)' : ''}
+                </label>
+                <ChoiceChipGroup
+                  options={UAD_QUALITY_OPTIONS.map((o) => ({
+                    id: o.id,
+                    label: o.uad ? o.uad : 'Unknown'
+                  }))}
+                  value={activeDetails.quality || 'unknown'}
+                  suggestedValue={hintSuggestedFields.quality || null}
+                  onChange={(id) => updateActiveDetails({ quality: id })}
+                />
+                <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)', marginTop: '5px' }}>
+                  {activeQualityOption.label} — {activeQualityOption.description}
+                </div>
+              </div>
+
+              <div>
                 <label className="investor-form-label">Kitchen &amp; baths updated</label>
                 <SegmentedControl
                   size="sm"
@@ -1292,33 +1322,56 @@ export default function CompDetailsDrawer({
                       const nextDock = segToTriBool(seg);
                       updateActiveDetails({
                         boat_dock: nextDock,
-                        ...(nextDock !== true ? { boat_dock_sqft: null } : {})
+                        ...(nextDock === false ? { boat_dock_sqft: null, boat_lift: false } : {}),
+                        ...(nextDock === null ? { boat_dock_sqft: null } : {})
                       });
                     }}
                   />
                 </div>
-                {activeDetails.boat_dock === true && (
+                {activeDetails.boat_dock !== false && (
                   <div>
-                    <label className="investor-form-label" htmlFor="detail-boat-dock-sqft">
-                      Dock area (sf) <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
-                    </label>
-                    <FormattedNumberInput
-                      id="detail-boat-dock-sqft"
-                      value={activeDetails.boat_dock_sqft != null ? String(activeDetails.boat_dock_sqft) : ''}
-                      onChange={(val) =>
+                    <label className="investor-form-label">Boat lift</label>
+                    <SegmentedControl
+                      size="sm"
+                      options={[
+                        { id: 'yes', label: 'Yes' },
+                        { id: 'no', label: 'No' },
+                        { id: 'unknown', label: 'Unknown' }
+                      ]}
+                      value={triBoolToSeg(activeDetails.boat_lift)}
+                      onChange={(seg) => {
+                        const nextLift = segToTriBool(seg);
                         updateActiveDetails({
-                          boat_dock: true,
-                          boat_dock_sqft: val === '' ? null : val
-                        })
-                      }
-                      allowDecimal={false}
-                      formatOnBlur={true}
-                      placeholder="e.g. 350"
-                      className="investor-form-input"
+                          boat_lift: nextLift,
+                          ...(nextLift === true ? { boat_dock: true } : {})
+                        });
+                      }}
                     />
                   </div>
                 )}
               </div>
+
+              {activeDetails.boat_dock === true && (
+                <div>
+                  <label className="investor-form-label" htmlFor="detail-boat-dock-sqft">
+                    Dock area (sf) <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                  </label>
+                  <FormattedNumberInput
+                    id="detail-boat-dock-sqft"
+                    value={activeDetails.boat_dock_sqft != null ? String(activeDetails.boat_dock_sqft) : ''}
+                    onChange={(val) =>
+                      updateActiveDetails({
+                        boat_dock: true,
+                        boat_dock_sqft: val === '' ? null : val
+                      })
+                    }
+                    allowDecimal={false}
+                    formatOnBlur={true}
+                    placeholder="e.g. 350"
+                    className="investor-form-input"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="investor-form-label" htmlFor="detail-hoa-name">

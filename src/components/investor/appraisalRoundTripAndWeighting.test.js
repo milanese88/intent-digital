@@ -23,6 +23,8 @@ import {
 } from '../../../scripts/db/_lib.mjs';
 import {
   computeAppraisalGrid,
+  capBathsForBedrooms,
+  applyOutlierWeightCap,
   WEIGHT_FORMULA_SUMMARY
 } from './valuationEngine.js';
 
@@ -510,15 +512,16 @@ test('Boat dock (Y/N, sf), Construction (CBS / wood frame / other), and Neighbor
   assert.equal(c.constructionLabel, 'Wood frame');
   assert.equal(c.boatDockLabel, 'Boat dock (280 sf)');
   assert.equal(c.nbrhdCd, '892320');
-  assert.ok(c.cells.roof.note.includes('Const: Wood frame'));
+  assert.equal(c.cells.construction.spec, 'Wood frame');
+  assert.ok(c.cells.construction.amount > 0, 'Subject CBS vs Comp Wood frame should add (CIA)');
+  assert.equal(c.cells.boat_dock.spec, 'Boat dock (280 sf)');
   assert.ok(c.cells.location_subdivision.note.includes('Nbrhd 892320'));
-  assert.ok(c.cells.location_site.note.includes('Boat dock (280 sf)'));
   // Unknown waterfront view must STILL stay $0 + Needs info even when boat_dock is filled
   assert.equal(c.cells.location_site.amount, 0);
   assert.equal(c.cells.location_site.needsInfo, true);
 });
 
-test('Migration add_boat_dock_and_construction.sql is registered, idempotent, and contains zero test rows', () => {
+test('Migration add_boat_dock_and_construction.sql and add_appraisal_v2_columns.sql are registered, idempotent, and have zero test rows', () => {
   const filename = 'add_boat_dock_and_construction.sql';
   assert.ok(CANONICAL_MIGRATION_ORDER.includes(filename));
   assert.ok(Array.isArray(MIGRATION_SCHEMA_SIGNATURES[filename]?.columns) && MIGRATION_SCHEMA_SIGNATURES[filename].columns.length === 9);
@@ -529,4 +532,343 @@ test('Migration add_boat_dock_and_construction.sql is registered, idempotent, an
   assert.ok(sqlText.includes('ADD COLUMN IF NOT EXISTS boat_dock_sqft'));
   assert.ok(sqlText.includes('ADD COLUMN IF NOT EXISTS construction_type'));
   assert.equal(/\bINSERT\s+INTO\b/i.test(sqlText), false);
+
+  const v2File = 'add_appraisal_v2_columns.sql';
+  assert.ok(CANONICAL_MIGRATION_ORDER.includes(v2File));
+  assert.ok(Array.isArray(MIGRATION_SCHEMA_SIGNATURES[v2File]?.columns) && MIGRATION_SCHEMA_SIGNATURES[v2File].columns.length === 8);
+  const v2Sql = fs.readFileSync(path.join(REPO_ROOT, 'migrations', v2File), 'utf8');
+  assert.ok(v2Sql.includes('ADD COLUMN IF NOT EXISTS land_value'));
+  assert.ok(v2Sql.includes('ADD COLUMN IF NOT EXISTS quality'));
+  assert.ok(v2Sql.includes('ADD COLUMN IF NOT EXISTS boat_lift'));
+  assert.equal(/\bINSERT\s+INTO\b/i.test(v2Sql), false);
+});
+
+test('Appraisal Grid v2 #1: Confidence is strictly LOW with explicit reasons when >60% single-comp weight, CV > 25%, or most comps > 25% gross', () => {
+  const effectiveDate = new Date('2026-11-20T00:00:00Z');
+  const baseSubject = {
+    sqft: 3000,
+    condition: 'c3',
+    windows: 'impact',
+    roof_type: 'barrel_tile',
+    roof_year: 2022,
+    pool_type: 'standard',
+    garage_type: 'garage',
+    garage_bays: 2,
+    waterfront_view: 'dry_lot'
+  };
+
+  // Case A: One comp carries >60% of weight via custom weights (otherwise clean comps)
+  const cleanComps = [
+    { id: 'a1', address: '101 Oak Dr', sold_price: 900000, sold_date: '2026-09-01', sqft: 3000, distance_mi: 0.2, condition: 'c3', windows: 'impact', roof_type: 'barrel_tile', roof_year: 2022, pool_type: 'standard', garage_type: 'garage', garage_bays: 2, waterfront_view: 'dry_lot', verified: true, included: true },
+    { id: 'a2', address: '105 Oak Dr', sold_price: 910000, sold_date: '2026-09-01', sqft: 3000, distance_mi: 0.2, condition: 'c3', windows: 'impact', roof_type: 'barrel_tile', roof_year: 2022, pool_type: 'standard', garage_type: 'garage', garage_bays: 2, waterfront_view: 'dry_lot', verified: true, included: true },
+    { id: 'a3', address: '109 Oak Dr', sold_price: 895000, sold_date: '2026-09-01', sqft: 3000, distance_mi: 0.2, condition: 'c3', windows: 'impact', roof_type: 'barrel_tile', roof_year: 2022, pool_type: 'standard', garage_type: 'garage', garage_bays: 2, waterfront_view: 'dry_lot', verified: true, included: true }
+  ];
+  const balancedGrid = computeAppraisalGrid({ subject: baseSubject, comps: cleanComps, effectiveDate });
+  assert.equal(balancedGrid.confidenceScore, 'High');
+  assert.equal(balancedGrid.lowConfidenceReasons.length, 0);
+
+  const concentratedGrid = computeAppraisalGrid({
+    subject: baseSubject,
+    comps: cleanComps,
+    customWeights: { a1: 70, a2: 15, a3: 15 },
+    effectiveDate
+  });
+  assert.equal(concentratedGrid.confidenceScore, 'Low');
+  assert.ok(concentratedGrid.lowConfidenceReasons.some((r) => r.includes('70.0%') && r.includes('>60%')));
+
+  // Case B: Wide spread (CV > 25%) forces LOW confidence with reason
+  const wideSpreadGrid = computeAppraisalGrid({
+    subject: baseSubject,
+    comps: [
+      { ...cleanComps[0], id: 's1', sold_price: 600000 },
+      { ...cleanComps[1], id: 's2', sold_price: 1000000 },
+      { ...cleanComps[2], id: 's3', sold_price: 1350000 }
+    ],
+    customWeights: { s1: 34, s2: 33, s3: 33 },
+    effectiveDate
+  });
+  assert.ok(wideSpreadGrid.cvPct > 25, `Expected CV > 25%, got ${wideSpreadGrid.cvPct}%`);
+  assert.equal(wideSpreadGrid.confidenceScore, 'Low');
+  assert.ok(wideSpreadGrid.lowConfidenceReasons.some((r) => r.includes('CV (>25%)')));
+
+  // Case C: Most comps (2 of 3) exceed 25% gross adjustment forces LOW confidence with reason
+  const highGrossGrid = computeAppraisalGrid({
+    subject: baseSubject,
+    comps: [
+      { ...cleanComps[0], id: 'g1', sold_price: 900000, adjustments: { overrides: { condition: 260000 } } }, // 28.9% gross
+      { ...cleanComps[1], id: 'g2', sold_price: 900000, adjustments: { overrides: { condition: -250000 } } }, // 27.8% gross
+      { ...cleanComps[2], id: 'g3', sold_price: 900000 }
+    ],
+    customWeights: { g1: 30, g2: 30, g3: 40 },
+    effectiveDate
+  });
+  assert.equal(highGrossGrid.confidenceScore, 'Low');
+  assert.ok(highGrossGrid.lowConfidenceReasons.some((r) => r.includes('2 of 3 comps exceed 25% gross')));
+});
+
+test('Appraisal Grid v2 #2: New rows (Year built/eff. age, Quality Q1–Q6, Construction, Boat dock/lift) apply library rates & flag Needs info when unknown', () => {
+  const subject = {
+    sqft: 3200,
+    year_built: 1988,
+    eff_year_built: 2010,
+    quality: 'q2',
+    condition: 'c3',
+    construction_type: 'cbs',
+    boat_dock: true,
+    boat_dock_sqft: 350,
+    boat_lift: true
+  };
+  const knownComp = {
+    id: 'k1',
+    address: '200 River Rd',
+    sold_price: 800000, // Mid-tier -> multiplier 1.0
+    sold_date: '2026-09-01',
+    sqft: 3200,
+    year_built: 1995,
+    eff_year_built: 2000, // 10 yr older than subject eff 2010 -> +10 * $1,500 = +$15,000
+    quality: 'q3',        // 1 step below Q2 -> +$25,000
+    condition: 'c3',
+    construction_type: 'wood_frame', // inferior to CBS -> +$15,000
+    boat_dock: false,     // no dock & no lift vs subject dock + lift -> +$25,000 + $15,000 = +$40,000
+    included: true
+  };
+  const unknownComp = {
+    id: 'u1',
+    address: '204 River Rd',
+    sold_price: 800000,
+    sold_date: '2026-09-01',
+    sqft: 3200,
+    imp_qual: '4',      // County clue only -> stays $0 + Needs info!
+    const_class: '3',   // County clue only -> stays $0 + Needs info!
+    included: true
+  };
+
+  const grid = computeAppraisalGrid({
+    subject,
+    comps: [knownComp, unknownComp],
+    library: { tierScaleEnabled: false, monthlyMarketTrendPct: 0 },
+    effectiveDate: new Date('2026-11-20T00:00:00Z')
+  });
+
+  const kc = grid.comps.find((c) => c.id === 'k1');
+  assert.equal(kc.cells.age.amount, 15000);
+  assert.equal(kc.cells.age.spec, '1995 (eff. 2000)');
+  assert.equal(kc.cells.quality.amount, 25000);
+  assert.equal(kc.cells.quality.spec, 'Above avg (Q3)');
+  assert.equal(kc.cells.construction.amount, 15000);
+  assert.equal(kc.cells.construction.spec, 'Wood frame');
+  assert.equal(kc.cells.boat_dock.amount, 40000);
+  assert.equal(kc.cells.boat_dock.spec, 'No dock');
+
+  const uc = grid.comps.find((c) => c.id === 'u1');
+  for (const rowKey of ['age', 'quality', 'construction', 'boat_dock']) {
+    assert.equal(uc.cells[rowKey].amount, 0, `${rowKey} must be $0 when unknown`);
+    assert.equal(uc.cells[rowKey].needsInfo, true, `${rowKey} must flag needsInfo when unknown`);
+  }
+  assert.ok(uc.cells.quality.note.includes('County clue:'));
+  assert.ok(uc.cells.construction.note.includes('County clue:'));
+});
+
+test('Appraisal Grid v2 #3: Waterfront / land-heavy properties (>50% land) default to median improvement value $/sf GLA rate with transparent source', () => {
+  // 18801 SE River Ridge Rd actual Martin NAL values: JV $2,344,940, LND_VAL $1,500,000 (64% land), 4,307 sf -> $196/sf imp
+  const riverRidgeSubject = {
+    address: '18801 SE River Ridge Rd',
+    sqft: 4307,
+    just_value: 2344940,
+    land_value: 1500000
+  };
+  const comps = [
+    { id: 'rr1', address: '18815 SE River Ridge Rd', sold_price: 2300000, sold_date: '2026-08-01', sqft: 4000, just_value: 2100000, land_value: 1300000, included: true }, // imp $800k / 4000 = $200/sf
+    { id: 'rr2', address: '18480 SE Lakeside Dr', sold_price: 2500000, sold_date: '2026-09-01', sqft: 4200, just_value: 2200000, land_value: 1400000, included: true }     // imp $800k / 4200 = $190/sf
+  ];
+
+  // Default sizeMethod ('auto') automatically picks improvement_value because land is 64% > 50%
+  const autoGrid = computeAppraisalGrid({ subject: riverRidgeSubject, comps });
+  assert.equal(autoGrid.isLandHeavySubject, true);
+  assert.equal(autoGrid.subjectLandSharePct, 64);
+  assert.equal(autoGrid.sizeMethod, 'improvement_value');
+  // Median of [196, 200, 190] = $196/sf
+  assert.equal(autoGrid.improvementGlaRate, 196);
+  assert.equal(autoGrid.effectiveRates.glaRate, 196);
+  assert.ok(autoGrid.glaRateSource.includes('$196/sf'));
+  assert.ok(autoGrid.glaRateSource.includes('64%'));
+
+  // Non-land-heavy property (30% land) keeps local_35 default
+  const inlandSubject = { sqft: 2000, just_value: 600000, land_value: 180000 };
+  const inlandComps = [
+    { id: 'in1', sold_price: 600000, sqft: 2000, just_value: 580000, land_value: 170000, included: true }
+  ];
+  const inlandGrid = computeAppraisalGrid({ subject: inlandSubject, comps: inlandComps });
+  assert.equal(inlandGrid.isLandHeavySubject, false);
+  assert.equal(inlandGrid.sizeMethod, 'local_35');
+});
+
+test('Appraisal Grid v2 #4: Bath adjustment caps credited baths at bedrooms + 1, flags unusual bed/bath ratio, and respects editable functional bath rate', () => {
+  const capRes = capBathsForBedrooms({ beds: 3, full_baths: 7, half_baths: 0 });
+  assert.equal(capRes.isUnusualRatio, true);
+  assert.equal(capRes.maxCredited, 4);
+  assert.equal(capRes.creditedFull, 4);
+  assert.equal(capRes.excessBaths, 3);
+
+  const subject = { sqft: 4307, beds: 3, full_baths: 7, half_baths: 0 };
+  const comp = { id: 'c-b', sold_price: 800000, sqft: 4307, beds: 3, full_baths: 4, half_baths: 0, included: true };
+
+  // Default extraBathFunctionalAdjustment = $0 -> subject's 3 excess baths add $0
+  const defaultGrid = computeAppraisalGrid({
+    subject,
+    comps: [comp],
+    library: { tierScaleEnabled: false, monthlyMarketTrendPct: 0 }
+  });
+  assert.equal(defaultGrid.subjectSummary.isUnusualBedBathRatio, true);
+  assert.equal(defaultGrid.comps[0].cells.bed_bath.amount, 0);
+  assert.ok(defaultGrid.checks.some((chk) => chk.id === 'bed_bath_ratio'));
+
+  // Comp with 3 bd / 6 ba also gets flagged "Unusual bed/bath ratio"
+  const compExcessGrid = computeAppraisalGrid({
+    subject: { sqft: 4307, beds: 3, full_baths: 3, half_baths: 0 },
+    comps: [{ id: 'c-ex', sold_price: 800000, sqft: 4307, beds: 3, full_baths: 6, half_baths: 0, included: true }],
+    library: { tierScaleEnabled: false, fullBathAdjustment: 13000, monthlyMarketTrendPct: 0 }
+  });
+  // Comp capped at 4 baths vs subject 3 baths -> -$13,000 (1 bath diff, NOT 3 baths!)
+  assert.equal(compExcessGrid.comps[0].cells.bed_bath.amount, -13000);
+  assert.equal(compExcessGrid.comps[0].cells.bed_bath.flag, 'Unusual bed/bath ratio');
+
+  // Editable extraBathFunctionalAdjustment = $5,000 credits 3 excess baths = +$15,000
+  const customExtraGrid = computeAppraisalGrid({
+    subject,
+    comps: [comp],
+    library: { tierScaleEnabled: false, extraBathFunctionalAdjustment: 5000, monthlyMarketTrendPct: 0 }
+  });
+  assert.equal(customExtraGrid.comps[0].cells.bed_bath.amount, 15000);
+});
+
+test('Appraisal Grid v2 #5: Location row flags same subdivision + different NBRHD_CD as "Different appraisal neighborhood" with adjustable amount', () => {
+  const subject = {
+    county: 'Martin',
+    parcel_county: 'Martin',
+    subdivision_name: 'River Ridge',
+    subdivision_code: '23-40-42-002',
+    nbrhd_cd: '892320',
+    sqft: 4307
+  };
+  const sameBoth = {
+    id: 'loc1',
+    parcel_county: 'Martin',
+    subdivision_name: 'River Ridge',
+    subdivision_code: '23-40-42-002',
+    nbrhd_cd: '892320',
+    sold_price: 2500000,
+    sqft: 4307,
+    included: true
+  };
+  const sameSubDiffNbrhd = {
+    id: 'loc2',
+    parcel_county: 'Martin',
+    subdivision_name: 'River Ridge',
+    subdivision_code: '23-40-42-002',
+    nbrhd_cd: '892325',
+    sold_price: 2500000,
+    sqft: 4307,
+    included: true
+  };
+
+  const grid = computeAppraisalGrid({
+    subject,
+    comps: [sameBoth, sameSubDiffNbrhd],
+    library: { differentNeighborhoodAdjustment: -25000, monthlyMarketTrendPct: 0 }
+  });
+
+  const c1 = grid.comps.find((c) => c.id === 'loc1');
+  const c2 = grid.comps.find((c) => c.id === 'loc2');
+
+  assert.equal(c1.cells.location_subdivision.flag, null);
+  assert.equal(c1.cells.location_subdivision.amount, 0);
+
+  assert.equal(c2.cells.location_subdivision.spec, 'Same subdivision');
+  assert.equal(c2.cells.location_subdivision.flag, 'Different appraisal neighborhood');
+  assert.equal(c2.cells.location_subdivision.amount, -25000);
+  assert.ok(grid.checks.some((chk) => chk.id === 'different_appraisal_neighborhood'));
+});
+
+test('Appraisal Grid v2 #6: Outlier comps (>40% from median $/sf) default to OFF and are strictly capped at 25% weight when ON', () => {
+  const subject = { sqft: 3000, condition: 'c3' };
+  const normal1 = { id: 'n1', address: '10 Palm Rd', sold_price: 1500000, sold_date: '2026-06-01', sqft: 3000, distance_mi: 0.8, condition: 'c3', included: true }; // $500/sf
+  const normal2 = { id: 'n2', address: '12 Palm Rd', sold_price: 1560000, sold_date: '2026-06-01', sqft: 3000, distance_mi: 0.8, condition: 'c3', included: true }; // $520/sf
+  // Outlier: $900/sf (+73% above $520/sf median!), super recent + 0.05 mi + verified -> would win >50% raw score if uncapped!
+  const outlierUnset = { id: 'out-off', address: '14 Palm Rd', sold_price: 2700000, sold_date: '2026-10-15', sqft: 3000, distance_mi: 0.05, condition: 'c3', verified: true };
+
+  // 1. Default OFF when included is not explicitly set
+  const defaultOffGrid = computeAppraisalGrid({
+    subject,
+    comps: [normal1, normal2, outlierUnset],
+    effectiveDate: new Date('2026-11-20T00:00:00Z')
+  });
+  const offComp = defaultOffGrid.comps.find((c) => c.id === 'out-off');
+  assert.equal(offComp.isOutlier, true);
+  assert.equal(offComp.isUsed, false);
+  assert.equal(offComp.weightPct, 0);
+
+  // 2. When explicitly toggled ON (included: true), weight is strictly capped at <= 25% and sum stays 100%
+  const outlierOn = { ...outlierUnset, id: 'out-on', included: true };
+  const onGrid = computeAppraisalGrid({
+    subject,
+    comps: [normal1, normal2, outlierOn],
+    effectiveDate: new Date('2026-11-20T00:00:00Z')
+  });
+  const onComp = onGrid.comps.find((c) => c.id === 'out-on');
+  assert.equal(onComp.isOutlier, true);
+  assert.equal(onComp.isUsed, true);
+  assert.ok(onComp.weightPct <= 25, `Expected outlier weight <= 25%, got ${onComp.weightPct}%`);
+  assert.equal(onComp.isWeightCapped, true);
+  assert.equal(onGrid.weightValidation.valid, true);
+  assert.equal(onGrid.weightValidation.sumPct, 100);
+
+  // Direct unit check on applyOutlierWeightCap
+  const capped = applyOutlierWeightCap(
+    [{ id: 'o', isOutlier: true }, { id: 'a', isOutlier: false }, { id: 'b', isOutlier: false }],
+    [0.8, 0.1, 0.1],
+    0.25
+  );
+  assert.equal(capped.weights[0], 0.25);
+  assert.ok(Math.abs(capped.weights[1] - 0.375) < 0.001);
+  assert.ok(Math.abs(capped.weights[2] - 0.375) < 0.001);
+});
+
+test('Appraisal Grid v2 #7: Income/land sanity anchors compute County Just Value ÷ 0.85 and Nearest same-street sale', () => {
+  const subject = {
+    address: '18801 SE River Ridge Rd',
+    sqft: 4307,
+    just_value: 2344940,
+    land_value: 1500000,
+    nearest_same_street_sale: {
+      address: '18815 SE RIVER RIDGE RD',
+      sold_price: 2300000,
+      sold_date: '2026-04-01',
+      sqft: 2369,
+      distance_mi: 0.03
+    }
+  };
+  const comps = [
+    { id: 'c1', address: '18480 SE Lakeside Dr', sold_price: 2500000, sold_date: '2026-09-01', sqft: 4200, distance_mi: 0.2, included: true },
+    { id: 'c2', address: '18825 SE River Ridge Road', sold_price: 2650000, sold_date: '2026-08-01', sqft: 4100, distance_mi: 0.08, included: true }
+  ];
+
+  const grid = computeAppraisalGrid({ subject, comps, effectiveDate: new Date('2026-11-20T00:00:00Z') });
+  const { countyJustValueAnchor, nearestSameStreetSale } = grid.sanityAnchors;
+
+  // County Just Value ÷ 0.85 = $2,758,753 -> rounded to nearest $5k ($2,760,000)
+  assert.equal(countyJustValueAnchor.justValue, 2344940);
+  assert.equal(countyJustValueAnchor.rawImpliedMarketValue, 2758753);
+  assert.equal(countyJustValueAnchor.impliedMarketValue, 2760000);
+  assert.equal(countyJustValueAnchor.landValue, 1500000);
+  assert.equal(countyJustValueAnchor.improvementValue, 844940);
+  assert.equal(countyJustValueAnchor.landSharePct, 64);
+  assert.equal(countyJustValueAnchor.improvementPpsf, 196);
+
+  // Nearest same-street sale picks 18815 SE RIVER RIDGE RD (0.03 mi vs 0.08 mi)
+  assert.ok(nearestSameStreetSale);
+  assert.equal(nearestSameStreetSale.address, '18815 SE RIVER RIDGE RD');
+  assert.equal(nearestSameStreetSale.soldPrice, 2300000);
+  assert.equal(nearestSameStreetSale.distanceMi, 0.03);
+  assert.ok(typeof nearestSameStreetSale.deltaPctVsReconciled === 'number');
 });

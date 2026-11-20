@@ -487,7 +487,9 @@ export default async function handler(req, res) {
           hoa_name: null,
           boat_dock: null,
           boat_dock_sqft: null,
+          boat_lift: null,
           construction_type: null,
+          quality: null,
           saved_comp_details: null,
           details_filled_count: 0,
           details_progress: null
@@ -500,7 +502,9 @@ export default async function handler(req, res) {
         hoa_name: norm.hoa_name || savedRow.hoa_name || null,
         boat_dock: norm.boat_dock,
         boat_dock_sqft: norm.boat_dock_sqft,
+        boat_lift: norm.boat_lift,
         construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
+        quality: norm.quality !== 'unknown' ? norm.quality : null,
         saved_comp_details: norm,
         details_filled_count: progress.filledCount,
         details_progress: progress

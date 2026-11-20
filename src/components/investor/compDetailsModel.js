@@ -114,6 +114,98 @@ export function getUadConditionMeta(raw) {
   return UAD_CONDITION_OPTIONS.find((opt) => opt.id === canonical) || UAD_CONDITION_OPTIONS[6];
 }
 
+export const UAD_QUALITY_OPTIONS = [
+  {
+    id: 'q1',
+    uad: 'Q1',
+    label: 'Q1 · Estate / Unique Custom',
+    shortLabel: 'Estate (Q1)',
+    rank: 5,
+    description: 'Unique custom architectural design & museum-grade finishes'
+  },
+  {
+    id: 'q2',
+    uad: 'Q2',
+    label: 'Q2 · High-End Custom',
+    shortLabel: 'Custom (Q2)',
+    rank: 4,
+    description: 'High-grade custom or semi-custom construction & millwork'
+  },
+  {
+    id: 'q3',
+    uad: 'Q3',
+    label: 'Q3 · Above Average',
+    shortLabel: 'Above avg (Q3)',
+    rank: 3,
+    description: 'Upgraded semi-custom or higher-tier production finishes'
+  },
+  {
+    id: 'q4',
+    uad: 'Q4',
+    label: 'Q4 · Average / Standard',
+    shortLabel: 'Average (Q4)',
+    rank: 2,
+    description: 'Standard residential subdivision construction & finishes'
+  },
+  {
+    id: 'q5',
+    uad: 'Q5',
+    label: 'Q5 · Economy / Basic',
+    shortLabel: 'Basic (Q5)',
+    rank: 1,
+    description: 'Economy construction with basic stock materials'
+  },
+  {
+    id: 'q6',
+    uad: 'Q6',
+    label: 'Q6 · Minimal / Low Cost',
+    shortLabel: 'Minimal (Q6)',
+    rank: 0,
+    description: 'Minimal basic build quality'
+  },
+  {
+    id: 'unknown',
+    uad: null,
+    label: 'Unknown',
+    shortLabel: 'Unknown',
+    rank: null,
+    description: 'Quality rating not yet verified'
+  }
+];
+
+export function normalizeQualityKey(raw) {
+  if (raw == null || raw === '') return 'unknown';
+  const k = String(raw).trim().toLowerCase();
+  if (k === 'unknown') return 'unknown';
+  if (k === 'q1' || k === 'estate') return 'q1';
+  if (k === 'q2' || k === 'custom') return 'q2';
+  if (k === 'q3' || k === 'above_average' || k === 'above average') return 'q3';
+  if (k === 'q4' || k === 'average' || k === 'standard') return 'q4';
+  if (k === 'q5' || k === 'economy' || k === 'basic') return 'q5';
+  if (k === 'q6' || k === 'minimal' || k === 'low') return 'q6';
+  return 'unknown';
+}
+
+export function getUadQualityMeta(raw) {
+  const canonical = normalizeQualityKey(raw);
+  return UAD_QUALITY_OPTIONS.find((opt) => opt.id === canonical) || UAD_QUALITY_OPTIONS[6];
+}
+
+/**
+ * Maps FDOR NAL IMP_QUAL (1=Minimum .. 6=Superior) to a suggested UAD Q1–Q6 rating.
+ * Used strictly as a county roll hint — never silently assumed as confirmed fact.
+ */
+export function mapImpQualToUadQuality(impQual) {
+  const code = impQual != null ? String(impQual).trim() : '';
+  if (code === '6') return 'q1';
+  if (code === '5') return 'q2';
+  if (code === '4') return 'q3';
+  if (code === '3') return 'q4';
+  if (code === '2') return 'q5';
+  if (code === '1') return 'q6';
+  return 'unknown';
+}
+
 export const ROOF_TYPE_OPTIONS = [
   { id: 'shingle', label: 'Shingle' },
   { id: 'barrel_tile', label: 'Barrel tile' },
@@ -188,13 +280,16 @@ export function formatConstructionTypeLabel(constructionType) {
 
 export function formatBoatDockLabel(details = {}) {
   const hasDock = details?.boat_dock;
+  const hasLift = details?.boat_lift;
   const dockSqft = details?.boat_dock_sqft != null && Number(details.boat_dock_sqft) > 0
     ? Math.round(Number(details.boat_dock_sqft))
     : null;
   if (hasDock === true) {
-    return dockSqft ? `Boat dock (${dockSqft.toLocaleString()} sf)` : 'Boat dock';
+    const base = dockSqft ? `Boat dock (${dockSqft.toLocaleString()} sf)` : 'Boat dock';
+    return hasLift === true ? `${base} · Lift` : base;
   }
   if (hasDock === false) return 'No dock';
+  if (hasLift === true) return 'Boat lift';
   return null;
 }
 
@@ -356,7 +451,9 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
   );
 
   const condition = normalizeConditionKey(pick('condition'));
+  const quality = normalizeQualityKey(pick('quality'));
   const kitchen_baths_updated = parseTriBoolean(pick('kitchen_baths_updated'));
+  const eff_year_built = parseNullableNumber(pick('eff_year_built'), { integer: true, min: 1850, max: 2100 });
 
   const rawRoofType = String(pick('roof_type') || 'unknown').trim().toLowerCase();
   const roof_type = ['shingle', 'barrel_tile', 'metal', 'flat'].includes(rawRoofType)
@@ -418,11 +515,15 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     else waterfront_view = 'unknown';
   }
 
-  // Boat dock (Y/N + optional sf)
+  // Boat dock (Y/N + optional sf) & boat lift (Y/N/unknown)
   const rawBoatDock = parseTriBoolean(pick('boat_dock'));
+  const rawBoatLift = parseTriBoolean(pick('boat_lift'));
   const rawBoatDockSqft = parseNullableNumber(pick('boat_dock_sqft'), { integer: true, min: 0, max: 50000 });
-  const boat_dock = rawBoatDock !== null ? rawBoatDock : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? true : null);
+  const boat_dock = rawBoatDock !== null
+    ? rawBoatDock
+    : ((rawBoatDockSqft != null && rawBoatDockSqft > 0) || rawBoatLift === true ? true : null);
   const boat_dock_sqft = boat_dock === false ? null : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? rawBoatDockSqft : null);
+  const boat_lift = boat_dock === false ? false : rawBoatLift;
 
   // Construction (CBS / wood frame / other / unknown)
   const construction_type = normalizeConstructionType(pick('construction_type'));
@@ -447,6 +548,8 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     half_baths: bathSplit.half_baths,
     baths: bathSplit.baths,
     condition,
+    quality,
+    eff_year_built,
     kitchen_baths_updated,
     roof_type,
     roof_year,
@@ -458,6 +561,7 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     waterfront_view,
     boat_dock,
     boat_dock_sqft,
+    boat_lift,
     construction_type,
     hoa_name,
     notes,
@@ -498,12 +602,14 @@ export function detailsToLegacyColumns(details = {}) {
     beds: norm.beds,
     baths: norm.baths,
     condition: norm.condition,
+    quality: norm.quality !== 'unknown' ? norm.quality : null,
     roof_year: norm.roof_year,
     pool: poolBool,
     garage: garageBool,
     waterfront: waterfrontBool,
     boat_dock: norm.boat_dock,
     boat_dock_sqft: norm.boat_dock_sqft,
+    boat_lift: norm.boat_lift,
     construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
     hoa_name: norm.hoa_name || null,
     comp_details_json: norm
@@ -709,6 +815,17 @@ export function buildCountyHintSuggestions(currentDetails = {}, countyClues = {}
     }
   }
 
+  if (countyClues?.impQualCode && norm.quality === 'unknown') {
+    const mappedQual = mapImpQualToUadQuality(countyClues.impQualCode);
+    if (mappedQual !== 'unknown') {
+      suggestions.quality = mappedQual;
+      appliedHints.push({
+        field: 'quality',
+        label: `Quality → ${getUadQualityMeta(mappedQual).shortLabel} from county roll (${countyClues.impQualLabel || countyClues.impQualCode})`
+      });
+    }
+  }
+
   if (appliedHints.length > 0) {
     suggestions.source = norm.source || 'county_hint';
     suggestions.verified = false;
@@ -749,6 +866,7 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         full_baths: savedRow.full_baths,
         half_baths: savedRow.half_baths,
         condition: savedRow.condition ?? comp.condition,
+        quality: savedRow.quality !== undefined ? savedRow.quality : comp.quality,
         kitchen_baths_updated: savedRow.kitchen_baths_updated,
         roof_type: savedRow.roof_type,
         roof_year: savedRow.roof_year,
@@ -760,6 +878,7 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         waterfront_view: savedRow.waterfront_view,
         boat_dock: savedRow.boat_dock !== undefined ? savedRow.boat_dock : comp.boat_dock,
         boat_dock_sqft: savedRow.boat_dock_sqft !== undefined ? savedRow.boat_dock_sqft : comp.boat_dock_sqft,
+        boat_lift: savedRow.boat_lift !== undefined ? savedRow.boat_lift : comp.boat_lift,
         construction_type: savedRow.construction_type !== undefined ? savedRow.construction_type : comp.construction_type,
         hoa_name: savedRow.hoa_name ?? comp.hoa_name ?? '',
         notes: savedRow.notes ?? comp.notes,
@@ -786,7 +905,9 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
     subdivision_code: countyParcel?.subdivision_code ?? comp.subdivision_code ?? null,
     nbrhd_cd: countyParcel?.nbrhd_cd ?? comp.nbrhd_cd ?? null,
     mkt_ar: countyParcel?.mkt_ar ?? comp.mkt_ar ?? null,
-    eff_year_built: cluesSource.eff_year_built,
+    just_value: countyParcel?.just_value != null ? Number(countyParcel.just_value) : (comp.just_value != null ? Number(comp.just_value) : null),
+    land_value: countyParcel?.land_value != null ? Number(countyParcel.land_value) : (comp.land_value != null ? Number(comp.land_value) : null),
+    eff_year_built: normalizedDetails.eff_year_built ?? cluesSource.eff_year_built,
     spec_feat_val: cluesSource.spec_feat_val,
     units: cluesSource.units,
     imp_qual: cluesSource.imp_qual,
@@ -817,6 +938,8 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     full_baths: subject?.full_baths,
     half_baths: subject?.half_baths,
     condition: subject?.condition || 'c4',
+    quality: subject?.quality,
+    eff_year_built: subject?.eff_year_built,
     roof_year: subject?.roof_year,
     roof_type: subject?.roof_type,
     windows: subject?.windows ?? (subject?.impact_windows === true ? 'impact' : subject?.impact_windows === false ? 'none' : 'unknown'),
@@ -830,6 +953,7 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     waterfront_view: subject?.waterfront_view,
     boat_dock: subject?.boat_dock,
     boat_dock_sqft: subject?.boat_dock_sqft,
+    boat_lift: subject?.boat_lift,
     construction_type: subject?.construction_type,
     hoa_name: subject?.hoa_name,
     notes: subject?.notes,
