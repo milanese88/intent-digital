@@ -34,7 +34,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_live_in_fha_strategy.sql',
   'add_comp_details_and_nal_clues.sql',
   'add_newsletter_subscribers.sql',
-  'add_location_intelligence_tables.sql'
+  'add_location_intelligence_tables.sql',
+  'add_subdivision_and_hoa_fields.sql'
 ];
 
 /**
@@ -186,6 +187,19 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       { table: 'newsletter_subscribers', column: 'unsubscribed_at' }
     ],
     indexes: ['idx_newsletter_subscribers_email_lower']
+  },
+  'add_subdivision_and_hoa_fields.sql': {
+    columns: [
+      { table: 'county_parcels', column: 's_legal' },
+      { table: 'county_parcels', column: 'subdivision_name' },
+      { table: 'county_parcels', column: 'subdivision_code' },
+      { table: 'investor_properties', column: 'hoa_name' },
+      { table: 'investor_comps', column: 'hoa_name' },
+      { table: 'comp_details', column: 'hoa_name' }
+    ],
+    constraintDefs: [
+      { table: 'comp_details', includes: 'Martin', label: "comp_details.county allows 'Martin'" }
+    ]
   },
   'add_location_intelligence_tables.sql': {
     tables: [

@@ -13,6 +13,8 @@
  * Usage:
  *   node scripts/db/migrate.mjs --dry-run   # Read-only preview (0 writes)
  *   node scripts/db/migrate.mjs             # Apply pending migrations & record them
+ *   node scripts/db/migrate.mjs --only=add_subdivision_and_hoa_fields.sql [--dry-run]
+ *                                           # Apply ONLY the named pending file(s) (comma-separated)
  */
 
 import {
@@ -24,6 +26,10 @@ import {
 
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
+  const onlyArg = process.argv.find((a) => a.startsWith('--only='));
+  const onlyFiles = onlyArg
+    ? new Set(onlyArg.slice('--only='.length).split(',').map((f) => f.trim()).filter(Boolean))
+    : null;
   const { sql } = createEnvLocalSqlClient();
 
   try {
@@ -36,7 +42,16 @@ async function main() {
     const items = evaluateMigrationsStatus(beforeSnapshot);
 
     const toBackfill = items.filter((i) => i.status === 'applied_unrecorded');
-    const toApply = items.filter((i) => i.status === 'pending');
+    let toApply = items.filter((i) => i.status === 'pending');
+    if (onlyFiles) {
+      const unknown = [...onlyFiles].filter((f) => !items.some((i) => i.filename === f));
+      if (unknown.length > 0) {
+        throw new Error(`--only refers to unknown migration file(s): ${unknown.join(', ')}`);
+      }
+      const skipped = toApply.filter((i) => !onlyFiles.has(i.filename)).map((i) => i.filename);
+      toApply = toApply.filter((i) => onlyFiles.has(i.filename));
+      console.log(`--only: applying ${toApply.length} of the requested file(s); leaving ${skipped.length} other pending file(s) untouched${skipped.length ? ` (${skipped.join(', ')})` : ''}.`);
+    }
 
     if (isDryRun) {
       console.log(`Would ensure table schema_migrations(filename, applied_at) exists.`);
@@ -88,7 +103,9 @@ async function main() {
     // 4. Read-only verification & database size report
     const afterSnapshot = await inspectDatabaseSchema(sql);
     const afterStatus = evaluateMigrationsStatus(afterSnapshot);
-    const stillPending = afterStatus.filter((i) => i.status === 'pending');
+    const stillPending = afterStatus.filter(
+      (i) => i.status === 'pending' && (!onlyFiles || onlyFiles.has(i.filename))
+    );
 
     console.log('\n===============================================================================');
     console.log('MIGRATION SUMMARY (.env.local)');
