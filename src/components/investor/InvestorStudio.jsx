@@ -24,12 +24,16 @@ import {
 import {
   computeDetailsProgress,
   formatCountyClues,
-  detailsToLegacyColumns
+  detailsToLegacyColumns,
+  CONSTRUCTION_TYPE_OPTIONS,
+  formatBoatDockLabel,
+  formatConstructionTypeLabel
 } from './compDetailsModel.js';
 import { formatCurrency, evaluateLiveInFit } from './underwriting.js';
 import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
-import { resolvePropertyCounty, getPropertyCountyLabel } from '../../config/counties.js';
+import { resolvePropertyCounty, getPropertyCountyLabel, normalizeCountyName } from '../../config/counties.js';
+import { isSameSubdivision } from '../../utils/subdivision.js';
 import {
   Button,
   Pill,
@@ -149,7 +153,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     listing_url: '',
     notes: '',
     parcel_id: null,
-    parcel_county: null
+    parcel_county: null,
+    has_hoa: null,
+    hoa_monthly: '',
+    hoa_name: '',
+    boat_dock: null,
+    boat_dock_sqft: '',
+    construction_type: ''
   });
 
   // Split Map State (List view)
@@ -163,6 +173,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [comps, setComps] = useState([]);
   const [compsLoading, setCompsLoading] = useState(false);
   const [compsError, setCompsError] = useState(null);
+  const [addedCompsSameNbrhdOnly, setAddedCompsSameNbrhdOnly] = useState(false);
 
   // Slide-in Comp / Subject Details Drawer state
   const [isCompPanelOpen, setIsCompPanelOpen] = useState(false);
@@ -279,6 +290,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   };
 
   useEffect(() => {
+    setAddedCompsSameNbrhdOnly(false);
     if (activePropertyId) {
       fetchComps(activePropertyId);
     }
@@ -466,6 +478,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       parcel_county: null,
       has_hoa: null,
       hoa_monthly: '',
+      hoa_name: '',
+      boat_dock: null,
+      boat_dock_sqft: '',
+      construction_type: '',
       is_studying: false
     });
     setPropFormErrors({});
@@ -501,6 +517,18 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       parcel_county: p.parcel_county || null,
       has_hoa: p.has_hoa ?? null,
       hoa_monthly: p.hoa_monthly != null ? p.hoa_monthly : '',
+      hoa_name: p.hoa_name || p.subject_details?.as_is?.hoa_name || '',
+      boat_dock: p.boat_dock !== undefined && p.boat_dock !== null
+        ? p.boat_dock
+        : (p.subject_details?.as_is?.boat_dock ?? null),
+      boat_dock_sqft: p.boat_dock_sqft != null
+        ? p.boat_dock_sqft
+        : (p.subject_details?.as_is?.boat_dock_sqft ?? ''),
+      construction_type:
+        p.construction_type ||
+        (p.subject_details?.as_is?.construction_type && p.subject_details.as_is.construction_type !== 'unknown'
+          ? p.subject_details.as_is.construction_type
+          : ''),
       is_studying: Boolean(p.is_studying)
     });
     setPropFormErrors({});
@@ -558,11 +586,30 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         propFormData.hoa_monthly !== '' && propFormData.hoa_monthly != null
           ? Number(String(propFormData.hoa_monthly).replace(/[^\d.]/g, ''))
           : null,
+      hoa_name: propFormData.hoa_name && String(propFormData.hoa_name).trim() !== ''
+        ? String(propFormData.hoa_name).trim()
+        : null,
+      boat_dock: propFormData.boat_dock === true ? true : propFormData.boat_dock === false ? false : null,
+      boat_dock_sqft:
+        propFormData.boat_dock === false
+          ? null
+          : propFormData.boat_dock_sqft !== '' && propFormData.boat_dock_sqft != null
+            ? Number(String(propFormData.boat_dock_sqft).replace(/[^\d]/g, ''))
+            : null,
+      construction_type: propFormData.construction_type && propFormData.construction_type !== 'unknown'
+        ? propFormData.construction_type
+        : null,
       is_studying: propFormData.is_studying !== undefined ? Boolean(propFormData.is_studying) : (editingProperty ? Boolean(editingProperty.is_studying) : false)
     };
 
     if (editingProperty) {
       payload.id = editingProperty.id;
+      if (editingProperty.subject_details && typeof editingProperty.subject_details === 'object') {
+        payload.subject_details = editingProperty.subject_details;
+      }
+      if (editingProperty.pool !== undefined) payload.pool = editingProperty.pool;
+      if (editingProperty.garage !== undefined) payload.garage = editingProperty.garage;
+      if (editingProperty.waterfront !== undefined) payload.waterfront = editingProperty.waterfront;
     }
 
     try {
@@ -699,9 +746,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         body: JSON.stringify(bodyPayload)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = new Error(data.error || 'Failed to save comp details.');
+        const msg = data.error || `Failed to save comp details (HTTP ${res.status}).`;
+        showToast(msg);
+        const err = new Error(msg);
         err.errors = data.errors || null;
         throw err;
       }
@@ -714,6 +763,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
       setIsCompPanelOpen(false);
       showToast('Comp details saved');
+    } catch (err) {
+      if (!err?.errors) {
+        showToast(err?.message || 'Failed to save comp details.');
+      }
+      throw err;
     } finally {
       setIsCompSaving(false);
     }
@@ -726,12 +780,16 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       const asIsLegacy = detailsToLegacyColumns(subjectDetailsMap?.as_is || {});
       const patchBody = {
         id: activeProperty.id,
-        beds: asIsLegacy.beds ?? activeProperty.beds,
-        baths: asIsLegacy.baths ?? activeProperty.baths,
-        roof_year: asIsLegacy.roof_year ?? activeProperty.roof_year,
+        beds: asIsLegacy.beds,
+        baths: asIsLegacy.baths,
+        roof_year: asIsLegacy.roof_year,
         pool: asIsLegacy.pool,
         garage: asIsLegacy.garage,
         waterfront: asIsLegacy.waterfront,
+        boat_dock: asIsLegacy.boat_dock,
+        boat_dock_sqft: asIsLegacy.boat_dock_sqft,
+        construction_type: asIsLegacy.construction_type,
+        hoa_name: asIsLegacy.hoa_name,
         subject_details: subjectDetailsMap
       };
 
@@ -741,15 +799,44 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         body: JSON.stringify(patchBody)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save subject property details.');
+        const msg = data.error || `Failed to save subject property details (HTTP ${res.status}).`;
+        showToast(msg);
+        throw new Error(msg);
       }
 
       setProperties((prev) => prev.map((p) => (p.id === data.id ? { ...p, ...data } : p)));
       setSubjectAppraisalOverrides({});
+
+      // Clear any stale legacy subjectOverrides stored on saved_appraisals so page refresh
+      // always reads the newly saved subject_details instead of stale toggles
+      const existingSavedAppraisal = buyingProfile?.valuation_defaults?.saved_appraisals?.[activeProperty.id];
+      if (existingSavedAppraisal?.subjectOverrides && Object.keys(existingSavedAppraisal.subjectOverrides).length > 0) {
+        const nextSavedAppraisals = {
+          ...(buyingProfile?.valuation_defaults?.saved_appraisals || {}),
+          [activeProperty.id]: {
+            ...existingSavedAppraisal,
+            subjectOverrides: {}
+          }
+        };
+        const nextDefaults = {
+          ...(buyingProfile?.valuation_defaults || {}),
+          saved_appraisals: nextSavedAppraisals
+        };
+        setBuyingProfile((prev) => (prev ? { ...prev, valuation_defaults: nextDefaults } : prev));
+        fetch('/api/investor/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valuation_defaults: nextDefaults })
+        }).catch(() => {});
+      }
+
       setIsCompPanelOpen(false);
       showToast('Subject details saved');
+    } catch (err) {
+      showToast(err?.message || 'Failed to save subject property details.');
+      throw err;
     } finally {
       setIsCompSaving(false);
     }
@@ -957,6 +1044,22 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       lot_sqft: activeProperty.lot_sqft || countyData?.land_sqft || null,
       year_built: activeProperty.year_built || countyData?.year_built || null,
       just_value: countyData?.just_value ?? activeProperty.just_value ?? null,
+      subdivision_name: activeProperty.subdivision_name || countyData?.subdivision_name || null,
+      subdivision_code: activeProperty.subdivision_code || countyData?.subdivision_code || null,
+      nbrhd_cd: activeProperty.nbrhd_cd || countyData?.nbrhd_cd || null,
+      mkt_ar: activeProperty.mkt_ar || countyData?.mkt_ar || null,
+      s_legal: activeProperty.s_legal || countyData?.s_legal || null,
+      const_class: activeProperty.const_class || countyData?.const_class || null,
+      hoa_name: activeProperty.hoa_name || activeProperty.subject_details?.as_is?.hoa_name || null,
+      boat_dock: activeProperty.boat_dock !== undefined && activeProperty.boat_dock !== null
+        ? activeProperty.boat_dock
+        : (activeProperty.subject_details?.as_is?.boat_dock ?? null),
+      boat_dock_sqft: activeProperty.boat_dock_sqft ?? activeProperty.subject_details?.as_is?.boat_dock_sqft ?? null,
+      construction_type:
+        activeProperty.construction_type ||
+        (activeProperty.subject_details?.as_is?.construction_type && activeProperty.subject_details.as_is.construction_type !== 'unknown'
+          ? activeProperty.subject_details.as_is.construction_type
+          : null),
       subject_details: activeProperty.subject_details || {},
       appraisal_overrides: subjectAppraisalOverrides,
       ...subjectAppraisalOverrides
@@ -2621,6 +2724,96 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             </span>
                           )}
 
+                          {/* Subdivision Chip */}
+                          {subjectForAppraisal.subdivision_name && (
+                            <span
+                              title={[
+                                `Subdivision: ${subjectForAppraisal.subdivision_name}`,
+                                subjectForAppraisal.nbrhd_cd ? `Nbrhd ${subjectForAppraisal.nbrhd_cd}` : null,
+                                subjectForAppraisal.mkt_ar ? `Mkt area ${subjectForAppraisal.mkt_ar}` : null
+                              ].filter(Boolean).join(' · ')}
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: 'rgba(189, 211, 226, 0.42)',
+                                color: '#34292A',
+                                border: '1px solid #859DCE'
+                              }}
+                            >
+                              {subjectForAppraisal.subdivision_name}
+                            </span>
+                          )}
+
+                          {/* Neighborhood Code Chip (NBRHD_CD) */}
+                          {subjectForAppraisal.nbrhd_cd && (
+                            <span
+                              title="County Property Appraiser neighborhood code (NBRHD_CD)"
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                                color: '#34292A',
+                                border: '1px solid rgba(133, 157, 206, 0.5)'
+                              }}
+                            >
+                              Nbrhd {subjectForAppraisal.nbrhd_cd}
+                            </span>
+                          )}
+
+                          {/* Construction Chip */}
+                          {formatConstructionTypeLabel(subjectForAppraisal.construction_type) && (
+                            <span
+                              title="Construction type"
+                              className="investor-pill-tag"
+                            >
+                              {formatConstructionTypeLabel(subjectForAppraisal.construction_type)}
+                            </span>
+                          )}
+
+                          {/* Boat Dock Chip */}
+                          {formatBoatDockLabel(subjectForAppraisal) && (
+                            <span
+                              title="Boat dock"
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                                color: '#34292A',
+                                border: '1px solid rgba(133, 157, 206, 0.45)'
+                              }}
+                            >
+                              {formatBoatDockLabel(subjectForAppraisal)}
+                            </span>
+                          )}
+
+                          {/* HOA / Association Chip right next to subdivision */}
+                          {subjectForAppraisal.hoa_name && (
+                            <span
+                              title="HOA / Association name"
+                              style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '4px 10px',
+                                borderRadius: '50px',
+                                backgroundColor: '#FAF8F5',
+                                color: '#34292A',
+                                border: '1px solid rgba(52, 41, 42, 0.22)'
+                              }}
+                            >
+                              HOA: {subjectForAppraisal.hoa_name}
+                            </span>
+                          )}
+
                           {/* FLOOD Tag */}
                           <span
                             style={{
@@ -3175,7 +3368,26 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             { label: 'Lot size', value: activeProperty.lot_sqft ? `${Number(activeProperty.lot_sqft).toLocaleString()} sf` : '—' },
                             { label: 'Year built', value: activeProperty.year_built || '—' },
                             { label: 'Condition', value: activeProperty.condition ? `${activeProperty.condition}${activeProperty.roof_year ? ` (roof ${activeProperty.roof_year})` : ''}` : '—' },
+                            {
+                              label: 'Construction',
+                              value: formatConstructionTypeLabel(subjectForAppraisal.construction_type) || '—'
+                            },
+                            ...(formatBoatDockLabel(subjectForAppraisal)
+                              ? [{ label: 'Boat dock', value: formatBoatDockLabel(subjectForAppraisal) }]
+                              : []),
                             { label: 'County / Folio', value: `${getPropertyCountyLabel(activeProperty)} · ${activeProperty.parcel_id || 'Not linked'}` },
+                            ...(subjectForAppraisal.subdivision_name
+                              ? [{
+                                  label: 'Subdivision',
+                                  value: subjectForAppraisal.subdivision_name
+                                }]
+                              : []),
+                            ...(subjectForAppraisal.nbrhd_cd
+                              ? [{ label: 'Neighborhood code', value: subjectForAppraisal.nbrhd_cd }]
+                              : []),
+                            ...(subjectForAppraisal.hoa_name
+                              ? [{ label: 'HOA / Association', value: subjectForAppraisal.hoa_name }]
+                              : []),
                             { label: 'Jurisdiction', value: siteData?.zoningData?.municipality || activeProperty.city || '—' },
                             { label: 'Strategy', value: activeProperty.strategy ? (activeProperty.strategy.toUpperCase()) : '—' }
                           ].map((row, idx) => (
@@ -3336,7 +3548,13 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         activeProperty
                           ? {
                               ...activeProperty,
-                              sqft: activeProperty.sqft || countyData?.living_sqft || null
+                              sqft: activeProperty.sqft || countyData?.living_sqft || null,
+                              subdivision_name: subjectForAppraisal.subdivision_name,
+                              subdivision_code: subjectForAppraisal.subdivision_code,
+                              nbrhd_cd: subjectForAppraisal.nbrhd_cd,
+                              mkt_ar: subjectForAppraisal.mkt_ar,
+                              s_legal: subjectForAppraisal.s_legal,
+                              hoa_name: subjectForAppraisal.hoa_name
                             }
                           : activeProperty
                       }
@@ -3371,7 +3589,21 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     )}
 
                     {/* Comps Table Card */}
-                    {!compsLoading && !compsError && (
+                    {!compsLoading && !compsError && (() => {
+                      const subjCountyNorm = normalizeCountyName(subjectForAppraisal.parcel_county || subjectForAppraisal.county);
+                      const subjNbrhd = subjectForAppraisal.nbrhd_cd ? String(subjectForAppraisal.nbrhd_cd).trim() : null;
+                      const isCompSameNbrhd = (compRow) => {
+                        if (!subjNbrhd || !compRow?.nbrhd_cd) return false;
+                        const compCountyNorm = normalizeCountyName(compRow.parcel_county || compRow.county);
+                        if (subjCountyNorm && compCountyNorm && subjCountyNorm !== compCountyNorm) return false;
+                        return String(compRow.nbrhd_cd).trim() === subjNbrhd;
+                      };
+                      const sameNbrhdAddedCount = subjNbrhd ? comps.filter(isCompSameNbrhd).length : 0;
+                      const visibleComps = addedCompsSameNbrhdOnly && subjNbrhd
+                        ? comps.filter(isCompSameNbrhd)
+                        : comps;
+
+                      return (
                       <div className="investor-table-card" style={{
                         borderRadius: '20px',
                         border: '1px solid #E4DDD3',
@@ -3389,6 +3621,88 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             </p>
                           </div>
                         ) : (
+                          <>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '10px',
+                            padding: '12px 18px',
+                            borderBottom: '1px solid rgba(52, 41, 42, 0.08)',
+                            backgroundColor: '#FAF8F5',
+                            borderTopLeftRadius: '20px',
+                            borderTopRightRadius: '20px'
+                          }}>
+                            <span style={{
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: 'rgba(52, 41, 42, 0.72)'
+                            }}>
+                              Saved comps ({visibleComps.length}{addedCompsSameNbrhdOnly && subjNbrhd ? ` of ${comps.length}` : ''})
+                            </span>
+                            <label
+                              title={
+                                subjNbrhd
+                                  ? `Filter added comps to neighborhood code ${subjNbrhd}`
+                                  : 'Link the county record to filter by neighborhood code (NBRHD_CD)'
+                              }
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '11.5px',
+                                fontWeight: addedCompsSameNbrhdOnly ? 600 : 500,
+                                color: subjNbrhd ? '#34292A' : 'rgba(52, 41, 42, 0.42)',
+                                cursor: subjNbrhd ? 'pointer' : 'not-allowed',
+                                userSelect: 'none',
+                                backgroundColor: addedCompsSameNbrhdOnly ? 'rgba(189, 211, 226, 0.45)' : '#FFFFFF',
+                                padding: '5px 11px',
+                                borderRadius: '999px',
+                                border: addedCompsSameNbrhdOnly
+                                  ? '1px solid #859DCE'
+                                  : '1px solid rgba(52, 41, 42, 0.14)'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(addedCompsSameNbrhdOnly && subjNbrhd)}
+                                disabled={!subjNbrhd}
+                                onChange={(e) => setAddedCompsSameNbrhdOnly(e.target.checked)}
+                                style={{
+                                  accentColor: '#34292A',
+                                  cursor: subjNbrhd ? 'pointer' : 'not-allowed'
+                                }}
+                              />
+                              <span>
+                                Same neighborhood code
+                                {subjNbrhd ? ` (${subjNbrhd}) · ${sameNbrhdAddedCount}` : ''}
+                              </span>
+                            </label>
+                          </div>
+                          {visibleComps.length === 0 ? (
+                            <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+                              <p style={{
+                                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                                fontSize: '13px',
+                                color: 'rgba(52, 41, 42, 0.68)',
+                                margin: '0 0 10px 0'
+                              }}>
+                                None of your added comps match neighborhood code {subjNbrhd}.
+                              </p>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setAddedCompsSameNbrhdOnly(false)}
+                              >
+                                Show all added comps
+                              </Button>
+                            </div>
+                          ) : (
                           <div className="investor-table-wrapper">
                             <table className="investor-comps-table">
                               <thead>
@@ -3406,7 +3720,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                 </tr>
                               </thead>
                               <tbody>
-                                {comps.map((c) => {
+                                {visibleComps.map((c) => {
                                   const ppsqft = c.price_per_sqft != null
                                     ? Math.round(Number(c.price_per_sqft))
                                     : (c.sold_price && c.sqft ? Math.round(Number(c.sold_price) / Number(c.sqft)) : null);
@@ -3422,6 +3736,31 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                   const clues = c.county_clues || formatCountyClues(c);
                                   const isOutlier = Boolean(c.is_outlier || c.adjustments?.is_outlier);
                                   const isVerified = Boolean(c.comp_details_json?.verified);
+                                  const compHoaName = c.hoa_name || c.comp_details_json?.hoa_name || null;
+                                  const compConstLabel = formatConstructionTypeLabel(
+                                    c.construction_type || c.comp_details_json?.construction_type
+                                  );
+                                  const compDockLabel = formatBoatDockLabel({
+                                    boat_dock: c.boat_dock ?? c.comp_details_json?.boat_dock,
+                                    boat_dock_sqft: c.boat_dock_sqft ?? c.comp_details_json?.boat_dock_sqft
+                                  });
+                                  const sameNbrhdMatch = isCompSameNbrhd(c);
+                                  const sameSubdivMatch = Boolean(
+                                    (subjectForAppraisal.subdivision_name || subjectForAppraisal.subdivision_code) &&
+                                    (c.subdivision_name || c.subdivision_code) &&
+                                    isSameSubdivision(
+                                      {
+                                        county: subjCountyNorm,
+                                        subdivision_name: subjectForAppraisal.subdivision_name,
+                                        subdivision_code: subjectForAppraisal.subdivision_code
+                                      },
+                                      {
+                                        county: normalizeCountyName(c.parcel_county || c.county),
+                                        subdivision_name: c.subdivision_name,
+                                        subdivision_code: c.subdivision_code
+                                      }
+                                    )
+                                  );
 
                                   return (
                                     <tr key={c.id} className={`investor-comp-row ${!isIncluded ? 'excluded' : ''}`}>
@@ -3448,6 +3787,86 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                       <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                           <span style={{ fontWeight: 600 }}>{c.address}</span>
+                                          {c.subdivision_name && (
+                                            <span
+                                              title={[
+                                                sameSubdivMatch ? 'Same subdivision as subject' : 'Different subdivision',
+                                                c.s_legal ? `Legal: ${c.s_legal}` : null,
+                                                c.nbrhd_cd ? `Nbrhd: ${c.nbrhd_cd}` : null
+                                              ].filter(Boolean).join(' · ')}
+                                              style={
+                                                sameSubdivMatch
+                                                  ? {
+                                                      fontSize: '10px',
+                                                      fontWeight: 700,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: 'rgba(189, 211, 226, 0.48)',
+                                                      border: '1px solid #859DCE',
+                                                      color: '#34292A'
+                                                    }
+                                                  : {
+                                                      fontSize: '10px',
+                                                      fontWeight: 500,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: '#FAF8F5',
+                                                      border: '1px solid rgba(52, 41, 42, 0.16)',
+                                                      color: 'rgba(52, 41, 42, 0.78)'
+                                                    }
+                                              }
+                                            >
+                                              {sameSubdivMatch ? `✓ ${c.subdivision_name}` : c.subdivision_name}
+                                            </span>
+                                          )}
+                                          {c.nbrhd_cd && (
+                                            <span
+                                              title={
+                                                sameNbrhdMatch
+                                                  ? `Same appraiser neighborhood code (${c.nbrhd_cd})`
+                                                  : `Appraiser neighborhood code: ${c.nbrhd_cd}`
+                                              }
+                                              style={
+                                                sameNbrhdMatch
+                                                  ? {
+                                                      fontSize: '10px',
+                                                      fontWeight: 700,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: 'rgba(189, 211, 226, 0.42)',
+                                                      border: '1px solid #859DCE',
+                                                      color: '#34292A'
+                                                    }
+                                                  : {
+                                                      fontSize: '10px',
+                                                      fontWeight: 500,
+                                                      padding: '1.5px 8px',
+                                                      borderRadius: '999px',
+                                                      backgroundColor: '#FFFFFF',
+                                                      border: '1px solid rgba(52, 41, 42, 0.16)',
+                                                      color: 'rgba(52, 41, 42, 0.72)'
+                                                    }
+                                              }
+                                            >
+                                              {sameNbrhdMatch ? `✓ Nbrhd ${c.nbrhd_cd}` : `Nbrhd ${c.nbrhd_cd}`}
+                                            </span>
+                                          )}
+                                          {compHoaName && (
+                                            <span
+                                              title="Manual HOA / association name"
+                                              style={{
+                                                fontSize: '10px',
+                                                fontWeight: 600,
+                                                padding: '1.5px 8px',
+                                                borderRadius: '999px',
+                                                backgroundColor: '#FFFFFF',
+                                                border: '1px solid rgba(52, 41, 42, 0.2)',
+                                                color: '#34292A'
+                                              }}
+                                            >
+                                              HOA: {compHoaName}
+                                            </span>
+                                          )}
                                           {isOutlier && (
                                             <span
                                               title={c.adjustments?.outlier_reason || '$/sf outlier — excluded by default in grid'}
@@ -3473,9 +3892,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                                             c.beds != null || c.baths != null
                                               ? `${c.beds ?? '—'}bd/${c.baths ?? '—'}ba`
                                               : null,
+                                            compConstLabel,
                                             c.comp_details_json?.windows === 'impact' ? 'Impact windows' : null,
                                             c.pool === true ? 'Pool' : null,
                                             c.waterfront === true ? 'Waterfront' : null,
+                                            compDockLabel,
                                             c.comp_details_json?.source || c.source
                                           ].filter(Boolean).join(' · ')}
                                         </div>
@@ -3630,9 +4051,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                               </tbody>
                             </table>
                           </div>
+                          )}
+                          </>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Market & Location Cards */}
                     <MarketCard
@@ -4977,6 +5401,21 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     </div>
 
                     <div>
+                      <label className="investor-form-label" htmlFor="prop-hoa-name">
+                        HOA / association name <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                      </label>
+                      <input
+                        id="prop-hoa-name"
+                        type="text"
+                        maxLength={140}
+                        value={propFormData.hoa_name || ''}
+                        onChange={(e) => setPropFormData((prev) => ({ ...prev, hoa_name: e.target.value }))}
+                        placeholder="e.g. River Ridge HOA"
+                        className="investor-form-input"
+                      />
+                    </div>
+
+                    <div>
                       <label className="investor-form-label" htmlFor="prop-listing-url">Listing Link</label>
                       <input
                         id="prop-listing-url"
@@ -5051,6 +5490,60 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       />
                     </div>
                   </div>
+
+                  <div className="investor-form-grid-2" style={{ marginTop: '14px' }}>
+                    <div>
+                      <label className="investor-form-label" htmlFor="prop-construction-type">Construction</label>
+                      <select
+                        id="prop-construction-type"
+                        value={propFormData.construction_type || ''}
+                        onChange={(e) => setPropFormData((prev) => ({ ...prev, construction_type: e.target.value }))}
+                        className={`investor-form-select ${!propFormData.construction_type ? 'placeholder-active' : ''}`}
+                      >
+                        <option value="">Unknown</option>
+                        {CONSTRUCTION_TYPE_OPTIONS.filter((opt) => opt.id !== 'unknown').map((opt) => (
+                          <option key={opt.id} value={opt.id}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="investor-form-label" htmlFor="prop-boat-dock">Boat dock</label>
+                      <select
+                        id="prop-boat-dock"
+                        value={propFormData.boat_dock === true ? 'true' : propFormData.boat_dock === false ? 'false' : ''}
+                        onChange={(e) => {
+                          const val = e.target.value === 'true' ? true : e.target.value === 'false' ? false : null;
+                          setPropFormData((prev) => ({
+                            ...prev,
+                            boat_dock: val,
+                            ...(val !== true ? { boat_dock_sqft: '' } : {})
+                          }));
+                        }}
+                        className={`investor-form-select ${propFormData.boat_dock === null ? 'placeholder-active' : ''}`}
+                      >
+                        <option value="">Unknown</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {propFormData.boat_dock === true && (
+                    <div style={{ marginTop: '14px' }}>
+                      <label className="investor-form-label" htmlFor="prop-boat-dock-sqft">
+                        Boat dock area (sf) <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                      </label>
+                      <FormattedNumberInput
+                        id="prop-boat-dock-sqft"
+                        value={propFormData.boat_dock_sqft}
+                        onChange={(val) => setPropFormData((prev) => ({ ...prev, boat_dock_sqft: val }))}
+                        allowDecimal={false}
+                        formatOnBlur={true}
+                        placeholder="e.g. 350"
+                        className="investor-form-input"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* NOTES */}

@@ -1,5 +1,5 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { normalizeCountyName } from '../../src/config/counties.js';
 import {
   VALID_CONDITIONS,
@@ -64,6 +64,10 @@ const STRUCTURED_DETAIL_KEYS = [
   'garage_type',
   'garage_bays',
   'waterfront_view',
+  'boat_dock',
+  'boat_dock_sqft',
+  'construction_type',
+  'hoa_name',
   'verified'
 ];
 
@@ -160,6 +164,21 @@ function validateComp(body, isUpdate = false) {
   let pool = parseNullableBool(body.pool);
   let garage = parseNullableBool(body.garage);
   let waterfront = parseNullableBool(body.waterfront);
+  let boat_dock = parseNullableBool(body.boat_dock !== undefined ? body.boat_dock : body.comp_details_json?.boat_dock);
+  let boat_dock_sqft = parseNumField(body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : body.comp_details_json?.boat_dock_sqft, true);
+  if (boat_dock === false) boat_dock_sqft = null;
+  if (boat_dock === null && boat_dock_sqft != null && boat_dock_sqft > 0) boat_dock = true;
+  const rawConstType = body.construction_type !== undefined ? body.construction_type : body.comp_details_json?.construction_type;
+  let construction_type = rawConstType != null && String(rawConstType).trim() !== '' ? String(rawConstType).trim().toLowerCase() : null;
+
+  const rawHoaName =
+    body.hoa_name !== undefined
+      ? body.hoa_name
+      : (body.comp_details_json?.hoa_name ?? null);
+  let hoa_name =
+    rawHoaName != null && String(rawHoaName).trim() !== ''
+      ? String(rawHoaName).trim().slice(0, 140)
+      : null;
 
   let notes = body.notes != null && String(body.notes).trim() !== '' ? String(body.notes).trim() : null;
   const rawAdjustments = typeof body.adjustments === 'object' && body.adjustments !== null ? { ...body.adjustments } : {};
@@ -183,6 +202,10 @@ function validateComp(body, isUpdate = false) {
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type: construction_type ?? 'unknown',
+      hoa_name: hoa_name ?? '',
       notes: notes ?? '',
       source: source ?? ''
     });
@@ -193,6 +216,10 @@ function validateComp(body, isUpdate = false) {
     pool = synced.pool;
     garage = synced.garage;
     waterfront = synced.waterfront;
+    boat_dock = synced.boat_dock;
+    boat_dock_sqft = synced.boat_dock_sqft;
+    construction_type = synced.construction_type;
+    hoa_name = synced.hoa_name;
     if (normalizedDetails.notes) {
       notes = normalizedDetails.notes;
     }
@@ -219,6 +246,10 @@ function validateComp(body, isUpdate = false) {
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type,
+      hoa_name,
       notes,
       adjustments: rawAdjustments,
       comp_details_json,
@@ -249,7 +280,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
   const savedFolioMap = new Map();
 
   if (parcelIds.length > 0) {
-    // 1. Fetch county_parcels clues
+    // 1. Fetch county_parcels clues + subdivision / neighborhood metadata
     try {
       const pRows = await sql`
         SELECT
@@ -263,7 +294,12 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
           spec_feat_val,
           beds,
           full_baths,
-          half_baths
+          half_baths,
+          s_legal,
+          subdivision_name,
+          subdivision_code,
+          nbrhd_cd,
+          mkt_ar
         FROM county_parcels
         WHERE parcel_id = ANY(${parcelIds});
       `;
@@ -275,7 +311,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
       if (err?.code === '42703') {
         try {
           const pRowsFallback = await sql`
-            SELECT county, parcel_id, year_built, eff_year_built, units
+            SELECT county, parcel_id, year_built, eff_year_built, units, nbrhd_cd, mkt_ar
             FROM county_parcels
             WHERE parcel_id = ANY(${parcelIds});
           `;
@@ -312,11 +348,12 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
   }
 
   return rawRows.map((row) => {
-    const adj = row.adjustments && typeof row.adjustments === 'object' ? row.adjustments : {};
+    const adj = parseJsonbObject(row.adjustments);
+    const parsedCompDetailsJson = parseJsonbObject(row.comp_details_json);
     const fallbackJson =
-      row.comp_details_json && typeof row.comp_details_json === 'object' && Object.keys(row.comp_details_json).length > 0
-        ? row.comp_details_json
-        : (adj.comp_details_json && typeof adj.comp_details_json === 'object' ? adj.comp_details_json : {});
+      Object.keys(parsedCompDetailsJson).length > 0
+        ? parsedCompDetailsJson
+        : parseJsonbObject(adj.comp_details_json);
 
     const county = normalizeCountyName(row.parcel_county) || 'Broward';
     const pid = row.parcel_id ? String(row.parcel_id).trim() : '';
@@ -332,6 +369,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
     const merged = mergeCompWithSavedDetails(
       {
         ...row,
+        adjustments: adj,
         comp_details_json: fallbackJson,
         is_outlier: Boolean(row.is_outlier || adj.is_outlier)
       },
@@ -373,6 +411,7 @@ async function selectCompsQuery(sql, cleanEmail, propertyId = null) {
           garage,
           waterfront,
           lot_sqft,
+          hoa_name,
           notes,
           COALESCE(adjustments, '{}'::jsonb) AS adjustments,
           COALESCE(comp_details_json, '{}'::jsonb) AS comp_details_json,
@@ -410,6 +449,7 @@ async function selectCompsQuery(sql, cleanEmail, propertyId = null) {
         garage,
         waterfront,
         lot_sqft,
+        hoa_name,
         notes,
         COALESCE(adjustments, '{}'::jsonb) AS adjustments,
         COALESCE(comp_details_json, '{}'::jsonb) AS comp_details_json,
@@ -557,15 +597,15 @@ export default async function handler(req, res) {
             owner_email, property_id, address, city, zip, lat, lng,
             sold_date, sold_price, sqft, beds, baths, year_built, distance_mi,
             included, source, parcel_id, parcel_county, condition,
-            pool, garage, waterfront, lot_sqft, notes,
+            pool, garage, waterfront, lot_sqft, hoa_name, notes,
             adjustments, comp_details_json, is_outlier
           ) VALUES (
             ${cleanEmail}, ${propertyId}, ${data.address}, ${data.city}, ${data.zip}, ${data.lat}, ${data.lng},
             ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
             ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${data.condition},
-            ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.notes},
-            ${JSON.stringify(data.adjustments)}::jsonb,
-            ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.hoa_name}, ${data.notes},
+            ${sql.json(data.adjustments || {})},
+            ${sql.json(data.comp_details_json || {})},
             ${data.is_outlier}
           )
           RETURNING *
@@ -584,12 +624,13 @@ export default async function handler(req, res) {
               ${data.sold_date}, ${data.sold_price}, ${data.sqft}, ${data.beds}, ${data.baths}, ${data.year_built}, ${distance_mi},
               ${data.included}, ${data.source}, ${data.parcel_id}, ${data.parcel_county}, ${safeCond},
               ${data.pool}, ${data.garage}, ${data.waterfront}, ${data.lot_sqft}, ${data.notes},
-              ${JSON.stringify(data.adjustments)}::jsonb
+              ${sql.json(data.adjustments || {})}
             )
             RETURNING *
           `;
           if (rows[0]) {
             rows[0].condition = data.condition;
+            rows[0].hoa_name = data.hoa_name;
             rows[0].comp_details_json = data.comp_details_json || {};
             rows[0].is_outlier = data.is_outlier;
           }
@@ -598,14 +639,45 @@ export default async function handler(req, res) {
         }
       }
 
-      // Persist reusable comp_details if county folio + filled details were provided
-      if (data.parcel_id && data.comp_details_json && computeDetailsProgress(data.comp_details_json).filledCount > 0) {
+      if (rows[0]?.id) {
+        try {
+          await sql`
+            UPDATE investor_comps
+            SET
+              boat_dock = ${data.boat_dock},
+              boat_dock_sqft = ${data.boat_dock_sqft},
+              construction_type = ${data.construction_type}
+            WHERE id = ${rows[0].id} AND lower(owner_email) = ${cleanEmail}
+          `;
+          rows[0].boat_dock = data.boat_dock;
+          rows[0].boat_dock_sqft = data.boat_dock_sqft;
+          rows[0].construction_type = data.construction_type;
+        } catch (extErr) {
+          if (extErr?.code !== '42703') throw extErr;
+        }
+      }
+
+      // Persist reusable comp_details if county folio + filled details / HOA / dock / construction were provided
+      if (
+        data.parcel_id &&
+        data.comp_details_json &&
+        (computeDetailsProgress(data.comp_details_json).filledCount > 0 ||
+          data.comp_details_json.hoa_name ||
+          data.comp_details_json.boat_dock !== null ||
+          data.comp_details_json.boat_dock_sqft != null ||
+          (data.comp_details_json.construction_type && data.comp_details_json.construction_type !== 'unknown') ||
+          data.comp_details_json.notes ||
+          data.comp_details_json.verified)
+      ) {
         await upsertUserCompDetails(sql, cleanEmail, {
           county: data.parcel_county || 'Broward',
           parcel_id: data.parcel_id,
           sold_date: data.sold_date,
           comp_details_json: data.comp_details_json
-        }).catch(() => null);
+        }).catch((err) => {
+          console.error('[Comp Details Sync Error on POST]', err?.code, err?.message);
+          return null;
+        });
       }
 
       const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);
@@ -657,11 +729,12 @@ export default async function handler(req, res) {
       }
 
       const body = req.body || {};
-      const currentAdj = currentComp.adjustments && typeof currentComp.adjustments === 'object' ? currentComp.adjustments : {};
+      const currentAdj = parseJsonbObject(currentComp.adjustments);
+      const parsedCurrentDetails = parseJsonbObject(currentComp.comp_details_json);
       const currentDetailsJson =
-        currentComp.comp_details_json && typeof currentComp.comp_details_json === 'object' && Object.keys(currentComp.comp_details_json).length > 0
-          ? currentComp.comp_details_json
-          : (currentAdj.comp_details_json && typeof currentAdj.comp_details_json === 'object' ? currentAdj.comp_details_json : {});
+        Object.keys(parsedCurrentDetails).length > 0
+          ? parsedCurrentDetails
+          : parseJsonbObject(currentAdj.comp_details_json);
 
       // Merge partial update cleanly over existing comp + comp_details_json
       const mergedInput = {
@@ -687,6 +760,10 @@ export default async function handler(req, res) {
         pool: body.pool !== undefined ? body.pool : currentComp.pool,
         garage: body.garage !== undefined ? body.garage : currentComp.garage,
         waterfront: body.waterfront !== undefined ? body.waterfront : currentComp.waterfront,
+        boat_dock: body.boat_dock !== undefined ? body.boat_dock : (currentComp.boat_dock ?? currentDetailsJson.boat_dock ?? null),
+        boat_dock_sqft: body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : (currentComp.boat_dock_sqft ?? currentDetailsJson.boat_dock_sqft ?? null),
+        construction_type: body.construction_type !== undefined ? body.construction_type : (currentComp.construction_type ?? currentDetailsJson.construction_type ?? 'unknown'),
+        hoa_name: body.hoa_name !== undefined ? body.hoa_name : (currentComp.hoa_name ?? currentDetailsJson.hoa_name ?? null),
         notes: body.notes !== undefined ? body.notes : currentComp.notes,
         is_outlier: body.is_outlier !== undefined ? body.is_outlier : Boolean(currentComp.is_outlier || currentAdj.is_outlier),
         adjustments: body.adjustments !== undefined ? body.adjustments : currentAdj,
@@ -706,6 +783,10 @@ export default async function handler(req, res) {
           ...(body.garage_type !== undefined ? { garage_type: body.garage_type } : {}),
           ...(body.garage_bays !== undefined ? { garage_bays: body.garage_bays } : {}),
           ...(body.waterfront_view !== undefined ? { waterfront_view: body.waterfront_view } : {}),
+          ...(body.boat_dock !== undefined ? { boat_dock: body.boat_dock } : {}),
+          ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft: body.boat_dock_sqft } : {}),
+          ...(body.construction_type !== undefined ? { construction_type: body.construction_type } : {}),
+          ...(body.hoa_name !== undefined ? { hoa_name: body.hoa_name } : {}),
           ...(body.verified !== undefined ? { verified: body.verified } : {}),
           ...(body.detail_source !== undefined ? { source: body.detail_source } : {})
         }
@@ -747,9 +828,10 @@ export default async function handler(req, res) {
             garage = ${data.garage},
             waterfront = ${data.waterfront},
             lot_sqft = ${data.lot_sqft},
+            hoa_name = ${data.hoa_name},
             notes = ${data.notes},
-            adjustments = ${JSON.stringify(data.adjustments)}::jsonb,
-            comp_details_json = ${JSON.stringify(data.comp_details_json || {})}::jsonb,
+            adjustments = ${sql.json(data.adjustments || {})},
+            comp_details_json = ${sql.json(data.comp_details_json || {})},
             is_outlier = ${data.is_outlier}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -782,12 +864,13 @@ export default async function handler(req, res) {
               waterfront = ${data.waterfront},
               lot_sqft = ${data.lot_sqft},
               notes = ${data.notes},
-              adjustments = ${JSON.stringify(data.adjustments)}::jsonb
+              adjustments = ${sql.json(data.adjustments || {})}
             WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
             RETURNING *
           `;
           if (rows[0]) {
             rows[0].condition = data.condition;
+            rows[0].hoa_name = data.hoa_name;
             rows[0].comp_details_json = data.comp_details_json || {};
             rows[0].is_outlier = data.is_outlier;
           }
@@ -798,6 +881,22 @@ export default async function handler(req, res) {
 
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Comp not found.' });
+      }
+
+      try {
+        await sql`
+          UPDATE investor_comps
+          SET
+            boat_dock = ${data.boat_dock},
+            boat_dock_sqft = ${data.boat_dock_sqft},
+            construction_type = ${data.construction_type}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+        `;
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
+      } catch (extErr) {
+        if (extErr?.code !== '42703') throw extErr;
       }
 
       // Persist reusable comp_details per county sale (folio + sale month) when edited
@@ -811,7 +910,10 @@ export default async function handler(req, res) {
           parcel_id: data.parcel_id,
           sold_date: data.sold_date,
           comp_details_json: data.comp_details_json
-        }).catch(() => null);
+        }).catch((err) => {
+          console.error('[Comp Details Sync Error on PUT]', err?.code, err?.message);
+          return null;
+        });
       }
 
       const enriched = await enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rows);

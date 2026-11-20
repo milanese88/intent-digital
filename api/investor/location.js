@@ -251,11 +251,11 @@ export default async function handler(req, res) {
           ${lat},
           ${lng},
           ${nowIso},
-          ${JSON.stringify(mergedFieldSources)}::jsonb,
-          ${JSON.stringify(gettingAround)}::jsonb,
-          ${JSON.stringify(schools)}::jsonb,
-          ${JSON.stringify(peopleHousing)}::jsonb,
-          ${JSON.stringify(safety)}::jsonb
+          ${sql.json(mergedFieldSources)},
+          ${sql.json(gettingAround)},
+          ${sql.json(schools)},
+          ${sql.json(peopleHousing)},
+          ${sql.json(safety)}
         )
         ON CONFLICT (property_id) DO UPDATE SET
           address_label = EXCLUDED.address_label,

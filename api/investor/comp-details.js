@@ -31,7 +31,12 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
   const progress = computeDetailsProgress(norm);
 
   // Do not create empty placeholder rows if nothing was entered
-  if (progress.filledCount === 0 && !norm.notes && !norm.verified) {
+  const hasExtraAttr =
+    Boolean(norm.hoa_name) ||
+    norm.boat_dock !== null ||
+    norm.boat_dock_sqft != null ||
+    (norm.construction_type && norm.construction_type !== 'unknown');
+  if (progress.filledCount === 0 && !norm.notes && !norm.verified && !hasExtraAttr) {
     return null;
   }
 
@@ -57,6 +62,10 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         garage_type,
         garage_bays,
         waterfront_view,
+        boat_dock,
+        boat_dock_sqft,
+        construction_type,
+        hoa_name,
         notes,
         source,
         verified,
@@ -80,6 +89,10 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         ${norm.garage_type},
         ${norm.garage_bays},
         ${norm.waterfront_view},
+        ${norm.boat_dock},
+        ${norm.boat_dock_sqft},
+        ${norm.construction_type !== 'unknown' ? norm.construction_type : null},
+        ${norm.hoa_name || null},
         ${norm.notes || null},
         ${norm.source || null},
         ${Boolean(norm.verified)},
@@ -101,6 +114,10 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
         garage_type = EXCLUDED.garage_type,
         garage_bays = EXCLUDED.garage_bays,
         waterfront_view = EXCLUDED.waterfront_view,
+        boat_dock = EXCLUDED.boat_dock,
+        boat_dock_sqft = EXCLUDED.boat_dock_sqft,
+        construction_type = EXCLUDED.construction_type,
+        hoa_name = EXCLUDED.hoa_name,
         notes = EXCLUDED.notes,
         source = EXCLUDED.source,
         verified = EXCLUDED.verified,
@@ -109,37 +126,114 @@ export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, optio
     `;
     savedRow = rows[0] || null;
   } catch (err) {
-    // 42P01 = undefined_table (before add_comp_details_and_nal_clues.sql is applied)
-    if (isMissingSchemaError(err) && !options.throwOnMissingTable) {
+    // Graceful fallback before add_boat_dock_and_construction.sql is applied
+    if (err?.code === '42703') {
+      try {
+        const rows = await sql`
+          INSERT INTO comp_details (
+            owner_email, county, parcel_id, sale_month_key, sale_date,
+            beds, full_baths, half_baths, condition, kitchen_baths_updated,
+            roof_type, roof_year, windows, pool_type, screen_enclosure,
+            garage_type, garage_bays, waterfront_view, hoa_name, notes,
+            source, verified, updated_at
+          ) VALUES (
+            ${cleanEmail}, ${county}, ${parcelId}, ${saleMonthKey}, ${saleDateIso},
+            ${norm.beds}, ${norm.full_baths}, ${norm.half_baths}, ${norm.condition}, ${norm.kitchen_baths_updated},
+            ${norm.roof_type}, ${norm.roof_year}, ${norm.windows}, ${norm.pool_type}, ${norm.screen_enclosure},
+            ${norm.garage_type}, ${norm.garage_bays}, ${norm.waterfront_view}, ${norm.hoa_name || null}, ${norm.notes || null},
+            ${norm.source || null}, ${Boolean(norm.verified)}, now()
+          )
+          ON CONFLICT (owner_email, county, parcel_id, sale_month_key)
+          DO UPDATE SET
+            sale_date = COALESCE(EXCLUDED.sale_date, comp_details.sale_date),
+            beds = EXCLUDED.beds,
+            full_baths = EXCLUDED.full_baths,
+            half_baths = EXCLUDED.half_baths,
+            condition = EXCLUDED.condition,
+            kitchen_baths_updated = EXCLUDED.kitchen_baths_updated,
+            roof_type = EXCLUDED.roof_type,
+            roof_year = EXCLUDED.roof_year,
+            windows = EXCLUDED.windows,
+            pool_type = EXCLUDED.pool_type,
+            screen_enclosure = EXCLUDED.screen_enclosure,
+            garage_type = EXCLUDED.garage_type,
+            garage_bays = EXCLUDED.garage_bays,
+            waterfront_view = EXCLUDED.waterfront_view,
+            hoa_name = EXCLUDED.hoa_name,
+            notes = EXCLUDED.notes,
+            source = EXCLUDED.source,
+            verified = EXCLUDED.verified,
+            updated_at = now()
+          RETURNING *;
+        `;
+        savedRow = rows[0] || null;
+      } catch (fbErr) {
+        if (isMissingSchemaError(fbErr) && !options.throwOnMissingTable) {
+          console.warn('[DB Schema Update Needed] comp_details upsert skipped:', MIGRATION_UPDATE_MESSAGE, fbErr?.message);
+          return null;
+        }
+        throw fbErr;
+      }
+    } else if (isMissingSchemaError(err) && !options.throwOnMissingTable) {
       console.warn('[DB Schema Update Needed] comp_details upsert skipped:', MIGRATION_UPDATE_MESSAGE, err?.message);
       return null;
+    } else {
+      throw err;
     }
-    throw err;
   }
 
   // Synchronize any other investor_comps rows owned by this user referencing the same county sale
   try {
     const legacy = detailsToLegacyColumns(norm);
-    await sql`
-      UPDATE investor_comps
-      SET
-        beds = ${legacy.beds},
-        baths = ${legacy.baths},
-        condition = ${legacy.condition},
-        pool = ${legacy.pool},
-        garage = ${legacy.garage},
-        waterfront = ${legacy.waterfront},
-        notes = COALESCE(${norm.notes || null}, notes),
-        comp_details_json = ${JSON.stringify(norm)}::jsonb
-      WHERE lower(owner_email) = ${cleanEmail}
-        AND parcel_id = ${parcelId}
-        AND COALESCE(parcel_county, 'Broward') = ${county}
-        AND (
-          ${saleMonthKey} = ''
-          OR sold_date IS NULL
-          OR to_char(sold_date, 'YYYY-MM') = ${saleMonthKey}
-        );
-    `;
+    try {
+      await sql`
+        UPDATE investor_comps
+        SET
+          beds = ${legacy.beds},
+          baths = ${legacy.baths},
+          condition = ${legacy.condition},
+          pool = ${legacy.pool},
+          garage = ${legacy.garage},
+          waterfront = ${legacy.waterfront},
+          boat_dock = ${legacy.boat_dock},
+          boat_dock_sqft = ${legacy.boat_dock_sqft},
+          construction_type = ${legacy.construction_type},
+          hoa_name = ${legacy.hoa_name},
+          notes = COALESCE(${norm.notes || null}, notes),
+          comp_details_json = ${sql.json(norm)}
+        WHERE lower(owner_email) = ${cleanEmail}
+          AND parcel_id = ${parcelId}
+          AND COALESCE(parcel_county, 'Broward') = ${county}
+          AND (
+            ${saleMonthKey} = ''
+            OR sold_date IS NULL
+            OR to_char(sold_date, 'YYYY-MM') = ${saleMonthKey}
+          );
+      `;
+    } catch (syncColErr) {
+      if (syncColErr?.code !== '42703') throw syncColErr;
+      await sql`
+        UPDATE investor_comps
+        SET
+          beds = ${legacy.beds},
+          baths = ${legacy.baths},
+          condition = ${legacy.condition},
+          pool = ${legacy.pool},
+          garage = ${legacy.garage},
+          waterfront = ${legacy.waterfront},
+          hoa_name = ${legacy.hoa_name},
+          notes = COALESCE(${norm.notes || null}, notes),
+          comp_details_json = ${sql.json(norm)}
+        WHERE lower(owner_email) = ${cleanEmail}
+          AND parcel_id = ${parcelId}
+          AND COALESCE(parcel_county, 'Broward') = ${county}
+          AND (
+            ${saleMonthKey} = ''
+            OR sold_date IS NULL
+            OR to_char(sold_date, 'YYYY-MM') = ${saleMonthKey}
+          );
+      `;
+    }
   } catch {
     // Ignore if investor_comps columns haven't been migrated yet
   }
@@ -232,7 +326,7 @@ export default async function handler(req, res) {
 
       if (!saved) {
         return res.status(400).json({
-          error: 'Enter at least one detail field or note before saving.'
+          error: 'Enter at least one detail field, HOA name, or note before saving.'
         });
       }
 

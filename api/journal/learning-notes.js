@@ -47,7 +47,7 @@ export default async function handler(req, res) {
           ${cleanEmail},
           ${title},
           ${body},
-          ${color_bar ? JSON.stringify(color_bar) : null},
+          ${color_bar ? sql.json(color_bar) : null},
           ${link_url || null},
           ${link_label || null}
         )
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         UPDATE learning_notes SET
           title = ${title !== undefined ? title : existing[0].title},
           body = ${body !== undefined ? body : existing[0].body},
-          color_bar = ${color_bar !== undefined ? (color_bar ? JSON.stringify(color_bar) : null) : existing[0].color_bar ? JSON.stringify(existing[0].color_bar) : null},
+          color_bar = ${color_bar !== undefined ? (color_bar ? sql.json(color_bar) : null) : existing[0].color_bar ? sql.json(existing[0].color_bar) : null},
           link_url = ${link_url !== undefined ? link_url : existing[0].link_url},
           link_label = ${link_label !== undefined ? link_label : existing[0].link_label},
           updated_at = NOW()

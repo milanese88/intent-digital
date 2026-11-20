@@ -93,6 +93,32 @@ export function validateCompSearchParams(query = {}) {
 }
 
 /**
+ * Validates optional boolean location-scope toggles for GET /api/county/comps.
+ */
+export function parseCompLocationFilters(query = {}) {
+  const parseBool = (raw, paramName) => {
+    if (raw === undefined || raw === '') return { ok: true, value: false };
+    if (Array.isArray(raw)) return { ok: false, error: `Invalid ${paramName} parameter.` };
+    const clean = String(raw).trim().toLowerCase();
+    if (!['0', '1', 'true', 'false'].includes(clean)) {
+      return { ok: false, error: `Invalid ${paramName} parameter.` };
+    }
+    return { ok: true, value: clean === '1' || clean === 'true' };
+  };
+
+  const subRes = parseBool(query.same_subdivision, 'same_subdivision');
+  if (!subRes.ok) return subRes;
+  const nbrRes = parseBool(query.same_neighborhood, 'same_neighborhood');
+  if (!nbrRes.ok) return nbrRes;
+
+  return {
+    ok: true,
+    sameSubdivision: subRes.value,
+    sameNeighborhood: nbrRes.value
+  };
+}
+
+/**
  * Safely normalizes stored profile comp_search_filters with whitelisted fallbacks.
  */
 export function sanitizeProfileCompFilters(raw = {}) {
@@ -295,6 +321,8 @@ export function evaluateAndSortCompCandidates(candidates = []) {
     return {
       candidates: [],
       median_price_per_sqft: null,
+      same_subdivision_median_price_per_sqft: null,
+      same_subdivision_inlier_count: 0,
       renovated_median_price_per_sqft: null,
       inlier_count: 0,
       outlier_count: 0
@@ -373,14 +401,23 @@ export function evaluateAndSortCompCandidates(candidates = []) {
   const inlierMedianRaw = calculateExactMedian(inliers.map((c) => c.price_per_sqft));
   const medianPricePerSqft = inlierMedianRaw != null ? Math.round(inlierMedianRaw) : null;
 
+  const sameSubdivInliers = inliers.filter((c) => Boolean(c.same_subdivision));
+  const sameSubdivMedianRaw = calculateExactMedian(sameSubdivInliers.map((c) => c.price_per_sqft));
+  const sameSubdivisionMedianPricePerSqft = sameSubdivMedianRaw != null ? Math.round(sameSubdivMedianRaw) : null;
+
   const renoInlierPps = inliers.filter((c) => c.likely_renovated).map((c) => c.price_per_sqft);
   const renoMedianRaw = calculateExactMedian(renoInlierPps);
   const renovatedMedianPricePerSqft = renoMedianRaw != null ? Math.round(renoMedianRaw) : null;
 
-  // Sort non-outliers first, then descending similarity_score (tie-break: lower distance, more recent)
+  // Sort non-outliers first, then same-subdivision sales first, then descending similarity_score
   const sorted = [...finalAnnotated].sort((a, b) => {
     if (a.is_outlier !== b.is_outlier) {
       return a.is_outlier ? 1 : -1;
+    }
+    const aSame = Boolean(a.same_subdivision);
+    const bSame = Boolean(b.same_subdivision);
+    if (aSame !== bSame) {
+      return aSame ? -1 : 1;
     }
     const simDiff = (Number(b.similarity_score) || 0) - (Number(a.similarity_score) || 0);
     if (Math.abs(simDiff) > 1e-6) return simDiff;
@@ -394,6 +431,8 @@ export function evaluateAndSortCompCandidates(candidates = []) {
   return {
     candidates: sorted,
     median_price_per_sqft: medianPricePerSqft,
+    same_subdivision_median_price_per_sqft: sameSubdivisionMedianPricePerSqft,
+    same_subdivision_inlier_count: sameSubdivInliers.length,
     renovated_median_price_per_sqft: renovatedMedianPricePerSqft,
     inlier_count: inliers.length,
     outlier_count: outlierCount

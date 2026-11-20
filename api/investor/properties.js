@@ -1,11 +1,70 @@
 import { getUserFromSession } from '../_lib/session.js';
-import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { applyPropertyCountyRules } from '../_lib/countyResolver.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 
 const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifamily_2_9', 'other'];
 const ALLOWED_STATUSES = ['watching', 'analyzing', 'offer_sent', 'under_contract', 'passed', 'owned'];
 const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
+
+function normalizePropertyJsonb(row) {
+  if (!row || typeof row !== 'object') return row;
+  const subjectDetails = parseJsonbObject(row.subject_details);
+  const asIs = subjectDetails?.as_is && typeof subjectDetails.as_is === 'object' ? subjectDetails.as_is : {};
+  return {
+    ...row,
+    subject_details: subjectDetails,
+    boat_dock: row.boat_dock !== undefined ? row.boat_dock : (asIs.boat_dock ?? null),
+    boat_dock_sqft: row.boat_dock_sqft !== undefined ? row.boat_dock_sqft : (asIs.boat_dock_sqft ?? null),
+    construction_type: row.construction_type !== undefined
+      ? row.construction_type
+      : (asIs.construction_type && asIs.construction_type !== 'unknown' ? asIs.construction_type : null)
+  };
+}
+
+async function syncPropertyExtraColumns(sql, cleanEmail, id, data) {
+  if (!id) return;
+  try {
+    await sql`
+      UPDATE investor_properties
+      SET
+        boat_dock = ${data.boat_dock},
+        boat_dock_sqft = ${data.boat_dock_sqft},
+        construction_type = ${data.construction_type}
+      WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+    `;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+  }
+}
+
+async function attachParcelSubdivisionFields(sql, row) {
+  const normalized = normalizePropertyJsonb(row);
+  if (!normalized || !normalized.parcel_id) return normalized;
+  const county = normalized.parcel_county || normalized.county || 'Broward';
+  try {
+    const pRows = await sql`
+      SELECT s_legal, subdivision_name, subdivision_code, nbrhd_cd, mkt_ar, const_class
+      FROM county_parcels
+      WHERE county = ${county} AND parcel_id = ${normalized.parcel_id}
+      LIMIT 1
+    `;
+    if (pRows.length > 0) {
+      return {
+        ...normalized,
+        s_legal: pRows[0].s_legal ?? null,
+        subdivision_name: pRows[0].subdivision_name ?? null,
+        subdivision_code: pRows[0].subdivision_code ?? null,
+        nbrhd_cd: pRows[0].nbrhd_cd ?? null,
+        mkt_ar: pRows[0].mkt_ar ?? null,
+        const_class: pRows[0].const_class ?? null
+      };
+    }
+  } catch {
+    // Graceful fallback if county_parcels columns aren't available
+  }
+  return normalized;
+}
 
 function validateProperty(body) {
   const errors = {};
@@ -121,7 +180,7 @@ function validateProperty(body) {
   const rehab_budget_updated_at = body.rehab_budget_updated_at != null && String(body.rehab_budget_updated_at).trim() !== '' ? new Date(body.rehab_budget_updated_at).toISOString() : null;
   const is_studying = body.is_studying !== undefined ? Boolean(body.is_studying) : false;
 
-  // Optional HOA fields for Live-in fit rental restriction check
+  // Optional HOA fields for Live-in fit rental restriction check & manual HOA / association name
   const has_hoa =
     body.has_hoa === true || body.has_hoa === 'true'
       ? true
@@ -129,6 +188,14 @@ function validateProperty(body) {
       ? false
       : null;
   const hoa_monthly = parseNumField(body.hoa_monthly, 'hoa_monthly', 'HOA monthly');
+  const rawHoaName =
+    body.hoa_name !== undefined
+      ? body.hoa_name
+      : (body.subject_details?.as_is?.hoa_name ?? null);
+  const hoa_name =
+    rawHoaName != null && String(rawHoaName).trim() !== ''
+      ? String(rawHoaName).trim().slice(0, 140)
+      : null;
 
   // Optional subject_details (as_is & after_rehab) + nullable amenity booleans
   const parseTriBool = (v) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : null);
@@ -136,20 +203,85 @@ function validateProperty(body) {
   let garage = parseTriBool(body.garage);
   let waterfront = parseTriBool(body.waterfront);
 
+  let boat_dock = parseTriBool(
+    body.boat_dock !== undefined ? body.boat_dock : body.subject_details?.as_is?.boat_dock
+  );
+  let boat_dock_sqft = parseNumField(
+    body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : body.subject_details?.as_is?.boat_dock_sqft,
+    'boat_dock_sqft',
+    'Boat dock sqft',
+    true
+  );
+  if (boat_dock === false) boat_dock_sqft = null;
+  if (boat_dock === null && boat_dock_sqft != null && boat_dock_sqft > 0) boat_dock = true;
+
+  const rawConstruction =
+    body.construction_type !== undefined
+      ? body.construction_type
+      : body.subject_details?.as_is?.construction_type;
+  const normConstruction = normalizeCompDetails({ construction_type: rawConstruction }).construction_type;
+  let construction_type = normConstruction !== 'unknown' ? normConstruction : null;
+
   let subject_details = {};
   if (body.subject_details && typeof body.subject_details === 'object') {
     const nextSubjectDetails = {};
     if (body.subject_details.as_is && typeof body.subject_details.as_is === 'object') {
-      nextSubjectDetails.as_is = normalizeCompDetails(body.subject_details.as_is);
+      nextSubjectDetails.as_is = normalizeCompDetails({
+        ...body.subject_details.as_is,
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {}),
+        ...(body.boat_dock !== undefined ? { boat_dock } : {}),
+        ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft } : {}),
+        ...(body.construction_type !== undefined ? { construction_type: construction_type ?? 'unknown' } : {})
+      });
       const legacy = detailsToLegacyColumns(nextSubjectDetails.as_is);
       if (pool === null && legacy.pool !== null) pool = legacy.pool;
       if (garage === null && legacy.garage !== null) garage = legacy.garage;
       if (waterfront === null && legacy.waterfront !== null) waterfront = legacy.waterfront;
+      if (boat_dock === null && legacy.boat_dock !== null) boat_dock = legacy.boat_dock;
+      if (boat_dock_sqft == null && legacy.boat_dock_sqft != null) boat_dock_sqft = legacy.boat_dock_sqft;
+      if (construction_type == null && legacy.construction_type != null) construction_type = legacy.construction_type;
+    } else if (boat_dock !== null || boat_dock_sqft != null || construction_type != null) {
+      nextSubjectDetails.as_is = normalizeCompDetails({
+        beds,
+        baths,
+        condition: condition || 'c4',
+        roof_year,
+        pool,
+        garage,
+        waterfront,
+        boat_dock,
+        boat_dock_sqft,
+        construction_type: construction_type ?? 'unknown',
+        hoa_name: hoa_name ?? ''
+      });
     }
     if (body.subject_details.after_rehab && typeof body.subject_details.after_rehab === 'object') {
-      nextSubjectDetails.after_rehab = normalizeCompDetails(body.subject_details.after_rehab);
+      nextSubjectDetails.after_rehab = normalizeCompDetails({
+        ...body.subject_details.after_rehab,
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {}),
+        ...(body.construction_type !== undefined &&
+          (!body.subject_details.after_rehab.construction_type || body.subject_details.after_rehab.construction_type === 'unknown')
+          ? { construction_type: construction_type ?? 'unknown' }
+          : {})
+      });
     }
     subject_details = nextSubjectDetails;
+  } else if (boat_dock !== null || boat_dock_sqft != null || construction_type != null) {
+    subject_details = {
+      as_is: normalizeCompDetails({
+        beds,
+        baths,
+        condition: condition || 'c4',
+        roof_year,
+        pool,
+        garage,
+        waterfront,
+        boat_dock,
+        boat_dock_sqft,
+        construction_type: construction_type ?? 'unknown',
+        hoa_name: hoa_name ?? ''
+      })
+    };
   }
 
   return {
@@ -184,9 +316,13 @@ function validateProperty(body) {
       is_studying,
       has_hoa,
       hoa_monthly,
+      hoa_name,
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type,
       subject_details
     }
   };
@@ -246,6 +382,13 @@ export default async function handler(req, res) {
               p.rehab_budget_updated_at,
               p.has_hoa,
               p.hoa_monthly,
+              p.hoa_name,
+              cp.s_legal,
+              cp.subdivision_name,
+              cp.subdivision_code,
+              cp.nbrhd_cd,
+              cp.mkt_ar,
+              cp.const_class,
               p.pool,
               p.garage,
               p.waterfront,
@@ -258,6 +401,9 @@ export default async function handler(req, res) {
             LEFT JOIN parcel_site_info psi 
               ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
              AND psi.parcel_id = p.parcel_id
+            LEFT JOIN county_parcels cp
+              ON cp.county = COALESCE(p.parcel_county, p.county, 'Broward')
+             AND cp.parcel_id = p.parcel_id
             LEFT JOIN LATERAL (
               SELECT blob_url FROM investor_property_photos
               WHERE property_id = p.id
@@ -352,7 +498,7 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Property not found.' });
         }
 
-        return res.status(200).json(rows[0]);
+        return res.status(200).json(normalizePropertyJsonb(rows[0]));
       }
 
       let properties = [];
@@ -396,6 +542,13 @@ export default async function handler(req, res) {
             p.rehab_budget_updated_at,
             p.has_hoa,
             p.hoa_monthly,
+            p.hoa_name,
+            cp.s_legal,
+            cp.subdivision_name,
+            cp.subdivision_code,
+            cp.nbrhd_cd,
+            cp.mkt_ar,
+            cp.const_class,
             p.pool,
             p.garage,
             p.waterfront,
@@ -408,6 +561,9 @@ export default async function handler(req, res) {
           LEFT JOIN parcel_site_info psi 
             ON psi.county = COALESCE(p.parcel_county, p.county, 'Broward') 
            AND psi.parcel_id = p.parcel_id
+          LEFT JOIN county_parcels cp
+            ON cp.county = COALESCE(p.parcel_county, p.county, 'Broward')
+           AND cp.parcel_id = p.parcel_id
           LEFT JOIN LATERAL (
             SELECT blob_url FROM investor_property_photos
             WHERE property_id = p.id
@@ -500,7 +656,7 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json(properties);
+      return res.status(200).json(properties.map(normalizePropertyJsonb));
     }
 
     // POST: Create a new property
@@ -542,7 +698,8 @@ export default async function handler(req, res) {
             parcel_id,
             parcel_county,
             has_hoa,
-            hoa_monthly
+            hoa_monthly,
+            hoa_name
           ) VALUES (
             ${cleanEmail},
             ${data.address},
@@ -569,7 +726,8 @@ export default async function handler(req, res) {
             ${data.parcel_id},
             ${data.parcel_county},
             ${data.has_hoa},
-            ${data.hoa_monthly}
+            ${data.hoa_monthly},
+            ${data.hoa_name}
           )
           RETURNING *
         `;
@@ -629,10 +787,31 @@ export default async function handler(req, res) {
         if (rows[0]) {
           rows[0].parcel_id = data.parcel_id || null;
           rows[0].parcel_county = data.parcel_county || null;
+          rows[0].hoa_name = data.hoa_name || null;
         }
       }
 
-      return res.status(200).json(rows[0]);
+      if (rows[0]?.id) {
+        if (Object.keys(data.subject_details || {}).length > 0) {
+          try {
+            await sql`
+              UPDATE investor_properties
+              SET subject_details = ${sql.json(data.subject_details)}
+              WHERE id = ${rows[0].id} AND lower(owner_email) = ${cleanEmail}
+            `;
+            rows[0].subject_details = data.subject_details;
+          } catch {
+            // ignore if subject_details column pending
+          }
+        }
+        await syncPropertyExtraColumns(sql, cleanEmail, rows[0].id, data);
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
+      }
+
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // PUT: Update an existing property
@@ -683,10 +862,11 @@ export default async function handler(req, res) {
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
             has_hoa = ${data.has_hoa},
             hoa_monthly = ${data.hoa_monthly},
+            hoa_name = ${data.hoa_name},
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
-            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
+            subject_details = ${sql.json(data.subject_details || {})},
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -732,7 +912,7 @@ export default async function handler(req, res) {
               before_offer_checklist = jsonb_set(
                 COALESCE(before_offer_checklist, '{}'::jsonb),
                 '{subject_details}',
-                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                ${sql.json(data.subject_details || {})},
                 true
               ),
               is_studying = ${data.is_studying}
@@ -777,6 +957,7 @@ export default async function handler(req, res) {
             rows[0].rehab_budget = data.rehab_budget || null;
             rows[0].rehab_budget_source = data.rehab_budget_source || null;
             rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].hoa_name = data.hoa_name || null;
             rows[0].subject_details = data.subject_details || {};
           }
         }
@@ -786,7 +967,13 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
-      return res.status(200).json(rows[0]);
+      await syncPropertyExtraColumns(sql, cleanEmail, id, data);
+      rows[0].boat_dock = data.boat_dock;
+      rows[0].boat_dock_sqft = data.boat_dock_sqft;
+      rows[0].construction_type = data.construction_type;
+
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // PATCH: Partial update (for discrepancy sync or linking folio)
@@ -806,12 +993,12 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Property not found.' });
       }
 
+      const parsedCurrentSubjectDetails = parseJsonbObject(current[0].subject_details);
+      const parsedChecklist = parseJsonbObject(current[0].before_offer_checklist);
       const prevSubjectDetails =
-        current[0].subject_details && typeof current[0].subject_details === 'object' && Object.keys(current[0].subject_details).length > 0
-          ? current[0].subject_details
-          : (current[0].before_offer_checklist?.subject_details && typeof current[0].before_offer_checklist.subject_details === 'object'
-              ? current[0].before_offer_checklist.subject_details
-              : {});
+        Object.keys(parsedCurrentSubjectDetails).length > 0
+          ? parsedCurrentSubjectDetails
+          : parseJsonbObject(parsedChecklist.subject_details);
 
       const merged = {
         ...current[0],
@@ -819,7 +1006,7 @@ export default async function handler(req, res) {
         subject_details: req.body?.subject_details !== undefined
           ? {
               ...prevSubjectDetails,
-              ...(req.body.subject_details && typeof req.body.subject_details === 'object' ? req.body.subject_details : {})
+              ...parseJsonbObject(req.body.subject_details)
             }
           : prevSubjectDetails
       };
@@ -864,10 +1051,11 @@ export default async function handler(req, res) {
             rehab_budget_updated_at = ${data.rehab_budget_updated_at},
             has_hoa = ${data.has_hoa},
             hoa_monthly = ${data.hoa_monthly},
+            hoa_name = ${data.hoa_name},
             pool = ${data.pool},
             garage = ${data.garage},
             waterfront = ${data.waterfront},
-            subject_details = ${JSON.stringify(data.subject_details || {})}::jsonb,
+            subject_details = ${sql.json(data.subject_details || {})},
             is_studying = ${data.is_studying}
           WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
           RETURNING *
@@ -913,7 +1101,7 @@ export default async function handler(req, res) {
               before_offer_checklist = jsonb_set(
                 COALESCE(before_offer_checklist, '{}'::jsonb),
                 '{subject_details}',
-                ${JSON.stringify(data.subject_details || {})}::jsonb,
+                ${sql.json(data.subject_details || {})},
                 true
               ),
               is_studying = ${data.is_studying}
@@ -958,12 +1146,21 @@ export default async function handler(req, res) {
             rows[0].rehab_budget = data.rehab_budget || null;
             rows[0].rehab_budget_source = data.rehab_budget_source || null;
             rows[0].rehab_budget_updated_at = data.rehab_budget_updated_at || null;
+            rows[0].hoa_name = data.hoa_name || null;
             rows[0].subject_details = data.subject_details || {};
           }
         }
       }
 
-      return res.status(200).json(rows[0]);
+      if (rows[0]?.id) {
+        await syncPropertyExtraColumns(sql, cleanEmail, id, data);
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
+      }
+
+      const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
+      return res.status(200).json(enriched);
     }
 
     // DELETE: Delete a property

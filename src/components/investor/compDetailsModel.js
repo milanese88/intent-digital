@@ -155,6 +155,49 @@ export const WATERFRONT_VIEW_OPTIONS = [
   { id: 'unknown', label: 'Unknown' }
 ];
 
+export const CONSTRUCTION_TYPE_OPTIONS = [
+  { id: 'cbs', label: 'CBS / Masonry' },
+  { id: 'wood_frame', label: 'Wood frame' },
+  { id: 'other', label: 'Other' },
+  { id: 'unknown', label: 'Unknown' }
+];
+
+export function normalizeConstructionType(raw) {
+  if (raw == null) return 'unknown';
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s === 'unknown') return 'unknown';
+  if (s === 'cbs' || s.includes('cbs') || s.includes('masonry') || s.includes('concrete') || s === 'block') return 'cbs';
+  if (s === 'wood_frame' || s === 'wood' || s.includes('wood') || s.includes('frame')) return 'wood_frame';
+  if (s === 'other' || s.includes('steel') || s.includes('metal') || s.includes('manufactured')) return 'other';
+  return 'unknown';
+}
+
+export function mapConstClassToConstructionType(constClass) {
+  const code = constClass != null ? String(constClass).trim() : '';
+  if (code === '2' || code === '3') return 'cbs';
+  if (code === '4') return 'wood_frame';
+  if (code === '1' || code === '5') return 'other';
+  return 'unknown';
+}
+
+export function formatConstructionTypeLabel(constructionType) {
+  const key = normalizeConstructionType(constructionType);
+  const found = CONSTRUCTION_TYPE_OPTIONS.find((o) => o.id === key);
+  return found ? found.label : 'Unknown';
+}
+
+export function formatBoatDockLabel(details = {}) {
+  const hasDock = details?.boat_dock;
+  const dockSqft = details?.boat_dock_sqft != null && Number(details.boat_dock_sqft) > 0
+    ? Math.round(Number(details.boat_dock_sqft))
+    : null;
+  if (hasDock === true) {
+    return dockSqft ? `Boat dock (${dockSqft.toLocaleString()} sf)` : 'Boat dock';
+  }
+  if (hasDock === false) return 'No dock';
+  return null;
+}
+
 export const DETAIL_SOURCE_OPTIONS = [
   { id: 'MLS', label: 'MLS' },
   { id: 'listing_photos', label: 'Listing photos' },
@@ -264,15 +307,30 @@ export function splitBathsToFullAndHalf(bathsVal, explicitFull = null, explicitH
   };
 }
 
+function unwrapJsonObj(val) {
+  let cur = val;
+  for (let i = 0; i < 4 && typeof cur === 'string'; i++) {
+    const trimmed = cur.trim();
+    if (!trimmed) return {};
+    try {
+      cur = JSON.parse(trimmed);
+    } catch {
+      return {};
+    }
+  }
+  return cur && typeof cur === 'object' && !Array.isArray(cur) ? cur : {};
+}
+
 /**
  * Normalizes a raw details object or comp entity into the canonical Comp/Subject Details shape.
  * Never infers impact windows or roof age from year_built.
  */
 export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBooleansAsUnknown = false } = {}) {
-  const src = raw && typeof raw === 'object' ? raw : {};
-  const nested = src.comp_details_json && typeof src.comp_details_json === 'object'
-    ? src.comp_details_json
-    : (src.comp_details && typeof src.comp_details === 'object' ? src.comp_details : {});
+  const src = raw && typeof raw === 'object' ? raw : unwrapJsonObj(raw);
+  const parsedNested = unwrapJsonObj(src.comp_details_json);
+  const nested = Object.keys(parsedNested).length > 0
+    ? parsedNested
+    : unwrapJsonObj(src.comp_details);
 
   const pick = (key) => (nested[key] !== undefined ? nested[key] : src[key]);
 
@@ -360,8 +418,20 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     else waterfront_view = 'unknown';
   }
 
+  // Boat dock (Y/N + optional sf)
+  const rawBoatDock = parseTriBoolean(pick('boat_dock'));
+  const rawBoatDockSqft = parseNullableNumber(pick('boat_dock_sqft'), { integer: true, min: 0, max: 50000 });
+  const boat_dock = rawBoatDock !== null ? rawBoatDock : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? true : null);
+  const boat_dock_sqft = boat_dock === false ? null : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? rawBoatDockSqft : null);
+
+  // Construction (CBS / wood frame / other / unknown)
+  const construction_type = normalizeConstructionType(pick('construction_type'));
+
   const rawNotes = pick('notes');
   const notes = rawNotes != null && String(rawNotes).trim() !== '' ? String(rawNotes).trim() : '';
+
+  const rawHoaName = pick('hoa_name');
+  const hoa_name = rawHoaName != null && String(rawHoaName).trim() !== '' ? String(rawHoaName).trim() : '';
 
   const rawSource = pick('detail_source') ?? pick('source');
   const sourceStr = rawSource != null ? String(rawSource).trim() : '';
@@ -386,6 +456,10 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     garage_type,
     garage_bays,
     waterfront_view,
+    boat_dock,
+    boat_dock_sqft,
+    construction_type,
+    hoa_name,
     notes,
     source,
     verified
@@ -428,6 +502,10 @@ export function detailsToLegacyColumns(details = {}) {
     pool: poolBool,
     garage: garageBool,
     waterfront: waterfrontBool,
+    boat_dock: norm.boat_dock,
+    boat_dock_sqft: norm.boat_dock_sqft,
+    construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
+    hoa_name: norm.hoa_name || null,
     comp_details_json: norm
   };
 }
@@ -620,6 +698,17 @@ export function buildCountyHintSuggestions(currentDetails = {}, countyClues = {}
     });
   }
 
+  if (countyClues?.constClassCode && norm.construction_type === 'unknown') {
+    const mappedConst = mapConstClassToConstructionType(countyClues.constClassCode);
+    if (mappedConst !== 'unknown') {
+      suggestions.construction_type = mappedConst;
+      appliedHints.push({
+        field: 'construction_type',
+        label: `Construction → ${formatConstructionTypeLabel(mappedConst)} from county roll (${countyClues.constClassLabel || countyClues.constClassCode})`
+      });
+    }
+  }
+
   if (appliedHints.length > 0) {
     suggestions.source = norm.source || 'county_hint';
     suggestions.verified = false;
@@ -669,6 +758,10 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         garage_type: savedRow.garage_type,
         garage_bays: savedRow.garage_bays,
         waterfront_view: savedRow.waterfront_view,
+        boat_dock: savedRow.boat_dock !== undefined ? savedRow.boat_dock : comp.boat_dock,
+        boat_dock_sqft: savedRow.boat_dock_sqft !== undefined ? savedRow.boat_dock_sqft : comp.boat_dock_sqft,
+        construction_type: savedRow.construction_type !== undefined ? savedRow.construction_type : comp.construction_type,
+        hoa_name: savedRow.hoa_name ?? comp.hoa_name ?? '',
         notes: savedRow.notes ?? comp.notes,
         source: savedRow.source ?? comp.source,
         verified: savedRow.verified
@@ -686,7 +779,13 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
   return {
     ...comp,
     ...legacyCols,
+    hoa_name: normalizedDetails.hoa_name || savedRow?.hoa_name || comp.hoa_name || null,
     notes: normalizedDetails.notes || comp.notes || null,
+    s_legal: countyParcel?.s_legal ?? comp.s_legal ?? null,
+    subdivision_name: countyParcel?.subdivision_name ?? comp.subdivision_name ?? null,
+    subdivision_code: countyParcel?.subdivision_code ?? comp.subdivision_code ?? null,
+    nbrhd_cd: countyParcel?.nbrhd_cd ?? comp.nbrhd_cd ?? null,
+    mkt_ar: countyParcel?.mkt_ar ?? comp.mkt_ar ?? null,
     eff_year_built: cluesSource.eff_year_built,
     spec_feat_val: cluesSource.spec_feat_val,
     units: cluesSource.units,
@@ -702,20 +801,14 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
  * Falls back cleanly to top-level property fields when subject_details hasn't been customized yet.
  */
 export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
-  const subjectDetailsObj = subject?.subject_details && typeof subject.subject_details === 'object'
-    ? subject.subject_details
-    : {};
+  const subjectDetailsObj = unwrapJsonObj(subject?.subject_details);
 
-  const asIsRaw = subjectDetailsObj.as_is && typeof subjectDetailsObj.as_is === 'object'
-    ? subjectDetailsObj.as_is
-    : null;
-  const afterRehabRaw = subjectDetailsObj.after_rehab && typeof subjectDetailsObj.after_rehab === 'object'
-    ? subjectDetailsObj.after_rehab
-    : null;
+  const parsedAsIs = unwrapJsonObj(subjectDetailsObj.as_is);
+  const asIsRaw = Object.keys(parsedAsIs).length > 0 ? parsedAsIs : null;
+  const parsedAfterRehab = unwrapJsonObj(subjectDetailsObj.after_rehab);
+  const afterRehabRaw = Object.keys(parsedAfterRehab).length > 0 ? parsedAfterRehab : null;
 
-  const liveOverrides = subject?.appraisal_overrides && typeof subject.appraisal_overrides === 'object'
-    ? subject.appraisal_overrides
-    : {};
+  const liveOverrides = unwrapJsonObj(subject?.appraisal_overrides);
 
   // Base fallback from top-level subject columns
   const baseAsIs = normalizeCompDetails({
@@ -735,6 +828,10 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     garage_bays: subject?.garage_bays,
     waterfront: subject?.waterfront,
     waterfront_view: subject?.waterfront_view,
+    boat_dock: subject?.boat_dock,
+    boat_dock_sqft: subject?.boat_dock_sqft,
+    construction_type: subject?.construction_type,
+    hoa_name: subject?.hoa_name,
     notes: subject?.notes,
     ...(asIsRaw || {}),
     ...(mode !== 'arv' ? liveOverrides : {})

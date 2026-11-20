@@ -84,8 +84,8 @@ export default async function handler(req, res) {
           ${cleanEmail},
           ${property_id},
           ${cleanStrategy},
-          ${JSON.stringify(safeInputs)}::jsonb,
-          ${JSON.stringify(safeResults)}::jsonb
+          ${sql.json(safeInputs)},
+          ${sql.json(safeResults)}
         )
         RETURNING id, owner_email, property_id, strategy, inputs, results, created_at
       `;

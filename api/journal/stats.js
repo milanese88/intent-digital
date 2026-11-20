@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
       await sql`
         UPDATE admin_user 
-        SET journal_metadata = ${JSON.stringify(metadata)}
+        SET journal_metadata = ${sql.json(metadata)}
         WHERE id = ${user.id}
       `;
 

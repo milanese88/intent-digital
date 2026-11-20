@@ -32,7 +32,9 @@ const GRID_ROWS = [
   { key: 'roof', label: 'Roof', sub: 'Material & roof year' },
   { key: 'pool', label: 'Pool & Outdoor', sub: 'Standard / resort · screen' },
   { key: 'garage', label: 'Garage & Parking', sub: 'Bays / carport / converted' },
-  { key: 'location_site', label: 'Waterfront & View', sub: 'Water / view & lot sf' }
+  { key: 'location_subdivision', label: 'Location', sub: 'Same subdivision / Different' },
+  { key: 'location_site', label: 'Waterfront & View', sub: 'Canal / lake / golf / dry lot' },
+  { key: 'lot_size', label: 'Lot Size', sub: 'Site area differential' }
 ];
 
 export default function AppraisalGridSection({
@@ -310,23 +312,30 @@ export default function AppraisalGridSection({
         );
       case 'roof':
         return (
-          <button
-            type="button"
-            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-            title="Click to edit Subject roof type & roof year"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: onOpenEditSubject ? 'pointer' : 'default'
-            }}
-          >
-            {subjectSummary.roofLabel || 'Unknown'}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+              title="Click to edit Subject roof & construction"
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: onOpenEditSubject ? 'pointer' : 'default'
+              }}
+            >
+              {subjectSummary.roofLabel || 'Unknown'}
+            </button>
+            {subjectSummary.constructionLabel && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                Const: {subjectSummary.constructionLabel}
+              </span>
+            )}
+          </span>
         );
       case 'pool':
         return (
@@ -383,31 +392,80 @@ export default function AppraisalGridSection({
           </button>
         );
       }
+      case 'location_subdivision':
+        return (
+          <span>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 9px',
+                borderRadius: '999px',
+                backgroundColor: subjectSummary.subdivisionName
+                  ? 'rgba(189, 211, 226, 0.24)'
+                  : 'rgba(250, 248, 245, 0.1)',
+                border: subjectSummary.subdivisionName
+                  ? '1px solid rgba(189, 211, 226, 0.5)'
+                  : '1px solid rgba(250, 248, 245, 0.22)',
+                color: '#FAF8F5',
+                fontSize: '11px',
+                fontWeight: 600
+              }}
+            >
+              {subjectSummary.locationSubdivisionLabel || 'Not set'}
+            </span>
+            {subjectSummary.nbrhdCd && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                Nbrhd {subjectSummary.nbrhdCd}
+              </span>
+            )}
+            {subjectSummary.hoaName && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '2px' }}>
+                HOA: {subjectSummary.hoaName}
+              </span>
+            )}
+          </span>
+        );
       case 'location_site':
         return (
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenEditSubject) {
-                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
-              } else if (onSubjectOverrideChange) {
-                onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
-              }
-            }}
-            title="Click to edit Subject waterfront & view"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {subjectSummary.locationSiteLabel}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenEditSubject) {
+                  onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+                } else if (onSubjectOverrideChange) {
+                  onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
+                }
+              }}
+              title="Click to edit Subject waterfront, view & boat dock"
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {subjectSummary.locationSiteLabel}
+            </button>
+            {subjectSummary.boatDockLabel && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                {subjectSummary.boatDockLabel}
+              </span>
+            )}
+          </span>
+        );
+      case 'lot_size':
+        return (
+          <span>
+            {subjectSummary.lotSizeLabel || 'Add lot sf'}
+            <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.65)' }}>
+              @${effectiveRates.lotSqftRate}/sf · &plusmn;{(effectiveRates.lotMinThreshold || 1000).toLocaleString()} sf
+            </span>
+          </span>
         );
       default:
         return '—';
@@ -614,7 +672,7 @@ export default function AppraisalGridSection({
                 margin: '0 0 18px 0'
               }}
             >
-              Pick verified Palm Beach &amp; Broward sales in the Value &amp; Comps tab, or add an MLS sale manually.
+              Pick verified Broward, Palm Beach &amp; Martin sales in the Value &amp; Comps tab, or add an MLS sale manually.
             </p>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
               {onGoToCompsTab && (
@@ -944,6 +1002,21 @@ export default function AppraisalGridSection({
                           >
                             {(COMP_CONDITIONS[condKey] || COMP_CONDITIONS.unknown).shortLabel} &#8635;
                           </button>
+
+                          {/* Size mismatch (>±20%) warning pill */}
+                          {comp.isPoorSizeComp && comp.sizeFlagLabel && (
+                            <Pill
+                              variant="negative"
+                              size="sm"
+                              title={`Comp (${comp.compSqft.toLocaleString()} sf) differs ${comp.sizeDiffPct}% from ${subjectSummary.sqft.toLocaleString()} sf subject (>±20%). Weight reduced — switch comps filter to ±20% & wider radius.`}
+                              style={{
+                                textTransform: 'none',
+                                fontWeight: 700
+                              }}
+                            >
+                              {comp.sizeFlagLabel}
+                            </Pill>
+                          )}
 
                           {/* $/sf Outlier chip (burgundy outline, OFF by default) */}
                           {comp.isOutlier && (
@@ -1400,16 +1473,40 @@ export default function AppraisalGridSection({
                 {/* Summary Row 4: WEIGHT */}
                 <tr>
                   <td
+                    title={grid.weightFormulaSummary || 'Weight falls with higher gross adjustment %, >±20% size mismatch, older sale date, unverified status, and missing details.'}
                     style={{
                       padding: '12px 18px',
                       backgroundColor: 'var(--beige, #F2EFEA)',
                       borderRight: '1px solid var(--border)',
                       fontSize: '12px',
                       fontWeight: 700,
-                      color: 'var(--espresso)'
+                      color: 'var(--espresso)',
+                      cursor: 'help'
                     }}
                   >
-                    Weight
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <span>Weight</span>
+                      <span
+                        aria-label="Weight formula details"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '15px',
+                          height: '15px',
+                          borderRadius: '50%',
+                          border: '1px solid rgba(52, 41, 42, 0.35)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: 'var(--muted)'
+                        }}
+                      >
+                        i
+                      </span>
+                    </span>
+                    <span style={{ display: 'block', fontSize: '10px', fontWeight: 500, color: 'var(--muted)' }}>
+                      Hover for formula
+                    </span>
                   </td>
                   <td
                     style={{
@@ -1423,47 +1520,72 @@ export default function AppraisalGridSection({
                   >
                     &sum; w = {usedComps.length > 0 ? `${weightValidation.sumPct.toFixed(1)}%` : '0%'}
                   </td>
-                  {comps.map((comp) => (
-                    <td
-                      key={comp.id}
-                      style={{
-                        padding: '12px 16px',
-                        backgroundColor: comp.isUsed ? 'rgba(247, 243, 238, 0.45)' : 'rgba(242, 239, 234, 0.5)',
-                        borderLeft: '1px solid var(--border)',
-                        opacity: comp.isUsed ? 1 : 0.55
-                      }}
-                    >
-                      {comp.isUsed ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--burgundy)', minWidth: '42px' }}>
-                            {comp.weightPct.toFixed(1)}%
-                          </span>
-                          <div
-                            style={{
-                              flex: 1,
-                              height: '6px',
-                              borderRadius: '999px',
-                              backgroundColor: 'rgba(30, 21, 9, 0.08)',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: '100%',
-                                width: `${Math.min(100, comp.weightPct)}%`,
-                                backgroundColor: 'var(--burgundy)',
-                                borderRadius: '999px'
-                              }}
-                            />
+                  {comps.map((comp) => {
+                    const topPenaltyReasons = (comp.weightReasons || []).slice(0, 2);
+                    const showPenaltyNote = comp.isUsed && (comp.isHighGross || comp.isPoorSizeComp || comp.isOlderThan6Months);
+                    return (
+                      <td
+                        key={comp.id}
+                        title={comp.weightTooltip || grid.weightFormulaSummary || ''}
+                        style={{
+                          padding: '12px 16px',
+                          backgroundColor: comp.isUsed ? 'rgba(247, 243, 238, 0.45)' : 'rgba(242, 239, 234, 0.5)',
+                          borderLeft: '1px solid var(--border)',
+                          opacity: comp.isUsed ? 1 : 0.55,
+                          cursor: comp.isUsed ? 'help' : 'default'
+                        }}
+                      >
+                        {comp.isUsed ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--burgundy)', minWidth: '42px' }}>
+                                {comp.weightPct.toFixed(1)}%
+                              </span>
+                              <div
+                                style={{
+                                  flex: 1,
+                                  height: '6px',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'rgba(30, 21, 9, 0.08)',
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    height: '100%',
+                                    width: `${Math.min(100, comp.weightPct)}%`,
+                                    backgroundColor: comp.isHighGross || comp.isPoorSizeComp
+                                      ? 'rgba(138, 42, 30, 0.55)'
+                                      : 'var(--burgundy)',
+                                    borderRadius: '999px'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            {showPenaltyNote && topPenaltyReasons.length > 0 && (
+                              <div
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 600,
+                                  color: comp.isHighGross || comp.isPoorSizeComp
+                                    ? 'var(--negative, #8A2A1E)'
+                                    : 'var(--muted)',
+                                  marginTop: '4px',
+                                  lineHeight: 1.3
+                                }}
+                              >
+                                Reduced: {topPenaltyReasons.join(' · ')}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                          OFF · 0%
-                        </span>
-                      )}
-                    </td>
-                  ))}
+                        ) : (
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                            OFF · 0%
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               </tbody>
             </table>
@@ -1704,6 +1826,7 @@ export default function AppraisalGridSection({
                   return (
                     <div
                       key={comp.id}
+                      title={comp.weightTooltip || grid.weightFormulaSummary || ''}
                       style={{
                         padding: '10px 12px',
                         borderRadius: '12px',
@@ -1770,9 +1893,9 @@ export default function AppraisalGridSection({
                         <span>
                           {comp.distanceMi} mi · {comp.monthsSinceSale} mo · {comp.grossAdjustmentPct.toFixed(1)}% gross
                         </span>
-                        {comp.isOlderThan6Months && (
-                          <span style={{ color: 'var(--burgundy, #41101B)', fontWeight: 600 }}>
-                            Weight reduced (&gt;6 mo)
+                        {(comp.weightReasons && comp.weightReasons.length > 0) && (
+                          <span style={{ color: comp.isHighGross || comp.isPoorSizeComp ? 'var(--negative, #8A2A1E)' : 'var(--burgundy, #41101B)', fontWeight: 600 }}>
+                            {comp.weightReasons.slice(0, 2).join(' · ')}
                           </span>
                         )}
                       </div>
@@ -1932,6 +2055,25 @@ export default function AppraisalGridSection({
                       <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.35, marginTop: '2px' }}>
                         {chk.detail}
                       </div>
+                      {chk.id === 'size_similarity' && chk.status !== 'pass' && onGoToCompsTab && (
+                        <button
+                          type="button"
+                          onClick={onGoToCompsTab}
+                          style={{
+                            marginTop: '5px',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: 'var(--burgundy, #41101B)',
+                            textDecoration: 'underline',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Switch comps filter to &plusmn;20% &amp; wider radius &rarr;
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
