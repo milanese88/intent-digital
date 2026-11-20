@@ -6,6 +6,7 @@ import {
   CONDITION_QUICK_PICKS,
   UAD_CONDITION_OPTIONS,
   ROOF_TYPE_OPTIONS,
+  CONSTRUCTION_TYPE_OPTIONS,
   WINDOW_OPTIONS,
   POOL_OPTIONS,
   GARAGE_OPTIONS,
@@ -171,7 +172,7 @@ export default function CompDetailsDrawer({
         spec_feat_val: subjectCountyData?.spec_feat_val ?? null,
         units: subjectCountyData?.units ?? subjectProperty?.units ?? null,
         imp_qual: subjectCountyData?.imp_qual ?? null,
-        const_class: subjectCountyData?.const_class ?? null
+        const_class: subjectCountyData?.const_class ?? subjectProperty?.const_class ?? null
       });
     }
     if (editingComp?.county_clues) {
@@ -303,9 +304,17 @@ export default function CompDetailsDrawer({
           ...patch
         });
         const otherTabKey = subjectTab === 'as_is' ? 'after_rehab' : 'as_is';
+        const sharedPatch = {};
+        if (patch.hoa_name !== undefined) sharedPatch.hoa_name = patch.hoa_name;
+        if (
+          patch.construction_type !== undefined &&
+          (!prev[otherTabKey]?.construction_type || prev[otherTabKey].construction_type === 'unknown')
+        ) {
+          sharedPatch.construction_type = patch.construction_type;
+        }
         const nextOther =
-          patch.hoa_name !== undefined
-            ? normalizeCompDetails({ ...prev[otherTabKey], hoa_name: patch.hoa_name })
+          Object.keys(sharedPatch).length > 0
+            ? normalizeCompDetails({ ...prev[otherTabKey], ...sharedPatch })
             : prev[otherTabKey];
         return {
           ...prev,
@@ -343,6 +352,7 @@ export default function CompDetailsDrawer({
     const resetPatch = {};
     if (hintSuggestedFields.condition) resetPatch.condition = 'unknown';
     if (hintSuggestedFields.pool_type) resetPatch.pool_type = 'unknown';
+    if (hintSuggestedFields.construction_type) resetPatch.construction_type = 'unknown';
     if (hintSuggestedFields.beds !== undefined) resetPatch.beds = null;
     if (hintSuggestedFields.full_baths !== undefined) {
       resetPatch.full_baths = null;
@@ -462,6 +472,9 @@ export default function CompDetailsDrawer({
       pool: legacy.pool,
       garage: legacy.garage,
       waterfront: legacy.waterfront,
+      boat_dock: legacy.boat_dock,
+      boat_dock_sqft: legacy.boat_dock_sqft,
+      construction_type: legacy.construction_type,
       hoa_name: legacy.hoa_name,
       notes: compDetails.notes ? compDetails.notes.trim() : null,
       source: compDetails.source || editingComp?.source || 'MLS',
@@ -553,7 +566,7 @@ export default function CompDetailsDrawer({
                   {subjectProperty.address}
                 </div>
               )}
-              {(saleMonthBadge || activeSubdivisionName || activeDetails.hoa_name) && (
+              {(saleMonthBadge || activeSubdivisionName || activeNbrhdCd || activeDetails.hoa_name) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                   {activeSubdivisionName && (
                     <span
@@ -569,6 +582,22 @@ export default function CompDetailsDrawer({
                       }}
                     >
                       {activeSubdivisionName}
+                    </span>
+                  )}
+                  {activeNbrhdCd && (
+                    <span
+                      title="County Property Appraiser neighborhood code (NBRHD_CD)"
+                      style={{
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        padding: '2px 9px',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                        border: '1px solid rgba(133, 157, 206, 0.5)',
+                        color: '#34292A'
+                      }}
+                    >
+                      Nbrhd {activeNbrhdCd}
                     </span>
                   )}
                   {activeDetails.hoa_name && (
@@ -1131,9 +1160,21 @@ export default function CompDetailsDrawer({
               </div>
             </div>
 
-            {/* 3. ROOF & WINDOWS */}
+            {/* 3. ROOF, CONSTRUCTION & WINDOWS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <span className="investor-section-header">ROOF &amp; STORM PROTECTION</span>
+              <span className="investor-section-header">ROOF, CONSTRUCTION &amp; STORM PROTECTION</span>
+
+              <div>
+                <label className="investor-form-label">
+                  Construction {hintSuggestedFields.construction_type ? '(Suggested from county hint)' : ''}
+                </label>
+                <ChoiceChipGroup
+                  options={CONSTRUCTION_TYPE_OPTIONS}
+                  value={activeDetails.construction_type || 'unknown'}
+                  suggestedValue={hintSuggestedFields.construction_type || null}
+                  onChange={(id) => updateActiveDetails({ construction_type: id })}
+                />
+              </div>
 
               <div className="investor-form-grid-2" style={{ alignItems: 'start' }}>
                 <div>
@@ -1234,6 +1275,49 @@ export default function CompDetailsDrawer({
                   value={activeDetails.waterfront_view}
                   onChange={(id) => updateActiveDetails({ waterfront_view: id })}
                 />
+              </div>
+
+              <div className="investor-form-grid-2" style={{ alignItems: 'start' }}>
+                <div>
+                  <label className="investor-form-label">Boat dock</label>
+                  <SegmentedControl
+                    size="sm"
+                    options={[
+                      { id: 'yes', label: 'Yes' },
+                      { id: 'no', label: 'No' },
+                      { id: 'unknown', label: 'Unknown' }
+                    ]}
+                    value={triBoolToSeg(activeDetails.boat_dock)}
+                    onChange={(seg) => {
+                      const nextDock = segToTriBool(seg);
+                      updateActiveDetails({
+                        boat_dock: nextDock,
+                        ...(nextDock !== true ? { boat_dock_sqft: null } : {})
+                      });
+                    }}
+                  />
+                </div>
+                {activeDetails.boat_dock === true && (
+                  <div>
+                    <label className="investor-form-label" htmlFor="detail-boat-dock-sqft">
+                      Dock area (sf) <span style={{ fontWeight: 400, opacity: 0.65 }}>(optional)</span>
+                    </label>
+                    <FormattedNumberInput
+                      id="detail-boat-dock-sqft"
+                      value={activeDetails.boat_dock_sqft != null ? String(activeDetails.boat_dock_sqft) : ''}
+                      onChange={(val) =>
+                        updateActiveDetails({
+                          boat_dock: true,
+                          boat_dock_sqft: val === '' ? null : val
+                        })
+                      }
+                      allowDecimal={false}
+                      formatOnBlur={true}
+                      placeholder="e.g. 350"
+                      className="investor-form-input"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>

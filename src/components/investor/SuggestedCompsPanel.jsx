@@ -10,7 +10,12 @@ import {
   getNextMonthsExpansion,
   getNextRadiusExpansion
 } from './compSearchLogic.js';
-import { formatCountyClues, detailsToLegacyColumns } from './compDetailsModel.js';
+import {
+  formatCountyClues,
+  detailsToLegacyColumns,
+  formatBoatDockLabel,
+  formatConstructionTypeLabel
+} from './compDetailsModel.js';
 import { normalizeCountyName, resolvePropertyCounty } from '../../config/counties.js';
 
 const MONTH_OPTIONS = [
@@ -250,6 +255,9 @@ export default function SuggestedCompsPanel({
         source: savedDetails?.source || 'Property appraiser',
         notes: savedDetails?.notes || null,
         ...prefilledColumns,
+        boat_dock: prefilledColumns.boat_dock !== undefined ? prefilledColumns.boat_dock : (candidate.boat_dock ?? null),
+        boat_dock_sqft: prefilledColumns.boat_dock_sqft ?? candidate.boat_dock_sqft ?? null,
+        construction_type: prefilledColumns.construction_type || candidate.construction_type || null,
         hoa_name: prefilledColumns.hoa_name || candidate.hoa_name || null,
         included: isOutlier ? false : true,
         is_outlier: isOutlier,
@@ -538,15 +546,15 @@ export default function SuggestedCompsPanel({
                   HOA: {subjectHoaName}
                 </Pill>
               )}
-              {subjectNbrhdCd && !subjectSubdivisionName && (
+              {subjectNbrhdCd && (
                 <Pill
                   variant="neutral"
                   size="sm"
-                  title="County Property Appraiser neighborhood code"
+                  title="County Property Appraiser neighborhood code (NBRHD_CD)"
                   style={{
-                    backgroundColor: '#FAF8F5',
-                    border: '1px solid rgba(52, 41, 42, 0.16)',
-                    color: 'rgba(52, 41, 42, 0.78)',
+                    backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                    border: '1px solid rgba(133, 157, 206, 0.5)',
+                    color: '#34292A',
                     textTransform: 'none',
                     fontWeight: 600
                   }}
@@ -986,6 +994,38 @@ export default function SuggestedCompsPanel({
                       </Pill>
                     )}
 
+                    {/* Neighborhood code chip (NBRHD_CD — highlighted when same neighborhood code as subject) */}
+                    {c.nbrhd_cd && (
+                      <Pill
+                        variant="neutral"
+                        size="sm"
+                        title={
+                          c.same_neighborhood
+                            ? `Same county appraiser neighborhood code (${c.nbrhd_cd})`
+                            : `County appraiser neighborhood code: ${c.nbrhd_cd}`
+                        }
+                        style={
+                          c.same_neighborhood
+                            ? {
+                                backgroundColor: 'rgba(189, 211, 226, 0.42)',
+                                border: '1px solid #859DCE',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 700
+                              }
+                            : {
+                                backgroundColor: '#ffffff',
+                                border: '1px solid rgba(52, 41, 42, 0.14)',
+                                color: 'rgba(52, 41, 42, 0.74)',
+                                textTransform: 'none',
+                                fontWeight: 500
+                              }
+                        }
+                      >
+                        {c.same_neighborhood ? `✓ Nbrhd ${c.nbrhd_cd}` : `Nbrhd ${c.nbrhd_cd}`}
+                      </Pill>
+                    )}
+
                     {/* HOA / Association name chip shown right next to subdivision when known */}
                     {(c.hoa_name || c.saved_comp_details?.hoa_name) && (
                       <Pill
@@ -1003,6 +1043,53 @@ export default function SuggestedCompsPanel({
                         HOA: {c.hoa_name || c.saved_comp_details?.hoa_name}
                       </Pill>
                     )}
+
+                    {/* Saved Construction & Boat Dock chips when known */}
+                    {(() => {
+                      const savedConst = formatConstructionTypeLabel(
+                        c.construction_type || c.saved_comp_details?.construction_type
+                      );
+                      const savedDock = formatBoatDockLabel({
+                        boat_dock: c.boat_dock ?? c.saved_comp_details?.boat_dock,
+                        boat_dock_sqft: c.boat_dock_sqft ?? c.saved_comp_details?.boat_dock_sqft
+                      });
+                      return (
+                        <>
+                          {savedConst && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title="Confirmed construction type from saved comp details"
+                              style={{
+                                backgroundColor: '#FAF8F5',
+                                border: '1px solid rgba(52, 41, 42, 0.16)',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {savedConst}
+                            </Pill>
+                          )}
+                          {savedDock && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title="Boat dock from saved comp details"
+                              style={{
+                                backgroundColor: 'rgba(189, 211, 226, 0.28)',
+                                border: '1px solid rgba(133, 157, 206, 0.45)',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {savedDock}
+                            </Pill>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* Sold Date + Age ("Sold Jul 2026 · 4 mo ago") */}
                     <span
@@ -1103,6 +1190,22 @@ export default function SuggestedCompsPanel({
                               }}
                             >
                               {clues.unitsLabel}
+                            </Pill>
+                          )}
+                          {clues.constClassLabel && !(c.construction_type || c.saved_comp_details?.construction_type) && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title="DOR CONST_CLASS hint (confirm in Edit)"
+                              style={{
+                                backgroundColor: '#ffffff',
+                                border: '1px solid rgba(52, 41, 42, 0.14)',
+                                color: 'rgba(52, 41, 42, 0.75)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {clues.constClassLabel}
                             </Pill>
                           )}
                         </>

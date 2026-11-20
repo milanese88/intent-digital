@@ -312,23 +312,30 @@ export default function AppraisalGridSection({
         );
       case 'roof':
         return (
-          <button
-            type="button"
-            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-            title="Click to edit Subject roof type & roof year"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: onOpenEditSubject ? 'pointer' : 'default'
-            }}
-          >
-            {subjectSummary.roofLabel || 'Unknown'}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+              title="Click to edit Subject roof & construction"
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: onOpenEditSubject ? 'pointer' : 'default'
+              }}
+            >
+              {subjectSummary.roofLabel || 'Unknown'}
+            </button>
+            {subjectSummary.constructionLabel && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                Const: {subjectSummary.constructionLabel}
+              </span>
+            )}
+          </span>
         );
       case 'pool':
         return (
@@ -406,8 +413,13 @@ export default function AppraisalGridSection({
             >
               {subjectSummary.locationSubdivisionLabel || 'Not set'}
             </span>
-            {subjectSummary.hoaName && (
+            {subjectSummary.nbrhdCd && (
               <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                Nbrhd {subjectSummary.nbrhdCd}
+              </span>
+            )}
+            {subjectSummary.hoaName && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '2px' }}>
                 HOA: {subjectSummary.hoaName}
               </span>
             )}
@@ -415,29 +427,36 @@ export default function AppraisalGridSection({
         );
       case 'location_site':
         return (
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenEditSubject) {
-                onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
-              } else if (onSubjectOverrideChange) {
-                onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
-              }
-            }}
-            title="Click to edit Subject waterfront & view"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {subjectSummary.locationSiteLabel}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenEditSubject) {
+                  onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is');
+                } else if (onSubjectOverrideChange) {
+                  onSubjectOverrideChange('waterfront', !subjectOverrides.waterfront);
+                }
+              }}
+              title="Click to edit Subject waterfront, view & boat dock"
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {subjectSummary.locationSiteLabel}
+            </button>
+            {subjectSummary.boatDockLabel && (
+              <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)', marginTop: '3px' }}>
+                {subjectSummary.boatDockLabel}
+              </span>
+            )}
+          </span>
         );
       case 'lot_size':
         return (

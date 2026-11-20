@@ -64,6 +64,9 @@ const STRUCTURED_DETAIL_KEYS = [
   'garage_type',
   'garage_bays',
   'waterfront_view',
+  'boat_dock',
+  'boat_dock_sqft',
+  'construction_type',
   'hoa_name',
   'verified'
 ];
@@ -161,6 +164,12 @@ function validateComp(body, isUpdate = false) {
   let pool = parseNullableBool(body.pool);
   let garage = parseNullableBool(body.garage);
   let waterfront = parseNullableBool(body.waterfront);
+  let boat_dock = parseNullableBool(body.boat_dock !== undefined ? body.boat_dock : body.comp_details_json?.boat_dock);
+  let boat_dock_sqft = parseNumField(body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : body.comp_details_json?.boat_dock_sqft, true);
+  if (boat_dock === false) boat_dock_sqft = null;
+  if (boat_dock === null && boat_dock_sqft != null && boat_dock_sqft > 0) boat_dock = true;
+  const rawConstType = body.construction_type !== undefined ? body.construction_type : body.comp_details_json?.construction_type;
+  let construction_type = rawConstType != null && String(rawConstType).trim() !== '' ? String(rawConstType).trim().toLowerCase() : null;
 
   const rawHoaName =
     body.hoa_name !== undefined
@@ -193,6 +202,9 @@ function validateComp(body, isUpdate = false) {
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type: construction_type ?? 'unknown',
       hoa_name: hoa_name ?? '',
       notes: notes ?? '',
       source: source ?? ''
@@ -204,6 +216,9 @@ function validateComp(body, isUpdate = false) {
     pool = synced.pool;
     garage = synced.garage;
     waterfront = synced.waterfront;
+    boat_dock = synced.boat_dock;
+    boat_dock_sqft = synced.boat_dock_sqft;
+    construction_type = synced.construction_type;
     hoa_name = synced.hoa_name;
     if (normalizedDetails.notes) {
       notes = normalizedDetails.notes;
@@ -231,6 +246,9 @@ function validateComp(body, isUpdate = false) {
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type,
       hoa_name,
       notes,
       adjustments: rawAdjustments,
@@ -621,12 +639,33 @@ export default async function handler(req, res) {
         }
       }
 
-      // Persist reusable comp_details if county folio + filled details / HOA were provided
+      if (rows[0]?.id) {
+        try {
+          await sql`
+            UPDATE investor_comps
+            SET
+              boat_dock = ${data.boat_dock},
+              boat_dock_sqft = ${data.boat_dock_sqft},
+              construction_type = ${data.construction_type}
+            WHERE id = ${rows[0].id} AND lower(owner_email) = ${cleanEmail}
+          `;
+          rows[0].boat_dock = data.boat_dock;
+          rows[0].boat_dock_sqft = data.boat_dock_sqft;
+          rows[0].construction_type = data.construction_type;
+        } catch (extErr) {
+          if (extErr?.code !== '42703') throw extErr;
+        }
+      }
+
+      // Persist reusable comp_details if county folio + filled details / HOA / dock / construction were provided
       if (
         data.parcel_id &&
         data.comp_details_json &&
         (computeDetailsProgress(data.comp_details_json).filledCount > 0 ||
           data.comp_details_json.hoa_name ||
+          data.comp_details_json.boat_dock !== null ||
+          data.comp_details_json.boat_dock_sqft != null ||
+          (data.comp_details_json.construction_type && data.comp_details_json.construction_type !== 'unknown') ||
           data.comp_details_json.notes ||
           data.comp_details_json.verified)
       ) {
@@ -721,6 +760,9 @@ export default async function handler(req, res) {
         pool: body.pool !== undefined ? body.pool : currentComp.pool,
         garage: body.garage !== undefined ? body.garage : currentComp.garage,
         waterfront: body.waterfront !== undefined ? body.waterfront : currentComp.waterfront,
+        boat_dock: body.boat_dock !== undefined ? body.boat_dock : (currentComp.boat_dock ?? currentDetailsJson.boat_dock ?? null),
+        boat_dock_sqft: body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : (currentComp.boat_dock_sqft ?? currentDetailsJson.boat_dock_sqft ?? null),
+        construction_type: body.construction_type !== undefined ? body.construction_type : (currentComp.construction_type ?? currentDetailsJson.construction_type ?? 'unknown'),
         hoa_name: body.hoa_name !== undefined ? body.hoa_name : (currentComp.hoa_name ?? currentDetailsJson.hoa_name ?? null),
         notes: body.notes !== undefined ? body.notes : currentComp.notes,
         is_outlier: body.is_outlier !== undefined ? body.is_outlier : Boolean(currentComp.is_outlier || currentAdj.is_outlier),
@@ -741,6 +783,9 @@ export default async function handler(req, res) {
           ...(body.garage_type !== undefined ? { garage_type: body.garage_type } : {}),
           ...(body.garage_bays !== undefined ? { garage_bays: body.garage_bays } : {}),
           ...(body.waterfront_view !== undefined ? { waterfront_view: body.waterfront_view } : {}),
+          ...(body.boat_dock !== undefined ? { boat_dock: body.boat_dock } : {}),
+          ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft: body.boat_dock_sqft } : {}),
+          ...(body.construction_type !== undefined ? { construction_type: body.construction_type } : {}),
           ...(body.hoa_name !== undefined ? { hoa_name: body.hoa_name } : {}),
           ...(body.verified !== undefined ? { verified: body.verified } : {}),
           ...(body.detail_source !== undefined ? { source: body.detail_source } : {})
@@ -836,6 +881,22 @@ export default async function handler(req, res) {
 
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Comp not found.' });
+      }
+
+      try {
+        await sql`
+          UPDATE investor_comps
+          SET
+            boat_dock = ${data.boat_dock},
+            boat_dock_sqft = ${data.boat_dock_sqft},
+            construction_type = ${data.construction_type}
+          WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+        `;
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
+      } catch (extErr) {
+        if (extErr?.code !== '42703') throw extErr;
       }
 
       // Persist reusable comp_details per county sale (folio + sale month) when edited

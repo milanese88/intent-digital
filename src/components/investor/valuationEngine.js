@@ -23,6 +23,9 @@ import {
   computeDetailsProgress,
   formatCountyClues,
   resolveSubjectDetailsForMode,
+  formatConstructionTypeLabel,
+  formatBoatDockLabel,
+  mapConstClassToConstructionType,
   ROOF_TYPE_OPTIONS,
   WINDOW_OPTIONS,
   WATERFRONT_VIEW_OPTIONS
@@ -732,12 +735,22 @@ export function computeAppraisalGrid({
         rawRoofAdj += roofMaterialContributory(subjectDetails.roof_type) - roofMaterialContributory(compDetails.roof_type);
       }
     }
+    const compConstType =
+      compDetails.construction_type && compDetails.construction_type !== 'unknown'
+        ? compDetails.construction_type
+        : mapConstClassToConstructionType(comp.const_class ?? countyClues?.constClassCode);
+    const compConstructionLabel =
+      compConstType !== 'unknown' ? formatConstructionTypeLabel(compConstType) : null;
+    const roofNote = [
+      !isRoofUnknown && compDetails.roof_year == null ? 'Roof yr not set' : null,
+      compConstructionLabel ? `Const: ${compConstructionLabel}` : null
+    ].filter(Boolean).join(' · ');
     const roofCell = resolveCell(
       'roof',
       rawRoofAdj,
       isRoofUnknown ? 'Unknown' : formatRoofSpecLabel(compDetails),
       {
-        note: !isRoofUnknown && compDetails.roof_year == null ? 'Roof yr not set' : '',
+        note: roofNote,
         needsInfo: isRoofUnknown
       }
     );
@@ -801,7 +814,12 @@ export function computeAppraisalGrid({
         ? 'Different'
         : 'Unknown';
     const compHoa = compDetails.hoa_name || comp.hoa_name || '';
-    const subdivNote = [compLocRef.subdivision_name, compHoa ? `HOA: ${compHoa}` : null]
+    const compNbrhdCd = comp.nbrhd_cd ? String(comp.nbrhd_cd).trim() : null;
+    const subdivNote = [
+      compLocRef.subdivision_name,
+      compNbrhdCd ? `Nbrhd ${compNbrhdCd}` : null,
+      compHoa ? `HOA: ${compHoa}` : null
+    ]
       .filter(Boolean)
       .join(' · ');
     const locationSubdivisionCell = resolveCell(
@@ -816,14 +834,19 @@ export function computeAppraisalGrid({
     const waterAdjPart = (!isWaterfrontUnknown && subjectDetails.waterfront_view !== 'unknown')
       ? waterfrontContributory(subjectDetails.waterfront_view) - waterfrontContributory(compDetails.waterfront_view)
       : 0;
+    const compBoatDockLabel = formatBoatDockLabel(compDetails);
+    const waterfrontNote = [
+      isWaterfrontUnknown
+        ? 'View unknown ($0)'
+        : (subjectDetails.waterfront_view === 'unknown' ? 'Set subject view to adjust' : null),
+      compBoatDockLabel
+    ].filter(Boolean).join(' · ');
     const locationSiteCell = resolveCell(
       'location_site',
       waterAdjPart,
       isWaterfrontUnknown ? 'Unknown' : formatWaterfrontOnlyLabel(compDetails),
       {
-        note: isWaterfrontUnknown
-          ? 'View unknown ($0)'
-          : (subjectDetails.waterfront_view === 'unknown' ? 'Set subject view to adjust' : ''),
+        note: waterfrontNote,
         needsInfo: isWaterfrontUnknown
       }
     );
@@ -961,6 +984,9 @@ export function computeAppraisalGrid({
       detailsProgress,
       countyClues,
       sameSubdivision: sameSubdiv,
+      nbrhdCd: compNbrhdCd,
+      boatDockLabel: compBoatDockLabel,
+      constructionLabel: compConstructionLabel,
       unknownFeatureKeys,
       unknownFeatureCount,
       cells,
@@ -1257,6 +1283,13 @@ export function computeAppraisalGrid({
         : (mode === 'arv' && subjectDetails.condition === 'c2' ? 'Renovated (ARV · C2)' : subjectCondMeta.shortLabel),
       windowsLabel: formatWindowsLabel(subjectDetails.windows),
       roofLabel: formatRoofSpecLabel(subjectDetails),
+      constructionLabel: (() => {
+        const ct =
+          subjectDetails.construction_type && subjectDetails.construction_type !== 'unknown'
+            ? subjectDetails.construction_type
+            : mapConstClassToConstructionType(subject?.const_class);
+        return ct !== 'unknown' ? formatConstructionTypeLabel(ct) : null;
+      })(),
       poolLabel: formatPoolSpecLabel(subjectDetails),
       garageLabel: formatGarageSpecLabel(subjectDetails),
       subdivisionName: subject?.subdivision_name || null,
@@ -1265,6 +1298,7 @@ export function computeAppraisalGrid({
       hoaName: subject?.hoa_name || subjectDetails.hoa_name || null,
       locationSubdivisionLabel: subject?.subdivision_name || 'Not set',
       locationSiteLabel: formatWaterfrontOnlyLabel(subjectDetails),
+      boatDockLabel: formatBoatDockLabel(subjectDetails),
       lotSqft: subjectLotSqft,
       lotSizeLabel: subjectLotSqft > 0 ? `${Math.round(subjectLotSqft).toLocaleString()} sf` : 'Add lot sf',
       detailsProgress: subjectDetailsProgress

@@ -155,6 +155,49 @@ export const WATERFRONT_VIEW_OPTIONS = [
   { id: 'unknown', label: 'Unknown' }
 ];
 
+export const CONSTRUCTION_TYPE_OPTIONS = [
+  { id: 'cbs', label: 'CBS / Masonry' },
+  { id: 'wood_frame', label: 'Wood frame' },
+  { id: 'other', label: 'Other' },
+  { id: 'unknown', label: 'Unknown' }
+];
+
+export function normalizeConstructionType(raw) {
+  if (raw == null) return 'unknown';
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s === 'unknown') return 'unknown';
+  if (s === 'cbs' || s.includes('cbs') || s.includes('masonry') || s.includes('concrete') || s === 'block') return 'cbs';
+  if (s === 'wood_frame' || s === 'wood' || s.includes('wood') || s.includes('frame')) return 'wood_frame';
+  if (s === 'other' || s.includes('steel') || s.includes('metal') || s.includes('manufactured')) return 'other';
+  return 'unknown';
+}
+
+export function mapConstClassToConstructionType(constClass) {
+  const code = constClass != null ? String(constClass).trim() : '';
+  if (code === '2' || code === '3') return 'cbs';
+  if (code === '4') return 'wood_frame';
+  if (code === '1' || code === '5') return 'other';
+  return 'unknown';
+}
+
+export function formatConstructionTypeLabel(constructionType) {
+  const key = normalizeConstructionType(constructionType);
+  const found = CONSTRUCTION_TYPE_OPTIONS.find((o) => o.id === key);
+  return found ? found.label : 'Unknown';
+}
+
+export function formatBoatDockLabel(details = {}) {
+  const hasDock = details?.boat_dock;
+  const dockSqft = details?.boat_dock_sqft != null && Number(details.boat_dock_sqft) > 0
+    ? Math.round(Number(details.boat_dock_sqft))
+    : null;
+  if (hasDock === true) {
+    return dockSqft ? `Boat dock (${dockSqft.toLocaleString()} sf)` : 'Boat dock';
+  }
+  if (hasDock === false) return 'No dock';
+  return null;
+}
+
 export const DETAIL_SOURCE_OPTIONS = [
   { id: 'MLS', label: 'MLS' },
   { id: 'listing_photos', label: 'Listing photos' },
@@ -375,6 +418,15 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     else waterfront_view = 'unknown';
   }
 
+  // Boat dock (Y/N + optional sf)
+  const rawBoatDock = parseTriBoolean(pick('boat_dock'));
+  const rawBoatDockSqft = parseNullableNumber(pick('boat_dock_sqft'), { integer: true, min: 0, max: 50000 });
+  const boat_dock = rawBoatDock !== null ? rawBoatDock : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? true : null);
+  const boat_dock_sqft = boat_dock === false ? null : (rawBoatDockSqft != null && rawBoatDockSqft > 0 ? rawBoatDockSqft : null);
+
+  // Construction (CBS / wood frame / other / unknown)
+  const construction_type = normalizeConstructionType(pick('construction_type'));
+
   const rawNotes = pick('notes');
   const notes = rawNotes != null && String(rawNotes).trim() !== '' ? String(rawNotes).trim() : '';
 
@@ -404,6 +456,9 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     garage_type,
     garage_bays,
     waterfront_view,
+    boat_dock,
+    boat_dock_sqft,
+    construction_type,
     hoa_name,
     notes,
     source,
@@ -447,6 +502,9 @@ export function detailsToLegacyColumns(details = {}) {
     pool: poolBool,
     garage: garageBool,
     waterfront: waterfrontBool,
+    boat_dock: norm.boat_dock,
+    boat_dock_sqft: norm.boat_dock_sqft,
+    construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
     hoa_name: norm.hoa_name || null,
     comp_details_json: norm
   };
@@ -640,6 +698,17 @@ export function buildCountyHintSuggestions(currentDetails = {}, countyClues = {}
     });
   }
 
+  if (countyClues?.constClassCode && norm.construction_type === 'unknown') {
+    const mappedConst = mapConstClassToConstructionType(countyClues.constClassCode);
+    if (mappedConst !== 'unknown') {
+      suggestions.construction_type = mappedConst;
+      appliedHints.push({
+        field: 'construction_type',
+        label: `Construction → ${formatConstructionTypeLabel(mappedConst)} from county roll (${countyClues.constClassLabel || countyClues.constClassCode})`
+      });
+    }
+  }
+
   if (appliedHints.length > 0) {
     suggestions.source = norm.source || 'county_hint';
     suggestions.verified = false;
@@ -689,6 +758,9 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         garage_type: savedRow.garage_type,
         garage_bays: savedRow.garage_bays,
         waterfront_view: savedRow.waterfront_view,
+        boat_dock: savedRow.boat_dock !== undefined ? savedRow.boat_dock : comp.boat_dock,
+        boat_dock_sqft: savedRow.boat_dock_sqft !== undefined ? savedRow.boat_dock_sqft : comp.boat_dock_sqft,
+        construction_type: savedRow.construction_type !== undefined ? savedRow.construction_type : comp.construction_type,
         hoa_name: savedRow.hoa_name ?? comp.hoa_name ?? '',
         notes: savedRow.notes ?? comp.notes,
         source: savedRow.source ?? comp.source,
@@ -756,6 +828,9 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     garage_bays: subject?.garage_bays,
     waterfront: subject?.waterfront,
     waterfront_view: subject?.waterfront_view,
+    boat_dock: subject?.boat_dock,
+    boat_dock_sqft: subject?.boat_dock_sqft,
+    construction_type: subject?.construction_type,
     hoa_name: subject?.hoa_name,
     notes: subject?.notes,
     ...(asIsRaw || {}),

@@ -35,7 +35,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_comp_details_and_nal_clues.sql',
   'add_newsletter_subscribers.sql',
   'add_location_intelligence_tables.sql',
-  'add_subdivision_and_hoa_fields.sql'
+  'add_subdivision_and_hoa_fields.sql',
+  'add_boat_dock_and_construction.sql'
 ];
 
 /**
@@ -199,6 +200,19 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
     ],
     constraintDefs: [
       { table: 'comp_details', includes: 'Martin', label: "comp_details.county allows 'Martin'" }
+    ]
+  },
+  'add_boat_dock_and_construction.sql': {
+    columns: [
+      { table: 'investor_properties', column: 'boat_dock' },
+      { table: 'investor_properties', column: 'boat_dock_sqft' },
+      { table: 'investor_properties', column: 'construction_type' },
+      { table: 'investor_comps', column: 'boat_dock' },
+      { table: 'investor_comps', column: 'boat_dock_sqft' },
+      { table: 'investor_comps', column: 'construction_type' },
+      { table: 'comp_details', column: 'boat_dock' },
+      { table: 'comp_details', column: 'boat_dock_sqft' },
+      { table: 'comp_details', column: 'construction_type' }
     ]
   },
   'add_location_intelligence_tables.sql': {

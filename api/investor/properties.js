@@ -9,10 +9,33 @@ const ALLOWED_STRATEGIES = ['rental', 'flip', 'brrrr', 'live_in'];
 
 function normalizePropertyJsonb(row) {
   if (!row || typeof row !== 'object') return row;
+  const subjectDetails = parseJsonbObject(row.subject_details);
+  const asIs = subjectDetails?.as_is && typeof subjectDetails.as_is === 'object' ? subjectDetails.as_is : {};
   return {
     ...row,
-    subject_details: parseJsonbObject(row.subject_details)
+    subject_details: subjectDetails,
+    boat_dock: row.boat_dock !== undefined ? row.boat_dock : (asIs.boat_dock ?? null),
+    boat_dock_sqft: row.boat_dock_sqft !== undefined ? row.boat_dock_sqft : (asIs.boat_dock_sqft ?? null),
+    construction_type: row.construction_type !== undefined
+      ? row.construction_type
+      : (asIs.construction_type && asIs.construction_type !== 'unknown' ? asIs.construction_type : null)
   };
+}
+
+async function syncPropertyExtraColumns(sql, cleanEmail, id, data) {
+  if (!id) return;
+  try {
+    await sql`
+      UPDATE investor_properties
+      SET
+        boat_dock = ${data.boat_dock},
+        boat_dock_sqft = ${data.boat_dock_sqft},
+        construction_type = ${data.construction_type}
+      WHERE id = ${id} AND lower(owner_email) = ${cleanEmail}
+    `;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+  }
 }
 
 async function attachParcelSubdivisionFields(sql, row) {
@@ -21,7 +44,7 @@ async function attachParcelSubdivisionFields(sql, row) {
   const county = normalized.parcel_county || normalized.county || 'Broward';
   try {
     const pRows = await sql`
-      SELECT s_legal, subdivision_name, subdivision_code, nbrhd_cd, mkt_ar
+      SELECT s_legal, subdivision_name, subdivision_code, nbrhd_cd, mkt_ar, const_class
       FROM county_parcels
       WHERE county = ${county} AND parcel_id = ${normalized.parcel_id}
       LIMIT 1
@@ -33,7 +56,8 @@ async function attachParcelSubdivisionFields(sql, row) {
         subdivision_name: pRows[0].subdivision_name ?? null,
         subdivision_code: pRows[0].subdivision_code ?? null,
         nbrhd_cd: pRows[0].nbrhd_cd ?? null,
-        mkt_ar: pRows[0].mkt_ar ?? null
+        mkt_ar: pRows[0].mkt_ar ?? null,
+        const_class: pRows[0].const_class ?? null
       };
     }
   } catch {
@@ -179,26 +203,85 @@ function validateProperty(body) {
   let garage = parseTriBool(body.garage);
   let waterfront = parseTriBool(body.waterfront);
 
+  let boat_dock = parseTriBool(
+    body.boat_dock !== undefined ? body.boat_dock : body.subject_details?.as_is?.boat_dock
+  );
+  let boat_dock_sqft = parseNumField(
+    body.boat_dock_sqft !== undefined ? body.boat_dock_sqft : body.subject_details?.as_is?.boat_dock_sqft,
+    'boat_dock_sqft',
+    'Boat dock sqft',
+    true
+  );
+  if (boat_dock === false) boat_dock_sqft = null;
+  if (boat_dock === null && boat_dock_sqft != null && boat_dock_sqft > 0) boat_dock = true;
+
+  const rawConstruction =
+    body.construction_type !== undefined
+      ? body.construction_type
+      : body.subject_details?.as_is?.construction_type;
+  const normConstruction = normalizeCompDetails({ construction_type: rawConstruction }).construction_type;
+  let construction_type = normConstruction !== 'unknown' ? normConstruction : null;
+
   let subject_details = {};
   if (body.subject_details && typeof body.subject_details === 'object') {
     const nextSubjectDetails = {};
     if (body.subject_details.as_is && typeof body.subject_details.as_is === 'object') {
       nextSubjectDetails.as_is = normalizeCompDetails({
         ...body.subject_details.as_is,
-        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {})
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {}),
+        ...(body.boat_dock !== undefined ? { boat_dock } : {}),
+        ...(body.boat_dock_sqft !== undefined ? { boat_dock_sqft } : {}),
+        ...(body.construction_type !== undefined ? { construction_type: construction_type ?? 'unknown' } : {})
       });
       const legacy = detailsToLegacyColumns(nextSubjectDetails.as_is);
       if (pool === null && legacy.pool !== null) pool = legacy.pool;
       if (garage === null && legacy.garage !== null) garage = legacy.garage;
       if (waterfront === null && legacy.waterfront !== null) waterfront = legacy.waterfront;
+      if (boat_dock === null && legacy.boat_dock !== null) boat_dock = legacy.boat_dock;
+      if (boat_dock_sqft == null && legacy.boat_dock_sqft != null) boat_dock_sqft = legacy.boat_dock_sqft;
+      if (construction_type == null && legacy.construction_type != null) construction_type = legacy.construction_type;
+    } else if (boat_dock !== null || boat_dock_sqft != null || construction_type != null) {
+      nextSubjectDetails.as_is = normalizeCompDetails({
+        beds,
+        baths,
+        condition: condition || 'c4',
+        roof_year,
+        pool,
+        garage,
+        waterfront,
+        boat_dock,
+        boat_dock_sqft,
+        construction_type: construction_type ?? 'unknown',
+        hoa_name: hoa_name ?? ''
+      });
     }
     if (body.subject_details.after_rehab && typeof body.subject_details.after_rehab === 'object') {
       nextSubjectDetails.after_rehab = normalizeCompDetails({
         ...body.subject_details.after_rehab,
-        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {})
+        ...(body.hoa_name !== undefined ? { hoa_name: hoa_name ?? '' } : {}),
+        ...(body.construction_type !== undefined &&
+          (!body.subject_details.after_rehab.construction_type || body.subject_details.after_rehab.construction_type === 'unknown')
+          ? { construction_type: construction_type ?? 'unknown' }
+          : {})
       });
     }
     subject_details = nextSubjectDetails;
+  } else if (boat_dock !== null || boat_dock_sqft != null || construction_type != null) {
+    subject_details = {
+      as_is: normalizeCompDetails({
+        beds,
+        baths,
+        condition: condition || 'c4',
+        roof_year,
+        pool,
+        garage,
+        waterfront,
+        boat_dock,
+        boat_dock_sqft,
+        construction_type: construction_type ?? 'unknown',
+        hoa_name: hoa_name ?? ''
+      })
+    };
   }
 
   return {
@@ -237,6 +320,9 @@ function validateProperty(body) {
       pool,
       garage,
       waterfront,
+      boat_dock,
+      boat_dock_sqft,
+      construction_type,
       subject_details
     }
   };
@@ -302,6 +388,7 @@ export default async function handler(req, res) {
               cp.subdivision_code,
               cp.nbrhd_cd,
               cp.mkt_ar,
+              cp.const_class,
               p.pool,
               p.garage,
               p.waterfront,
@@ -461,6 +548,7 @@ export default async function handler(req, res) {
             cp.subdivision_code,
             cp.nbrhd_cd,
             cp.mkt_ar,
+            cp.const_class,
             p.pool,
             p.garage,
             p.waterfront,
@@ -703,6 +791,25 @@ export default async function handler(req, res) {
         }
       }
 
+      if (rows[0]?.id) {
+        if (Object.keys(data.subject_details || {}).length > 0) {
+          try {
+            await sql`
+              UPDATE investor_properties
+              SET subject_details = ${sql.json(data.subject_details)}
+              WHERE id = ${rows[0].id} AND lower(owner_email) = ${cleanEmail}
+            `;
+            rows[0].subject_details = data.subject_details;
+          } catch {
+            // ignore if subject_details column pending
+          }
+        }
+        await syncPropertyExtraColumns(sql, cleanEmail, rows[0].id, data);
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
+      }
+
       const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
       return res.status(200).json(enriched);
     }
@@ -859,6 +966,11 @@ export default async function handler(req, res) {
       if (rows.length === 0) {
         return res.status(404).json({ error: 'Property not found.' });
       }
+
+      await syncPropertyExtraColumns(sql, cleanEmail, id, data);
+      rows[0].boat_dock = data.boat_dock;
+      rows[0].boat_dock_sqft = data.boat_dock_sqft;
+      rows[0].construction_type = data.construction_type;
 
       const enriched = await attachParcelSubdivisionFields(sql, rows[0]);
       return res.status(200).json(enriched);
@@ -1038,6 +1150,13 @@ export default async function handler(req, res) {
             rows[0].subject_details = data.subject_details || {};
           }
         }
+      }
+
+      if (rows[0]?.id) {
+        await syncPropertyExtraColumns(sql, cleanEmail, id, data);
+        rows[0].boat_dock = data.boat_dock;
+        rows[0].boat_dock_sqft = data.boat_dock_sqft;
+        rows[0].construction_type = data.construction_type;
       }
 
       const enriched = await attachParcelSubdivisionFields(sql, rows[0]);

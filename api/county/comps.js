@@ -485,6 +485,9 @@ export default async function handler(req, res) {
         return {
           ...cand,
           hoa_name: null,
+          boat_dock: null,
+          boat_dock_sqft: null,
+          construction_type: null,
           saved_comp_details: null,
           details_filled_count: 0,
           details_progress: null
@@ -495,6 +498,9 @@ export default async function handler(req, res) {
       return {
         ...cand,
         hoa_name: norm.hoa_name || savedRow.hoa_name || null,
+        boat_dock: norm.boat_dock,
+        boat_dock_sqft: norm.boat_dock_sqft,
+        construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
         saved_comp_details: norm,
         details_filled_count: progress.filledCount,
         details_progress: progress
