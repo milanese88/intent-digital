@@ -11,6 +11,7 @@ import {
   getNextRadiusExpansion
 } from './compSearchLogic.js';
 import { formatCountyClues, detailsToLegacyColumns } from './compDetailsModel.js';
+import { normalizeCountyName, resolvePropertyCounty } from '../../config/counties.js';
 
 const MONTH_OPTIONS = [
   { id: 3, label: '3 mo' },
@@ -140,7 +141,8 @@ export default function SuggestedCompsPanel({
       setError(null);
 
       try {
-        const county = property.parcel_county || property.county || 'Broward';
+        // Subject county = the linked parcel's county (comps radius itself crosses county lines)
+        const county = normalizeCountyName(property.parcel_county) || resolvePropertyCounty(property) || 'Broward';
         const params = new URLSearchParams({
           county,
           parcel_id: property.parcel_id,
@@ -240,7 +242,7 @@ export default function SuggestedCompsPanel({
           ? { is_outlier: true, outlier_reason: candidate.outlier_reason || null }
           : {},
         parcel_id: candidate.parcel_id,
-        parcel_county: property.parcel_county || property.county || 'Broward'
+        parcel_county: candidate.county || normalizeCountyName(property.parcel_county) || resolvePropertyCounty(property) || 'Broward'
       };
 
       const res = await fetch('/api/investor/comps', {
@@ -277,7 +279,7 @@ export default function SuggestedCompsPanel({
     const candNiceClean = formatNiceAddress(candidate.address).toLowerCase().replace(/[^a-z0-9]/g, '');
 
     return comps.some((c) => {
-      if (c.parcel_id && c.parcel_id === candidate.parcel_id) return true;
+      if (c.parcel_id && c.parcel_id === candidate.parcel_id && (!c.parcel_county || !candidate.county || normalizeCountyName(c.parcel_county) === candidate.county)) return true;
       if (c.address) {
         const compAddressClean = c.address.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (compAddressClean === candAddressClean || compAddressClean === candNiceClean) {
@@ -351,7 +353,7 @@ export default function SuggestedCompsPanel({
     );
   }
 
-  const countyKey = property?.parcel_county || property?.county || 'Broward';
+  const countyKey = resolvePropertyCounty(property) || 'Broward';
   const countyFreshness = freshness?.[countyKey] || null;
 
   const summary = data?.summary || {};
@@ -666,10 +668,12 @@ export default function SuggestedCompsPanel({
             const alreadyAdded = isCandidateAdded(c);
             const isAdding = addingParcelId === c.parcel_id;
             const isOutlier = Boolean(c.is_outlier);
+            const subjectCounty = normalizeCountyName(property?.parcel_county) || resolvePropertyCounty(property);
+            const crossCounty = c.county && subjectCounty && c.county !== subjectCounty;
 
             return (
               <div
-                key={c.parcel_id}
+                key={`${c.county || ''}|${c.parcel_id}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -716,6 +720,24 @@ export default function SuggestedCompsPanel({
                         }}
                       >
                         {c.distance_mi} mi
+                      </Pill>
+                    )}
+
+                    {/* County pill when the comp sits across a county line */}
+                    {crossCounty && (
+                      <Pill
+                        variant="neutral"
+                        size="sm"
+                        title={`Sale recorded by the ${c.county} County Property Appraiser`}
+                        style={{
+                          backgroundColor: 'rgba(189, 211, 226, 0.35)',
+                          border: '1px solid rgba(133, 157, 206, 0.45)',
+                          color: 'var(--espresso, #34292A)',
+                          textTransform: 'none',
+                          fontWeight: 600
+                        }}
+                      >
+                        {c.county}
                       </Pill>
                     )}
 

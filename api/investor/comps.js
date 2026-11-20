@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { normalizeCountyName } from '../../src/config/counties.js';
 import {
   VALID_CONDITIONS,
   normalizeConditionKey,
@@ -317,7 +318,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
         ? row.comp_details_json
         : (adj.comp_details_json && typeof adj.comp_details_json === 'object' ? adj.comp_details_json : {});
 
-    const county = row.parcel_county ? (/palm/i.test(row.parcel_county) ? 'Palm Beach' : 'Broward') : 'Broward';
+    const county = normalizeCountyName(row.parcel_county) || 'Broward';
     const pid = row.parcel_id ? String(row.parcel_id).trim() : '';
     const saleMonthKey = buildSaleMonthKey(
       row.sold_date ? (row.sold_date instanceof Date ? row.sold_date.toISOString() : String(row.sold_date)) : ''

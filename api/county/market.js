@@ -1,6 +1,17 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { getCountyFreshness, formatMonthYear } from './freshness.js';
+import { SUPPORTED_COUNTIES, normalizeCountyName } from '../../src/config/counties.js';
+import { resolveCountyFromPoint } from '../_lib/countyResolver.js';
+
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  if (![lat1, lon1, lat2, lon2].every((v) => Number.isFinite(v))) return Number.POSITIVE_INFINITY;
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export function calculateMedian(numbers) {
   if (!numbers || numbers.length === 0) return null;
@@ -39,7 +50,6 @@ export function mapTypeToUseCode(typeStr) {
  * anchored strictly to the county's last complete month (70% trailing average rule).
  */
 export async function getMarketTrends({ county = 'Broward', zip, type = 'single_family', mode = 'zip', lat = null, lng = null }) {
-  const cleanCounty = /palm/i.test(county) ? 'Palm Beach' : 'Broward';
   const rawZip = String(zip || '').trim();
   const hasCoords = lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng));
   const isOneMile = mode === '1mi' && hasCoords;
@@ -50,6 +60,15 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
 
   const { code: useCode, label: typeLabel } = mapTypeToUseCode(type);
   const sql = getDb();
+
+  // County comes from the property (parcel / saved county) or, when unknown ("Other"),
+  // from the coordinates. It only drives labels + freshness: sales queries below are
+  // geographic and cross county lines (e.g. Palm Beach / Martin border).
+  let cleanCounty = normalizeCountyName(county);
+  if (!cleanCounty && hasCoords) {
+    cleanCounty = (await resolveCountyFromPoint(sql, lat, lng)).county;
+  }
+  cleanCounty = cleanCounty || 'Broward';
 
   // Retrieve county freshness and last complete month
   const freshnessMap = await getCountyFreshness();
@@ -73,16 +92,20 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
 
     rows = await sql`
       SELECT 
+        s.county,
         s.sale_year,
         s.sale_month,
         s.sale_price,
         p.living_sqft,
+        p.lat,
+        p.lng,
         COALESCE(c.is_market, false) AS is_market,
         COALESCE(c.is_distressed, false) AS is_distressed
       FROM county_sales s
       JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
       LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-      WHERE s.county = ${cleanCounty}
+      WHERE s.county = ANY(${SUPPORTED_COUNTIES})
+        AND p.county = ANY(${SUPPORTED_COUNTIES})
         AND p.lat BETWEEN ${minLat} AND ${maxLat}
         AND p.lng BETWEEN ${minLng} AND ${maxLng}
         AND p.use_code = ${useCode}
@@ -92,13 +115,19 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
         AND s.sale_price > 100
       ORDER BY s.sale_year ASC, s.sale_month ASC;
     `;
+    // Bounding box -> true 1-mile radius (haversine)
+    rows = rows.filter((r) => haversineMiles(nLat, nLng, Number(r.lat), Number(r.lng)) <= maxDist);
   }
+
+  let usedScope = isOneMile ? '1mi' : 'zip';
 
   // Fall back to ZIP query if 1-mile query returns fewer than 5 rows or if not in 1-mile mode
   if (!isOneMile || rows.length < 5) {
     if (/^\d{5}$/.test(rawZip)) {
+      usedScope = 'zip';
       rows = await sql`
         SELECT 
+          s.county,
           s.sale_year,
           s.sale_month,
           s.sale_price,
@@ -108,7 +137,7 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
         FROM county_sales s
         JOIN county_parcels p ON s.county = p.county AND s.parcel_id = p.parcel_id
         LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-        WHERE s.county = ${cleanCounty}
+        WHERE s.county = ANY(${SUPPORTED_COUNTIES})
           AND p.zip = ${rawZip}
           AND p.use_code = ${useCode}
           AND s.sale_year IS NOT NULL
@@ -368,8 +397,10 @@ export async function getMarketTrends({ county = 'Broward', zip, type = 'single_
   const summary = {
     county: cleanCounty,
     zip: rawZip,
-    mode: isOneMile ? '1mi' : 'zip',
-    mode_label: isOneMile ? 'Within 1-mile radius' : `ZIP ${rawZip}`,
+    mode: usedScope,
+    requested_mode: isOneMile ? '1mi' : 'zip',
+    mode_label: usedScope === '1mi' ? 'Within 1-mile radius' : `ZIP ${rawZip}`,
+    counties_in_results: [...new Set(rows.map((r) => r.county).filter(Boolean))],
     property_type: type,
     type_label: typeLabel,
     use_code: useCode,

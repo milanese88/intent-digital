@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { applyPropertyCountyRules } from '../_lib/countyResolver.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 
 const ALLOWED_PROPERTY_TYPES = ['single_family', 'condo', 'townhome', 'multifamily_2_9', 'other'];
@@ -509,6 +510,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
 
+      // County comes from the linked parcel, else from coordinates (never a hard-coded list)
+      await applyPropertyCountyRules(sql, data);
+
       let rows;
       try {
         rows = await sql`
@@ -642,6 +646,9 @@ export default async function handler(req, res) {
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
+
+      // County comes from the linked parcel, else from coordinates (never a hard-coded list)
+      await applyPropertyCountyRules(sql, data);
 
       let rows;
       try {
@@ -820,6 +827,9 @@ export default async function handler(req, res) {
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({ error: Object.values(errors)[0], errors });
       }
+
+      // County comes from the linked parcel, else from coordinates (never a hard-coded list)
+      await applyPropertyCountyRules(sql, data);
 
       let rows;
       try {

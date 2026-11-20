@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUseCodeLabel, toTitleCase, formatNiceAddress } from './AddressAutocomplete.jsx';
+import { normalizeCountyName, resolvePropertyCounty, getCountyAppraiserLabel } from '../../config/counties.js';
 
 /**
  * Formats currency values
@@ -82,7 +83,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
 
   useEffect(() => {
     if (property?.parcel_id) {
-      fetchCountyRecord(property.parcel_county || property.county || 'Broward', property.parcel_id);
+      fetchCountyRecord(normalizeCountyName(property.parcel_county) || resolvePropertyCounty(property) || 'Broward', property.parcel_id);
     } else {
       setCountyData(null);
       setError(null);
@@ -102,7 +103,9 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
     setSearchError(null);
     setCardSearchError(null);
 
-    const county = options.county || property?.parcel_county || property?.county || 'Broward';
+    // Search the property's county first (parcel / saved / coordinates); unknown or
+    // "Other" counties search every supported county (Broward, Palm Beach, Martin).
+    const county = options.county || resolvePropertyCounty(property) || 'all';
     const zip = options.zip || property?.zip || '';
     const lat = options.lat != null ? options.lat : property?.lat;
     const lng = options.lng != null ? options.lng : property?.lng;
@@ -351,7 +354,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 display: 'block'
               }}
             >
-              {property?.parcel_county || property?.county || 'Broward'} County Property Appraiser · 2026 roll
+              {resolvePropertyCounty(property) ? getCountyAppraiserLabel(resolvePropertyCounty(property)) : 'County Property Appraiser'} · 2026 roll
             </span>
             <span
               style={{
@@ -362,7 +365,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 display: 'block'
               }}
             >
-              {freshness?.[property?.parcel_county || property?.county || 'Broward']?.label || 'County data through Sep 2026 · 2026 final roll'}
+              {freshness?.[resolvePropertyCounty(property)]?.label || 'County data through Sep 2026 · 2026 final roll'}
             </span>
           </div>
 
@@ -647,6 +650,10 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
                 <div style={{ fontSize: '12px', color: 'rgba(52, 41, 42, 0.75)' }}>
                   {searchMeta.matchType === 'fallback_coords'
                     ? 'Nearest parcel within 60 m using map coordinates — please confirm before linking:'
+                    : searchMeta.matchType === 'fallback_suffix'
+                    ? 'Same house number and street on the county roll, but a different street suffix (e.g. Ct vs Rd) — please confirm before linking:'
+                    : searchMeta.matchType === 'exact'
+                    ? 'More than one county record matches this address — please pick the right one:'
                     : 'Similar addresses found nearby — please confirm before linking:'}
                 </div>
               </div>
@@ -665,7 +672,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
 
                   return (
                     <div
-                      key={match.parcel_id}
+                      key={`${match.county || ''}|${match.parcel_id}`}
                       style={{
                         border: '1px solid rgba(52, 41, 42, 0.12)',
                         borderRadius: '8px',
@@ -778,7 +785,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
               display: 'block'
             }}
           >
-            {countyData?.county || property.parcel_county || 'Broward'} County Property Appraiser · {countyData?.roll_year || 2026} roll
+            {getCountyAppraiserLabel(countyData?.county || property.parcel_county || resolvePropertyCounty(property))} · {countyData?.roll_year || 2026} roll
           </span>
           <span
             style={{
@@ -789,7 +796,7 @@ export default function CountyRecordCard({ property, onPropertyUpdate, showToast
               display: 'block'
             }}
           >
-            {freshness?.[countyData?.county || property.parcel_county || 'Broward']?.label || 'County data through Sep 2026 · 2026 final roll'}
+            {freshness?.[normalizeCountyName(countyData?.county || property.parcel_county) || resolvePropertyCounty(property)]?.label || 'County data through Sep 2026 · 2026 final roll'}
           </span>
         </div>
 

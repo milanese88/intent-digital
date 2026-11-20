@@ -29,6 +29,7 @@ import {
 import { formatCurrency, evaluateLiveInFit } from './underwriting.js';
 import { LIVE_IN_PLAN_DISCLAIMER } from '../../config/financing.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
+import { resolvePropertyCounty, getPropertyCountyLabel } from '../../config/counties.js';
 import {
   Button,
   Pill,
@@ -883,7 +884,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   // Fetch monthly ZIP market trend for the active property so APPRAISAL time adjustment uses live county ZIP trend
   const [zipMarketSummary, setZipMarketSummary] = useState(null);
   const activeSubjectZip = String(activeProperty?.zip || countyData?.zip || '').trim();
-  const activeSubjectCounty = activeProperty?.parcel_county || activeProperty?.county || countyData?.county || 'Broward';
+  const activeSubjectCounty = resolvePropertyCounty(activeProperty) || countyData?.county || 'Broward';
   const activeSubjectType = activeProperty?.property_type || 'single_family';
 
   useEffect(() => {
@@ -3174,7 +3175,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                             { label: 'Lot size', value: activeProperty.lot_sqft ? `${Number(activeProperty.lot_sqft).toLocaleString()} sf` : '—' },
                             { label: 'Year built', value: activeProperty.year_built || '—' },
                             { label: 'Condition', value: activeProperty.condition ? `${activeProperty.condition}${activeProperty.roof_year ? ` (roof ${activeProperty.roof_year})` : ''}` : '—' },
-                            { label: 'County / Folio', value: `${activeProperty.county || activeProperty.parcel_county || 'Broward'} · ${activeProperty.parcel_id || 'Not linked'}` },
+                            { label: 'County / Folio', value: `${getPropertyCountyLabel(activeProperty)} · ${activeProperty.parcel_id || 'Not linked'}` },
                             { label: 'Jurisdiction', value: siteData?.zoningData?.municipality || activeProperty.city || '—' },
                             { label: 'Strategy', value: activeProperty.strategy ? (activeProperty.strategy.toUpperCase()) : '—' }
                           ].map((row, idx) => (
@@ -4779,6 +4780,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         <option value="">Select county</option>
                         <option value="Broward">Broward</option>
                         <option value="Palm Beach">Palm Beach</option>
+                        <option value="Martin">Martin</option>
                         <option value="Miami-Dade">Miami-Dade</option>
                         <option value="Other">Other</option>
                       </select>

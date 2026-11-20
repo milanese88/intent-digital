@@ -3,12 +3,23 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { getScriptDb } from '../../api/_lib/db.js';
+import {
+  normalizeCountyName,
+  findRollFile,
+  createRollCsvStream,
+  MARTIN_MUNICIPAL_TAX_CODES,
+  MARTIN_UNINCORPORATED
+} from './_counties.mjs';
 
 // Load environment variables from .env.local
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 
 const isDryRun = process.argv.includes('--dry-run');
+// Usage: node scripts/county/tag-municipality.mjs [--county=Broward|Martin] [--dry-run]
+const countyArg = normalizeCountyName(
+  (process.argv.find((a) => a.startsWith('--county=')) || '--county=Broward').split('=')[1]
+) || 'Broward';
 
 /**
  * Standard ray-casting point-in-polygon algorithm.
@@ -152,7 +163,95 @@ function findMunicipality(lng, lat, preparedPolygons) {
   return { name: 'Unknown', matched: false };
 }
 
+/**
+ * Martin County: municipality from the NAL TAX_AUTH_CD (Martin County Property Appraiser
+ * municipal levy codes), since municipal millage defines city limits. Only parcels already in
+ * county_parcels are tagged. No owner names or mailing addresses are read into memory.
+ */
+async function tagMartin() {
+  console.log(`Starting Martin municipality tagging via TAX_AUTH_CD (${isDryRun ? 'DRY RUN' : 'REAL RUN'})...`);
+  const dataDir = path.resolve(__dirname, '../../data/county');
+  const nalPath = findRollFile(dataDir, 'Martin', 'NAL');
+  if (!nalPath) {
+    console.error('Error: Martin NAL file not found under data/county/.');
+    process.exit(1);
+  }
+
+  const sql = getScriptDb();
+  const existing = await sql`SELECT parcel_id FROM county_parcels WHERE county = 'Martin'`;
+  const parcelSet = new Set(existing.map((r) => String(r.parcel_id).trim()));
+  console.log(`Martin parcels in county_parcels: ${parcelSet.size.toLocaleString()}`);
+  if (parcelSet.size === 0) {
+    console.error('No Martin parcels found — run import-roll.mjs --county=Martin first.');
+    await sql.end({ timeout: 5 });
+    process.exit(1);
+  }
+
+  const { parser, cleanup } = createRollCsvStream(nalPath);
+  let headers = null;
+  let idIdx = -1;
+  let taxIdx = -1;
+  const taggedRows = [];
+  const muniCounts = {};
+  try {
+    for await (const row of parser) {
+      if (!headers) {
+        headers = row.map((h) => h.trim().toUpperCase());
+        idIdx = headers.indexOf('PARCEL_ID');
+        taxIdx = headers.indexOf('TAX_AUTH_CD');
+        if (idIdx === -1 || taxIdx === -1) throw new Error('NAL is missing PARCEL_ID or TAX_AUTH_CD columns.');
+        continue;
+      }
+      const parcelId = row[idIdx]?.trim();
+      if (!parcelId || !parcelSet.has(parcelId)) continue;
+      const taxCode = row[taxIdx]?.trim() || '';
+      const municipality = MARTIN_MUNICIPAL_TAX_CODES[taxCode] || MARTIN_UNINCORPORATED;
+      muniCounts[municipality] = (muniCounts[municipality] || 0) + 1;
+      taggedRows.push({ county: 'Martin', parcel_id: parcelId, municipality });
+    }
+  } finally {
+    cleanup();
+  }
+
+  console.log('\n======================================================');
+  console.log('MARTIN MUNICIPALITY PARCEL COUNTS (TAX_AUTH_CD)');
+  console.log('======================================================');
+  for (const [muni, count] of Object.entries(muniCounts).sort((a, b) => b[1] - a[1])) {
+    console.log(` - ${muni.padEnd(28)}: ${count.toLocaleString().padStart(8)}`);
+  }
+  console.log(`Tagged ${taggedRows.length.toLocaleString()} of ${parcelSet.size.toLocaleString()} Martin parcels.`);
+
+  if (isDryRun) {
+    console.log('DRY RUN complete. No rows written to the database.');
+    await sql.end({ timeout: 5 });
+    return;
+  }
+
+  const BATCH_SIZE = 2500;
+  let saved = 0;
+  for (let i = 0; i < taggedRows.length; i += BATCH_SIZE) {
+    const batch = taggedRows.slice(i, i + BATCH_SIZE);
+    await sql`
+      INSERT INTO parcel_jurisdiction (county, parcel_id, municipality)
+      SELECT * FROM json_to_recordset(${sql.json(batch)}::json)
+        AS x(county text, parcel_id text, municipality text)
+      ON CONFLICT (county, parcel_id) DO UPDATE SET
+        municipality = EXCLUDED.municipality
+      WHERE parcel_jurisdiction.municipality IS DISTINCT FROM EXCLUDED.municipality;
+    `;
+    saved += batch.length;
+    if (saved % 25000 < BATCH_SIZE || saved === taggedRows.length) {
+      console.log(`Saved ${saved.toLocaleString()} / ${taggedRows.length.toLocaleString()} parcels...`);
+    }
+  }
+  console.log('Martin tagging complete.');
+  await sql.end({ timeout: 5 });
+}
+
 async function main() {
+  if (countyArg === 'Martin') {
+    return tagMartin();
+  }
   console.log(`Starting Broward municipality tagging (${isDryRun ? 'DRY RUN' : 'REAL RUN'})...`);
 
   const geojsonPath = path.resolve(__dirname, '../../data/county/broward-municipalities.geojson');
@@ -248,7 +347,7 @@ async function main() {
     // PostgreSQL supports bulk unnest or multi-row insert
     await sql`
       INSERT INTO parcel_jurisdiction (county, parcel_id, municipality)
-      SELECT * FROM json_to_recordset(${JSON.stringify(batch)}::json)
+      SELECT * FROM json_to_recordset(${sql.json(batch)}::json)
         AS x(county text, parcel_id text, municipality text)
       ON CONFLICT (county, parcel_id) DO UPDATE SET
         municipality = EXCLUDED.municipality

@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { normalizeCountyName } from '../../src/config/counties.js';
 import { formatCountyClues } from '../../src/components/investor/compDetailsModel.js';
 
 export default async function handler(req, res) {
@@ -14,7 +15,8 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
 
-    const county = req.query?.county ? String(req.query.county).trim() : 'Broward';
+    const rawCounty = req.query?.county ? String(req.query.county).trim() : 'Broward';
+    const county = normalizeCountyName(rawCounty) || rawCounty;
     const parcelId = req.query?.parcel_id ? String(req.query.parcel_id).trim() : '';
 
     if (!parcelId) {

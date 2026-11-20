@@ -6,14 +6,14 @@ import {
   detailsToLegacyColumns,
   computeDetailsProgress
 } from '../../src/components/investor/compDetailsModel.js';
+import { normalizeCountyName } from '../../src/config/counties.js';
 
-const ALLOWED_COUNTIES = new Set(['Broward', 'Palm Beach']);
 
 export async function upsertUserCompDetails(sql, cleanEmail, payload = {}, options = {}) {
   const rawCounty = payload.county || payload.parcel_county || 'Broward';
-  const county = /palm/i.test(rawCounty) ? 'Palm Beach' : 'Broward';
+  const county = normalizeCountyName(rawCounty);
   const parcelId = payload.parcel_id ? String(payload.parcel_id).trim() : '';
-  if (!parcelId || !ALLOWED_COUNTIES.has(county)) {
+  if (!parcelId || !county) {
     return null;
   }
 
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const parcelId = req.query?.parcel_id ? String(req.query.parcel_id).trim() : '';
       const rawCounty = req.query?.county ? String(req.query.county).trim() : 'Broward';
-      const county = /palm/i.test(rawCounty) ? 'Palm Beach' : 'Broward';
+      const county = normalizeCountyName(rawCounty) || 'Broward';
       const saleMonthKey = req.query?.sale_date
         ? buildSaleMonthKey(String(req.query.sale_date))
         : (req.query?.sale_month_key ? String(req.query.sale_month_key).trim() : null);

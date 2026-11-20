@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { evaluateLiveInFit } from './underwriting.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
+import { normalizeCountyName, estimateCountyFromCoords } from '../../config/counties.js';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
@@ -364,15 +365,18 @@ export default function AddressAutocomplete({
             city = ctx.place?.name || ctx.locality?.name || '';
             zip = ctx.postcode?.name || '';
 
-            const rawDistrict = (ctx.district?.name || ctx.county?.name || '').toLowerCase();
-            if (rawDistrict.includes('broward')) county = 'Broward';
-            else if (rawDistrict.includes('palm beach')) county = 'Palm Beach';
-            else if (rawDistrict.includes('miami') || rawDistrict.includes('dade')) county = 'Miami-Dade';
-            else county = 'Other';
-
             const coords = feat.geometry?.coordinates || [];
             lng = coords[0] != null ? coords[0] : (props.coordinates?.longitude ?? null);
             lat = coords[1] != null ? coords[1] : (props.coordinates?.latitude ?? null);
+
+            // County from the geocoder district (Broward / Palm Beach / Martin), else from the
+            // coordinates. The server re-checks against parcel data when the property is saved.
+            const rawDistrict = ctx.district?.name || ctx.county?.name || '';
+            county =
+              normalizeCountyName(rawDistrict) ||
+              (/miami|dade/i.test(rawDistrict) ? 'Miami-Dade' : '') ||
+              estimateCountyFromCoords(lat, lng) ||
+              'Other';
           }
         }
       } catch (err) {
