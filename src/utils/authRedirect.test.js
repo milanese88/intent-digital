@@ -308,10 +308,13 @@ test('postgres.js shared client adapters preserve sql.query, sql.transaction, se
   assert.equal(isDatabaseError(pgErr), true);
 });
 
-test('validateDatabaseUrl catches Vercel paste mistakes and formatSafeDbError never leaks URLs or passwords', () => {
-  // Valid URI
+test('validateDatabaseUrl catches Vercel paste mistakes without false positives and formatSafeDbError never leaks secrets', () => {
+  // Valid URIs (including ?sslmode=require query params and "=" inside password)
   assert.equal(
-    validateDatabaseUrl('postgresql://postgres.ref:secret123@example.pooler:6543/postgres', 'SUPABASE_POOLER_URL').valid,
+    validateDatabaseUrl(
+      'postgresql://postgres.ref:pass=word==@example.pooler:6543/postgres?sslmode=require&pgbouncer=true',
+      'SUPABASE_POOLER_URL'
+    ).valid,
     true
   );
 
@@ -322,16 +325,34 @@ test('validateDatabaseUrl catches Vercel paste mistakes and formatSafeDbError ne
   );
   assert.equal(prefixCheck.valid, false);
   assert.equal(prefixCheck.code, 'INVALID_DATABASE_URL');
-  assert.ok(prefixCheck.reason.includes('KEY='));
+  assert.equal(prefixCheck.detectedPrefix, 'DATABASE_URL=');
+  assert.ok(prefixCheck.reason.includes('DATABASE_URL='));
   assert.equal(prefixCheck.reason.includes('secret123'), false);
 
-  // Wrapped in quotes
+  // Wrapped in SUPABASE_POOLER_URL=...
+  const supaPrefixCheck = validateDatabaseUrl(
+    'SUPABASE_POOLER_URL=postgresql://postgres.ref:secret123@example.pooler:6543/postgres',
+    'SUPABASE_POOLER_URL'
+  );
+  assert.equal(supaPrefixCheck.valid, false);
+  assert.equal(supaPrefixCheck.detectedPrefix, 'SUPABASE_POOLER_URL=');
+  assert.ok(supaPrefixCheck.reason.includes('SUPABASE_POOLER_URL='));
+
+  // Wrapped in quotes — safePrefix stops at "://" before credentials
   const quoteCheck = validateDatabaseUrl(
     '"postgresql://postgres.ref:secret123@example.pooler:6543/postgres"',
     'SUPABASE_POOLER_URL'
   );
   assert.equal(quoteCheck.valid, false);
   assert.ok(quoteCheck.reason.includes('quote'));
+  assert.equal(quoteCheck.reason.includes('secret123'), false);
+  assert.equal(quoteCheck.reason.includes('postgres.ref'), false);
+
+  // Missing scheme with user:pass omits prefix completely
+  const bareCredCheck = validateDatabaseUrl('user:secret123@host:6543/db', 'SUPABASE_POOLER_URL');
+  assert.equal(bareCredCheck.valid, false);
+  assert.equal(bareCredCheck.safePrefix, '(omitted)');
+  assert.equal(bareCredCheck.reason.includes('secret123'), false);
 
   // Trailing newline / whitespace
   const spaceCheck = validateDatabaseUrl(

@@ -16,14 +16,28 @@ function isUnsetOrPlaceholder(raw) {
 }
 
 /**
- * Validates a PostgreSQL connection string without ever echoing the URL, host, user, or password.
- * Catches common Vercel Environment Variable paste mistakes:
- * - surrounding quotes ("..." or '...')
- * - leading/trailing/internal whitespace or newlines
- * - KEY= prefix (e.g. DATABASE_URL=... or SUPABASE_POOLER_URL=...)
- * - [YOUR-PASSWORD] placeholder
- * - wrong scheme (not postgresql:// or postgres://)
- * - unencoded special characters breaking URL parsing
+ * Returns at most the first 13 characters ONLY when they cannot contain credentials
+ * (stops strictly at "://" before username:password, or omits if ":" / "@" is present).
+ */
+export function getSafeNonCredentialPrefix(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const str = String(raw);
+  const schemeIdx = str.indexOf('://');
+  if (schemeIdx !== -1) {
+    // Everything up to "://" is purely [quote/space +] scheme + "://", never credentials
+    return str.slice(0, Math.min(13, schemeIdx + 3));
+  }
+  const head = str.slice(0, 13);
+  if (/[:@]/.test(head)) {
+    return '(omitted)';
+  }
+  return head;
+}
+
+/**
+ * Validates a PostgreSQL connection string without ever echoing credentials.
+ * Anchors KEY= detection strictly at start-of-string so "?sslmode=require" or "=" inside
+ * a password can never false-positive.
  */
 export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
   if (isUnsetOrPlaceholder(raw)) {
@@ -36,13 +50,20 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
   }
 
   const str = String(raw);
+  const safePrefix = getSafeNonCredentialPrefix(str);
 
-  if (/^\s*[A-Z0-9_]*DATABASE[A-Z0-9_]*URL\s*=|^\s*SUPABASE_[A-Z0-9_]*URL\s*=|\bDATABASE_URL\s*=/i.test(str)) {
+  // Strictly anchored at start of string before any "://" so query params (?sslmode=require)
+  // or "=" inside passwords never match
+  const keyPrefixMatch = str.match(/^\s*["']?([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+  if (keyPrefixMatch) {
+    const detectedPrefix = `${keyPrefixMatch[1]}=`;
     return {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'contains a KEY= assignment prefix (paste only the raw postgresql://... URI value)'
+      detectedPrefix,
+      safePrefix: detectedPrefix.slice(0, 13),
+      reason: `contains "${detectedPrefix}" assignment prefix (first13=${JSON.stringify(detectedPrefix.slice(0, 13))}; paste only the raw postgresql://... URI value)`
     };
   }
 
@@ -51,7 +72,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'contains quote characters (remove surrounding "..." or \'...\' quotes in Vercel)'
+      safePrefix,
+      reason: `contains quote characters (first13=${JSON.stringify(safePrefix)}; remove surrounding "..." or '...' quotes in Vercel)`
     };
   }
 
@@ -60,7 +82,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'contains whitespace or newline characters'
+      safePrefix,
+      reason: `contains whitespace or newline characters (first13=${JSON.stringify(safePrefix)})`
     };
   }
 
@@ -69,7 +92,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'still contains the [YOUR-PASSWORD] placeholder'
+      safePrefix,
+      reason: `still contains the [YOUR-PASSWORD] placeholder (first13=${JSON.stringify(safePrefix)})`
     };
   }
 
@@ -78,7 +102,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'must start with postgresql:// or postgres://'
+      safePrefix,
+      reason: `must start with postgresql:// or postgres:// (first13=${JSON.stringify(safePrefix)})`
     };
   }
 
@@ -89,7 +114,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
         valid: false,
         empty: false,
         code: 'INVALID_DATABASE_URL',
-        reason: 'missing database hostname in URI'
+        safePrefix,
+        reason: `missing database hostname in URI (first13=${JSON.stringify(safePrefix)})`
       };
     }
     if (!parsed.username) {
@@ -97,7 +123,8 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
         valid: false,
         empty: false,
         code: 'INVALID_DATABASE_URL',
-        reason: 'missing database username in URI'
+        safePrefix,
+        reason: `missing database username in URI (first13=${JSON.stringify(safePrefix)})`
       };
     }
   } catch {
@@ -105,11 +132,12 @@ export function validateDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
       valid: false,
       empty: false,
       code: 'INVALID_DATABASE_URL',
-      reason: 'malformed URI (percent-encode special characters like @, #, %, or : in password)'
+      safePrefix,
+      reason: `malformed URI (first13=${JSON.stringify(safePrefix)}; percent-encode special characters like @, #, %, or : in password)`
     };
   }
 
-  return { valid: true, empty: false, code: null, reason: null };
+  return { valid: true, empty: false, code: null, reason: null, safePrefix };
 }
 
 function assertValidDatabaseUrl(raw, envVarName = 'DATABASE_URL') {
