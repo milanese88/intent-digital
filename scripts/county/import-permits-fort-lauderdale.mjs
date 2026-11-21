@@ -131,3 +131,4 @@ if (process.argv[1] && process.argv[1].endsWith('import-permits-fort-lauderdale.
     console.error('Fatal:', err);
   });
 }
+

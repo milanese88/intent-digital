@@ -38,3 +38,4 @@ CREATE INDEX IF NOT EXISTS idx_property_permits_issue_date
   ON property_permits (issue_date DESC NULLS LAST);
 
 ALTER TABLE property_permits ENABLE ROW LEVEL SECURITY;
+
