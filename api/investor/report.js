@@ -337,6 +337,37 @@ export default async function handler(req, res) {
       console.warn('investor_profile note:', profErr.message);
     }
 
+    // 6b. Fetch saved Deal Breakdowns for this property (42P01-safe, owner-scoped)
+    let dealBreakdowns = [];
+    try {
+      const bdRows = property.parcel_id
+        ? await sql`
+            SELECT id, property_id, county, parcel_id, address, city, zip, deal_type, title, inputs, results, notes, created_at, updated_at
+            FROM deal_breakdowns
+            WHERE lower(owner_email) = ${cleanEmail}
+              AND (property_id = ${propertyId} OR (parcel_id = ${property.parcel_id} AND county = ${county}))
+            ORDER BY updated_at DESC
+            LIMIT 10;
+          `
+        : await sql`
+            SELECT id, property_id, county, parcel_id, address, city, zip, deal_type, title, inputs, results, notes, created_at, updated_at
+            FROM deal_breakdowns
+            WHERE lower(owner_email) = ${cleanEmail}
+              AND property_id = ${propertyId}
+            ORDER BY updated_at DESC
+            LIMIT 10;
+          `;
+      dealBreakdowns = bdRows.map((r) => ({
+        ...r,
+        inputs: parseJsonbObject(r.inputs),
+        results: parseJsonbObject(r.results)
+      }));
+    } catch (bdErr) {
+      if (bdErr?.code !== '42P01') {
+        console.warn('Could not load deal_breakdowns for report:', bdErr.message);
+      }
+    }
+
     // 7. Market statistics & complete months trend for property's ZIP
     let marketStats = {
       salesCount: 0,
@@ -435,6 +466,7 @@ export default async function handler(req, res) {
       comps,
       photos,
       profile,
+      dealBreakdowns,
       marketStats,
       marketTrends,
       countyFreshness

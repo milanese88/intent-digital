@@ -18,6 +18,8 @@ import { getUseCodeLabel, toTitleCase, formatNiceAddress } from '../../component
 import { getFloodPillStyle } from '../../components/investor/SiteZoningCard.jsx';
 import { BRAND_NAME, DEAL_REPORT_FOOTER } from '../../config/legal.js';
 import { resolvePropertyCounty, getPropertyCountyLabel, getCountyAppraiserLabel } from '../../config/counties.js';
+import { calculateDealBreakdown } from '../../components/investor/dealBreakdownEngine.js';
+import { DEVELOPER_COSTS_DISCLAIMER } from '../../config/developerCosts.js';
 
 const REPORT_HEADING_FONT = 'var(--font-heading, "Instrument Serif", Georgia, serif)';
 const REPORT_BODY_FONT = 'var(--font-sans, "Montserrat", sans-serif)';
@@ -61,6 +63,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
       financing: true,
       comps: true,
       market: true,
+      dealBreakdown: true,
       notes: true
     },
     includeFinances: true // Default ON: reports are internal for personal use
@@ -138,6 +141,7 @@ export default function DealReportPage({ propertyId, navigateTo }) {
   const photos = data?.photos || [];
   const profile = data?.profile || {};
   const marketStats = data?.marketStats || {};
+  const dealBreakdowns = data?.dealBreakdowns || [];
 
   // Compute live deal results if needed, or use stored results from the selected saved analysis
   const dealCalculations = useMemo(() => {
@@ -729,7 +733,8 @@ export default function DealReportPage({ propertyId, navigateTo }) {
             { id: 'financing', label: '05 Financing' },
             { id: 'comps', label: '06 Comps & CMA' },
             { id: 'market', label: '07 Market & Site' },
-            { id: 'notes', label: '08 Notes' }
+            ...(dealBreakdowns.length > 0 ? [{ id: 'dealBreakdown', label: '08 Deal Breakdown' }] : []),
+            { id: 'notes', label: dealBreakdowns.length > 0 ? '09 Notes' : '08 Notes' }
           ].map(sec => {
             const active = options.sections[sec.id];
             return (
@@ -2405,13 +2410,255 @@ export default function DealReportPage({ propertyId, navigateTo }) {
         )}
 
         {/* ================================================================= */}
-        {/* 08. PROPERTY NOTES                                                */}
+        {/* 08. DEAL BREAKDOWN — DEVELOPER REVERSE-ENGINEERING                */}
+        {/* ================================================================= */}
+        {options.sections.dealBreakdown && dealBreakdowns.length > 0 && (() => {
+          const latestBd = dealBreakdowns[0];
+          const bdInputs = latestBd.inputs || {};
+          const bdRes =
+            latestBd.results && latestBd.results.costs && latestBd.results.scenarios
+              ? latestBd.results
+              : calculateDealBreakdown(bdInputs, profile);
+          const bdCosts = bdRes.costs || {};
+          const bdMetrics = bdRes.metrics || {};
+          const bdScenarios = bdRes.scenarios || {};
+          const bdMy = bdRes.myVersion || {};
+          const isNewBuild = (latestBd.deal_type || bdInputs.dealType) === 'demo_new_build';
+
+          const fmtSigned = (val) => {
+            if (val == null || isNaN(Number(val))) return '—';
+            const n = Math.round(Number(val));
+            if (n > 0) return `+$${n.toLocaleString('en-US')}`;
+            if (n < 0) return `−$${Math.abs(n).toLocaleString('en-US')}`;
+            return '$0';
+          };
+
+          const costRows = [
+            { label: 'Acquisition (purchase price)', value: bdCosts.purchasePrice, note: bdInputs.purchaseDate ? `Bought ${bdInputs.purchaseDate}` : 'County deed / entered' },
+            { label: `Purchase closing (${bdInputs.buyClosingPct ?? 2}% est.)`, value: bdCosts.buyClosing, note: 'Title, survey & buyer fees (estimate)' },
+            ...(isNewBuild ? [{ label: 'Demolition lump sum (estimate)', value: bdCosts.demoCost, note: bdInputs.isVacantLotPurchase ? 'Vacant lot purchase' : `${bdInputs.beforeLivingSqft ? Number(bdInputs.beforeLivingSqft).toLocaleString() : '—'} sf existing` }] : []),
+            {
+              label: isNewBuild
+                ? `Hard construction (${bdMetrics.constructionCostPerSqft ? `$${bdMetrics.constructionCostPerSqft}/sf` : 'estimate'})`
+                : `Hard rehab (${bdMetrics.constructionCostPerSqft ? `$${bdMetrics.constructionCostPerSqft}/sf` : 'estimate'})`,
+              value: bdCosts.hardCost,
+              note: `${bdInputs.afterLivingSqft ? Number(bdInputs.afterLivingSqft).toLocaleString() : '—'} sf finished${bdCosts.poolAddon ? ' · incl. pool' : ''}${bdCosts.dockAddon ? ' · incl. dock' : ''}`
+            },
+            { label: `Soft costs (${bdCosts.softCostsPct ?? bdInputs.softCostsPct ?? '—'}% est.)`, value: bdCosts.softCosts, note: 'Architect, engineering, survey, permits & impact fees' },
+            { label: `Financing (${String(bdInputs.financingMode || 'hard_money').replace(/_/g, ' ')})`, value: bdCosts.financingCosts, note: bdCosts.loanAmount ? `Loan ${formatCurrency(bdCosts.loanAmount)} · interest, points & FL loan taxes` : 'All cash ($0 debt cost)' },
+            { label: `Holding (${bdMetrics.holdMonths || bdInputs.holdMonths || '—'} mo × ${formatCurrency(bdCosts.monthlyHoldingTotal)}/mo)`, value: bdCosts.holdingCosts, note: `Tax at purchase via ${bdInputs.millageRate ?? '—'} millage + ins. + util.` },
+            { label: `Selling (comm. + closing + FL doc stamps ${bdCosts.flDocStampsPct ?? 0.70}%)`, value: bdCosts.sellingCosts, note: `Incl. ${formatCurrency(bdCosts.flDocStampsCost)} FL deed doc stamps` }
+          ];
+
+          return (
+            <section className="avoid-break page-break" style={{ marginBottom: '44px' }}>
+              <div style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.15)', paddingBottom: '8px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--secondary-color, #41101B)' }}>
+                    08 · DEAL BREAKDOWN (DEVELOPER REVERSE-ENGINEERING)
+                  </span>
+                  <h2 style={{
+                    fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',
+                    fontSize: '26px',
+                    fontWeight: 400,
+                    color: 'var(--espresso, #34292A)',
+                    margin: '2px 0 0 0'
+                  }}>
+                    {latestBd.title || (isNewBuild ? 'Demo → New Build Economics' : 'Developer Flip Economics')}
+                  </h2>
+                </div>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '999px',
+                  backgroundColor: isNewBuild ? '#34292A' : 'rgba(189, 211, 226, 0.5)',
+                  color: isNewBuild ? '#FAF8F5' : '#34292A',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase'
+                }}>
+                  {isNewBuild ? 'Demo → New Build' : 'Flip'} · Estimate
+                </span>
+              </div>
+
+              {/* Headline KPIs */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '10px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ backgroundColor: '#34292A', color: '#FAF8F5', padding: '12px 14px', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BDD3E2', display: 'block' }}>
+                    EST. PROFIT (LIKELY)
+                  </span>
+                  <span style={{ fontSize: '20px', fontWeight: 700 }}>
+                    {fmtSigned(bdMetrics.estProfit)}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(250, 248, 245, 0.72)' }}>
+                    {bdMetrics.profitPerSqft != null ? `$${bdMetrics.profitPerSqft}/sf · estimate` : 'estimate'}
+                  </span>
+                </div>
+
+                <div style={{ backgroundColor: '#ffffff', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.1)' }}>
+                  <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
+                    ROI / ANNUALIZED
+                  </span>
+                  <span style={{ fontSize: '20px', fontWeight: 700 }}>
+                    {fmtReportPct(bdMetrics.roiPct, 1, true)}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                    {fmtReportPct(bdMetrics.annualizedRoiPct, 1, true)} annualized ({bdMetrics.holdMonths || bdInputs.holdMonths} mo)
+                  </span>
+                </div>
+
+                <div style={{ backgroundColor: '#ffffff', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.1)' }}>
+                  <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
+                    TOTAL INVESTED (EST.)
+                  </span>
+                  <span style={{ fontSize: '20px', fontWeight: 700 }}>
+                    {formatCurrency(bdCosts.totalInvested)}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                    Exit {formatCurrency(bdMetrics.exitPrice)}
+                  </span>
+                </div>
+
+                <div style={{ backgroundColor: '#ffffff', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.1)' }}>
+                  <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.55)', display: 'block' }}>
+                    CASH NEEDED (EST.)
+                  </span>
+                  <span style={{ fontSize: '20px', fontWeight: 700 }}>
+                    {formatCurrency(bdMetrics.cashNeeded)}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                    My 70% MAO: {formatCurrency(bdMy.mao70)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Cost Stack Table */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid rgba(52, 41, 42, 0.1)',
+                padding: '14px 18px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34292A', marginBottom: '8px' }}>
+                  ITEMIZED PROJECT COST LEDGER (ALL ESTIMATES)
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                  <tbody>
+                    {costRows.map((row) => (
+                      <tr key={row.label} style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                        <td style={{ padding: '6px 0', fontWeight: 600 }}>{row.label}</td>
+                        <td style={{ padding: '6px 8px', color: 'rgba(52, 41, 42, 0.6)' }}>{row.note}</td>
+                        <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {formatCurrency(row.value)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ backgroundColor: '#FAF8F5' }}>
+                      <td style={{ padding: '8px 6px', fontWeight: 700 }}>Total Invested (All-In incl. Selling)</td>
+                      <td style={{ padding: '8px 8px', fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)' }}>
+                        {bdMetrics.costPerSqftAllIn ? `$${bdMetrics.costPerSqftAllIn}/sf all-in` : ''}
+                      </td>
+                      <td style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700 }}>
+                        {formatCurrency(bdCosts.totalInvested)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Low / Likely / High / My Version Comparison Table */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid rgba(52, 41, 42, 0.1)',
+                padding: '14px 18px',
+                marginBottom: '12px'
+              }}>
+                <div style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34292A', marginBottom: '8px' }}>
+                  SCENARIO RANGE &amp; MY VERSION (70% RULE{options.includeFinances ? ' + BUYING PROFILE' : ''})
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.14)', textAlign: 'right', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(52, 41, 42, 0.6)' }}>
+                      <th style={{ padding: '6px 4px', textAlign: 'left' }}>Metric (Estimate)</th>
+                      <th style={{ padding: '6px 4px' }}>Low (Conservative)</th>
+                      <th style={{ padding: '6px 4px', color: '#34292A' }}>Likely (Base)</th>
+                      <th style={{ padding: '6px 4px' }}>High (Optimistic)</th>
+                      <th style={{ padding: '6px 4px', color: '#34292A', backgroundColor: 'rgba(189, 211, 226, 0.35)' }}>My Version (70% Rule)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>Purchase / Offer Basis</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdCosts.purchasePrice)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(bdCosts.purchasePrice)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdCosts.purchasePrice)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700, backgroundColor: 'rgba(189, 211, 226, 0.22)' }}>{formatCurrency(bdMy.mao70)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>Total Invested</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdScenarios.low?.totalInvested)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(bdScenarios.likely?.totalInvested)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdScenarios.high?.totalInvested)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700, backgroundColor: 'rgba(189, 211, 226, 0.22)' }}>{formatCurrency(bdMy.totalInvested)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>Cash Needed</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdScenarios.low?.cashNeeded)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(bdScenarios.likely?.cashNeeded)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatCurrency(bdScenarios.high?.cashNeeded)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700, backgroundColor: 'rgba(189, 211, 226, 0.22)' }}>{formatCurrency(bdMy.cashNeeded)}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.08)' }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>Est. Net Profit</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtSigned(bdScenarios.low?.estProfit)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700 }}>{fmtSigned(bdScenarios.likely?.estProfit)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtSigned(bdScenarios.high?.estProfit)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700, backgroundColor: 'rgba(189, 211, 226, 0.22)' }}>{fmtSigned(bdMy.estProfit)}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>ROI / Annualized ROI</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtReportPct(bdScenarios.low?.roiPct, 1, true)} / {fmtReportPct(bdScenarios.low?.annualizedRoiPct, 1, true)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{fmtReportPct(bdScenarios.likely?.roiPct, 1, true)} / {fmtReportPct(bdScenarios.likely?.annualizedRoiPct, 1, true)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right' }}>{fmtReportPct(bdScenarios.high?.roiPct, 1, true)} / {fmtReportPct(bdScenarios.high?.annualizedRoiPct, 1, true)}</td>
+                      <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700, backgroundColor: 'rgba(189, 211, 226, 0.22)' }}>{fmtReportPct(bdMy.roiPct, 1, true)} / {fmtReportPct(bdMy.annualizedRoiPct, 1, true)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                {options.includeFinances && bdMy.deployableCash != null && (
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#34292A' }}>
+                    <strong>Buying Profile Fit:</strong> {bdMy.fitsLiquidCash ? 'Fits deployable cash' : `Shortfall of ${formatCurrency(bdMy.cashGap)}`} (Deployable {formatCurrency(bdMy.deployableCash)} after {bdMy.reserveMonths}-mo reserve · {bdMy.financingLabel}).
+                  </div>
+                )}
+              </div>
+
+              {latestBd.notes && (
+                <div style={{ fontSize: '12px', color: '#34292A', backgroundColor: '#FAF8F5', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(52, 41, 42, 0.1)', marginBottom: '8px' }}>
+                  <strong>Breakdown Notes:</strong> {latestBd.notes}
+                </div>
+              )}
+
+              <div style={{ fontSize: '10px', color: 'rgba(52, 41, 42, 0.58)' }}>
+                {DEVELOPER_COSTS_DISCLAIMER}
+              </div>
+            </section>
+          );
+        })()}
+
+        {/* ================================================================= */}
+        {/* 08/09. PROPERTY NOTES                                             */}
         {/* ================================================================= */}
         {options.sections.notes && property.notes && (
           <section className="avoid-break page-break" style={{ marginBottom: '44px' }}>
             <div style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.15)', paddingBottom: '8px', marginBottom: '14px' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--secondary-color, #41101B)' }}>
-                08 · PROPERTY NOTES
+                {dealBreakdowns.length > 0 ? '09' : '08'} · PROPERTY NOTES
               </span>
               <h2 style={{
                 fontFamily: 'var(--font-display, "Instrument Serif", Georgia, serif)',

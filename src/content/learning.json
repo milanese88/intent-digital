@@ -359,6 +359,14 @@
       "definition": "While a Florida home is your primary residence (as of Jan 1), Homestead Exemption reduces taxable value by up to $50,000 ($25k all levies + $25k non-school levies) and the Save Our Homes cap limits assessed value increases to 3%/yr. Once you move out and rent the property, you must notify the County Property Appraiser: you lose the Homestead Exemption and the 3% cap, and on the next assessment roll the property resets to full market value multiplied by the county millage rate (subject afterward to a 10% non-school cap). Always underwrite Exit A with non-homestead reassessed taxes! Estimate for planning — confirm with your lender and CPA.",
       "example": "A Broward home bought at $420,000 and renovated to $510,000 might carry ~$7,400/yr homesteaded taxes while you live there, then jump to ~$9,945/yr (+$212/mo) at 19.5 mills once converted to a rental.",
       "appPointer": "Investor Studio → Deal tab → Live-in (FHA) → Rental Phase Homestead vs. Non-Homestead Tax callout."
+    },
+    {
+      "id": "how_flippers_builders_make_money",
+      "title": "How flippers and builders make money",
+      "fullName": "Reverse-Engineering Developer Flips & Demo → New Construction Margins",
+      "definition": "A $200k–$400k jump between two recorded deeds is never pure profit — it is the gross spread before hard construction/rehab ($35–$135/sf flip or $260–$575/sf new build), demolition, soft costs (architect, engineering, survey, permits, impact fees: 6%–14%), financing interest & points (cash vs. hard money vs. construction draw schedules), holding carry (property tax at purchase price via county millage, builder's risk insurance, utilities), and selling friction (5% commission + 1% closing + statutory 0.70% FL deed doc stamps). Experienced South Florida developers protect margin on the buy side: targeting 15–20% net ROI on flips or 20–25%+ on ground-up builds so a +15% cost overrun or +2-month hold delay doesn't wipe out profit. All cost numbers are estimates — always stress-test Low / Likely / High scenarios and benchmark against your 70% rule MAO.",
+      "example": "A Broward home bought for $420,000, renovated at $75/sf on 1,800 sf ($135,000 hard + ~$8,100 soft), held 7 months on 11% hard money (~$42,000 financing + carry), and resold for $720,000 (~$48,240 selling incl. $5,040 FL doc stamps) nets ~$58k estimate (~9.5% ROI) — far below the $300,000 headline deed jump.",
+      "appPointer": "Investor Studio → Flip & Build Finder & Property Detail → Deal Breakdown tab."
     }
   ],
   "principles": [

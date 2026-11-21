@@ -15,6 +15,8 @@ import BuyingProfileModal from './BuyingProfileModal.jsx';
 import AppraisalGridSection from './AppraisalGridSection.jsx';
 import AdjustmentLibraryModal from './AdjustmentLibraryModal.jsx';
 import CompDetailsDrawer from './CompDetailsDrawer.jsx';
+import DealBreakdownSection from './DealBreakdownSection.jsx';
+import FlipBuildFinder from './FlipBuildFinder.jsx';
 import {
   computeAppraisalGrid,
   normalizeReconciliationWeights,
@@ -56,7 +58,7 @@ function calculateMedian(numbers) {
   return (valid[mid - 1] + valid[mid]) / 2;
 }
 
-const VALID_PROPERTY_TABS = ['overview', 'comps', 'appraisal', 'site', 'deal', 'photos'];
+const VALID_PROPERTY_TABS = ['overview', 'comps', 'appraisal', 'site', 'deal', 'breakdown', 'photos'];
 
 function resolvePropertyTabFromSearch(searchStr) {
   const params = new URLSearchParams(searchStr);
@@ -81,13 +83,64 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [detailPhotoView, setDetailPhotoView] = useState('photos'); // 'photos' | 'aerial'
   const [activePropertyCover, setActivePropertyCover] = useState(null);
 
-  // Active Tab for Property Detail View: 'overview' | 'comps' | 'appraisal' | 'site' | 'deal' | 'photos'
+  // Active Tab for Property Detail View: 'overview' | 'comps' | 'appraisal' | 'site' | 'deal' | 'breakdown' | 'photos'
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       return resolvePropertyTabFromSearch(window.location.search);
     }
     return 'overview';
   });
+
+  // Top-level Studio Mode (when activePropertyId is null): 'properties' | 'finder'
+  const [studioMode, setStudioMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.__investorStudioInitialMode === 'finder') return 'finder';
+      const params = new URLSearchParams(window.location.search);
+      if ((params.get('investor_view') || '').toLowerCase() === 'finder') return 'finder';
+    }
+    return 'properties';
+  });
+  const [finderInitialZip, setFinderInitialZip] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.__investorStudioInitialZip) return String(window.__investorStudioInitialZip);
+      const params = new URLSearchParams(window.location.search);
+      return params.get('finder_zip') || '';
+    }
+    return '';
+  });
+  const [activeFinderRow, setActiveFinderRow] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.__investorStudioInitialMode) {
+        if (window.__investorStudioInitialMode === 'finder') {
+          setStudioMode('finder');
+          setActivePropertyId(null);
+          setActiveFinderRow(null);
+        }
+        window.__investorStudioInitialMode = null;
+      }
+      if (window.__investorStudioInitialZip) {
+        setFinderInitialZip(String(window.__investorStudioInitialZip));
+        window.__investorStudioInitialZip = null;
+      }
+    }
+  }, []);
+
+  const handleSwitchStudioMode = (nextMode) => {
+    setStudioMode(nextMode);
+    setActiveFinderRow(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (nextMode === 'finder') {
+        url.searchParams.set('investor_view', 'finder');
+      } else {
+        url.searchParams.delete('investor_view');
+        url.searchParams.delete('finder_zip');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
 
   // State received from detail sub-components
   const [underwriteSummary, setUnderwriteSummary] = useState(null);
@@ -3299,6 +3352,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                       { id: 'appraisal', label: 'APPRAISAL', badge: appraisalBadgeCount },
                       { id: 'site', label: 'SITE & ZONING', badge: siteBadgeCount },
                       { id: 'deal', label: 'DEAL', badge: dealBadgeCount },
+                      { id: 'breakdown', label: 'DEAL BREAKDOWN', badge: 0 },
                       { id: 'photos', label: 'PHOTOS & NOTES', badge: 0 }
                     ].map((tab) => {
                       const isSelected = activeTab === tab.id;
@@ -4332,7 +4386,23 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     />
                   </div>
 
-                  {/* TAB 5: PHOTOS & NOTES */}
+                  {/* TAB 5: DEAL BREAKDOWN (Developer Reverse-Engineering) */}
+                  <div
+                    role="tabpanel"
+                    id="panel-breakdown"
+                    aria-labelledby="tab-breakdown"
+                    style={{ display: activeTab === 'breakdown' ? 'block' : 'none' }}
+                  >
+                    <DealBreakdownSection
+                      property={subjectForAppraisal}
+                      countyData={countyData}
+                      buyingProfile={buyingProfile}
+                      showToast={showToast}
+                      onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                    />
+                  </div>
+
+                  {/* TAB 6: PHOTOS & NOTES */}
                   <div
                     role="tabpanel"
                     id="panel-photos"
@@ -4587,12 +4657,145 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   <span>{fitsLiveInFilter ? '✓' : '○'}</span>
                   <span>Fits live-in plan</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchStudioMode(studioMode === 'finder' ? 'properties' : 'finder')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '7px',
+                    padding: '7px 16px',
+                    borderRadius: '999px',
+                    border: studioMode === 'finder'
+                      ? '1px solid #BDD3E2'
+                      : '1px solid rgba(250, 248, 245, 0.35)',
+                    backgroundColor: studioMode === 'finder'
+                      ? '#BDD3E2'
+                      : 'rgba(250, 248, 245, 0.14)',
+                    color: studioMode === 'finder' ? '#34292A' : '#FAF8F5',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(6px)',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <span>{studioMode === 'finder' ? '✓ Flip & Build Finder' : 'Flip & Build Finder →'}</span>
+                </button>
               </div>
             </form>
           </DarkBand>
 
           {/* PAGE CONTENT CONTAINER */}
           <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px 60px 24px', boxSizing: 'border-box' }}>
+            {/* STUDIO SECTION MODE BAR */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginTop: '24px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid rgba(52, 41, 42, 0.12)'
+            }}>
+              <div style={{ display: 'inline-flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchStudioMode('properties')}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    border: studioMode === 'properties'
+                      ? '1px solid #34292A'
+                      : '1px solid rgba(52, 41, 42, 0.2)',
+                    backgroundColor: studioMode === 'properties' ? '#34292A' : '#FFFFFF',
+                    color: studioMode === 'properties' ? '#FAF8F5' : '#34292A',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  My Saved Properties ({properties.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchStudioMode('finder')}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    border: studioMode === 'finder'
+                      ? '1px solid #34292A'
+                      : '1px solid rgba(52, 41, 42, 0.2)',
+                    backgroundColor: studioMode === 'finder' ? '#34292A' : '#FFFFFF',
+                    color: studioMode === 'finder' ? '#FAF8F5' : '#34292A',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <span>Flip &amp; Build Finder</span>
+                  <span style={{
+                    padding: '1px 7px',
+                    borderRadius: '999px',
+                    backgroundColor: studioMode === 'finder' ? '#BDD3E2' : 'rgba(189, 211, 226, 0.5)',
+                    color: '#34292A',
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em'
+                  }}>
+                    DEAL BREAKDOWN
+                  </span>
+                </button>
+              </div>
+              {studioMode === 'finder' && activeFinderRow && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setActiveFinderRow(null)}
+                >
+                  ← Back to Flip &amp; Build Finder
+                </Button>
+              )}
+            </div>
+
+            {studioMode === 'finder' ? (
+              activeFinderRow ? (
+                <div style={{ marginTop: '24px' }}>
+                  <DealBreakdownSection
+                    finderRow={activeFinderRow}
+                    buyingProfile={buyingProfile}
+                    showToast={showToast}
+                    onBackToFinder={() => setActiveFinderRow(null)}
+                    onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                  />
+                </div>
+              ) : (
+                <FlipBuildFinder
+                  initialZip={finderInitialZip}
+                  onSelectRow={(row) => {
+                    setActiveFinderRow(row);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 180, behavior: 'smooth' });
+                    }
+                  }}
+                  onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                />
+              )
+            ) : (
+              <>
             {(appliedFilters.fitsLiveIn || appliedFilters.strategy === 'live_in') && (
               <div style={{
                 marginTop: '18px',
@@ -5256,6 +5459,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
               </div>
             )}
           </section>
+              </>
+            )}
           </div>
         </>
       )}
