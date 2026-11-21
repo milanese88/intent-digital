@@ -66,8 +66,9 @@ export function parseFlipFinderParams(query = {}) {
   const rawDealType = String(query.deal_type || 'all').trim().toLowerCase();
   const dealType = ['all', 'flip', 'demo_new_build'].includes(rawDealType) ? rawDealType : 'all';
 
-  const maxMonthsRaw = query.max_months != null && query.max_months !== '' ? Number(query.max_months) : 24;
-  const maxMonths = Number.isFinite(maxMonthsRaw) ? Math.min(60, Math.max(1, Math.round(maxMonthsRaw))) : 24;
+  const defaultMaxMonths = dealType === 'demo_new_build' ? 48 : 24;
+  const maxMonthsRaw = query.max_months != null && query.max_months !== '' ? Number(query.max_months) : defaultMaxMonths;
+  const maxMonths = Number.isFinite(maxMonthsRaw) ? Math.min(60, Math.max(1, Math.round(maxMonthsRaw))) : defaultMaxMonths;
 
   const minGainRaw = query.min_gain_pct != null && query.min_gain_pct !== '' ? Number(query.min_gain_pct) : 25;
   const minGainPct = Number.isFinite(minGainRaw) ? Math.min(500, Math.max(0, minGainRaw)) : 25;
@@ -139,11 +140,18 @@ export function classifySalePair(row, { minGainPct = 25 } = {}) {
   const yearBuilt = row.year_built != null ? Number(row.year_built) : null;
   const parcelSqft = Number(row.living_sqft) || 0;
   const bcSqft = Number(row.bc_living_sqft) || 0;
+  const justValue = Number(row.just_value) || 0;
+  const landValue = Number(row.land_value) || 0;
+  const impValue = justValue > landValue ? (justValue - landValue) : 0;
 
-  const isVacantToImproved = String(row.buy_vi_cd || '').trim() === 'V' && String(row.sell_vi_cd || '').trim() === 'I';
+  const isVacantToImproved = String(row.buy_vi_cd || '').trim() === 'V' && (String(row.sell_vi_cd || '').trim() === 'I' || row.vi_cd !== 'V');
   const isNewYearBuilt = Boolean(yearBuilt && buyYear && yearBuilt >= buyYear);
   const isSqftGrew30Pct = Boolean(parcelSqft > 0 && bcSqft > 0 && bcSqft > parcelSqft * 1.3);
-  const isNewBuildSignal = isVacantToImproved || isNewYearBuilt || isSqftGrew30Pct;
+  const isImpValueJumped = Boolean(
+    (impValue > 0 && buyPrice > 0 && impValue > buyPrice * 1.5) ||
+    (String(row.buy_vi_cd || '').trim() === 'V' && impValue > 35000)
+  );
+  const isNewBuildSignal = isVacantToImproved || isNewYearBuilt || isSqftGrew30Pct || isImpValueJumped;
 
   let dealType = null;
   let newBuildReason = null;
@@ -151,8 +159,9 @@ export function classifySalePair(row, { minGainPct = 25 } = {}) {
   if (isNewBuildSignal && (sellIsMarket || sellQual === '03')) {
     dealType = 'demo_new_build';
     if (isVacantToImproved) newBuildReason = 'Vacant lot → improved build';
-    else if (isNewYearBuilt) newBuildReason = `Built ${yearBuilt} (after ${buyYear} purchase)`;
+    else if (isNewYearBuilt) newBuildReason = `Built ${yearBuilt} (at or after ${buyYear} purchase)`;
     else if (isSqftGrew30Pct) newBuildReason = `Living area grew >30% (${parcelSqft.toLocaleString()} → ${bcSqft.toLocaleString()} sf)`;
+    else if (isImpValueJumped) newBuildReason = `Improvement value jumped to $${Math.round(impValue).toLocaleString()} (vs $${Math.round(buyPrice).toLocaleString()} purchase)`;
   } else if (sellIsMarket && (buyIsMarket || buyIsDistressed) && jumpPct >= minGainPct) {
     dealType = 'flip';
   }
@@ -379,6 +388,7 @@ export default async function handler(req, res) {
 
     const priceBandMin = minPrice != null ? sql`AND b.sale_price >= ${minPrice}` : sql``;
     const priceBandMax = maxPrice != null ? sql`AND b.sale_price <= ${maxPrice}` : sql``;
+    const effectiveMaxMonths = dealType === 'demo_new_build' ? maxMonths : Math.max(maxMonths, 48);
 
     // Indexed read-only query on county tables (<2s)
     const rawPairs = await sql`
@@ -395,6 +405,7 @@ export default async function handler(req, res) {
           p.year_built,
           p.eff_year_built,
           p.just_value,
+          p.land_value,
           p.lat,
           p.lng
         FROM county_parcels p
@@ -429,6 +440,7 @@ export default async function handler(req, res) {
         p.year_built,
         p.eff_year_built,
         p.just_value,
+        p.land_value,
         p.lat,
         p.lng,
         a.sale_price AS buy_price,
@@ -447,7 +459,7 @@ export default async function handler(req, res) {
         ON a.county = b.county
        AND a.parcel_id = b.parcel_id
        AND b.ym > a.ym
-       AND (b.ym - a.ym) <= ${maxMonths}
+       AND (b.ym - a.ym) <= ${effectiveMaxMonths}
       JOIN scoped_parcels p
         ON p.county = b.county AND p.parcel_id = b.parcel_id
       WHERE b.sale_price >= 50000
@@ -466,6 +478,9 @@ export default async function handler(req, res) {
 
     const results = [];
     let distressedExcludedCount = 0;
+    let filteredByHoldMonths = 0;
+    let filteredByMinGain = 0;
+    let filteredByDealType = 0;
 
     for (const row of rawPairs) {
       if (useRadiusBox) {
@@ -479,7 +494,31 @@ export default async function handler(req, res) {
         { ...row, bc_living_sqft: bc?.living_area_sqft ?? null },
         { minGainPct }
       );
-      if (!cls) continue;
+      if (!cls) {
+        // Did it fail minGainPct?
+        const buyP = Number(row.buy_price) || 0;
+        const sellP = Number(row.sell_price) || 0;
+        if (buyP > 0 && sellP > buyP) {
+          const gainPct = ((sellP - buyP) / buyP) * 100;
+          if (gainPct < minGainPct) {
+            filteredByMinGain++;
+          }
+        }
+        continue;
+      }
+
+      // Check max hold based on deal type:
+      // Flips strictly respect maxMonths (default 24).
+      // Demo -> new builds allow up to 48 months (or maxMonths if explicitly set higher).
+      const isNewBuild = cls.deal_type === 'demo_new_build';
+      const allowedHoldMonths = isNewBuild
+        ? (dealType === 'demo_new_build' ? maxMonths : Math.max(maxMonths, 48))
+        : maxMonths;
+
+      if (Number(row.hold_months) > allowedHoldMonths) {
+        filteredByHoldMonths++;
+        continue;
+      }
 
       if (cls.is_distressed_acquisition && !includeDistressed) {
         distressedExcludedCount++;
@@ -487,6 +526,7 @@ export default async function handler(req, res) {
       }
 
       if (dealType !== 'all' && cls.deal_type !== dealType) {
+        filteredByDealType++;
         continue;
       }
 
@@ -687,6 +727,70 @@ export default async function handler(req, res) {
     const medianJumpPct = results.length > 0 ? Math.round((medianOf(results.map((r) => r.jump_pct)) || 0) * 10) / 10 : null;
     const medianHoldMonths = medianOf(results.map((r) => r.hold_months));
 
+    // Available sales date range for the queried county or across all counties
+    let salesRangeRows = [];
+    try {
+      salesRangeRows = county !== 'all'
+        ? await sql`
+            SELECT 
+              MIN(sale_year * 100 + COALESCE(sale_month, 1))::int AS min_ym,
+              MAX(sale_year * 100 + COALESCE(sale_month, 1))::int AS max_ym,
+              COUNT(*)::int AS count
+            FROM county_sales
+            WHERE county = ${county} AND sale_year IS NOT NULL;
+          `
+        : await sql`
+            SELECT 
+              MIN(sale_year * 100 + COALESCE(sale_month, 1))::int AS min_ym,
+              MAX(sale_year * 100 + COALESCE(sale_month, 1))::int AS max_ym,
+              COUNT(*)::int AS count
+            FROM county_sales
+            WHERE sale_year IS NOT NULL;
+          `;
+    } catch {
+      // Non-fatal
+    }
+
+    const minYm = salesRangeRows[0]?.min_ym;
+    const maxYm = salesRangeRows[0]?.max_ym;
+    const formatYmToMonthYear = (ym) => {
+      if (!ym) return '—';
+      const yr = Math.floor(ym / 100);
+      const mo = ym % 100;
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[mo - 1] || 'Jan'} ${yr}`;
+    };
+
+    const availableSalesRange = {
+      minYm,
+      maxYm,
+      minDate: formatYmToMonthYear(minYm),
+      maxDate: formatYmToMonthYear(maxYm),
+      totalSales: salesRangeRows[0]?.count ? Number(salesRangeRows[0].count) : 0,
+      county: county !== 'all' ? county : 'All counties'
+    };
+
+    const diagnostics = {
+      rawPairsFound: rawPairs.length,
+      filteredByHoldMonths,
+      filteredByMinGain,
+      filteredByDistressed: distressedExcludedCount,
+      filteredByDealType,
+      activeFilters: {
+        county,
+        zip: zip || null,
+        radius: radius || null,
+        dealType,
+        maxMonths,
+        minGainPct,
+        minPrice,
+        maxPrice,
+        includeDistressed,
+        includeMyListings
+      },
+      availableSalesRange
+    };
+
     return res.status(200).json({
       summary: {
         totalMatching,
@@ -697,6 +801,8 @@ export default async function handler(req, res) {
         medianJumpDollars,
         medianJumpPct,
         medianHoldMonths,
+        availableSalesRange,
+        diagnostics,
         queryMs: Date.now() - t0
       },
       items: results.slice(0, limit)
