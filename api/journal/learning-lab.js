@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { computeZipFlipSummary } from '../county/flip-finder.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -139,6 +140,22 @@ async function getNextCalBooking() {
 
 // Cache deals pool by (targetZipsKey, dateSeed) with 1-hour TTL
 const dealsPoolCache = new Map();
+const zipFlipSummaryCache = new Map();
+
+async function getCachedZipFlipSummary(sql, zip) {
+  const key = String(zip || 'all');
+  const now = Date.now();
+  const hit = zipFlipSummaryCache.get(key);
+  if (hit && now < hit.expiry) return hit.summary;
+  try {
+    const summary = await computeZipFlipSummary(sql, { zip: key === 'all' ? '' : key, lookbackMonths: 12 });
+    zipFlipSummaryCache.set(key, { summary, expiry: now + 60 * 60 * 1000 });
+    return summary;
+  } catch (err) {
+    console.warn('ZIP flip summary skipped:', err.message);
+    return null;
+  }
+}
 
 async function getDealsPool(sql, targetZips, curYear, dateSeed) {
   const cacheKey = `${targetZips.slice().sort().join(',')}_${dateSeed}`;
@@ -590,6 +607,23 @@ export default async function handler(req, res) {
     // Static learning content from memory cache
     const learningContent = getLearningContent();
 
+    // Flip & Build ZIP Summary Card (last 12 months) for "How flippers and builders make money"
+    const requestedFlipZip = /^\d{5}$/.test(String(req.query?.flip_zip || '').trim())
+      ? String(req.query.flip_zip).trim()
+      : null;
+    const availableFlipZips = Array.from(
+      new Set([
+        ...(requestedFlipZip ? [requestedFlipZip] : []),
+        ...locs.map((l) => String(l.zip || '').trim()).filter((z) => /^\d{5}$/.test(z)),
+        ...props.map((p) => String(p.zip || '').trim()).filter((z) => /^\d{5}$/.test(z)),
+        '33311',
+        '33401',
+        '33467'
+      ])
+    );
+    const activeFlipZip = requestedFlipZip || availableFlipZips[0] || '33311';
+    const flipBuilderZipSummary = await getCachedZipFlipSummary(sql, activeFlipZip);
+
     // Live data tie-ins for terms from top analysis
     const liveTieIns = {};
     if (analyses.length > 0) {
@@ -630,6 +664,8 @@ export default async function handler(req, res) {
       terms: learningContent.terms || [],
       principles: learningContent.principles || [],
       liveTieIns,
+      flipBuilderZipSummary,
+      availableFlipZips,
       nextBooking
     });
   } catch (error) {

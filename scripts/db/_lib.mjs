@@ -39,7 +39,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_boat_dock_and_construction.sql',
   'add_appraisal_v2_columns.sql',
   'add_price_source_and_subject_meta.sql',
-  'add_building_characteristics.sql'
+  'add_building_characteristics.sql',
+  'add_deal_breakdowns.sql'
 ];
 
 /**
@@ -252,6 +253,22 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       { table: 'building_characteristics', column: 'living_area_sqft' }
     ],
     indexes: ['idx_building_characteristics_folio']
+  },
+  'add_deal_breakdowns.sql': {
+    tables: ['deal_breakdowns'],
+    columns: [
+      { table: 'deal_breakdowns', column: 'owner_email' },
+      { table: 'deal_breakdowns', column: 'property_id' },
+      { table: 'deal_breakdowns', column: 'deal_type' },
+      { table: 'deal_breakdowns', column: 'inputs' },
+      { table: 'deal_breakdowns', column: 'results' }
+    ],
+    indexes: [
+      'idx_deal_breakdowns_owner_updated',
+      'idx_deal_breakdowns_owner_property',
+      'idx_deal_breakdowns_owner_parcel',
+      'idx_county_sales_flip_finder'
+    ]
   },
   'add_location_intelligence_tables.sql': {
     tables: [

@@ -50,6 +50,60 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
 
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Flip & Build ZIP Summary Card state (last 12 months)
+  const [flipZipSummary, setFlipZipSummary] = useState(() => data?.flipBuilderZipSummary || null);
+  const [selectedFlipZip, setSelectedFlipZip] = useState(() => data?.flipBuilderZipSummary?.zip || data?.availableFlipZips?.[0] || '');
+  const [customFlipZipInput, setCustomFlipZipInput] = useState('');
+  const [loadingFlipZip, setLoadingFlipZip] = useState(false);
+
+  useEffect(() => {
+    if (data?.flipBuilderZipSummary && !flipZipSummary) {
+      setFlipZipSummary(data.flipBuilderZipSummary);
+      if (data.flipBuilderZipSummary.zip) {
+        setSelectedFlipZip(data.flipBuilderZipSummary.zip);
+      }
+    }
+  }, [data?.flipBuilderZipSummary, flipZipSummary]);
+
+  const handleLoadFlipZipSummary = async (zipCode) => {
+    const clean = String(zipCode || '').trim();
+    if (!/^\d{5}$/.test(clean)) return;
+    setSelectedFlipZip(clean);
+    setLoadingFlipZip(true);
+    try {
+      const res = await fetch(`/api/county/flip-finder?summary_only=1&zip=${encodeURIComponent(clean)}&lookback_months=12`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.summary) {
+          setFlipZipSummary(json.summary);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load ZIP flip summary:', err);
+    } finally {
+      setLoadingFlipZip(false);
+    }
+  };
+
+  const handleOpenFlipFinderForZip = (zipCode) => {
+    if (typeof window !== 'undefined') {
+      window.__investorStudioInitialMode = 'finder';
+      if (zipCode && /^\d{5}$/.test(zipCode)) {
+        window.__investorStudioInitialZip = zipCode;
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'investor');
+      url.searchParams.set('investor_view', 'finder');
+      if (zipCode && /^\d{5}$/.test(zipCode)) {
+        url.searchParams.set('finder_zip', zipCode);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+    if (typeof setActiveDashboardTab === 'function') {
+      setActiveDashboardTab('investor');
+    }
+  };
+
   // Auto-dismiss toast
   useEffect(() => {
     if (!toastMessage) return;
@@ -1012,7 +1066,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
               </button>
             </div>
 
-            {/* Quick-jump pills for Live-in Plan (FHA) lessons */}
+            {/* Quick-jump pills for featured lessons */}
             {Array.isArray(data?.terms) && (
               <div style={{
                 display: 'flex',
@@ -1021,6 +1075,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                 marginBottom: '12px'
               }}>
                 {[
+                  { id: 'how_flippers_builders_make_money', label: 'How flippers & builders make money' },
                   { id: 'fha_plain_words', label: 'FHA in plain words' },
                   { id: 'live_in_flip_vs_house_hack', label: 'Live-in flip vs. house hack' },
                   { id: 'section_121_year_two', label: 'Why year 2 matters (Section 121)' },
@@ -1058,6 +1113,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
             {currentTerm && (
               <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 50px)', boxSizing: 'border-box' }}>
                 {[
+                  'how_flippers_builders_make_money',
                   'fha_plain_words',
                   'live_in_flip_vs_house_hack',
                   'section_121_year_two',
@@ -1073,7 +1129,9 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                     fontSize: '11px',
                     color: '#34292A'
                   }}>
-                    Estimate for planning — confirm with your lender and CPA.
+                    {currentTerm.id === 'how_flippers_builders_make_money'
+                      ? 'Developer margins are modeled estimates — inspect real deeds and adjust every cost line in Deal Breakdown.'
+                      : 'Estimate for planning — confirm with your lender and CPA.'}
                   </div>
                 )}
                 {/* Header: Term Title + Full Name */}
@@ -1148,6 +1206,60 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
                     </div>
                   )}
                 </div>
+
+                {/* Live ZIP Snapshot inline when reading "How flippers & builders make money" */}
+                {currentTerm.id === 'how_flippers_builders_make_money' && flipZipSummary && (
+                  <div style={{
+                    backgroundColor: '#34292A',
+                    color: '#FAF8F5',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    marginBottom: '18px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#BDD3E2' }}>
+                        ZIP {flipZipSummary.zip || selectedFlipZip} · LAST 12 MONTHS (COUNTY DEEDS)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFlipFinderForZip(flipZipSummary.zip || selectedFlipZip)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#BDD3E2',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0,
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Inspect in Flip &amp; Build Finder →
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontFamily: 'var(--font-sans)' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.65)', textTransform: 'uppercase' }}>Flips / New Builds</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700 }}>
+                          {flipZipSummary.flipCount ?? 0} / {flipZipSummary.newBuildCount ?? 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.65)', textTransform: 'uppercase' }}>Median $ Jump</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700 }}>
+                          {flipZipSummary.medianJumpDollars != null ? `+${formatCurrency(flipZipSummary.medianJumpDollars)}` : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.65)', textTransform: 'uppercase' }}>Median Hold</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700 }}>
+                          {flipZipSummary.medianHoldMonths != null ? `${flipZipSummary.medianHoldMonths} mo` : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action: Mark as Learned */}
                 <div style={{ marginTop: 'auto' }}>
@@ -1259,6 +1371,254 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
             )}
           </section>
         </div>
+
+        {/* =====================================================================
+            3B. LESSON SPOTLIGHT · HOW FLIPPERS & BUILDERS MAKE MONEY (ZIP SUMMARY CARD)
+            ===================================================================== */}
+        <section style={{ marginBottom: '56px' }}>
+          <div style={{
+            backgroundColor: '#34292A',
+            color: '#FAF8F5',
+            borderRadius: 'var(--radius-card, 20px)',
+            padding: '28px 32px',
+            boxShadow: '0 8px 28px rgba(52, 41, 42, 0.14)'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              flexWrap: 'wrap',
+              gap: '16px',
+              marginBottom: '20px'
+            }}>
+              <div>
+                <span style={{
+                  display: 'inline-block',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: '#BDD3E2',
+                  marginBottom: '6px'
+                }}>
+                  DEVELOPER ECONOMICS · LAST 12 MONTHS
+                </span>
+                <h3 style={{
+                  fontFamily: 'var(--font-display, "Cormorant Garamond", Georgia, serif)',
+                  fontSize: 'clamp(24px, 3vw, 32px)',
+                  fontWeight: 400,
+                  margin: '0 0 6px 0',
+                  color: '#FAF8F5',
+                  lineHeight: 1.15
+                }}>
+                  How flippers &amp; builders make money — ZIP {flipZipSummary?.zip || selectedFlipZip || '—'} snapshot
+                </h3>
+                <p style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '13px',
+                  color: 'rgba(250, 248, 245, 0.78)',
+                  margin: 0,
+                  maxWidth: '640px',
+                  lineHeight: 1.5
+                }}>
+                  Measured from arms-length county deed pairs over the last 12 months (distressed buys excluded). Compare your ZIP&apos;s real price jumps and hold times before underwriting a flip or demo → new build.
+                </p>
+              </div>
+
+              {/* ZIP Picker & Custom 5-digit lookup */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {Array.isArray(data?.availableFlipZips) && data.availableFlipZips.length > 0 && (
+                  <select
+                    aria-label="Choose ZIP for Flip and Build summary"
+                    value={selectedFlipZip}
+                    onChange={(e) => handleLoadFlipZipSummary(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(189, 211, 226, 0.45)',
+                      backgroundColor: 'rgba(250, 248, 245, 0.1)',
+                      color: '#FAF8F5',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {data.availableFlipZips.map((z) => (
+                      <option key={z} value={z} style={{ color: '#34292A', backgroundColor: '#FAF8F5' }}>
+                        ZIP {z}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (/^\d{5}$/.test(customFlipZipInput.trim())) {
+                      handleLoadFlipZipSummary(customFlipZipInput.trim());
+                      setCustomFlipZipInput('');
+                    }
+                  }}
+                  style={{ display: 'inline-flex', gap: '6px' }}
+                >
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={customFlipZipInput}
+                    onChange={(e) => setCustomFlipZipInput(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                    placeholder="Other ZIP"
+                    aria-label="Check another 5-digit ZIP"
+                    style={{
+                      width: '92px',
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(189, 211, 226, 0.4)',
+                      backgroundColor: 'rgba(250, 248, 245, 0.08)',
+                      color: '#FAF8F5',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '12px'
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loadingFlipZip || customFlipZipInput.length !== 5}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: '1px solid #BDD3E2',
+                      backgroundColor: '#BDD3E2',
+                      color: '#34292A',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      cursor: customFlipZipInput.length === 5 ? 'pointer' : 'default',
+                      opacity: customFlipZipInput.length === 5 ? 1 : 0.6
+                    }}
+                  >
+                    Go
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* 4 Live ZIP Metrics */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '14px',
+              marginBottom: '20px',
+              opacity: loadingFlipZip ? 0.6 : 1,
+              transition: 'opacity 0.15s ease'
+            }}>
+              <div style={{ backgroundColor: 'rgba(250, 248, 245, 0.08)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(189, 211, 226, 0.22)' }}>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BDD3E2', marginBottom: '4px' }}>
+                  FLIPS (LAST 12 MO)
+                </span>
+                <div style={{ fontFamily: 'var(--font-display, "Cormorant Garamond", Georgia, serif)', fontSize: '30px', lineHeight: 1.1 }}>
+                  {flipZipSummary ? flipZipSummary.flipCount : '—'}
+                </div>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                  2 market sales ≤24 mo, ≥25% jump
+                </span>
+              </div>
+
+              <div style={{ backgroundColor: 'rgba(250, 248, 245, 0.08)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(189, 211, 226, 0.22)' }}>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BDD3E2', marginBottom: '4px' }}>
+                  NEW BUILDS (LAST 12 MO)
+                </span>
+                <div style={{ fontFamily: 'var(--font-display, "Cormorant Garamond", Georgia, serif)', fontSize: '30px', lineHeight: 1.1 }}>
+                  {flipZipSummary ? flipZipSummary.newBuildCount : '—'}
+                </div>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                  Demo / vacant → new build
+                </span>
+              </div>
+
+              <div style={{ backgroundColor: 'rgba(250, 248, 245, 0.08)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(189, 211, 226, 0.22)' }}>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BDD3E2', marginBottom: '4px' }}>
+                  MEDIAN $ JUMP
+                </span>
+                <div style={{ fontFamily: 'var(--font-display, "Cormorant Garamond", Georgia, serif)', fontSize: '30px', lineHeight: 1.1 }}>
+                  {flipZipSummary?.medianJumpDollars != null ? `+${formatCurrency(flipZipSummary.medianJumpDollars)}` : '—'}
+                </div>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                  {flipZipSummary?.medianJumpPct != null ? `+${flipZipSummary.medianJumpPct}% gross spread` : 'No matching deed pairs'}
+                </span>
+              </div>
+
+              <div style={{ backgroundColor: 'rgba(250, 248, 245, 0.08)', borderRadius: '12px', padding: '14px 16px', border: '1px solid rgba(189, 211, 226, 0.22)' }}>
+                <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#BDD3E2', marginBottom: '4px' }}>
+                  MEDIAN HOLD
+                </span>
+                <div style={{ fontFamily: 'var(--font-display, "Cormorant Garamond", Georgia, serif)', fontSize: '30px', lineHeight: 1.1 }}>
+                  {flipZipSummary?.medianHoldMonths != null ? `${flipZipSummary.medianHoldMonths} mo` : '—'}
+                </div>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 248, 245, 0.65)' }}>
+                  Buy deed to resale deed
+                </span>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idx = (data?.terms || []).findIndex((t) => t.id === 'how_flippers_builders_make_money');
+                    if (idx >= 0) {
+                      setTermIndex(idx);
+                      const el = document.getElementById('learning-lab-term-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(250, 248, 245, 0.38)',
+                    backgroundColor: 'transparent',
+                    color: '#FAF8F5',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Read full lesson ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenFlipFinderForZip(flipZipSummary?.zip || selectedFlipZip)}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    backgroundColor: '#BDD3E2',
+                    color: '#34292A',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Open Flip &amp; Build Finder →
+                </button>
+              </div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '11px', color: 'rgba(250, 248, 245, 0.58)' }}>
+                Read-only county deed summary · Distressed buys excluded ({flipZipSummary?.distressedFlaggedCount ?? 0} flagged)
+              </span>
+            </div>
+          </div>
+        </section>
 
         {/* =====================================================================
             4. PRACTICE · GUESS THE VALUE (Beige Card)
