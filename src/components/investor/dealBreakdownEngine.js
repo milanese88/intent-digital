@@ -81,6 +81,75 @@ export function computeHoldMonthsBetweenDates(buyDateStr, exitDateStr, fallbackM
 }
 
 /**
+ * Computes individual phase lengths (pre-construction, construction, on-market, total)
+ * from milestone dates (buy, demo, permit, completion, list, sell).
+ */
+export function computeTimelinePhases(milestones = {}) {
+  const {
+    buyDate,
+    demoDate,
+    permitDate,
+    constructionStartDate,
+    completedDate,
+    listDate,
+    sellDate,
+    defaultHoldMonths = 12
+  } = milestones;
+
+  const toYm = (dateStr) => {
+    if (!dateStr) return null;
+    const m = String(dateStr).match(/^(\d{4})-(\d{2})/);
+    if (!m) return null;
+    return Number(m[1]) * 12 + Number(m[2]);
+  };
+
+  const buyYm = toYm(buyDate);
+  const workDates = [demoDate, permitDate, constructionStartDate].filter(Boolean);
+  const workYmList = workDates.map(toYm).filter((ym) => ym != null);
+  const earliestWorkYm = workYmList.length > 0 ? Math.min(...workYmList) : null;
+  const completeYm = toYm(completedDate);
+  const listYm = toYm(listDate);
+  const sellYm = toYm(sellDate);
+
+  let preConstructionMonths = 0;
+  let constructionMonths = 0;
+  let onMarketMonths = 0;
+
+  if (buyYm && earliestWorkYm && earliestWorkYm >= buyYm) {
+    preConstructionMonths = Math.max(1, earliestWorkYm - buyYm);
+  }
+
+  const workStartYm = earliestWorkYm || buyYm;
+  if (workStartYm && completeYm && completeYm >= workStartYm) {
+    constructionMonths = Math.max(1, completeYm - workStartYm);
+  } else if (milestones.dealType === 'demo_new_build') {
+    constructionMonths = 12; // default 12 mo for new build if completed date not known yet
+  } else {
+    constructionMonths = 4; // default 4 mo for flip
+  }
+
+  const marketStartYm = listYm || completeYm || (workStartYm ? workStartYm + constructionMonths : null);
+  if (marketStartYm && sellYm && sellYm >= marketStartYm) {
+    onMarketMonths = Math.max(1, sellYm - marketStartYm);
+  } else {
+    onMarketMonths = 2; // standard 60-day listing to close
+  }
+
+  const totalCalculated =
+    buyYm && sellYm && sellYm >= buyYm
+      ? sellYm - buyYm
+      : (preConstructionMonths || 1) + (constructionMonths || 4) + (onMarketMonths || 2);
+
+  return {
+    preConstructionMonths: Math.max(0, preConstructionMonths),
+    constructionMonths: Math.max(1, constructionMonths),
+    onMarketMonths: Math.max(1, onMarketMonths),
+    totalHoldMonths: Math.max(1, totalCalculated || defaultHoldMonths),
+    hasActualPhases: Boolean(buyYm && (earliestWorkYm || completeYm || sellYm))
+  };
+}
+
+/**
  * Infers whether a property's county history looks like a Demo -> New Build vs a Flip.
  */
 export function inferDealBreakdownType({
@@ -358,7 +427,10 @@ function evaluateSingleScenario(inputs, { hardCostMult = 1.0, extraHoldMonths = 
   const isNewBuild = inputs.dealType === 'demo_new_build';
   const purchasePrice = Math.max(0, num(inputs.purchasePrice, 0));
   const exitPrice = roundDollar(Math.max(0, num(inputs.exitPrice, 0)) * exitPriceMult);
-  const holdMonths = clamp(Math.round(num(inputs.holdMonths, isNewBuild ? 16 : 6) + extraHoldMonths), 1, 120);
+  const hasPhases = inputs.timelinePhases && Number(inputs.timelinePhases.totalHoldMonths) > 0;
+  const holdMonths = hasPhases
+    ? Math.max(1, Math.round(Number(inputs.timelinePhases.totalHoldMonths) + extraHoldMonths))
+    : clamp(Math.round(num(inputs.holdMonths, isNewBuild ? 16 : 6) + extraHoldMonths), 1, 120);
   const afterLivingSqft = Math.max(0, num(inputs.afterLivingSqft, 0));
 
   // 1. Buying closing costs
@@ -433,8 +505,18 @@ function evaluateSingleScenario(inputs, { hardCostMult = 1.0, extraHoldMonths = 
       : clamp(num(inputs.drawUtilPct, 60), 10, 100) / 100;
     avgDrawnPct = round1(drawUtil * 100);
 
-    const avgLoanBalance = purchaseLoanPart + buildLoanPart * drawUtil;
-    financingInterest = roundDollar(avgLoanBalance * (ratePct / 100) * (holdMonths / 12));
+    if (inputs.timelinePhases?.hasActualPhases) {
+      const preM = Math.max(0, Number(inputs.timelinePhases.preConstructionMonths) || 0);
+      const buildM = Math.max(0, Number(inputs.timelinePhases.constructionMonths) || (holdMonths - preM));
+      const mktM = Math.max(0, Number(inputs.timelinePhases.onMarketMonths) || 0);
+      const preInt = purchaseLoanPart * (ratePct / 100) * (preM / 12);
+      const buildInt = (purchaseLoanPart + buildLoanPart * drawUtil) * (ratePct / 100) * (buildM / 12);
+      const mktInt = (purchaseLoanPart + buildLoanPart) * (ratePct / 100) * (mktM / 12);
+      financingInterest = roundDollar(preInt + buildInt + mktInt);
+    } else {
+      const avgLoanBalance = purchaseLoanPart + buildLoanPart * drawUtil;
+      financingInterest = roundDollar(avgLoanBalance * (ratePct / 100) * (holdMonths / 12));
+    }
     financingPoints = roundDollar(loanAmount * (pointsPct / 100));
     // FL mortgage doc stamps (0.35%) + intangible tax (0.20%) on loan + lender underwriting/draw fees
     const flLoanTaxes = roundDollar(loanAmount * ((FL_MORTGAGE_DOC_STAMPS_PCT + FL_INTANGIBLE_TAX_PCT) / 100));
@@ -516,6 +598,7 @@ function evaluateSingleScenario(inputs, { hardCostMult = 1.0, extraHoldMonths = 
       monthlyUtilities,
       monthlyHoldingTotal,
       holdingCosts,
+      holdMonths,
       commissionCost,
       sellerClosingCost,
       flDocStampsCost,
