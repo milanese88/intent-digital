@@ -3705,6 +3705,56 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         </div>
                       </div>
                     </div>
+
+                    {/* Quick Link to Timeline & Deal Breakdown */}
+                    <div
+                      style={{
+                        marginTop: '24px',
+                        padding: '16px 20px',
+                        borderRadius: '16px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E4DDD3',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '14px',
+                        boxShadow: '0 2px 12px rgba(27, 19, 13, 0.02)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '12px',
+                            backgroundColor: 'rgba(189, 211, 226, 0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '20px'
+                          }}
+                        >
+                          🏗️
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-sans, "Montserrat", sans-serif)', fontSize: '13.5px', fontWeight: 700, color: 'var(--espresso, #1B130D)' }}>
+                            Property Lifecycle Timeline &amp; Deal Breakdown
+                          </div>
+                          <div style={{ fontFamily: 'var(--font-sans, "Montserrat", sans-serif)', fontSize: '12px', color: 'rgba(52, 41, 42, 0.65)' }}>
+                            Track acquisition &rarr; demolition &rarr; permits &rarr; construction &rarr; completed &rarr; exit with actual phase lengths.
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleSelectTab('breakdown')}
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        Open Timeline &amp; Breakdown &rarr;
+                      </Button>
+                    </div>
                   </div>
 
                   {/* TAB 2: VALUE & COMPS */}

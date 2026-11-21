@@ -40,7 +40,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_appraisal_v2_columns.sql',
   'add_price_source_and_subject_meta.sql',
   'add_building_characteristics.sql',
-  'add_deal_breakdowns.sql'
+  'add_deal_breakdowns.sql',
+  'add_property_permits.sql'
 ];
 
 /**
@@ -268,6 +269,21 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       'idx_deal_breakdowns_owner_property',
       'idx_deal_breakdowns_owner_parcel',
       'idx_county_sales_flip_finder'
+    ]
+  },
+  'add_property_permits.sql': {
+    tables: ['property_permits'],
+    columns: [
+      { table: 'property_permits', column: 'owner_email' },
+      { table: 'property_permits', column: 'property_id' },
+      { table: 'property_permits', column: 'folio' },
+      { table: 'property_permits', column: 'permit_type' },
+      { table: 'property_permits', column: 'issue_date' }
+    ],
+    indexes: [
+      'idx_property_permits_owner_property',
+      'idx_property_permits_owner_folio',
+      'idx_property_permits_issue_date'
     ]
   },
   'add_location_intelligence_tables.sql': {
