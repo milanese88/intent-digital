@@ -26,13 +26,16 @@ export const DEVELOPER_MILLAGE_BY_COUNTY = {
 
 /**
  * Flip rehabilitation cost estimates ($/sf of living area) — South Florida
+ * All defaults are editable here and overridable live in Finder & Deal Breakdown.
  */
 export const FLIP_REHAB_LEVELS = {
   light: {
     id: 'light',
     label: 'Light (Cosmetic)',
     shortLabel: 'Light',
+    minCostPerSqft: 25,
     costPerSqft: 35,
+    maxCostPerSqft: 45,
     rangeLabel: '$25–$45/sf',
     description: 'Paint, flooring refresh, lighting, landscaping, minor kitchen/bath updates (estimate)'
   },
@@ -40,19 +43,50 @@ export const FLIP_REHAB_LEVELS = {
     id: 'medium',
     label: 'Medium (Standard Flip)',
     shortLabel: 'Medium',
-    costPerSqft: 75,
-    rangeLabel: '$55–$95/sf',
+    minCostPerSqft: 50,
+    costPerSqft: 68,
+    maxCostPerSqft: 85,
+    rangeLabel: '$50–$85/sf',
     description: 'New kitchen & baths, flooring, interior doors/trim, partial HVAC/electrical (estimate)'
   },
   full_gut: {
     id: 'full_gut',
     label: 'Full Gut (Heavy Rehab)',
     shortLabel: 'Full gut',
-    costPerSqft: 135,
-    rangeLabel: '$110–$170/sf',
+    minCostPerSqft: 90,
+    costPerSqft: 115,
+    maxCostPerSqft: 140,
+    rangeLabel: '$90–$140/sf',
     description: 'Down-to-studs remodel, new roof, impact glass, MEP rewire/repipe, layout changes (estimate)'
   }
 };
+
+/**
+ * Editable rules for inferring a flip's rehab level from hold duration and price jump %:
+ * - ≤ 6 mo (and jump ≤ 60%) → light ($25–$45/sf)
+ * - 7–12 mo (and jump ≤ 60%) → medium ($50–$85/sf)
+ * - > 12 mo OR price jump > 60% → full_gut ($90–$140/sf)
+ */
+export const FLIP_REHAB_INFERENCE_RULES = {
+  lightMaxHoldMonths: 6,
+  mediumMaxHoldMonths: 12,
+  fullGutMinJumpPct: 60
+};
+
+export function inferFlipRehabLevel({ holdMonths = 6, jumpPct = null, rules = FLIP_REHAB_INFERENCE_RULES } = {}) {
+  const r = rules || FLIP_REHAB_INFERENCE_RULES;
+  const months = Number(holdMonths);
+  const cleanMonths = Number.isFinite(months) && months > 0 ? months : 6;
+  const gain = jumpPct != null && Number.isFinite(Number(jumpPct)) ? Number(jumpPct) : null;
+
+  if (cleanMonths > r.mediumMaxHoldMonths || (gain != null && gain > r.fullGutMinJumpPct)) {
+    return 'full_gut';
+  }
+  if (cleanMonths > r.lightMaxHoldMonths) {
+    return 'medium';
+  }
+  return 'light';
+}
 
 /**
  * Demo -> New Construction hard build cost estimates ($/sf of new living area) — South Florida
@@ -62,7 +96,9 @@ export const NEW_BUILD_QUALITY_TIERS = {
     id: 'standard',
     label: 'Standard Spec',
     shortLabel: 'Standard',
+    minCostPerSqft: 220,
     costPerSqft: 260,
+    maxCostPerSqft: 300,
     rangeLabel: '$220–$300/sf',
     description: 'CBS production/spec build, impact windows, tile or shingle roof, builder finishes (estimate)'
   },
@@ -70,7 +106,9 @@ export const NEW_BUILD_QUALITY_TIERS = {
     id: 'high_end',
     label: 'High-End Semi-Custom',
     shortLabel: 'High-end',
+    minCostPerSqft: 330,
     costPerSqft: 385,
+    maxCostPerSqft: 450,
     rangeLabel: '$330–$450/sf',
     description: 'Semi-custom CBS, designer kitchen & millwork, metal/barrel tile roof, upgraded glazing (estimate)'
   },
@@ -78,7 +116,9 @@ export const NEW_BUILD_QUALITY_TIERS = {
     id: 'luxury',
     label: 'Luxury Custom / Coastal',
     shortLabel: 'Luxury',
+    minCostPerSqft: 480,
     costPerSqft: 575,
+    maxCostPerSqft: 700,
     rangeLabel: '$480–$700/sf',
     description: 'Custom architectural waterfront/estate build, structural steel/glass, museum-grade finishes (estimate)'
   }
@@ -254,6 +294,7 @@ export const DEVELOPER_COSTS_CONFIG = {
   flIntangibleTaxPct: FL_INTANGIBLE_TAX_PCT,
   millageByCounty: DEVELOPER_MILLAGE_BY_COUNTY,
   flipRehabLevels: FLIP_REHAB_LEVELS,
+  flipRehabInferenceRules: FLIP_REHAB_INFERENCE_RULES,
   newBuildQualityTiers: NEW_BUILD_QUALITY_TIERS,
   demoBrackets: DEMO_COST_BRACKETS,
   softCosts: SOFT_COSTS_DEFAULTS,

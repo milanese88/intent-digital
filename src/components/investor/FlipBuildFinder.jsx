@@ -1,13 +1,24 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button, Eyebrow, SectionHeading } from '../ui';
 import { SUPPORTED_COUNTIES } from '../../config/counties.js';
-import { DEVELOPER_COSTS_AS_OF_DISPLAY } from '../../config/developerCosts.js';
+import {
+  DEVELOPER_COSTS_AS_OF_DISPLAY,
+  FLIP_REHAB_LEVELS,
+  FLIP_REHAB_INFERENCE_RULES
+} from '../../config/developerCosts.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import {
   inferDealBreakdownType,
   computeHoldMonthsBetweenDates,
-  buildIsoDateFromYearMonth
+  buildIsoDateFromYearMonth,
+  estimateQuickFinderProfit
 } from './dealBreakdownEngine.js';
+
+const DEFAULT_REHAB_OVERRIDES = {
+  light: { min: FLIP_REHAB_LEVELS.light.minCostPerSqft, max: FLIP_REHAB_LEVELS.light.maxCostPerSqft },
+  medium: { min: FLIP_REHAB_LEVELS.medium.minCostPerSqft, max: FLIP_REHAB_LEVELS.medium.maxCostPerSqft },
+  full_gut: { min: FLIP_REHAB_LEVELS.full_gut.minCostPerSqft, max: FLIP_REHAB_LEVELS.full_gut.maxCostPerSqft }
+};
 
 const PRICE_BANDS = [
   { id: 'all', label: 'Any exit price', min: null, max: null },
@@ -26,6 +37,37 @@ function fmtDollar(val, signed = false) {
     return '$0';
   }
   return n < 0 ? `−$${Math.abs(n).toLocaleString('en-US')}` : `$${n.toLocaleString('en-US')}`;
+}
+
+function fmtCompactSignedDollar(val) {
+  if (val == null || isNaN(Number(val))) return '—';
+  const n = Math.round(Number(val));
+  const abs = Math.abs(n);
+  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
+  if (abs >= 1000000) {
+    return `${sign}$${(abs / 1000000).toFixed(2).replace(/\.00$/, '')}M`;
+  }
+  if (abs >= 10000) {
+    return `${sign}$${Math.round(abs / 1000)}K`;
+  }
+  if (abs >= 1000) {
+    return `${sign}$${(abs / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  return `${sign}$${abs.toLocaleString('en-US')}`;
+}
+
+function fmtBedsBaths(row) {
+  const beds = row?.beds != null && Number(row.beds) > 0 ? Number(row.beds) : null;
+  let baths = row?.baths != null && Number(row.baths) > 0 ? Number(row.baths) : null;
+  if (baths == null && (row?.full_baths != null || row?.half_baths != null)) {
+    const total = (Number(row.full_baths) || 0) + (Number(row.half_baths) || 0) * 0.5;
+    if (total > 0) baths = total;
+  }
+  const fmtNum = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ''));
+  if (beds != null && baths != null) return `${fmtNum(beds)} bd / ${fmtNum(baths)} ba`;
+  if (beds != null) return `${fmtNum(beds)} bd`;
+  if (baths != null) return `${fmtNum(baths)} ba`;
+  return null;
 }
 
 function fmtShortMonthYear(isoDate) {
@@ -86,7 +128,71 @@ export default function FlipBuildFinder({
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRehabEditor, setShowRehabEditor] = useState(false);
+  const [rehabOverrides, setRehabOverrides] = useState(() => ({
+    light: { ...DEFAULT_REHAB_OVERRIDES.light },
+    medium: { ...DEFAULT_REHAB_OVERRIDES.medium },
+    full_gut: { ...DEFAULT_REHAB_OVERRIDES.full_gut }
+  }));
   const requestSeqRef = useRef(0);
+
+  const hasCustomRehabOverrides = useMemo(() => {
+    return ['light', 'medium', 'full_gut'].some((k) => {
+      return (
+        Number(rehabOverrides[k]?.min) !== DEFAULT_REHAB_OVERRIDES[k].min ||
+        Number(rehabOverrides[k]?.max) !== DEFAULT_REHAB_OVERRIDES[k].max
+      );
+    });
+  }, [rehabOverrides]);
+
+  const handleUpdateRehabRate = (levelKey, bound, rawVal) => {
+    const parsed = Number(rawVal);
+    const clean = Number.isFinite(parsed) && parsed >= 0 ? Math.min(1000, Math.round(parsed)) : 0;
+    setRehabOverrides((prev) => ({
+      ...prev,
+      [levelKey]: {
+        ...prev[levelKey],
+        [bound]: clean
+      }
+    }));
+  };
+
+  const handleResetRehabRates = () => {
+    setRehabOverrides({
+      light: { ...DEFAULT_REHAB_OVERRIDES.light },
+      medium: { ...DEFAULT_REHAB_OVERRIDES.medium },
+      full_gut: { ...DEFAULT_REHAB_OVERRIDES.full_gut }
+    });
+  };
+
+  const displayItems = useMemo(() => {
+    if (!hasCustomRehabOverrides) return items;
+    const recomputed = items.map((row) => {
+      if (row.deal_type === 'demo_new_build') return row;
+      const est = estimateQuickFinderProfit(row, rehabOverrides);
+      return {
+        ...row,
+        est_profit_low: est.estProfitLow,
+        est_profit: est.estProfit,
+        est_profit_high: est.estProfitHigh,
+        est_roi_pct_low: est.roiPctLow,
+        est_roi_pct: est.roiPct,
+        est_roi_pct_high: est.roiPctHigh,
+        est_annualized_roi_pct: est.annualizedRoiPct,
+        rehab_level: est.rehabLevel,
+        rehab_level_short_label: est.rehabLevelShortLabel,
+        rehab_level_label: est.rehabLevelLabel,
+        rehab_min_per_sqft: est.rehabMinPerSqft,
+        rehab_max_per_sqft: est.rehabMaxPerSqft,
+        rehab_mid_per_sqft: est.rehabMidPerSqft
+      };
+    });
+    if (sortBy === 'est_profit') {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      recomputed.sort((a, b) => ((Number(a.est_profit) || 0) - (Number(b.est_profit) || 0)) * dir);
+    }
+    return recomputed;
+  }, [items, hasCustomRehabOverrides, rehabOverrides, sortBy, sortDir]);
 
   // Sync if initialZip changes from Learning Lab shortcut
   useEffect(() => {
@@ -252,22 +358,24 @@ export default function FlipBuildFinder({
 
       const buyYear = boughtSale?.sale_year || (buyDate ? Number(buyDate.slice(0, 4)) : null);
       const yearBuilt = bChars?.year_built || parcel.year_built || details.year_built || null;
-      const livingSqft = bChars?.living_sqft || parcel.living_sqft || details.sqft || null;
+      const bcLivingSqft = bChars?.living_area_sqft ?? bChars?.living_sqft ?? null;
+      const livingSqft = bcLivingSqft || parcel.living_sqft || details.sqft || null;
       const lotSqft = parcel.land_sqft || details.lot_sqft || null;
-      const hasPool = Boolean(bChars?.has_pool || (parcel.spec_feat_val && parcel.spec_feat_val > 0));
-      const hasDock = Boolean(bChars?.has_dock);
+      const hasPool = Boolean(
+        (bChars?.pool_type && bChars.pool_type !== 'none') ||
+        bChars?.pool_year ||
+        bChars?.has_pool
+      );
+      const hasDock = Boolean(bChars?.boat_dock === true || bChars?.has_dock === true);
 
       const inferredType = inferDealBreakdownType({
         buyYear,
         yearBuilt,
         afterYearBuilt: yearBuilt,
         beforeSqft: parcel.living_sqft,
-        afterSqft: bChars?.living_sqft || parcel.living_sqft,
+        afterSqft: bcLivingSqft || parcel.living_sqft,
         buyViCd: boughtSale?.vi_cd,
-        sellViCd: soldSale?.vi_cd,
-        justValue: parcel.just_value,
-        landValue: parcel.land_value,
-        buyPrice
+        sellViCd: soldSale?.vi_cd
       });
 
       const candidateRow = {
@@ -290,12 +398,17 @@ export default function FlipBuildFinder({
         sell_vi_cd: soldSale?.vi_cd || null,
         hold_months: computeHoldMonthsBetweenDates(buyDate, sellDate, 12),
         living_sqft: livingSqft,
-        bc_living_sqft: bChars?.living_sqft || null,
+        bc_living_sqft: bcLivingSqft,
         year_built: yearBuilt,
-        eff_year_built: parcel.eff_year_built || null,
+        eff_year_built: bChars?.effective_year_built || parcel.eff_year_built || null,
         lot_sqft: lotSqft,
         has_pool: hasPool,
+        pool_type: bChars?.pool_type && bChars.pool_type !== 'none' ? bChars.pool_type : null,
+        pool_year: bChars?.pool_year ?? null,
         has_dock: hasDock,
+        beds: bChars?.beds != null && Number(bChars.beds) > 0 ? Number(bChars.beds) : (parcel.beds ?? null),
+        full_baths: bChars?.full_baths ?? parcel.full_baths ?? null,
+        half_baths: bChars?.half_baths ?? parcel.half_baths ?? null,
         sales: sales,
         building_characteristics: bChars,
         is_distressed_acquisition: Boolean(boughtSale?.is_distressed)
@@ -775,7 +888,7 @@ export default function FlipBuildFinder({
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '8px',
+          gap: '10px',
           backgroundColor: '#FAF8F5'
         }}>
           <span style={{
@@ -788,16 +901,143 @@ export default function FlipBuildFinder({
           }}>
             {loading
               ? 'Scanning county sales…'
-              : `Showing ${items.length} of ${summary?.totalMatching ?? items.length} matched deals`}
+              : `Showing ${displayItems.length} of ${summary?.totalMatching ?? displayItems.length} matched deals`}
           </span>
-          <span style={{
-            fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-            fontSize: '11px',
-            color: 'rgba(52, 41, 42, 0.62)'
-          }}>
-            Est. profit uses editable South FL defaults (as of {DEVELOPER_COSTS_AS_OF_DISPLAY}) · Click any row to customize
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <span style={{
+              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+              fontSize: '11px',
+              color: 'rgba(52, 41, 42, 0.62)'
+            }}>
+              Editable South FL defaults (as of {DEVELOPER_COSTS_AS_OF_DISPLAY})
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowRehabEditor((prev) => !prev)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '999px',
+                border: hasCustomRehabOverrides ? '1px solid #859DCE' : '1px solid rgba(52, 41, 42, 0.25)',
+                backgroundColor: hasCustomRehabOverrides ? 'rgba(189, 211, 226, 0.45)' : '#FFFFFF',
+                color: '#34292A',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '10.5px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              {showRehabEditor ? 'Hide rehab $/sf' : hasCustomRehabOverrides ? 'Edit rehab $/sf (custom)' : 'Edit rehab $/sf'}
+            </button>
+          </div>
         </div>
+
+        {/* Collapsible Editable Flip Rehab $/sf Assumptions */}
+        {showRehabEditor && (
+          <div style={{
+            padding: '14px 20px',
+            backgroundColor: '#FAF8F5',
+            borderBottom: '1px solid rgba(52, 41, 42, 0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '10.5px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#34292A'
+              }}>
+                Flip Rehab Estimates ($/sf) · Inferred from Hold Months &amp; Price Jump %
+              </span>
+              {hasCustomRehabOverrides && (
+                <button
+                  type="button"
+                  onClick={handleResetRehabRates}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#34292A',
+                    textDecoration: 'underline',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset to defaults
+                </button>
+              )}
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '10px'
+            }}>
+              {[
+                {
+                  key: 'light',
+                  title: 'Light',
+                  rule: `≤${FLIP_REHAB_INFERENCE_RULES.lightMaxHoldMonths} mo (jump ≤${FLIP_REHAB_INFERENCE_RULES.fullGutMinJumpPct}%)`
+                },
+                {
+                  key: 'medium',
+                  title: 'Medium',
+                  rule: `${FLIP_REHAB_INFERENCE_RULES.lightMaxHoldMonths + 1}–${FLIP_REHAB_INFERENCE_RULES.mediumMaxHoldMonths} mo (jump ≤${FLIP_REHAB_INFERENCE_RULES.fullGutMinJumpPct}%)`
+                },
+                {
+                  key: 'full_gut',
+                  title: 'Full gut',
+                  rule: `>${FLIP_REHAB_INFERENCE_RULES.mediumMaxHoldMonths} mo or jump >${FLIP_REHAB_INFERENCE_RULES.fullGutMinJumpPct}%`
+                }
+              ].map((tier) => (
+                <div
+                  key={tier.key}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid rgba(52, 41, 42, 0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '12px', color: '#34292A' }}>{tier.title}</span>
+                    <span style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.6)' }}>{tier.rule}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)' }}>$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1000}
+                      aria-label={`${tier.title} min $/sf`}
+                      value={rehabOverrides[tier.key]?.min ?? 0}
+                      onChange={(e) => handleUpdateRehabRate(tier.key, 'min', e.target.value)}
+                      style={{ ...INPUT_STYLE, padding: '5px 8px', width: '72px' }}
+                    />
+                    <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.6)' }}>to $</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1000}
+                      aria-label={`${tier.title} max $/sf`}
+                      value={rehabOverrides[tier.key]?.max ?? 0}
+                      onChange={(e) => handleUpdateRehabRate(tier.key, 'max', e.target.value)}
+                      style={{ ...INPUT_STYLE, padding: '5px 8px', width: '72px' }}
+                    />
+                    <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.6)' }}>/sf</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ overflowX: 'auto' }}>
           <table style={{
@@ -833,6 +1073,13 @@ export default function FlipBuildFinder({
                 <th style={{ padding: '12px 12px', textAlign: 'right', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => handleSort('hold_months')}>
                   Months {renderSortArrow('hold_months')}
                 </th>
+                <th
+                  style={{ padding: '12px 12px', textAlign: 'right', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  onClick={() => handleSort('break_even_reno_10')}
+                  title="Max renovation budget leaving 10% profit (and 15% target) after purchase, closing, soft, holding, financing & selling costs"
+                >
+                  Break-even reno {renderSortArrow('break_even_reno_10')}
+                </th>
                 <th style={{ padding: '12px 12px', textAlign: 'right', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => handleSort('est_profit')}>
                   Est. Profit {renderSortArrow('est_profit')}
                 </th>
@@ -842,9 +1089,9 @@ export default function FlipBuildFinder({
               </tr>
             </thead>
             <tbody>
-              {!loading && items.length === 0 && (
+              {!loading && displayItems.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '36px 24px', backgroundColor: '#FAF8F5' }}>
+                  <td colSpan={8} style={{ padding: '36px 24px', backgroundColor: '#FAF8F5' }}>
                     <div style={{ maxWidth: '640px', margin: '0 auto', textAlign: 'center' }}>
                       <div style={{
                         display: 'inline-block',
@@ -1025,10 +1272,36 @@ export default function FlipBuildFinder({
                   </td>
                 </tr>
               )}
-              {items.map((row) => {
+              {displayItems.map((row) => {
                 const isNewBuild = row.deal_type === 'demo_new_build';
                 const isMyListing = row.exit_source === 'my_list_price';
-                const profitPositive = Number(row.est_profit) >= 0;
+                const bedsBathsLabel = fmtBedsBaths(row);
+                const poolLabel = row.has_pool
+                  ? (row.pool_year ? `Pool (${row.pool_year})` : 'Pool')
+                  : null;
+
+                const profitLow = row.est_profit_low != null ? Number(row.est_profit_low) : Number(row.est_profit);
+                const profitHigh = row.est_profit_high != null ? Number(row.est_profit_high) : Number(row.est_profit);
+                const profitColor = profitLow >= 0
+                  ? '#1F5C3D'
+                  : profitHigh > 0
+                    ? '#34292A'
+                    : '#991B1B';
+                const profitRangeText = profitLow !== profitHigh
+                  ? `${fmtCompactSignedDollar(profitLow)} to ${fmtCompactSignedDollar(profitHigh)}`
+                  : fmtDollar(profitHigh, true);
+                const profitTooltip = [
+                  `Est. profit range: ${fmtDollar(profitLow, true)} to ${fmtDollar(profitHigh, true)}`,
+                  row.est_roi_pct_low != null && row.est_roi_pct_high != null
+                    ? `Est. ROI: ${Number(row.est_roi_pct_low).toFixed(1)}% to ${Number(row.est_roi_pct_high).toFixed(1)}%`
+                    : null,
+                  row.rehab_level_label ? `Inferred scope: ${row.rehab_level_label}` : null
+                ].filter(Boolean).join(' · ');
+
+                const be10 = row.break_even_reno_10 != null ? Number(row.break_even_reno_10) : null;
+                const be15 = row.break_even_reno_15 != null ? Number(row.break_even_reno_15) : null;
+                const be10Sf = row.break_even_reno_10_per_sqft;
+                const be15Sf = row.break_even_reno_15_per_sqft;
 
                 return (
                   <tr
@@ -1042,8 +1315,8 @@ export default function FlipBuildFinder({
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#FAF8F5'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FFFFFF'; }}
                   >
-                    {/* Address & Badges */}
-                    <td style={{ padding: '13px 16px', minWidth: '240px' }}>
+                    {/* Address & Badges + building_characteristics specs */}
+                    <td style={{ padding: '13px 16px', minWidth: '250px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
                         <span style={{ fontWeight: 700, color: '#34292A', fontSize: '13px' }}>
                           {row.address || `Folio ${row.parcel_id}`}
@@ -1096,13 +1369,17 @@ export default function FlipBuildFinder({
                         )}
                       </div>
 
-                      <div style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.64)' }}>
+                      <div
+                        style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.68)' }}
+                        title={row.bc_source === 'county_cama' ? 'Includes county CAMA building_characteristics (beds, baths, living sf, pool)' : undefined}
+                      >
                         {[
                           [row.city, row.zip].filter(Boolean).join(' '),
                           row.county,
+                          bedsBathsLabel,
                           row.living_sqft ? `${Number(row.living_sqft).toLocaleString()} sf` : null,
                           row.year_built ? `Built ${row.year_built}` : null,
-                          row.has_pool ? 'Pool' : null,
+                          poolLabel,
                           row.has_dock ? 'Dock' : null,
                           row.distance_mi != null ? `${row.distance_mi} mi` : null
                         ].filter(Boolean).join(' · ')}
@@ -1146,16 +1423,42 @@ export default function FlipBuildFinder({
                       {row.hold_months} mo
                     </td>
 
-                    {/* Est. Profit */}
-                    <td style={{ padding: '13px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {/* Break-even reno (10% profit / 15% target) */}
+                    <td
+                      style={{ padding: '13px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}
+                      title={`Max renovation budget leaving 10% ROI profit: ${fmtDollar(be10)}${be10Sf != null ? ` ($${be10Sf}/sf)` : ''} · 15% target: ${fmtDollar(be15)}${be15Sf != null ? ` ($${be15Sf}/sf)` : ''}`}
+                    >
                       <div style={{
                         fontWeight: 700,
-                        color: profitPositive ? '#1F5C3D' : '#991B1B'
+                        color: be10 != null && be10 > 0 ? '#34292A' : 'rgba(52, 41, 42, 0.5)'
                       }}>
-                        {fmtDollar(row.est_profit, true)}
+                        {be10 != null ? fmtDollar(be10) : '—'}
+                        {be10 != null && be10 > 0 && be10Sf != null && (
+                          <span style={{ fontWeight: 600, fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.62)', marginLeft: '4px' }}>
+                            (${be10Sf}/sf)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                        {be10 != null && be10 > 0
+                          ? `15% target: ${fmtDollar(be15)}${be15Sf != null ? ` ($${be15Sf}/sf)` : ''}`
+                          : 'Spread tight for 10%'}
+                      </div>
+                    </td>
+
+                    {/* Est. Profit (low–high range) */}
+                    <td
+                      style={{ padding: '13px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}
+                      title={profitTooltip}
+                    >
+                      <div style={{
+                        fontWeight: 700,
+                        color: profitColor
+                      }}>
+                        {profitRangeText}
                       </div>
                       <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.62)' }}>
-                        {row.est_roi_pct != null ? `${Number(row.est_roi_pct).toFixed(1)}% ROI` : '—'} ·{' '}
+                        {row.rehab_level_label || (row.est_roi_pct != null ? `${Number(row.est_roi_pct).toFixed(1)}% ROI` : '—')}{' '}
                         <span style={{
                           padding: '0px 5px',
                           borderRadius: '999px',

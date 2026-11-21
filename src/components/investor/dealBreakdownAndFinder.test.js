@@ -6,6 +6,7 @@ import {
   DEVELOPER_COSTS_AS_OF,
   DEVELOPER_COSTS_DISCLAIMER,
   FLIP_REHAB_LEVELS,
+  FLIP_REHAB_INFERENCE_RULES,
   NEW_BUILD_QUALITY_TIERS,
   SOFT_COSTS_DEFAULTS,
   FL_DEED_DOC_STAMPS_PCT,
@@ -13,11 +14,13 @@ import {
   estimateDemoLumpSum,
   sumSoftCostsPct,
   computeWeightedDrawUtilization,
-  getDeveloperMillageForCounty
+  getDeveloperMillageForCounty,
+  inferFlipRehabLevel
 } from '../../config/developerCosts.js';
 import {
   buildDefaultDealBreakdownInputs,
   calculateDealBreakdown,
+  calculateBreakEvenReno,
   estimateQuickFinderProfit,
   computeHoldMonthsBetweenDates,
   inferDealBreakdownType
@@ -353,7 +356,7 @@ test('flip-finder: parameter validation and sale-pair classification (flips, dis
   assert.equal(nbSqft.deal_type, 'demo_new_build');
   assert.match(nbSqft.new_build_reason, />30%/);
 
-  // Demo -> New Build by improvement value jump > 1.5x purchase price
+  // Demo -> New Build by improvement value jump while land stayed stable (prior vs current roll)
   const nbImpJump = classifySalePair({
     buy_price: 400000,
     sell_price: 1600000,
@@ -362,21 +365,199 @@ test('flip-finder: parameter validation and sale-pair classification (flips, dis
     sell_qual: '01',
     year_built: 1980,
     living_sqft: 1800,
-    just_value: 1200000,
-    land_value: 300000 // imp_value = 900,000 > 400,000 * 1.5
+    prev_imp_value: 200000,
+    curr_imp_value: 950000,
+    prev_land_value: 300000,
+    curr_land_value: 320000
   });
   assert.equal(nbImpJump.deal_type, 'demo_new_build');
   assert.match(nbImpJump.new_build_reason, /Improvement value jumped/);
 
-  // FlipFinder params: default max_months is 48 for demo_new_build and 24 for flips
-  const paramsFlip = parseFlipFinderParams({ deal_type: 'flip' });
+  // Regression: 181 SW 2 Ct (Deerfield Beach, built 1992, bought $200k, sold $460k, land_value NULL, just_value $373,950) MUST be FLIP
+  const sw2Ct = classifySalePair({
+    county: 'Broward',
+    parcel_id: '484201030510',
+    address: '181 SW 2 CT',
+    buy_price: 200000,
+    sell_price: 460000,
+    buy_year: 2026,
+    buy_month: 1,
+    sell_year: 2026,
+    sell_month: 9,
+    buy_qual: '01',
+    sell_qual: '01',
+    buy_vi_cd: 'I',
+    sell_vi_cd: 'I',
+    year_built: 1992,
+    eff_year_built: 1993,
+    living_sqft: 1429,
+    just_value: 373950,
+    land_value: null
+  }, { minGainPct: 25 });
+  assert.equal(sw2Ct.deal_type, 'flip');
+  assert.equal(sw2Ct.new_build_reason, null);
+  assert.equal(sw2Ct.jump_dollars, 260000);
+  assert.equal(sw2Ct.jump_pct, 130);
+
+  // Vacant-to-vacant (V -> V) land sale without building MUST NOT classify as Demo -> New Build
+  const vacantLandFlip = classifySalePair({
+    buy_price: 130000,
+    sell_price: 470000,
+    buy_year: 2025,
+    buy_qual: '01',
+    sell_qual: '01',
+    buy_vi_cd: 'V',
+    sell_vi_cd: 'V',
+    year_built: null,
+    living_sqft: null
+  }, { minGainPct: 25 });
+  assert.equal(vacantLandFlip.deal_type, 'flip');
+
+  // FlipFinder params: default max_months is 48 for demo_new_build and 24 for flips; break_even_reno_10 is sortable
+  const paramsFlip = parseFlipFinderParams({ deal_type: 'flip', sort_by: 'break_even_reno_10', sort_dir: 'desc' });
   assert.equal(paramsFlip.params.maxMonths, 24);
+  assert.equal(paramsFlip.params.sortBy, 'break_even_reno_10');
   const paramsBuild = parseFlipFinderParams({ deal_type: 'demo_new_build' });
   assert.equal(paramsBuild.params.maxMonths, 48);
 
   assert.equal(computeHoldMonthsBetweenDates('2025-03-01', '2026-01-01'), 10);
   assert.equal(inferDealBreakdownType({ purchaseYear: 2025, afterYearBuilt: 2026 }), 'demo_new_build');
-  assert.equal(inferDealBreakdownType({ buyPrice: 400000, justValue: 1200000, landValue: 300000 }), 'demo_new_build');
+  assert.equal(
+    inferDealBreakdownType({
+      purchaseYear: 2026,
+      afterYearBuilt: 1992,
+      buyViCd: 'I',
+      sellViCd: 'I',
+      beforeSqft: 1429,
+      afterSqft: 1429
+    }),
+    'flip'
+  );
+  assert.equal(
+    inferDealBreakdownType({
+      prevImpValue: 200000,
+      currImpValue: 950000,
+      prevLandValue: 300000,
+      currLandValue: 315000
+    }),
+    'demo_new_build'
+  );
+});
+
+test('Flip Finder rehab inference, low-high profit range, editable $/sf overrides, and Break-even reno (10% & 15%)', () => {
+  // Verify default $/sf tiers match spec: light $25–45, medium $50–85, full_gut $90–140
+  assert.equal(FLIP_REHAB_LEVELS.light.minCostPerSqft, 25);
+  assert.equal(FLIP_REHAB_LEVELS.light.maxCostPerSqft, 45);
+  assert.equal(FLIP_REHAB_LEVELS.medium.minCostPerSqft, 50);
+  assert.equal(FLIP_REHAB_LEVELS.medium.maxCostPerSqft, 85);
+  assert.equal(FLIP_REHAB_LEVELS.full_gut.minCostPerSqft, 90);
+  assert.equal(FLIP_REHAB_LEVELS.full_gut.maxCostPerSqft, 140);
+  assert.equal(FLIP_REHAB_INFERENCE_RULES.lightMaxHoldMonths, 6);
+  assert.equal(FLIP_REHAB_INFERENCE_RULES.mediumMaxHoldMonths, 12);
+  assert.equal(FLIP_REHAB_INFERENCE_RULES.fullGutMinJumpPct, 60);
+
+  // Inference rules: <=6 mo -> light, 7-12 mo -> medium, >12 mo or jump >60% -> full_gut
+  assert.equal(inferFlipRehabLevel({ holdMonths: 4, jumpPct: 35 }), 'light');
+  assert.equal(inferFlipRehabLevel({ holdMonths: 6, jumpPct: 55 }), 'light');
+  assert.equal(inferFlipRehabLevel({ holdMonths: 9, jumpPct: 45 }), 'medium');
+  assert.equal(inferFlipRehabLevel({ holdMonths: 12, jumpPct: 60 }), 'medium');
+  assert.equal(inferFlipRehabLevel({ holdMonths: 15, jumpPct: 40 }), 'full_gut');
+  assert.equal(inferFlipRehabLevel({ holdMonths: 5, jumpPct: 75 }), 'full_gut');
+
+  // Quick flip (5 mo, +37.5%): inferred light ($25–$45/sf) -> positive low-high profit range
+  const quickFlip = estimateQuickFinderProfit({
+    county: 'Palm Beach',
+    deal_type: 'flip',
+    buy_price: 400000,
+    sell_price: 580000,
+    hold_months: 5,
+    jump_pct: 45,
+    living_sqft: 1800,
+    year_built: 1986
+  });
+  assert.equal(quickFlip.rehabLevel, 'light');
+  assert.equal(quickFlip.rehabMinPerSqft, 25);
+  assert.equal(quickFlip.rehabMaxPerSqft, 45);
+  assert.ok(quickFlip.estProfitLow < quickFlip.estProfit);
+  assert.ok(quickFlip.estProfit < quickFlip.estProfitHigh);
+  assert.ok(quickFlip.estProfitHigh > 0, `expected positive high-end profit for light flip, got ${quickFlip.estProfitHigh}`);
+
+  // Editable $/sf override changes profit range immediately
+  const customFlip = estimateQuickFinderProfit(
+    {
+      county: 'Palm Beach',
+      deal_type: 'flip',
+      buy_price: 400000,
+      sell_price: 580000,
+      hold_months: 5,
+      jump_pct: 45,
+      living_sqft: 1800,
+      year_built: 1986
+    },
+    { light: { min: 15, max: 30 } }
+  );
+  assert.equal(customFlip.rehabMinPerSqft, 15);
+  assert.equal(customFlip.rehabMaxPerSqft, 30);
+  assert.ok(customFlip.estProfitHigh > quickFlip.estProfitHigh);
+
+  // Break-even reno math verification on 181 SW 2 Ct (built 1992, 1,429 sf, $200k -> $460k, 8 mo)
+  const sw2CtInputs = buildDefaultDealBreakdownInputs({
+    finderRow: {
+      county: 'Broward',
+      deal_type: 'flip',
+      buy_price: 200000,
+      sell_price: 460000,
+      hold_months: 8,
+      jump_pct: 130,
+      living_sqft: 1429,
+      year_built: 1992
+    }
+  });
+  assert.equal(sw2CtInputs.dealType, 'flip');
+  assert.equal(sw2CtInputs.flipRehabLevel, 'full_gut');
+
+  const be = calculateBreakEvenReno(sw2CtInputs);
+  assert.ok(be.breakEvenReno10 > be.breakEvenReno15 && be.breakEvenReno15 > 0);
+  assert.equal(be.breakEvenReno10PerSqft, Math.round(be.breakEvenReno10 / 1429));
+
+  // Plugging breakEvenReno10 & breakEvenReno15 back into calculateDealBreakdown must yield ~10.0% and ~15.0% ROI!
+  const check10 = calculateDealBreakdown({
+    ...sw2CtInputs,
+    hardCostOverride: be.breakEvenReno10,
+    includePoolAddon: false,
+    includeDockAddon: false
+  });
+  assert.ok(
+    Math.abs(check10.metrics.roiPct - 10.0) <= 0.15,
+    `expected ~10.0% ROI at breakEvenReno10 ($${be.breakEvenReno10}), got ${check10.metrics.roiPct}%`
+  );
+
+  const check15 = calculateDealBreakdown({
+    ...sw2CtInputs,
+    hardCostOverride: be.breakEvenReno15,
+    includePoolAddon: false,
+    includeDockAddon: false
+  });
+  assert.ok(
+    Math.abs(check15.metrics.roiPct - 15.0) <= 0.15,
+    `expected ~15.0% ROI at breakEvenReno15 ($${be.breakEvenReno15}), got ${check15.metrics.roiPct}%`
+  );
+});
+
+test('migration add_flip_finder_perf_indexes.sql is registered, idempotent, and has zero test rows', () => {
+  const repoRoot = path.resolve(process.cwd());
+  const sqlText = fs.readFileSync(path.join(repoRoot, 'migrations/add_flip_finder_perf_indexes.sql'), 'utf8');
+
+  assert.ok(CANONICAL_MIGRATION_ORDER.includes('add_flip_finder_perf_indexes.sql'));
+  const sig = MIGRATION_SCHEMA_SIGNATURES['add_flip_finder_perf_indexes.sql'];
+  assert.ok(sig?.indexes?.includes('idx_county_sales_parcel_ym'));
+  assert.ok(sig?.indexes?.includes('idx_county_sales_county_ym_sell'));
+  assert.ok(sig?.indexes?.includes('idx_county_parcels_county_zip_parcel'));
+
+  assert.match(sqlText, /CREATE INDEX IF NOT EXISTS idx_county_sales_parcel_ym/i);
+  assert.match(sqlText, /CREATE INDEX IF NOT EXISTS idx_county_sales_county_ym_sell/i);
+  assert.match(sqlText, /CREATE INDEX IF NOT EXISTS idx_county_parcels_county_zip_parcel/i);
+  assert.doesNotMatch(sqlText, /\bINSERT\s+INTO\b/i, 'migration must contain zero test rows');
 });
 
 test('migration add_deal_breakdowns.sql & Learning Lab lesson integrity', () => {
