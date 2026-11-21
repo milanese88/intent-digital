@@ -27,3 +27,4 @@ CREATE INDEX IF NOT EXISTS idx_county_sales_county_ym_sell
 
 CREATE INDEX IF NOT EXISTS idx_county_parcels_county_zip_parcel
   ON county_parcels (county, zip, parcel_id);
+
