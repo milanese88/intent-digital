@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Eyebrow, SectionHeading } from '../ui';
 import { SUPPORTED_COUNTIES } from '../../config/counties.js';
 import { DEVELOPER_COSTS_AS_OF_DISPLAY } from '../../config/developerCosts.js';
+import AddressAutocomplete from './AddressAutocomplete.jsx';
+import {
+  inferDealBreakdownType,
+  computeHoldMonthsBetweenDates,
+  buildIsoDateFromYearMonth
+} from './dealBreakdownEngine.js';
 
 const PRICE_BANDS = [
   { id: 'all', label: 'Any exit price', min: null, max: null },
@@ -71,6 +77,10 @@ export default function FlipBuildFinder({
   const [includeDistressed, setIncludeDistressed] = useState(false);
   const [sortBy, setSortBy] = useState('sell_date');
   const [sortDir, setSortDir] = useState('desc');
+
+  const [searchAddress, setSearchAddress] = useState('');
+  const [resolvingAddress, setResolvingAddress] = useState(false);
+  const [resolveError, setResolveError] = useState('');
 
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -166,6 +176,141 @@ export default function FlipBuildFinder({
     }
   };
 
+  const handleDealTypeChange = (newDealType) => {
+    setDealType(newDealType);
+    if (newDealType === 'demo_new_build' && maxMonths === 24) {
+      setMaxMonths(48);
+    }
+  };
+
+  const handleAnalyzeAddress = async (details) => {
+    if (!details || !details.address) return;
+    setResolvingAddress(true);
+    setResolveError('');
+    try {
+      const pCounty = details.parcel_county || details.county || 'Broward';
+      let parcelId = details.parcel_id || null;
+      let parcelData = null;
+
+      if (!parcelId) {
+        // Try searching county parcels by address text
+        const searchRes = await fetch(`/api/county/search?q=${encodeURIComponent(details.address)}&county=${encodeURIComponent(pCounty === 'all' ? '' : pCounty)}`);
+        if (searchRes.ok) {
+          const searchJson = await searchRes.json();
+          const firstHit = searchJson?.results?.[0];
+          if (firstHit?.parcel_id) {
+            parcelId = firstHit.parcel_id;
+          }
+        }
+      }
+
+      if (parcelId) {
+        const parcelRes = await fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty)}&parcel_id=${encodeURIComponent(parcelId)}`);
+        if (parcelRes.ok) {
+          parcelData = await parcelRes.json();
+        }
+      }
+
+      const parcel = parcelData?.parcel || {};
+      const bChars = parcelData?.building_characteristics || null;
+      const sales = Array.isArray(parcelData?.sales) ? parcelData.sales : [];
+
+      // Sort sales ascending by year and month
+      const sortedSales = [...sales].sort((a, b) => {
+        const ymA = (Number(a.sale_year) || 0) * 100 + (Number(a.sale_month) || 1);
+        const ymB = (Number(b.sale_year) || 0) * 100 + (Number(b.sale_month) || 1);
+        return ymA - ymB;
+      });
+
+      let boughtSale = null;
+      let soldSale = null;
+      let exitSource = 'county_resale';
+
+      if (sortedSales.length >= 2) {
+        // Pick earlier sale as bought and latest sale as sold
+        boughtSale = sortedSales[0];
+        soldSale = sortedSales[sortedSales.length - 1];
+        exitSource = 'county_resale';
+      } else if (sortedSales.length === 1) {
+        // Only 1 sale: bought is that sale, sold is user-entered list price ("Listed" mode)
+        boughtSale = sortedSales[0];
+        soldSale = null;
+        exitSource = 'my_list_price';
+      } else {
+        // 0 sales in our data: user types purchase price + date manually ("entered by me")
+        boughtSale = null;
+        soldSale = null;
+        exitSource = 'my_list_price';
+      }
+
+      const buyPrice = boughtSale ? Math.round(Number(boughtSale.sale_price) || 0) : 0;
+      const buyDate = boughtSale ? buildIsoDateFromYearMonth(boughtSale.sale_year, boughtSale.sale_month) : '';
+      const purchaseSource = boughtSale ? 'county_deed' : 'entered_by_me';
+
+      const sellPrice = soldSale ? Math.round(Number(soldSale.sale_price) || 0) : 0;
+      const sellDate = soldSale ? buildIsoDateFromYearMonth(soldSale.sale_year, soldSale.sale_month) : '';
+
+      const buyYear = boughtSale?.sale_year || (buyDate ? Number(buyDate.slice(0, 4)) : null);
+      const yearBuilt = bChars?.year_built || parcel.year_built || details.year_built || null;
+      const livingSqft = bChars?.living_sqft || parcel.living_sqft || details.sqft || null;
+      const lotSqft = parcel.land_sqft || details.lot_sqft || null;
+      const hasPool = Boolean(bChars?.has_pool || (parcel.spec_feat_val && parcel.spec_feat_val > 0));
+      const hasDock = Boolean(bChars?.has_dock);
+
+      const inferredType = inferDealBreakdownType({
+        buyYear,
+        yearBuilt,
+        afterYearBuilt: yearBuilt,
+        beforeSqft: parcel.living_sqft,
+        afterSqft: bChars?.living_sqft || parcel.living_sqft,
+        buyViCd: boughtSale?.vi_cd,
+        sellViCd: soldSale?.vi_cd,
+        justValue: parcel.just_value,
+        landValue: parcel.land_value,
+        buyPrice
+      });
+
+      const candidateRow = {
+        id: `analyze-${pCounty}-${parcelId || Date.now()}`,
+        county: pCounty,
+        parcel_id: parcelId || null,
+        address: details.address || parcel.address || '',
+        city: details.city || parcel.city || '',
+        zip: details.zip || parcel.zip || '',
+        deal_type: inferredType,
+        buy_price: buyPrice,
+        buy_date: buyDate,
+        purchase_source: purchaseSource,
+        buy_qual: boughtSale?.qual_code || null,
+        buy_vi_cd: boughtSale?.vi_cd || null,
+        sell_price: sellPrice,
+        sell_date: sellDate,
+        exit_source: exitSource,
+        sell_qual: soldSale?.qual_code || null,
+        sell_vi_cd: soldSale?.vi_cd || null,
+        hold_months: computeHoldMonthsBetweenDates(buyDate, sellDate, 12),
+        living_sqft: livingSqft,
+        bc_living_sqft: bChars?.living_sqft || null,
+        year_built: yearBuilt,
+        eff_year_built: parcel.eff_year_built || null,
+        lot_sqft: lotSqft,
+        has_pool: hasPool,
+        has_dock: hasDock,
+        sales: sales,
+        building_characteristics: bChars,
+        is_distressed_acquisition: Boolean(boughtSale?.is_distressed)
+      };
+
+      if (onSelectRow) {
+        onSelectRow(candidateRow);
+      }
+    } catch (err) {
+      setResolveError(err.message || 'Unable to resolve parcel for address.');
+    } finally {
+      setResolvingAddress(false);
+    }
+  };
+
   const handleZipSubmit = (e) => {
     e.preventDefault();
     fetchFinder();
@@ -242,6 +387,68 @@ export default function FlipBuildFinder({
         )}
       </div>
 
+      {/* 1. Analyze an Address Card */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1.5px solid #34292A',
+          borderRadius: '18px',
+          padding: '20px 22px',
+          boxShadow: '0 4px 18px rgba(52, 41, 42, 0.06)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <span
+              style={{
+                display: 'block',
+                fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#34292A'
+              }}
+            >
+              ANALYZE AN ADDRESS · INSTANT FLIP &amp; NEW BUILD BREAKDOWN
+            </span>
+            <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: 'rgba(52, 41, 42, 0.72)' }}>
+              Enter any address to pull its county deed history, CAMA building specs, and open its Deal Breakdown.
+            </p>
+          </div>
+          {resolvingAddress && (
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#859DCE' }}>
+              Resolving parcel &amp; deeds…
+            </span>
+          )}
+        </div>
+
+        <AddressAutocomplete
+          id="finder-address-analyze"
+          value={searchAddress}
+          onChange={(val) => setSearchAddress(val)}
+          onSelect={handleAnalyzeAddress}
+          placeholder="Start typing an address, e.g. 18801 SE River Ridge Rd or 1901 Embassy Dr…"
+        />
+
+        {resolveError && (
+          <div
+            role="alert"
+            style={{
+              marginTop: '10px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(65, 16, 27, 0.08)',
+              color: '#41101B',
+              fontSize: '12px',
+              fontWeight: 600
+            }}
+          >
+            {resolveError}
+          </div>
+        )}
+      </div>
+
       {/* Filter Card */}
       <form
         onSubmit={handleZipSubmit}
@@ -279,7 +486,7 @@ export default function FlipBuildFinder({
             <select
               id="ff-type"
               value={dealType}
-              onChange={(e) => setDealType(e.target.value)}
+              onChange={(e) => handleDealTypeChange(e.target.value)}
               style={INPUT_STYLE}
             >
               <option value="all">Flips + New builds</option>
@@ -350,6 +557,8 @@ export default function FlipBuildFinder({
               <option value={18}>≤ 18 months</option>
               <option value={24}>≤ 24 months</option>
               <option value={36}>≤ 36 months</option>
+              <option value={48}>≤ 48 months (New builds)</option>
+              <option value={60}>≤ 60 months</option>
             </select>
           </div>
 
@@ -635,8 +844,184 @@ export default function FlipBuildFinder({
             <tbody>
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '42px 20px', textAlign: 'center', color: 'rgba(52, 41, 42, 0.6)' }}>
-                    No flips or new builds matched these filters. Try widening the hold window, lowering the minimum price jump, or clearing the ZIP filter.
+                  <td colSpan={7} style={{ padding: '36px 24px', backgroundColor: '#FAF8F5' }}>
+                    <div style={{ maxWidth: '640px', margin: '0 auto', textAlign: 'center' }}>
+                      <div style={{
+                        display: 'inline-block',
+                        padding: '4px 12px',
+                        borderRadius: '999px',
+                        backgroundColor: 'rgba(52, 41, 42, 0.08)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: '#34292A',
+                        marginBottom: '10px'
+                      }}>
+                        0 Results for Current Filters
+                      </div>
+
+                      <h3 style={{
+                        margin: '0 0 8px 0',
+                        fontFamily: 'var(--font-heading, "Instrument Serif", Georgia, serif)',
+                        fontSize: '24px',
+                        fontWeight: 400,
+                        color: '#34292A'
+                      }}>
+                        No completed flips or new builds found
+                      </h3>
+
+                      {summary?.availableSalesRange && (
+                        <div style={{
+                          padding: '12px 16px',
+                          borderRadius: '12px',
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid rgba(52, 41, 42, 0.12)',
+                          marginBottom: '16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          color: '#34292A',
+                          lineHeight: 1.5
+                        }}>
+                          <div style={{ fontWeight: 700, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                            <span>Available Sales in Database:</span>
+                            <span style={{ color: '#859DCE' }}>
+                              {summary.availableSalesRange.minDate} – {summary.availableSalesRange.maxDate} ({summary.availableSalesRange.totalSales.toLocaleString()} sales across {summary.availableSalesRange.county})
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.72)' }}>
+                            The county_sales table currently holds ~1 year of roll sales ({summary.availableSalesRange.minDate} to {summary.availableSalesRange.maxDate}). Because flips and new builds take 12–36+ months, the earlier acquisition deed (2023–2024) is missing until prior-year DOR SDF history (2023F, 2024F, 2025F) is imported.
+                          </p>
+                        </div>
+                      )}
+
+                      {summary?.diagnostics && (
+                        (summary.diagnostics.filteredByHoldMonths > 0 ||
+                          summary.diagnostics.filteredByMinGain > 0 ||
+                          summary.diagnostics.filteredByDistressed > 0 ||
+                          summary.diagnostics.filteredByDealType > 0) && (
+                          <div style={{
+                            padding: '12px 16px',
+                            borderRadius: '12px',
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid rgba(52, 41, 42, 0.12)',
+                            marginBottom: '16px',
+                            textAlign: 'left',
+                            fontSize: '11.5px',
+                            color: '#34292A'
+                          }}>
+                            <strong style={{ display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '10px', color: 'rgba(52, 41, 42, 0.6)' }}>
+                              Candidate Sales Pairs Eliminated by Filters:
+                            </strong>
+                            <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {summary.diagnostics.filteredByHoldMonths > 0 && (
+                                <li><strong>{summary.diagnostics.filteredByHoldMonths} pairs</strong> had hold times longer than {maxMonths} months</li>
+                              )}
+                              {summary.diagnostics.filteredByMinGain > 0 && (
+                                <li><strong>{summary.diagnostics.filteredByMinGain} pairs</strong> had price gains below {minGainPct}%</li>
+                              )}
+                              {summary.diagnostics.filteredByDistressed > 0 && (
+                                <li><strong>{summary.diagnostics.filteredByDistressed} pairs</strong> were distressed acquisitions (hidden)</li>
+                              )}
+                              {summary.diagnostics.filteredByDealType > 0 && (
+                                <li><strong>{summary.diagnostics.filteredByDealType} pairs</strong> did not match deal type &ldquo;{dealType}&rdquo;</li>
+                              )}
+                            </ul>
+                          </div>
+                        )
+                      )}
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                        {maxMonths < 48 && (
+                          <button
+                            type="button"
+                            onClick={() => setMaxMonths(48)}
+                            style={{
+                              padding: '7px 13px',
+                              borderRadius: '999px',
+                              border: '1px solid #34292A',
+                              backgroundColor: '#FFFFFF',
+                              color: '#34292A',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Widen hold to 48 months
+                          </button>
+                        )}
+                        {minGainPct > 15 && (
+                          <button
+                            type="button"
+                            onClick={() => setMinGainPct(15)}
+                            style={{
+                              padding: '7px 13px',
+                              borderRadius: '999px',
+                              border: '1px solid #34292A',
+                              backgroundColor: '#FFFFFF',
+                              color: '#34292A',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Lower price jump to 15%
+                          </button>
+                        )}
+                        {!includeDistressed && (
+                          <button
+                            type="button"
+                            onClick={() => setIncludeDistressed(true)}
+                            style={{
+                              padding: '7px 13px',
+                              borderRadius: '999px',
+                              border: '1px solid #34292A',
+                              backgroundColor: '#FFFFFF',
+                              color: '#34292A',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Show distressed buys
+                          </button>
+                        )}
+                        {zip && (
+                          <button
+                            type="button"
+                            onClick={() => setZip('')}
+                            style={{
+                              padding: '7px 13px',
+                              borderRadius: '999px',
+                              border: '1px solid #34292A',
+                              backgroundColor: '#FFFFFF',
+                              color: '#34292A',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Clear ZIP filter ({zip})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleResetFilters}
+                          style={{
+                            padding: '7px 13px',
+                            borderRadius: '999px',
+                            border: '1px solid rgba(52, 41, 42, 0.3)',
+                            backgroundColor: '#FAF8F5',
+                            color: '#34292A',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Reset all filters
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}

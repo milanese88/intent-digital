@@ -106,6 +106,29 @@ export default function DealBreakdownSection({
   const [showSoftDetails, setShowSoftDetails] = useState(false);
   const [showDrawSchedule, setShowDrawSchedule] = useState(false);
   const [hasEditedLocally, setHasEditedLocally] = useState(false);
+  const [savedPropertyId, setSavedPropertyId] = useState(() => property?.id || finderRow?.property_id || null);
+  const [isSavingToProperties, setIsSavingToProperties] = useState(false);
+  const [countySales, setCountySales] = useState(() => {
+    if (Array.isArray(countyData?.sales) && countyData.sales.length > 0) return countyData.sales;
+    if (Array.isArray(finderRow?.sales) && finderRow.sales.length > 0) return finderRow.sales;
+    return [];
+  });
+
+  // Fetch full parcel sales if parcelId is known and countySales is empty
+  useEffect(() => {
+    const parcelId = inputs.parcelId || finderRow?.parcel_id || property?.parcel_id || countyData?.parcel_id;
+    const pCounty = inputs.county || finderRow?.county || property?.parcel_county || property?.county || countyData?.county;
+    if (parcelId && pCounty && countySales.length === 0) {
+      fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty)}&parcel_id=${encodeURIComponent(parcelId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data?.sales) && data.sales.length > 0) {
+            setCountySales(data.sales);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [inputs.parcelId, inputs.county, countySales.length, finderRow, property, countyData]);
 
   // Sync defaults when switching target property / finder row
   const targetKey = `${property?.id || ''}|${finderRow?.id || ''}|${countyData?.parcel_id || ''}`;
@@ -331,6 +354,118 @@ export default function DealBreakdownSection({
     }
   };
 
+  const handleSelectBoughtSale = (saleKey) => {
+    setHasEditedLocally(true);
+    if (saleKey === 'manual') {
+      updateInput({ purchaseSource: 'entered_by_me' });
+      return;
+    }
+    const sale = countySales.find((s) => String(s.id) === String(saleKey) || `${s.sale_year}-${s.sale_month}-${s.sale_price}` === saleKey);
+    if (!sale) return;
+    const pDate = buildIsoDateFromYearMonth(sale.sale_year, sale.sale_month);
+    updateInput({
+      purchasePrice: Math.round(Number(sale.sale_price) || 0),
+      purchaseDate: pDate,
+      purchaseSource: 'county_deed',
+      buyViCd: sale.vi_cd || null,
+      isVacantLotPurchase: String(sale.vi_cd || '').trim() === 'V'
+    });
+  };
+
+  const handleSelectSoldSale = (saleKey) => {
+    setHasEditedLocally(true);
+    if (saleKey === 'manual') {
+      updateInput({ exitSource: 'county_resale' });
+      return;
+    }
+    const sale = countySales.find((s) => String(s.id) === String(saleKey) || `${s.sale_year}-${s.sale_month}-${s.sale_price}` === saleKey);
+    if (!sale) return;
+    const eDate = buildIsoDateFromYearMonth(sale.sale_year, sale.sale_month);
+    updateInput({
+      exitPrice: Math.round(Number(sale.sale_price) || 0),
+      exitDate: eDate,
+      exitSource: 'county_resale',
+      sellViCd: sale.vi_cd || null
+    });
+  };
+
+  const handleSaveToProperties = async () => {
+    if (!inputs.address?.trim()) {
+      setSaveError('Address is required to save to properties.');
+      return;
+    }
+    setIsSavingToProperties(true);
+    setSaveError('');
+    try {
+      const propPayload = {
+        address: inputs.address.trim(),
+        city: inputs.city || '',
+        zip: inputs.zip || '',
+        county: inputs.county || 'Broward',
+        parcel_id: inputs.parcelId || null,
+        parcel_county: inputs.county || null,
+        property_type: 'single_family',
+        sqft: inputs.afterLivingSqft || inputs.beforeLivingSqft || null,
+        lot_sqft: inputs.lotSqft || null,
+        year_built: inputs.afterYearBuilt || inputs.beforeYearBuilt || null,
+        list_price: inputs.exitPrice || inputs.purchasePrice || 0,
+        price_source: inputs.exitSource === 'my_list_price' ? 'list_price' : 'county_value',
+        strategy: 'flip',
+        status: 'analyzing',
+        notes: `Saved from Deal Breakdown (${inputs.dealType === 'demo_new_build' ? 'Demo → New Build' : 'Flip'}). Purchase: $${inputs.purchasePrice?.toLocaleString() || 0} (${inputs.purchaseDate || '—'}) · Exit: $${inputs.exitPrice?.toLocaleString() || 0} (${inputs.exitDate || '—'})`,
+        pool: Boolean(inputs.hasPool),
+        boat_dock: Boolean(inputs.hasDock)
+      };
+
+      const propRes = await fetch('/api/investor/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(propPayload)
+      });
+      const propJson = await propRes.json();
+      if (!propRes.ok) {
+        throw new Error(propJson.error || 'Failed to save property to My Properties.');
+      }
+
+      const newPropId = propJson.id;
+      setSavedPropertyId(newPropId);
+
+      // Now save or update breakdown linked to this new property
+      const breakdownPayload = {
+        property_id: newPropId,
+        county: inputs.county || 'Broward',
+        parcel_id: inputs.parcelId || null,
+        address: inputs.address.trim(),
+        city: inputs.city || null,
+        zip: inputs.zip || null,
+        deal_type: inputs.dealType,
+        title: title.trim() || `${inputs.dealType === 'demo_new_build' ? 'Demo → New Build' : 'Flip'} Breakdown`,
+        inputs,
+        notes: notes.trim() || null
+      };
+
+      const bdRes = await fetch('/api/investor/deal-breakdowns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(breakdownPayload)
+      });
+      const bdJson = await bdRes.json();
+      if (bdRes.ok && bdJson.id) {
+        setActiveSavedId(bdJson.id);
+        setSavedBreakdowns((prev) => [bdJson, ...prev]);
+      }
+
+      if (showToast) {
+        showToast(`Saved to My Saved Properties as ${inputs.dealType === 'demo_new_build' ? 'New Build' : 'Flip'}!`);
+      }
+    } catch (err) {
+      setSaveError(err.message || 'Unable to save to properties.');
+      if (showToast) showToast(err.message || 'Unable to save to properties.');
+    } finally {
+      setIsSavingToProperties(false);
+    }
+  };
+
   const { costs, metrics, scenarios, myVersion } = result;
   const isNewBuild = inputs.dealType === 'demo_new_build';
   const hasCamaRecord = Boolean(
@@ -433,6 +568,20 @@ export default function DealBreakdownSection({
             </Button>
             <Button variant="primary" size="sm" onClick={() => handleSaveBreakdown(false)} disabled={isSaving}>
               {isSaving ? 'Saving…' : activeSavedId ? 'Update saved' : 'Save breakdown'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveToProperties}
+              disabled={isSavingToProperties}
+              title="Save this property with type Flip / New build so it shows in My Saved Properties"
+              style={{
+                borderColor: '#34292A',
+                color: '#34292A',
+                backgroundColor: savedPropertyId ? 'rgba(189, 211, 226, 0.3)' : 'transparent'
+              }}
+            >
+              {isSavingToProperties ? 'Saving property…' : savedPropertyId ? '✓ In My Properties' : '+ Save to My Properties'}
             </Button>
           </div>
         </div>
@@ -636,12 +785,118 @@ export default function DealBreakdownSection({
               />
             </div>
 
+            {countySales.length > 0 && (
+              <div
+                style={{
+                  marginBottom: '14px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FAF8F5',
+                  border: '1px solid rgba(52, 41, 42, 0.12)'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '6px'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: 'rgba(52, 41, 42, 0.65)'
+                    }}
+                  >
+                    County Deeds on Folio ({countySales.length})
+                  </span>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.55)' }}>
+                    Pick deed or enter manually
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px' }}>
+                  <div>
+                    <label style={{ ...LABEL_STYLE, fontSize: '9px', marginBottom: '2px' }}>Bought Deed</label>
+                    <select
+                      value={countySales.find((s) => Number(s.sale_price) === Number(inputs.purchasePrice) && buildIsoDateFromYearMonth(s.sale_year, s.sale_month) === inputs.purchaseDate)?.id || 'manual'}
+                      onChange={(e) => handleSelectBoughtSale(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(52, 41, 42, 0.2)',
+                        backgroundColor: '#FFFFFF',
+                        fontSize: '11px',
+                        color: '#34292A',
+                        fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                      }}
+                    >
+                      <option value="manual">Manual entry (Entered by me)</option>
+                      {countySales.map((s) => (
+                        <option key={s.id || `${s.sale_year}-${s.sale_month}-${s.sale_price}`} value={s.id || `${s.sale_year}-${s.sale_month}-${s.sale_price}`}>
+                          {s.sale_year}/{s.sale_month ? String(s.sale_month).padStart(2, '0') : '??'} · ${Math.round(Number(s.sale_price) || 0).toLocaleString()} ({s.is_market || s.qual_code === '01' ? 'Market' : s.qual_label || s.qual_code || 'Deed'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {inputs.exitSource === 'county_resale' && (
+                    <div>
+                      <label style={{ ...LABEL_STYLE, fontSize: '9px', marginBottom: '2px' }}>Resale Deed</label>
+                      <select
+                        value={countySales.find((s) => Number(s.sale_price) === Number(inputs.exitPrice) && buildIsoDateFromYearMonth(s.sale_year, s.sale_month) === inputs.exitDate)?.id || 'manual'}
+                        onChange={(e) => handleSelectSoldSale(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(52, 41, 42, 0.2)',
+                          backgroundColor: '#FFFFFF',
+                          fontSize: '11px',
+                          color: '#34292A',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)'
+                        }}
+                      >
+                        <option value="manual">Manual entry / County resale</option>
+                        {countySales.map((s) => (
+                          <option key={s.id || `${s.sale_year}-${s.sale_month}-${s.sale_price}`} value={s.id || `${s.sale_year}-${s.sale_month}-${s.sale_price}`}>
+                            {s.sale_year}/{s.sale_month ? String(s.sale_month).padStart(2, '0') : '??'} · ${Math.round(Number(s.sale_price) || 0).toLocaleString()} ({s.is_market || s.qual_code === '01' ? 'Market' : s.qual_label || s.qual_code || 'Deed'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="investor-form-grid-2" style={{ marginBottom: '12px' }}>
               <div>
-                <label style={LABEL_STYLE}>Purchase Price (Deed)</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ ...LABEL_STYLE, marginBottom: 0 }}>Purchase Price</label>
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      padding: '1px 6px',
+                      borderRadius: '6px',
+                      backgroundColor: inputs.purchaseSource === 'entered_by_me' ? 'rgba(52, 41, 42, 0.08)' : 'rgba(189, 211, 226, 0.4)',
+                      color: '#34292A',
+                      border: '1px solid rgba(52, 41, 42, 0.15)'
+                    }}
+                  >
+                    {inputs.purchaseSource === 'entered_by_me' ? 'Entered by me' : 'County deed'}
+                  </span>
+                </div>
                 <FormattedNumberInput
                   value={inputs.purchasePrice || ''}
-                  onChange={(val) => updateInput({ purchasePrice: Number(val) || 0 })}
+                  onChange={(val) => updateInput({ purchasePrice: Number(val) || 0, purchaseSource: 'entered_by_me' })}
                   prefix="$"
                   formatOnBlur={true}
                   className="investor-form-input"
@@ -652,7 +907,7 @@ export default function DealBreakdownSection({
                 <input
                   type="date"
                   value={inputs.purchaseDate || ''}
-                  onChange={(e) => updateInput({ purchaseDate: e.target.value })}
+                  onChange={(e) => updateInput({ purchaseDate: e.target.value, purchaseSource: 'entered_by_me' })}
                   className="investor-form-input"
                 />
               </div>
@@ -660,9 +915,26 @@ export default function DealBreakdownSection({
 
             <div className="investor-form-grid-2" style={{ marginBottom: '12px' }}>
               <div>
-                <label style={LABEL_STYLE}>
-                  {inputs.exitSource === 'my_list_price' ? 'My Entered List Price' : 'Resale Price (Deed)'}
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ ...LABEL_STYLE, marginBottom: 0 }}>
+                    {inputs.exitSource === 'my_list_price' ? 'My Entered List Price' : 'Resale Price'}
+                  </label>
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      padding: '1px 6px',
+                      borderRadius: '6px',
+                      backgroundColor: inputs.exitSource === 'my_list_price' ? 'rgba(133, 157, 206, 0.25)' : 'rgba(189, 211, 226, 0.4)',
+                      color: '#34292A',
+                      border: '1px solid rgba(52, 41, 42, 0.15)'
+                    }}
+                  >
+                    {inputs.exitSource === 'my_list_price' ? 'Listed mode (entered by me)' : 'County resale (deed)'}
+                  </span>
+                </div>
                 <FormattedNumberInput
                   value={inputs.exitPrice || ''}
                   onChange={(val) => updateInput({ exitPrice: Number(val) || 0 })}

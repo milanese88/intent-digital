@@ -85,19 +85,35 @@ export function computeHoldMonthsBetweenDates(buyDateStr, exitDateStr, fallbackM
  */
 export function inferDealBreakdownType({
   purchaseYear = null,
+  buyYear = null,
   afterYearBuilt = null,
+  yearBuilt = null,
   beforeSqft = null,
   afterSqft = null,
   buyViCd = null,
   sellViCd = null,
+  justValue = null,
+  landValue = null,
+  buyPrice = null,
   explicitType = null
 } = {}) {
   if (explicitType === 'flip' || explicitType === 'demo_new_build') return explicitType;
-  if (buyViCd === 'V' && sellViCd === 'I') return 'demo_new_build';
-  if (purchaseYear && afterYearBuilt && Number(afterYearBuilt) >= Number(purchaseYear)) {
+  if (buyViCd === 'V' && (sellViCd === 'I' || !sellViCd)) return 'demo_new_build';
+  const pYear = Number(purchaseYear || buyYear) || null;
+  const yBuilt = Number(afterYearBuilt || yearBuilt) || null;
+  if (pYear && yBuilt && yBuilt >= pYear) {
     return 'demo_new_build';
   }
-  if (beforeSqft > 0 && afterSqft > 0 && Number(afterSqft) > Number(beforeSqft) * 1.3) {
+  const bSqft = Number(beforeSqft) || 0;
+  const aSqft = Number(afterSqft) || 0;
+  if (bSqft > 0 && aSqft > 0 && aSqft > bSqft * 1.3) {
+    return 'demo_new_build';
+  }
+  const jVal = Number(justValue) || 0;
+  const lVal = Number(landValue) || 0;
+  const bPrice = Number(buyPrice) || 0;
+  const impVal = jVal > lVal ? jVal - lVal : 0;
+  if (impVal > 0 && bPrice > 0 && impVal > bPrice * 1.5) {
     return 'demo_new_build';
   }
   return 'flip';
@@ -283,6 +299,7 @@ export function buildDefaultDealBreakdownInputs({
     dealType,
     purchasePrice: roundDollar(purchasePrice),
     purchaseDate,
+    purchaseSource: finderRow?.purchase_source || (purchasePrice > 0 ? 'county_deed' : 'entered_by_me'),
     exitSource,
     exitPrice: roundDollar(exitPrice),
     exitDate,

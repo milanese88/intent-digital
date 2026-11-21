@@ -353,8 +353,30 @@ test('flip-finder: parameter validation and sale-pair classification (flips, dis
   assert.equal(nbSqft.deal_type, 'demo_new_build');
   assert.match(nbSqft.new_build_reason, />30%/);
 
+  // Demo -> New Build by improvement value jump > 1.5x purchase price
+  const nbImpJump = classifySalePair({
+    buy_price: 400000,
+    sell_price: 1600000,
+    buy_year: 2024,
+    buy_qual: '01',
+    sell_qual: '01',
+    year_built: 1980,
+    living_sqft: 1800,
+    just_value: 1200000,
+    land_value: 300000 // imp_value = 900,000 > 400,000 * 1.5
+  });
+  assert.equal(nbImpJump.deal_type, 'demo_new_build');
+  assert.match(nbImpJump.new_build_reason, /Improvement value jumped/);
+
+  // FlipFinder params: default max_months is 48 for demo_new_build and 24 for flips
+  const paramsFlip = parseFlipFinderParams({ deal_type: 'flip' });
+  assert.equal(paramsFlip.params.maxMonths, 24);
+  const paramsBuild = parseFlipFinderParams({ deal_type: 'demo_new_build' });
+  assert.equal(paramsBuild.params.maxMonths, 48);
+
   assert.equal(computeHoldMonthsBetweenDates('2025-03-01', '2026-01-01'), 10);
   assert.equal(inferDealBreakdownType({ purchaseYear: 2025, afterYearBuilt: 2026 }), 'demo_new_build');
+  assert.equal(inferDealBreakdownType({ buyPrice: 400000, justValue: 1200000, landValue: 300000 }), 'demo_new_build');
 });
 
 test('migration add_deal_breakdowns.sql & Learning Lab lesson integrity', () => {
