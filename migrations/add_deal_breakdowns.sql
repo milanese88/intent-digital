@@ -45,3 +45,4 @@ CREATE INDEX IF NOT EXISTS idx_county_sales_flip_finder
   ON county_sales (county, parcel_id, sale_year, sale_month, qual_code)
   INCLUDE (sale_price, vi_cd)
   WHERE sale_price >= 25000 AND sale_year IS NOT NULL;
+

@@ -277,3 +277,4 @@ export function sumSoftCostsPct(softObj = {}) {
   const total = keys.reduce((acc, k) => acc + Math.max(0, Number(softObj?.[k]) || 0), 0);
   return Math.round(total * 100) / 100;
 }
+

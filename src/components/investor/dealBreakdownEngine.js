@@ -654,3 +654,4 @@ export function estimateQuickFinderProfit(row = {}) {
     dealType: inputs.dealType
   };
 }
+
