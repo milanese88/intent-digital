@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { fetchBuildingCharacteristicsMap, lookupBuildingRecord } from '../_lib/buildingChars.js';
 import { getCountyFreshness } from './freshness.js';
 import {
   validateCompSearchParams,
@@ -15,6 +16,7 @@ import {
   buildSaleMonthKey,
   formatCountyClues,
   normalizeCompDetails,
+  mergeDetailsWithCountyBuilding,
   computeDetailsProgress
 } from '../../src/components/investor/compDetailsModel.js';
 import { SUPPORTED_COUNTIES, normalizeCountyName } from '../../src/config/counties.js';
@@ -450,38 +452,47 @@ export default async function handler(req, res) {
     // Flag $/sf outliers, exclude from median, and sort outliers to the bottom (same-subdivision first)
     const evaluated = evaluateAndSortCompCandidates(candidatePool);
 
-    // Attach user's reusable saved comp_details (keyed by county + folio + sale_month_key)
+    // Attach user's reusable saved comp_details AND county CAMA building_characteristics
     let savedByKey = new Map();
     let savedByFolio = new Map();
+    let buildingMap = new Map();
     if (evaluated.candidates.length > 0) {
       const candidateParcelIds = evaluated.candidates.map((c) => c.parcel_id).filter(Boolean);
-      try {
-        const detailRows = await sql`
-          SELECT *
-          FROM comp_details
-          WHERE lower(owner_email) = ${cleanEmail}
-            AND county = ANY(${[...new Set(evaluated.candidates.map((c) => c.county || subject.county))]})
-            AND parcel_id = ANY(${candidateParcelIds})
-          ORDER BY updated_at DESC;
-        `;
-        for (const dr of detailRows) {
-          const exactKey = `${dr.county}|${dr.parcel_id}|${dr.sale_month_key || ''}`;
-          const folioKey = `${dr.county}|${dr.parcel_id}`;
-          if (!savedByKey.has(exactKey)) savedByKey.set(exactKey, dr);
-          if (!savedByFolio.has(folioKey)) savedByFolio.set(folioKey, dr);
-        }
-      } catch (err) {
-        if (err?.code !== '42P01') {
-          console.warn('comp_details lookup in /api/county/comps skipped:', err.message);
-        }
-      }
+      const [bcMap] = await Promise.all([
+        fetchBuildingCharacteristicsMap(sql, candidateParcelIds),
+        (async () => {
+          try {
+            const detailRows = await sql`
+              SELECT *
+              FROM comp_details
+              WHERE lower(owner_email) = ${cleanEmail}
+                AND county = ANY(${[...new Set(evaluated.candidates.map((c) => c.county || subject.county))]})
+                AND parcel_id = ANY(${candidateParcelIds})
+              ORDER BY updated_at DESC;
+            `;
+            for (const dr of detailRows) {
+              const exactKey = `${dr.county}|${dr.parcel_id}|${dr.sale_month_key || ''}`;
+              const folioKey = `${dr.county}|${dr.parcel_id}`;
+              if (!savedByKey.has(exactKey)) savedByKey.set(exactKey, dr);
+              if (!savedByFolio.has(folioKey)) savedByFolio.set(folioKey, dr);
+            }
+          } catch (err) {
+            if (err?.code !== '42P01') {
+              console.warn('comp_details lookup in /api/county/comps skipped:', err.message);
+            }
+          }
+        })()
+      ]);
+      buildingMap = bcMap;
     }
 
     const enrichedCandidates = evaluated.candidates.map((cand) => {
       const monthKey = buildSaleMonthKey(cand.sale_year, cand.sale_month);
       const candCounty = cand.county || subject.county;
       const savedRow = savedByKey.get(`${candCounty}|${cand.parcel_id}|${monthKey}`) || savedByFolio.get(`${candCounty}|${cand.parcel_id}`) || null;
-      if (!savedRow) {
+      const bcRow = lookupBuildingRecord(buildingMap, candCounty, cand.parcel_id);
+
+      if (!savedRow && !bcRow) {
         return {
           ...cand,
           hoa_name: null,
@@ -490,22 +501,37 @@ export default async function handler(req, res) {
           boat_lift: null,
           construction_type: null,
           quality: null,
+          raw_quality_code: null,
+          building_characteristics: null,
+          field_origins: {},
           saved_comp_details: null,
           details_filled_count: 0,
           details_progress: null
         };
       }
-      const norm = normalizeCompDetails(savedRow);
-      const progress = computeDetailsProgress(norm);
+
+      const savedNorm = savedRow ? normalizeCompDetails(savedRow) : normalizeCompDetails({});
+      const { details: mergedNorm, field_origins, county_building_meta } = mergeDetailsWithCountyBuilding(savedNorm, bcRow);
+      const progress = computeDetailsProgress(mergedNorm);
       return {
         ...cand,
-        hoa_name: norm.hoa_name || savedRow.hoa_name || null,
-        boat_dock: norm.boat_dock,
-        boat_dock_sqft: norm.boat_dock_sqft,
-        boat_lift: norm.boat_lift,
-        construction_type: norm.construction_type !== 'unknown' ? norm.construction_type : null,
-        quality: norm.quality !== 'unknown' ? norm.quality : null,
-        saved_comp_details: norm,
+        beds: mergedNorm.beds,
+        full_baths: mergedNorm.full_baths,
+        half_baths: mergedNorm.half_baths,
+        baths: mergedNorm.baths,
+        hoa_name: mergedNorm.hoa_name || savedRow?.hoa_name || null,
+        boat_dock: mergedNorm.boat_dock,
+        boat_dock_sqft: mergedNorm.boat_dock_sqft,
+        boat_lift: mergedNorm.boat_lift,
+        construction_type: mergedNorm.construction_type !== 'unknown' ? mergedNorm.construction_type : null,
+        quality: mergedNorm.quality !== 'unknown' ? mergedNorm.quality : null,
+        raw_quality_code: county_building_meta?.raw_quality_code || null,
+        raw_quality_desc: county_building_meta?.raw_quality_desc || null,
+        raw_condition_code: county_building_meta?.raw_condition_code || null,
+        condition_is_default: Boolean(county_building_meta?.condition_is_default),
+        building_characteristics: bcRow || null,
+        field_origins,
+        saved_comp_details: savedRow ? savedNorm : null,
         details_filled_count: progress.filledCount,
         details_progress: progress
       };

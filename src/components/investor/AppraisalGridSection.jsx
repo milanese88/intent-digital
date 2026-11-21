@@ -296,44 +296,58 @@ export default function AppraisalGridSection({
         );
       case 'quality':
         return (
-          <button
-            type="button"
-            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-            title="Click to edit Subject UAD Quality (Q1–Q6)"
-            style={{
-              background: 'rgba(250, 248, 245, 0.12)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              color: '#FAF8F5',
-              borderRadius: '999px',
-              padding: '2px 9px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: onOpenEditSubject ? 'pointer' : 'default'
-            }}
-          >
-            {subjectSummary.qualityLabel || 'Unknown'}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+              title={subjectSummary.qualityTooltip || 'Click to edit Subject UAD Quality (Q1–Q6)'}
+              style={{
+                background: 'rgba(250, 248, 245, 0.12)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                color: '#FAF8F5',
+                borderRadius: '999px',
+                padding: '2px 9px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: onOpenEditSubject ? 'pointer' : 'default'
+              }}
+            >
+              {subjectSummary.qualityLabel || 'Unknown'}
+            </button>
+            {subjectSummary.fieldOrigins?.quality && (
+              <span style={{ display: 'block', fontSize: '10px', color: 'rgba(189, 211, 226, 0.85)', marginTop: '2px' }}>
+                {subjectSummary.fieldOrigins.quality === 'county_record' ? 'county record' : 'my edit'}
+              </span>
+            )}
+          </span>
         );
       case 'condition':
         return (
-          <button
-            type="button"
-            onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
-            title="Click to edit Subject condition (As-is / After-rehab)"
-            style={{
-              display: 'inline-block',
-              padding: '2px 9px',
-              borderRadius: '999px',
-              backgroundColor: mode === 'arv' ? 'rgba(63, 90, 58, 0.38)' : 'rgba(250, 248, 245, 0.14)',
-              border: '1px solid rgba(250, 248, 245, 0.24)',
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#FAF8F5',
-              cursor: onOpenEditSubject ? 'pointer' : 'default'
-            }}
-          >
-            {subjectSummary.conditionLabel}
-          </button>
+          <span>
+            <button
+              type="button"
+              onClick={() => onOpenEditSubject && onOpenEditSubject(mode === 'arv' ? 'after_rehab' : 'as_is')}
+              title={subjectSummary.conditionTooltip || 'Click to edit Subject condition (As-is / After-rehab)'}
+              style={{
+                display: 'inline-block',
+                padding: '2px 9px',
+                borderRadius: '999px',
+                backgroundColor: mode === 'arv' ? 'rgba(63, 90, 58, 0.38)' : 'rgba(250, 248, 245, 0.14)',
+                border: '1px solid rgba(250, 248, 245, 0.24)',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#FAF8F5',
+                cursor: onOpenEditSubject ? 'pointer' : 'default'
+              }}
+            >
+              {subjectSummary.conditionLabel}
+            </button>
+            {subjectSummary.conditionDefaultNote && (
+              <span style={{ display: 'block', fontSize: '10px', color: 'rgba(189, 211, 226, 0.85)', marginTop: '3px' }}>
+                {subjectSummary.conditionDefaultNote}
+              </span>
+            )}
+          </span>
         );
       case 'construction':
         return (
@@ -1355,10 +1369,13 @@ export default function AppraisalGridSection({
                             <div style={{ minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '5px' }}>
                                 <span
+                                  title={cell.tooltip || undefined}
                                   style={{
                                     fontSize: '12px',
                                     color: cell.needsInfo ? 'var(--muted)' : 'var(--espresso)',
-                                    fontWeight: 500
+                                    fontWeight: 500,
+                                    cursor: cell.tooltip ? 'help' : 'default',
+                                    borderBottom: cell.tooltip ? '1px dotted rgba(52, 41, 42, 0.35)' : 'none'
                                   }}
                                 >
                                   {cell.spec}

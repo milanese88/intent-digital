@@ -20,11 +20,14 @@
 import {
   normalizeConditionKey,
   normalizeCompDetails,
+  mergeDetailsWithCountyBuilding,
   computeDetailsProgress,
   formatCountyClues,
   resolveSubjectDetailsForMode,
   formatConstructionTypeLabel,
   formatBoatDockLabel,
+  formatQualityWithRawCode,
+  buildCountyCodeTooltip,
   mapConstClassToConstructionType,
   getUadQualityMeta,
   mapImpQualToUadQuality,
@@ -1171,9 +1174,24 @@ export function computeAppraisalGrid({
     const monthsSinceSale = computeMonthsSinceSale(comp.sold_date, effectiveDate);
     const isOlderThan6Months = Boolean(comp.sold_date && monthsSinceSale > 6);
 
-    const compDetails = normalizeCompDetails(comp, {
+    const baseCompDetails = normalizeCompDetails(comp, {
       treatLegacyUneditedCountyBooleansAsUnknown: true
     });
+    const compMerged = comp.building_characteristics
+      ? mergeDetailsWithCountyBuilding(baseCompDetails, comp.building_characteristics)
+      : {
+          details: baseCompDetails,
+          field_origins: comp.field_origins || {},
+          county_building_meta: comp.county_building_meta || null
+        };
+    const compDetails = compMerged.details;
+    const compFieldOrigins = compMerged.field_origins || comp.field_origins || {};
+    const compBcMeta = compMerged.county_building_meta || comp.county_building_meta || null;
+    const compRawQualCode = compBcMeta?.raw_quality_code || comp.raw_quality_code || null;
+    const compRawQualDesc = compBcMeta?.raw_quality_desc || comp.raw_quality_desc || null;
+    const compRawCondCode = compBcMeta?.raw_condition_code || comp.raw_condition_code || null;
+    const compRawCondDesc = compBcMeta?.raw_condition_desc || comp.raw_condition_desc || null;
+    const compCondIsDefault = Boolean(compBcMeta?.condition_is_default ?? comp.condition_is_default);
     const detailsProgress = computeDetailsProgress(compDetails);
     const countyClues = comp.county_clues || formatCountyClues(comp);
     const condMeta = getConditionMeta(compDetails.condition);
@@ -1184,7 +1202,7 @@ export function computeAppraisalGrid({
       ? comp.adjustments.overrides
       : {};
 
-    const resolveCell = (rowKey, computedAmount, compSpecLabel, { note = '', needsInfo = false, flag = null } = {}) => {
+    const resolveCell = (rowKey, computedAmount, compSpecLabel, { note = '', needsInfo = false, flag = null, tooltip = null, origin = null } = {}) => {
       const hasOverride = overrides[rowKey] != null && overrides[rowKey] !== '' && !isNaN(Number(overrides[rowKey]));
       const amount = hasOverride ? Math.round(Number(overrides[rowKey])) : Math.round(computedAmount);
       return {
@@ -1194,6 +1212,8 @@ export function computeAppraisalGrid({
         isOverridden: hasOverride,
         needsInfo: Boolean(needsInfo && !hasOverride),
         flag: flag || null,
+        tooltip: tooltip || null,
+        origin: origin || null,
         direction: amount > 0 ? 'add' : amount < 0 ? 'subtract' : 'neutral',
         spec: compSpecLabel,
         note
@@ -1329,40 +1349,92 @@ export function computeAppraisalGrid({
       needsInfo: compBedBathAllUnknown
     });
 
-    // 5. Quality (UAD Q1–Q6): Unknown = $0 adjustment + "Needs info" chip (county IMP_QUAL clue shown as hint only)
+    // 5. Quality (UAD Q1–Q6): show raw county code (R1–R6 / C1–C7) next to Q rating everywhere;
+    // Unknown = $0 adjustment + "Needs info" chip (county IMP_QUAL clue shown as hint only)
     const isQualityUnknown = compDetails.quality === 'unknown';
     const rawQualityAdj = (!isQualityUnknown && subjectDetails.quality !== 'unknown' && subjectQualMeta.rank != null && qualMeta.rank != null)
       ? (subjectQualMeta.rank - qualMeta.rank) * effectiveRates.qualityStep
       : 0;
     const compImpQualSuggested = mapImpQualToUadQuality(comp.imp_qual ?? countyClues?.impQualCode);
+    const compQualityOrigin = compFieldOrigins.quality || null;
+    const compQualitySpec = isQualityUnknown
+      ? 'Unknown'
+      : formatQualityWithRawCode(qualMeta, compRawQualCode, {
+          isManualOverride: Boolean(compRawQualCode && compQualityOrigin === 'my_edit' && compDetails.quality !== compBcMeta?.county_quality_uad)
+        });
+    const compQualityTooltip = buildCountyCodeTooltip({
+      label: 'County grade',
+      rawCode: compRawQualCode,
+      rawDesc: compRawQualDesc,
+      origin: compQualityOrigin,
+      rollYear: compBcMeta?.roll_year
+    });
     const qualityNote = isQualityUnknown
       ? (compImpQualSuggested !== 'unknown'
           ? `County clue: ${getUadQualityMeta(compImpQualSuggested).shortLabel}`
           : '')
-      : (subjectDetails.quality === 'unknown' ? 'Set subject quality' : '');
+      : (subjectDetails.quality === 'unknown'
+          ? 'Set subject quality'
+          : (compQualityOrigin === 'county_record'
+              ? 'county record'
+              : compQualityOrigin === 'my_edit' && compRawQualCode
+                ? 'my edit'
+                : ''));
     const qualityCell = resolveCell(
       'quality',
       rawQualityAdj,
-      isQualityUnknown ? 'Unknown' : qualMeta.shortLabel,
+      compQualitySpec,
       {
         note: qualityNote,
-        needsInfo: isQualityUnknown
+        needsInfo: isQualityUnknown,
+        tooltip: compQualityTooltip || null,
+        origin: compQualityOrigin
       }
     );
 
-    // 6. Condition (UAD C1–C6): Unknown = $0 adjustment + "Needs info" chip + weight reduced
+    // 6. Condition (UAD C1–C6):
+    // Unknown = $0 adjustment + "Needs info" chip + weight reduced.
+    // Palm Beach AV default (condition_is_default = true) stays 'unknown' unless manually confirmed ->
+    // labeled "county default (not inspected)" and NEVER creates condition adjustments.
     const isConditionUnknown = compDetails.condition === 'unknown';
+    const compConditionOrigin = compFieldOrigins.condition || null;
+    const isUnconfirmedDefaultCond = isConditionUnknown && compCondIsDefault;
     const rawCondAdj = (!isConditionUnknown && subjectDetails.condition !== 'unknown')
       ? conditionContributory(subjectDetails.condition) - conditionContributory(compDetails.condition)
       : 0;
-    const condNote = !isConditionUnknown && typeof compDetails.kitchen_baths_updated === 'boolean'
-      ? (compDetails.kitchen_baths_updated ? 'K&B updated' : 'Orig. K&B')
-      : '';
+    const compCondTooltip = buildCountyCodeTooltip({
+      label: 'County condition',
+      rawCode: compRawCondCode,
+      rawDesc: compRawCondDesc,
+      origin: compConditionOrigin,
+      rollYear: compBcMeta?.roll_year,
+      isDefaultCondition: isUnconfirmedDefaultCond
+    });
+    const condNote = isUnconfirmedDefaultCond
+      ? `${compRawCondCode || 'AV'} · county default (not inspected)`
+      : !isConditionUnknown
+        ? [
+            typeof compDetails.kitchen_baths_updated === 'boolean'
+              ? (compDetails.kitchen_baths_updated ? 'K&B updated' : 'Orig. K&B')
+              : null,
+            compConditionOrigin === 'county_record' && compRawCondCode
+              ? `county record (${compRawCondCode})`
+              : null,
+            subjectDetails.condition === 'unknown'
+              ? 'Confirm subject condition'
+              : null
+          ].filter(Boolean).join(' · ')
+        : '';
     const conditionCell = resolveCell(
       'condition',
       rawCondAdj,
       isConditionUnknown ? 'Unknown' : condMeta.shortLabel,
-      { note: condNote, needsInfo: isConditionUnknown }
+      {
+        note: condNote,
+        needsInfo: isConditionUnknown,
+        tooltip: compCondTooltip || null,
+        origin: compConditionOrigin
+      }
     );
 
     // 7. Construction (CBS / wood frame / other): Unknown = $0 + "Needs info" (county CONST_CLASS shown as clue)
@@ -1706,6 +1778,12 @@ export function computeAppraisalGrid({
       conditionMeta: condMeta,
       qualityMeta: qualMeta,
       compDetails,
+      fieldOrigins: compFieldOrigins,
+      rawQualityCode: compRawQualCode,
+      rawQualityDesc: compRawQualDesc,
+      rawConditionCode: compRawCondCode,
+      rawConditionDesc: compRawCondDesc,
+      conditionIsDefault: compCondIsDefault,
       detailsProgress,
       countyClues,
       sameSubdivision: sameSubdiv,
@@ -2228,6 +2306,40 @@ export function computeAppraisalGrid({
     subject?.subject_details?.construction_detail ||
     null;
 
+  const subjectFieldOrigins = subjectDetails.field_origins || {};
+  const subjectBcMeta = subjectDetails.county_building_meta || null;
+  const subjectRawQualCode = subjectBcMeta?.raw_quality_code || subject?.raw_quality_code || null;
+  const subjectRawQualDesc = subjectBcMeta?.raw_quality_desc || subject?.raw_quality_desc || null;
+  const subjectRawCondCode = subjectBcMeta?.raw_condition_code || subject?.raw_condition_code || null;
+  const subjectRawCondDesc = subjectBcMeta?.raw_condition_desc || subject?.raw_condition_desc || null;
+  const subjectCondIsDefault = Boolean(
+    subjectBcMeta?.condition_is_default && subjectDetails.condition === 'unknown'
+  );
+  const subjectQualityLabel = subjectDetails.quality === 'unknown'
+    ? 'Unknown'
+    : formatQualityWithRawCode(subjectQualMeta, subjectRawQualCode, {
+        isManualOverride: Boolean(
+          subjectRawQualCode &&
+          subjectFieldOrigins.quality === 'my_edit' &&
+          subjectDetails.quality !== subjectBcMeta?.county_quality_uad
+        )
+      });
+  const subjectQualityTooltip = buildCountyCodeTooltip({
+    label: 'County grade',
+    rawCode: subjectRawQualCode,
+    rawDesc: subjectRawQualDesc,
+    origin: subjectFieldOrigins.quality,
+    rollYear: subjectBcMeta?.roll_year
+  });
+  const subjectConditionTooltip = buildCountyCodeTooltip({
+    label: 'County condition',
+    rawCode: subjectRawCondCode,
+    rawDesc: subjectRawCondDesc,
+    origin: subjectFieldOrigins.condition,
+    rollYear: subjectBcMeta?.roll_year,
+    isDefaultCondition: subjectCondIsDefault
+  });
+
   return {
     mode,
     sizeMethod: effectiveSizeMethod,
@@ -2273,10 +2385,19 @@ export function computeAppraisalGrid({
         subjectDetails.beds != null ? `${subjectDetails.beds} bd` : null,
         formatBathDisplay(subjectDetails)
       ].filter(Boolean).join(' / ') || 'Add beds/baths',
-      qualityLabel: subjectDetails.quality === 'unknown' ? 'Unknown' : subjectQualMeta.shortLabel,
+      qualityLabel: subjectQualityLabel,
+      qualityTooltip: subjectQualityTooltip || null,
+      rawQualityCode: subjectRawQualCode,
+      rawQualityDesc: subjectRawQualDesc,
       conditionLabel: subjectDetails.condition === 'unknown'
         ? 'Unknown'
         : (mode === 'arv' && subjectDetails.condition === 'c2' ? 'Renovated (ARV · C2)' : subjectCondMeta.shortLabel),
+      conditionDefaultNote: subjectCondIsDefault
+        ? `${subjectRawCondCode || 'AV'} · county default (not inspected)`
+        : null,
+      conditionTooltip: subjectConditionTooltip || null,
+      conditionIsDefault: subjectCondIsDefault,
+      fieldOrigins: subjectFieldOrigins,
       windowsLabel: formatWindowsLabel(subjectDetails.windows),
       roofLabel: formatRoofSpecLabel(subjectDetails),
       constructionDetail: resolvedSubjectConstDetail,

@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
+import { fetchBuildingCharacteristicOne } from '../_lib/buildingChars.js';
 import { normalizeCountyName } from '../../src/config/counties.js';
 import { formatCountyClues } from '../../src/components/investor/compDetailsModel.js';
 
@@ -142,7 +143,13 @@ export default async function handler(req, res) {
     }
 
     const parcel = parcels[0];
-    const county_clues = formatCountyClues(parcel);
+    const building_characteristics = await fetchBuildingCharacteristicOne(sql, county, parcelId);
+    const county_clues = formatCountyClues({
+      ...parcel,
+      beds: building_characteristics?.beds ?? parcel.beds ?? null,
+      full_baths: building_characteristics?.full_baths ?? parcel.full_baths ?? null,
+      half_baths: building_characteristics?.half_baths ?? parcel.half_baths ?? null
+    });
 
     // 2. Fetch sales history with qualification code metadata
     const sales = await sql`
@@ -269,6 +276,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ...parcel,
+      building_characteristics,
       county_clues,
       nearest_same_street_sale,
       sales

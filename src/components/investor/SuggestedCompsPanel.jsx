@@ -14,7 +14,10 @@ import {
   formatCountyClues,
   detailsToLegacyColumns,
   formatBoatDockLabel,
-  formatConstructionTypeLabel
+  formatConstructionTypeLabel,
+  getUadQualityMeta,
+  formatQualityWithRawCode,
+  buildCountyCodeTooltip
 } from './compDetailsModel.js';
 import { normalizeCountyName, resolvePropertyCounty } from '../../config/counties.js';
 
@@ -1046,22 +1049,77 @@ export default function SuggestedCompsPanel({
                       </Pill>
                     )}
 
-                    {/* Saved Construction & Boat Dock chips when known */}
+                    {/* Auto-filled / Saved Beds, Quality (with raw county code), Construction & Boat Dock chips */}
                     {(() => {
                       const savedConst = formatConstructionTypeLabel(
                         c.construction_type || c.saved_comp_details?.construction_type
                       );
+                      const showConst = savedConst && savedConst !== 'Unknown';
                       const savedDock = formatBoatDockLabel({
                         boat_dock: c.boat_dock ?? c.saved_comp_details?.boat_dock,
-                        boat_dock_sqft: c.boat_dock_sqft ?? c.saved_comp_details?.boat_dock_sqft
+                        boat_dock_sqft: c.boat_dock_sqft ?? c.saved_comp_details?.boat_dock_sqft,
+                        boat_lift: c.boat_lift ?? c.saved_comp_details?.boat_lift
                       });
+                      const bedBathChip = [
+                        c.beds != null ? `${c.beds} bd` : null,
+                        c.baths != null ? `${c.baths} ba` : null
+                      ].filter(Boolean).join(' / ');
+                      const qualKey = c.quality || c.saved_comp_details?.quality || null;
+                      const qualMeta = qualKey ? getUadQualityMeta(qualKey) : null;
+                      const qualLabel = qualMeta && qualMeta.id !== 'unknown'
+                        ? formatQualityWithRawCode(qualMeta, c.raw_quality_code, {
+                            isManualOverride: Boolean(
+                              c.raw_quality_code &&
+                              c.field_origins?.quality === 'my_edit' &&
+                              qualKey !== c.building_characteristics?.quality_uad
+                            )
+                          })
+                        : null;
                       return (
                         <>
-                          {savedConst && (
+                          {bedBathChip && (
                             <Pill
                               variant="neutral"
                               size="sm"
-                              title="Confirmed construction type from saved comp details"
+                              title={c.field_origins?.beds === 'county_record' ? 'Beds & baths from county record' : 'Beds & baths'}
+                              style={{
+                                backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                                border: '1px solid rgba(133, 157, 206, 0.4)',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {bedBathChip}
+                            </Pill>
+                          )}
+                          {qualLabel && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title={buildCountyCodeTooltip({
+                                label: 'County grade',
+                                rawCode: c.raw_quality_code,
+                                rawDesc: c.raw_quality_desc,
+                                origin: c.field_origins?.quality,
+                                rollYear: c.building_characteristics?.roll_year
+                              }) || 'UAD Quality rating'}
+                              style={{
+                                backgroundColor: '#FAF8F5',
+                                border: '1px solid rgba(52, 41, 42, 0.18)',
+                                color: '#34292A',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                            >
+                              {qualLabel}
+                            </Pill>
+                          )}
+                          {showConst && (
+                            <Pill
+                              variant="neutral"
+                              size="sm"
+                              title={c.field_origins?.construction_type === 'county_record' ? 'Construction from county building record' : 'Confirmed construction type'}
                               style={{
                                 backgroundColor: '#FAF8F5',
                                 border: '1px solid rgba(52, 41, 42, 0.16)',
@@ -1077,7 +1135,7 @@ export default function SuggestedCompsPanel({
                             <Pill
                               variant="neutral"
                               size="sm"
-                              title="Boat dock from saved comp details"
+                              title="Boat dock / lift"
                               style={{
                                 backgroundColor: 'rgba(189, 211, 226, 0.28)',
                                 border: '1px solid rgba(133, 157, 206, 0.45)',

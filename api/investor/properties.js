@@ -1,6 +1,11 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
 import { applyPropertyCountyRules } from '../_lib/countyResolver.js';
+import {
+  fetchBuildingCharacteristicsMap,
+  fetchBuildingCharacteristicOne,
+  lookupBuildingRecord
+} from '../_lib/buildingChars.js';
 import { normalizeCompDetails, detailsToLegacyColumns } from '../../src/components/investor/compDetailsModel.js';
 import { normalizePriceSource } from '../../src/components/investor/priceSource.js';
 
@@ -93,10 +98,40 @@ async function syncPropertyExtraColumns(sql, cleanEmail, id, data) {
   }
 }
 
+function attachBuildingCharacteristicsToProperty(prop, bcRow) {
+  if (!prop || typeof prop !== 'object') return prop;
+  if (!bcRow) {
+    return {
+      ...prop,
+      building_characteristics: prop.building_characteristics || null
+    };
+  }
+  const bcBaths =
+    bcRow.full_baths != null
+      ? Math.round((Number(bcRow.full_baths) + (Number(bcRow.half_baths) || 0) * 0.5) * 10) / 10
+      : null;
+  return {
+    ...prop,
+    building_characteristics: bcRow,
+    // Auto-fill missing top-level physical fields from county CAMA (manual edits ALWAYS win)
+    sqft: prop.sqft ?? bcRow.living_area_sqft ?? null,
+    beds: prop.beds ?? (bcRow.beds != null ? Number(bcRow.beds) : null),
+    baths: prop.baths ?? bcBaths,
+    year_built: prop.year_built ?? bcRow.year_built ?? null,
+    eff_year_built: prop.eff_year_built ?? bcRow.effective_year_built ?? null,
+    raw_quality_code: bcRow.raw_quality_code || null,
+    raw_quality_desc: bcRow.raw_quality_desc || null,
+    raw_condition_code: bcRow.raw_condition_code || null,
+    raw_condition_desc: bcRow.raw_condition_desc || null,
+    condition_is_default: Boolean(bcRow.condition_is_default)
+  };
+}
+
 async function attachParcelSubdivisionFields(sql, row) {
   const normalized = normalizePropertyJsonb(row);
-  if (!normalized || !normalized.parcel_id) return normalized;
+  if (!normalized || !normalized.parcel_id) return attachBuildingCharacteristicsToProperty(normalized, null);
   const county = normalized.parcel_county || normalized.county || 'Broward';
+  const bcRow = await fetchBuildingCharacteristicOne(sql, county, normalized.parcel_id);
   try {
     let pRows;
     try {
@@ -117,7 +152,7 @@ async function attachParcelSubdivisionFields(sql, row) {
     }
     if (pRows.length > 0) {
       const pr = pRows[0];
-      return {
+      return attachBuildingCharacteristicsToProperty({
         ...normalized,
         s_legal: pr.s_legal ?? null,
         subdivision_name: pr.subdivision_name ?? null,
@@ -129,12 +164,12 @@ async function attachParcelSubdivisionFields(sql, row) {
         eff_year_built: pr.eff_year_built ?? null,
         just_value: pr.just_value != null ? Number(pr.just_value) : normalized.just_value,
         land_value: normalized.land_value ?? (pr.land_value != null ? Number(pr.land_value) : null)
-      };
+      }, bcRow);
     }
   } catch {
     // Graceful fallback if county_parcels columns aren't available
   }
-  return normalized;
+  return attachBuildingCharacteristicsToProperty(normalized, bcRow);
 }
 
 function validateProperty(body) {
@@ -694,7 +729,11 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Property not found.' });
         }
 
-        return res.status(200).json(normalizePropertyJsonb(rows[0]));
+        const singleNorm = normalizePropertyJsonb(rows[0]);
+        const singleBc = singleNorm.parcel_id
+          ? await fetchBuildingCharacteristicOne(sql, singleNorm.parcel_county || singleNorm.county, singleNorm.parcel_id)
+          : null;
+        return res.status(200).json(attachBuildingCharacteristicsToProperty(singleNorm, singleBc));
       }
 
       let properties = [];
@@ -862,7 +901,19 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json(properties.map(normalizePropertyJsonb));
+      const bcMap = await fetchBuildingCharacteristicsMap(
+        sql,
+        properties.map((p) => p.parcel_id).filter(Boolean)
+      );
+      return res.status(200).json(
+        properties.map((p) => {
+          const norm = normalizePropertyJsonb(p);
+          const bcRow = norm.parcel_id
+            ? lookupBuildingRecord(bcMap, norm.parcel_county || norm.county, norm.parcel_id)
+            : null;
+          return attachBuildingCharacteristicsToProperty(norm, bcRow);
+        })
+      );
     }
 
     // POST: Create a new property

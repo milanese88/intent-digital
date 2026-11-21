@@ -38,7 +38,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_subdivision_and_hoa_fields.sql',
   'add_boat_dock_and_construction.sql',
   'add_appraisal_v2_columns.sql',
-  'add_price_source_and_subject_meta.sql'
+  'add_price_source_and_subject_meta.sql',
+  'add_building_characteristics.sql'
 ];
 
 /**
@@ -235,6 +236,22 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       { table: 'investor_properties', column: 'offer_price' },
       { table: 'investor_properties', column: 'construction_detail' }
     ]
+  },
+  'add_building_characteristics.sql': {
+    tables: ['building_characteristics'],
+    columns: [
+      { table: 'building_characteristics', column: 'county' },
+      { table: 'building_characteristics', column: 'folio' },
+      { table: 'building_characteristics', column: 'source' },
+      { table: 'building_characteristics', column: 'roll_year' },
+      { table: 'building_characteristics', column: 'quality_uad' },
+      { table: 'building_characteristics', column: 'raw_quality_code' },
+      { table: 'building_characteristics', column: 'condition_uad' },
+      { table: 'building_characteristics', column: 'raw_condition_code' },
+      { table: 'building_characteristics', column: 'condition_is_default' },
+      { table: 'building_characteristics', column: 'living_area_sqft' }
+    ],
+    indexes: ['idx_building_characteristics_folio']
   },
   'add_location_intelligence_tables.sql': {
     tables: [
