@@ -385,3 +385,4 @@ test('Migration add_building_characteristics.sql is registered, idempotent, RLS-
   assert.deepEqual(parseCsvLine('a,"b, c","d""e",f'), ['a', 'b, c', 'd"e', 'f']);
   assert.equal(inferRollYearFromFilename('PAS405_CSV_CERT2026_20261027.TXT'), 2026);
 });
+
