@@ -1,5 +1,6 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
+import { fetchBuildingCharacteristicsMap, lookupBuildingRecord } from '../_lib/buildingChars.js';
 import { normalizeCountyName } from '../../src/config/counties.js';
 import {
   VALID_CONDITIONS,
@@ -295,8 +296,12 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
   const parcelMap = new Map();
   const savedExactMap = new Map();
   const savedFolioMap = new Map();
+  let buildingMap = new Map();
 
   if (parcelIds.length > 0) {
+    // 0. Batch-fetch county CAMA building_characteristics (42P01-safe, zero PII)
+    buildingMap = await fetchBuildingCharacteristicsMap(sql, parcelIds);
+
     // 1. Fetch county_parcels clues + subdivision / neighborhood + just/land value metadata
     try {
       let pRows;
@@ -411,6 +416,7 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
     const savedRow = pid
       ? (savedExactMap.get(`${county}|${pid}|${saleMonthKey}`) || savedFolioMap.get(`${county}|${pid}`) || null)
       : null;
+    const buildingRecord = pid ? lookupBuildingRecord(buildingMap, county, pid) : null;
 
     const merged = mergeCompWithSavedDetails(
       {
@@ -420,7 +426,8 @@ async function enrichCompsWithCluesAndSavedDetails(sql, cleanEmail, rawRows = []
         is_outlier: Boolean(row.is_outlier || adj.is_outlier)
       },
       savedRow,
-      countyParcel
+      countyParcel,
+      buildingRecord
     );
 
     return merged;
@@ -854,7 +861,16 @@ export default async function handler(req, res) {
           ...(body.eff_year_built !== undefined ? { eff_year_built: body.eff_year_built } : {}),
           ...(body.hoa_name !== undefined ? { hoa_name: body.hoa_name } : {}),
           ...(body.verified !== undefined ? { verified: body.verified } : {}),
-          ...(body.detail_source !== undefined ? { source: body.detail_source } : {})
+          ...(body.detail_source !== undefined ? { source: body.detail_source } : {}),
+          ...((currentDetailsJson.manual_fields || body.comp_details_json?.manual_fields || body.condition !== undefined)
+            ? {
+                manual_fields: {
+                  ...(currentDetailsJson.manual_fields || {}),
+                  ...(body.comp_details_json?.manual_fields || {}),
+                  ...(body.condition !== undefined && !body.comp_details_json?.manual_fields ? { condition: true } : {})
+                }
+              }
+            : {})
         }
       };
 

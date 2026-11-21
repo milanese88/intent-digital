@@ -13,6 +13,19 @@
  *   pre-fill across every property and appraisal using that county sale.
  */
 
+import {
+  formatQualityWithRawCode,
+  buildCountyCodeTooltip
+} from '../../utils/camaBuildingMapper.js';
+
+export { formatQualityWithRawCode, buildCountyCodeTooltip };
+
+export const FIELD_ORIGIN_LABELS = {
+  my_edit: 'my edit',
+  county_record: 'county record',
+  county_default: 'county default (not inspected)'
+};
+
 export const CONDITION_QUICK_PICKS = [
   { id: 'c4', label: 'Original', uad: 'C4', fullLabel: 'Original (C4)' },
   { id: 'c3', label: 'Updated', uad: 'C3', fullLabel: 'Updated (C3)' },
@@ -562,6 +575,16 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
   const verifiedBool = parseTriBoolean(pick('verified'));
   const verified = verifiedBool === true;
 
+  const rawManualFields = pick('manual_fields');
+  const manual_fields =
+    rawManualFields && typeof rawManualFields === 'object' && !Array.isArray(rawManualFields)
+      ? Object.fromEntries(
+          Object.entries(rawManualFields)
+            .filter(([k, v]) => typeof k === 'string' && v === true)
+            .map(([k]) => [k, true])
+        )
+      : null;
+
   return {
     beds,
     full_baths: bathSplit.full_baths,
@@ -589,7 +612,8 @@ export function normalizeCompDetails(raw = {}, { treatLegacyUneditedCountyBoolea
     hoa_name,
     notes,
     source,
-    verified
+    verified,
+    ...(manual_fields ? { manual_fields } : {})
   };
 }
 
@@ -862,30 +886,412 @@ export function buildCountyHintSuggestions(currentDetails = {}, countyClues = {}
 }
 
 /**
- * Merges a saved comp_details table row onto a comp object so comps filled once
- * are pre-filled on every property and appraisal that uses that county sale.
+ * Converts a building_characteristics county CAMA row into structured auto-fill defaults
+ * plus preserved metadata (raw quality/condition codes, condition_is_default, living/total area, etc.).
+ *
+ * CRITICAL RULE:
+ * When condition_is_default === true (e.g. Palm Beach 'AV' on 99% of rows), condition is NOT
+ * included in active auto-fill values — it stays 'unknown' until manually confirmed so an
+ * uninspected county default never creates appraisal grid condition adjustments.
  */
-export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParcel = null) {
+export function buildingRecordToCountyDefaults(bcRow = null) {
+  if (!bcRow || typeof bcRow !== 'object') {
+    return { values: {}, meta: null };
+  }
+
+  const beds = parseNullableNumber(bcRow.beds, { integer: false, min: 0.5, max: 30 });
+  const fullBaths = parseNullableNumber(bcRow.full_baths, { integer: true, min: 0, max: 30 });
+  const halfBaths = parseNullableNumber(bcRow.half_baths, { integer: true, min: 0, max: 20 });
+  const hasBaths = fullBaths != null || (halfBaths != null && halfBaths > 0);
+  const effYear = parseNullableNumber(bcRow.effective_year_built, { integer: true, min: 1850, max: 2100 });
+  const yearBuilt = parseNullableNumber(bcRow.year_built, { integer: true, min: 1850, max: 2100 });
+
+  const qualityUad = normalizeQualityKey(bcRow.quality_uad);
+  const conditionUad = normalizeConditionKey(bcRow.condition_uad);
+  const conditionIsDefault = Boolean(bcRow.condition_is_default);
+
+  const constType = normalizeConstructionType(bcRow.construction_type);
+  const constDetail = bcRow.exterior_wall_desc ? String(bcRow.exterior_wall_desc).trim() : '';
+
+  const rawRoof = String(bcRow.roof_type || '').trim().toLowerCase();
+  const roofType = ['shingle', 'barrel_tile', 'metal', 'flat'].includes(rawRoof) ? rawRoof : 'unknown';
+
+  const rawPool = String(bcRow.pool_type || '').trim().toLowerCase();
+  const poolType = ['standard', 'resort'].includes(rawPool) ? rawPool : 'unknown';
+  const screenEnclosure = bcRow.screen_enclosure === true ? true : null;
+
+  const rawGar = String(bcRow.garage_type || '').trim().toLowerCase();
+  const garageType = ['garage', 'carport'].includes(rawGar) ? rawGar : 'unknown';
+  const garageBays = parseNullableNumber(bcRow.garage_bays, { integer: true, min: 0, max: 10 });
+
+  const rawView = String(bcRow.waterfront_view || '').trim().toLowerCase();
+  const waterfrontView = ['dry_lot', 'lake', 'golf', 'canal_fixed_bridge', 'ocean_access'].includes(rawView)
+    ? rawView
+    : 'unknown';
+
+  const boatDock = bcRow.boat_dock === true ? true : null;
+  const boatDockSqft = boatDock === true
+    ? parseNullableNumber(bcRow.boat_dock_sqft, { integer: true, min: 1, max: 50000 })
+    : null;
+  const boatLift = bcRow.boat_lift === true ? true : null;
+
+  const livingSqft = parseNullableNumber(bcRow.living_area_sqft, { integer: true, min: 1, max: 500000 });
+  const totalSqft = parseNullableNumber(bcRow.total_area_sqft, { integer: true, min: 1, max: 500000 });
+  const nonLivingSqft = parseNullableNumber(bcRow.non_living_area_sqft, { integer: true, min: 0, max: 500000 });
+
+  const values = {};
+  if (beds != null) values.beds = beds;
+  if (hasBaths) {
+    values.full_baths = fullBaths ?? 0;
+    values.half_baths = halfBaths ?? 0;
+  }
+  if (effYear != null) values.eff_year_built = effYear;
+  if (qualityUad !== 'unknown') values.quality = qualityUad;
+  // ONLY real condition signals (GD/VG/EX/FR/PR/VP/UN) auto-fill condition; NEVER uninspected AV default!
+  if (conditionUad !== 'unknown' && !conditionIsDefault) {
+    values.condition = conditionUad;
+  }
+  if (constType !== 'unknown') values.construction_type = constType;
+  if (constDetail) values.construction_detail = constDetail;
+  if (roofType !== 'unknown') values.roof_type = roofType;
+  if (poolType !== 'unknown') values.pool_type = poolType;
+  if (screenEnclosure === true) values.screen_enclosure = true;
+  if (garageType !== 'unknown') {
+    values.garage_type = garageType;
+    if (garageBays != null) values.garage_bays = garageBays;
+  }
+  if (waterfrontView !== 'unknown') values.waterfront_view = waterfrontView;
+  if (boatDock === true) {
+    values.boat_dock = true;
+    if (boatDockSqft != null) values.boat_dock_sqft = boatDockSqft;
+  }
+  if (boatLift === true) {
+    values.boat_lift = true;
+    values.boat_dock = true;
+  }
+
+  const meta = {
+    source: bcRow.source || 'county_cama',
+    roll_year: bcRow.roll_year != null ? Number(bcRow.roll_year) : null,
+    property_class: bcRow.property_class || null,
+    building_count: bcRow.building_count != null ? Number(bcRow.building_count) : 1,
+    stories: bcRow.stories != null && !isNaN(Number(bcRow.stories)) ? Number(bcRow.stories) : null,
+    year_built: yearBuilt,
+    effective_year_built: effYear,
+    living_area_sqft: livingSqft,
+    total_area_sqft: totalSqft,
+    non_living_area_sqft: nonLivingSqft,
+    raw_quality_code: bcRow.raw_quality_code ? String(bcRow.raw_quality_code).trim().toUpperCase() : null,
+    raw_quality_desc: bcRow.raw_quality_desc ? String(bcRow.raw_quality_desc).trim() : null,
+    county_quality_uad: qualityUad !== 'unknown' ? qualityUad : null,
+    raw_condition_code: bcRow.raw_condition_code ? String(bcRow.raw_condition_code).trim().toUpperCase() : null,
+    raw_condition_desc: bcRow.raw_condition_desc ? String(bcRow.raw_condition_desc).trim() : null,
+    county_condition_uad: conditionUad !== 'unknown' ? conditionUad : null,
+    condition_is_default: conditionIsDefault,
+    exterior_wall_code: bcRow.exterior_wall_code || null,
+    exterior_wall_desc: constDetail || null,
+    roof_cover_code: bcRow.roof_cover_code || null,
+    roof_cover_desc: bcRow.roof_cover_desc || null,
+    roof_structure_desc: bcRow.roof_structure_desc || null,
+    pool_year: parseNullableNumber(bcRow.pool_year, { integer: true, min: 1900, max: 2100 }),
+    screen_enclosure_sqft: parseNullableNumber(bcRow.screen_enclosure_sqft, { integer: true, min: 1, max: 50000 }),
+    boat_dock_year: parseNullableNumber(bcRow.boat_dock_year, { integer: true, min: 1900, max: 2100 }),
+    boat_lift_year: parseNullableNumber(bcRow.boat_lift_year, { integer: true, min: 1900, max: 2100 }),
+    fireplaces: parseNullableNumber(bcRow.fireplaces, { integer: true, min: 1, max: 20 }),
+    garage_sqft: parseNullableNumber(bcRow.garage_sqft, { integer: true, min: 1, max: 50000 }),
+    porch_sqft: parseNullableNumber(bcRow.porch_sqft, { integer: true, min: 1, max: 50000 }),
+    patio_sqft: parseNullableNumber(bcRow.patio_sqft, { integer: true, min: 1, max: 50000 }),
+    land_class_code: bcRow.land_class_code || null,
+    land_class_desc: bcRow.land_class_desc || null,
+    condo_model_desc: bcRow.condo_model_desc || null,
+    sub_areas_json: Array.isArray(bcRow.sub_areas_json) ? bcRow.sub_areas_json : null,
+    extra_features_json: Array.isArray(bcRow.extra_features_json) ? bcRow.extra_features_json : null
+  };
+
+  return { values, meta };
+}
+
+function hasPopulatedFieldValue(details, field) {
+  if (!details || typeof details !== 'object') return false;
+  switch (field) {
+    case 'beds':
+      return details.beds != null;
+    case 'baths':
+      return details.full_baths != null || details.baths != null;
+    case 'condition':
+      return Boolean(details.condition && details.condition !== 'unknown');
+    case 'quality':
+      return Boolean(details.quality && details.quality !== 'unknown');
+    case 'eff_year_built':
+      return details.eff_year_built != null;
+    case 'kitchen_baths_updated':
+      return typeof details.kitchen_baths_updated === 'boolean';
+    case 'construction_type':
+      return Boolean(details.construction_type && details.construction_type !== 'unknown');
+    case 'construction_detail':
+      return Boolean(details.construction_detail && String(details.construction_detail).trim() !== '');
+    case 'roof_type':
+      return Boolean(details.roof_type && details.roof_type !== 'unknown');
+    case 'roof_year':
+      return details.roof_year != null;
+    case 'windows':
+      return Boolean(details.windows && details.windows !== 'unknown');
+    case 'pool_type':
+      return Boolean(details.pool_type && details.pool_type !== 'unknown');
+    case 'screen_enclosure':
+      return typeof details.screen_enclosure === 'boolean';
+    case 'garage':
+      return Boolean(details.garage_type && details.garage_type !== 'unknown');
+    case 'waterfront_view':
+      return Boolean(details.waterfront_view && details.waterfront_view !== 'unknown');
+    case 'boat_dock':
+      return typeof details.boat_dock === 'boolean';
+    case 'boat_dock_sqft':
+      return details.boat_dock_sqft != null;
+    case 'boat_lift':
+      return typeof details.boat_lift === 'boolean';
+    case 'hoa_name':
+      return Boolean(details.hoa_name && String(details.hoa_name).trim() !== '');
+    default:
+      return false;
+  }
+}
+
+/**
+ * Merges manual user details with county building_characteristics records.
+ *
+ * Invariants:
+ * 1. Manual edits ALWAYS win over county data and are tagged 'my_edit'.
+ * 2. Unedited fields present in building_characteristics auto-fill and are tagged 'county_record'.
+ * 3. Palm Beach 'AV' condition (condition_is_default === true) NEVER auto-fills active condition;
+ *    unless the user explicitly confirms condition, it stays 'unknown' and is tagged 'county_default'.
+ */
+export function mergeDetailsWithCountyBuilding(manualInput = {}, bcRow = null) {
+  const manual = normalizeCompDetails(manualInput);
+  const { values: countyVals, meta: countyMeta } = buildingRecordToCountyDefaults(bcRow);
+  const explicitManualMap = manual.manual_fields && typeof manual.manual_fields === 'object'
+    ? manual.manual_fields
+    : null;
+
+  const fieldOrigins = {};
+  const mergedPatch = {};
+
+  const isFieldManual = (fieldKey, countyHasValue) => {
+    if (explicitManualMap) {
+      if (explicitManualMap[fieldKey] === true) return true;
+      // Non-county fields (or legacy values when county has nothing) still count as my_edit if populated
+      if (!countyHasValue && hasPopulatedFieldValue(manual, fieldKey)) return true;
+      return false;
+    }
+    return hasPopulatedFieldValue(manual, fieldKey);
+  };
+
+  // Beds
+  const countyHasBeds = countyVals.beds != null;
+  if (isFieldManual('beds', countyHasBeds)) {
+    mergedPatch.beds = manual.beds;
+    if (manual.beds != null) fieldOrigins.beds = 'my_edit';
+  } else if (countyHasBeds) {
+    mergedPatch.beds = countyVals.beds;
+    fieldOrigins.beds = 'county_record';
+  }
+
+  // Baths
+  const countyHasBaths = countyVals.full_baths != null;
+  if (isFieldManual('baths', countyHasBaths)) {
+    mergedPatch.full_baths = manual.full_baths;
+    mergedPatch.half_baths = manual.half_baths;
+    mergedPatch.baths = manual.baths;
+    if (hasPopulatedFieldValue(manual, 'baths')) fieldOrigins.baths = 'my_edit';
+  } else if (countyHasBaths) {
+    mergedPatch.full_baths = countyVals.full_baths;
+    mergedPatch.half_baths = countyVals.half_baths ?? 0;
+    mergedPatch.baths = null;
+    fieldOrigins.baths = 'county_record';
+  }
+
+  // Condition (CRITICAL AV default rule!)
+  const countyHasRealCond = Boolean(countyVals.condition && countyVals.condition !== 'unknown');
+  const countyHasDefaultCond = Boolean(countyMeta?.condition_is_default && countyMeta?.raw_condition_code);
+  if (isFieldManual('condition', countyHasRealCond || countyHasDefaultCond)) {
+    mergedPatch.condition = manual.condition;
+    if (manual.condition !== 'unknown') fieldOrigins.condition = 'my_edit';
+    else if (countyHasDefaultCond) fieldOrigins.condition = 'county_default';
+  } else if (countyHasRealCond) {
+    mergedPatch.condition = countyVals.condition;
+    fieldOrigins.condition = 'county_record';
+  } else if (countyHasDefaultCond) {
+    // Store/keep 'unknown' so AV/C4 NEVER creates condition adjustments unless user confirms!
+    mergedPatch.condition = 'unknown';
+    fieldOrigins.condition = 'county_default';
+  }
+
+  // Quality (auto-fill from county grade, user manual override ALWAYS wins)
+  const countyHasQuality = Boolean(countyVals.quality && countyVals.quality !== 'unknown');
+  if (isFieldManual('quality', countyHasQuality)) {
+    mergedPatch.quality = manual.quality;
+    if (manual.quality !== 'unknown') fieldOrigins.quality = 'my_edit';
+  } else if (countyHasQuality) {
+    mergedPatch.quality = countyVals.quality;
+    fieldOrigins.quality = 'county_record';
+  }
+
+  // Effective year built
+  const countyHasEffYr = countyVals.eff_year_built != null;
+  if (isFieldManual('eff_year_built', countyHasEffYr)) {
+    mergedPatch.eff_year_built = manual.eff_year_built;
+    if (manual.eff_year_built != null) fieldOrigins.eff_year_built = 'my_edit';
+  } else if (countyHasEffYr) {
+    mergedPatch.eff_year_built = countyVals.eff_year_built;
+    fieldOrigins.eff_year_built = 'county_record';
+  }
+
+  // Construction type + detail
+  const countyHasConst = Boolean(countyVals.construction_type && countyVals.construction_type !== 'unknown');
+  if (isFieldManual('construction_type', countyHasConst)) {
+    mergedPatch.construction_type = manual.construction_type;
+    if (manual.construction_type !== 'unknown') fieldOrigins.construction_type = 'my_edit';
+  } else if (countyHasConst) {
+    mergedPatch.construction_type = countyVals.construction_type;
+    fieldOrigins.construction_type = 'county_record';
+  }
+
+  const countyHasConstDetail = Boolean(countyVals.construction_detail);
+  if (isFieldManual('construction_detail', countyHasConstDetail)) {
+    mergedPatch.construction_detail = manual.construction_detail;
+    if (manual.construction_detail) fieldOrigins.construction_detail = 'my_edit';
+  } else if (countyHasConstDetail && (!isFieldManual('construction_type', countyHasConst) || !manual.construction_detail)) {
+    mergedPatch.construction_detail = countyVals.construction_detail;
+    fieldOrigins.construction_detail = 'county_record';
+  }
+
+  // Roof type
+  const countyHasRoofType = Boolean(countyVals.roof_type && countyVals.roof_type !== 'unknown');
+  if (isFieldManual('roof_type', countyHasRoofType)) {
+    mergedPatch.roof_type = manual.roof_type;
+    if (manual.roof_type !== 'unknown') fieldOrigins.roof_type = 'my_edit';
+  } else if (countyHasRoofType) {
+    mergedPatch.roof_type = countyVals.roof_type;
+    fieldOrigins.roof_type = 'county_record';
+  }
+
+  // Pool type
+  const countyHasPool = Boolean(countyVals.pool_type && countyVals.pool_type !== 'unknown');
+  if (isFieldManual('pool_type', countyHasPool)) {
+    mergedPatch.pool_type = manual.pool_type;
+    if (manual.pool_type !== 'unknown') fieldOrigins.pool_type = 'my_edit';
+  } else if (countyHasPool) {
+    mergedPatch.pool_type = countyVals.pool_type;
+    fieldOrigins.pool_type = 'county_record';
+  }
+
+  // Screen enclosure
+  const countyHasScreen = countyVals.screen_enclosure === true;
+  if (isFieldManual('screen_enclosure', countyHasScreen)) {
+    mergedPatch.screen_enclosure = manual.screen_enclosure;
+    if (typeof manual.screen_enclosure === 'boolean') fieldOrigins.screen_enclosure = 'my_edit';
+  } else if (countyHasScreen) {
+    mergedPatch.screen_enclosure = true;
+    fieldOrigins.screen_enclosure = 'county_record';
+  }
+
+  // Garage
+  const countyHasGarage = Boolean(countyVals.garage_type && countyVals.garage_type !== 'unknown');
+  if (isFieldManual('garage', countyHasGarage)) {
+    mergedPatch.garage_type = manual.garage_type;
+    mergedPatch.garage_bays = manual.garage_bays;
+    if (manual.garage_type !== 'unknown') fieldOrigins.garage = 'my_edit';
+  } else if (countyHasGarage) {
+    mergedPatch.garage_type = countyVals.garage_type;
+    mergedPatch.garage_bays = countyVals.garage_bays ?? (countyVals.garage_type === 'garage' ? 2 : 0);
+    fieldOrigins.garage = 'county_record';
+  }
+
+  // Waterfront & view
+  const countyHasView = Boolean(countyVals.waterfront_view && countyVals.waterfront_view !== 'unknown');
+  if (isFieldManual('waterfront_view', countyHasView)) {
+    mergedPatch.waterfront_view = manual.waterfront_view;
+    if (manual.waterfront_view !== 'unknown') fieldOrigins.waterfront_view = 'my_edit';
+  } else if (countyHasView) {
+    mergedPatch.waterfront_view = countyVals.waterfront_view;
+    fieldOrigins.waterfront_view = 'county_record';
+  }
+
+  // Boat dock, dock sqft, boat lift
+  const countyHasDock = countyVals.boat_dock === true;
+  if (isFieldManual('boat_dock', countyHasDock)) {
+    mergedPatch.boat_dock = manual.boat_dock;
+    if (typeof manual.boat_dock === 'boolean') fieldOrigins.boat_dock = 'my_edit';
+  } else if (countyHasDock) {
+    mergedPatch.boat_dock = true;
+    fieldOrigins.boat_dock = 'county_record';
+  }
+
+  const countyHasDockSqft = countyVals.boat_dock_sqft != null;
+  if (isFieldManual('boat_dock_sqft', countyHasDockSqft)) {
+    mergedPatch.boat_dock_sqft = manual.boat_dock_sqft;
+    if (manual.boat_dock_sqft != null) fieldOrigins.boat_dock_sqft = 'my_edit';
+  } else if (countyHasDockSqft && mergedPatch.boat_dock !== false) {
+    mergedPatch.boat_dock_sqft = countyVals.boat_dock_sqft;
+    fieldOrigins.boat_dock_sqft = 'county_record';
+  }
+
+  const countyHasLift = countyVals.boat_lift === true;
+  if (isFieldManual('boat_lift', countyHasLift)) {
+    mergedPatch.boat_lift = manual.boat_lift;
+    if (typeof manual.boat_lift === 'boolean') fieldOrigins.boat_lift = 'my_edit';
+  } else if (countyHasLift && mergedPatch.boat_dock !== false) {
+    mergedPatch.boat_lift = true;
+    fieldOrigins.boat_lift = 'county_record';
+  }
+
+  // User-only fields (never in PAS405E): mark as my_edit when populated
+  for (const userOnlyField of ['kitchen_baths_updated', 'roof_year', 'windows', 'hoa_name']) {
+    if (hasPopulatedFieldValue(manual, userOnlyField)) {
+      fieldOrigins[userOnlyField] = 'my_edit';
+    }
+  }
+
+  const resolved = normalizeCompDetails({
+    ...manual,
+    ...mergedPatch
+  });
+
+  return {
+    details: resolved,
+    field_origins: fieldOrigins,
+    county_building_meta: countyMeta
+  };
+}
+
+/**
+ * Merges a saved comp_details table row AND optional county building_characteristics row
+ * onto a comp object so comps auto-fill from county data while manual edits ALWAYS win.
+ */
+export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParcel = null, buildingRecord = null) {
+  const bcRow = buildingRecord || comp.building_characteristics || null;
   const cluesSource = {
-    year_built: countyParcel?.year_built ?? comp.year_built ?? null,
-    eff_year_built: countyParcel?.eff_year_built ?? comp.eff_year_built ?? null,
+    year_built: countyParcel?.year_built ?? bcRow?.year_built ?? comp.year_built ?? null,
+    eff_year_built: countyParcel?.eff_year_built ?? bcRow?.effective_year_built ?? comp.eff_year_built ?? null,
     spec_feat_val: countyParcel?.spec_feat_val ?? comp.spec_feat_val ?? null,
     units: countyParcel?.units ?? comp.units ?? null,
     imp_qual: countyParcel?.imp_qual ?? comp.imp_qual ?? null,
     const_class: countyParcel?.const_class ?? comp.const_class ?? null,
-    beds: countyParcel?.beds ?? null,
-    full_baths: countyParcel?.full_baths ?? null,
-    half_baths: countyParcel?.half_baths ?? null
+    beds: bcRow?.beds ?? countyParcel?.beds ?? null,
+    full_baths: bcRow?.full_baths ?? countyParcel?.full_baths ?? null,
+    half_baths: bcRow?.half_baths ?? countyParcel?.half_baths ?? null
   };
 
   const county_clues = formatCountyClues(cluesSource);
 
-  let normalizedDetails;
+  let manualNormalized;
   if (savedRow && typeof savedRow === 'object') {
-    normalizedDetails = normalizeCompDetails({
+    const compJson = unwrapJsonObj(comp.comp_details_json);
+    const savedManualFields = compJson.manual_fields || null;
+    manualNormalized = normalizeCompDetails({
       ...comp,
       comp_details_json: {
-        ...(comp.comp_details_json || {}),
+        ...compJson,
         beds: savedRow.beds ?? comp.beds,
         full_baths: savedRow.full_baths,
         half_baths: savedRow.half_baths,
@@ -907,21 +1313,40 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
         hoa_name: savedRow.hoa_name ?? comp.hoa_name ?? '',
         notes: savedRow.notes ?? comp.notes,
         source: savedRow.source ?? comp.source,
-        verified: savedRow.verified
+        verified: savedRow.verified,
+        ...(savedManualFields ? { manual_fields: savedManualFields } : {})
       }
     });
   } else {
-    normalizedDetails = normalizeCompDetails(comp, {
+    manualNormalized = normalizeCompDetails(comp, {
       treatLegacyUneditedCountyBooleansAsUnknown: true
     });
   }
 
+  const {
+    details: normalizedDetails,
+    field_origins,
+    county_building_meta
+  } = mergeDetailsWithCountyBuilding(manualNormalized, bcRow);
+
   const legacyCols = detailsToLegacyColumns(normalizedDetails);
   const progress = computeDetailsProgress(normalizedDetails);
+
+  // Living area: sum of finished sub-areas from county CAMA when comp.sqft is missing
+  const resolvedSqft =
+    comp.sqft != null && Number(comp.sqft) > 0
+      ? Number(comp.sqft)
+      : (county_building_meta?.living_area_sqft ?? comp.sqft ?? null);
+  const resolvedYearBuilt =
+    comp.year_built != null && Number(comp.year_built) > 1800
+      ? Number(comp.year_built)
+      : (county_building_meta?.year_built ?? countyParcel?.year_built ?? comp.year_built ?? null);
 
   return {
     ...comp,
     ...legacyCols,
+    sqft: resolvedSqft,
+    year_built: resolvedYearBuilt,
     hoa_name: normalizedDetails.hoa_name || savedRow?.hoa_name || comp.hoa_name || null,
     notes: normalizedDetails.notes || comp.notes || null,
     s_legal: countyParcel?.s_legal ?? comp.s_legal ?? null,
@@ -936,6 +1361,14 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
     units: cluesSource.units,
     imp_qual: cluesSource.imp_qual,
     const_class: cluesSource.const_class,
+    building_characteristics: bcRow || null,
+    county_building_meta,
+    field_origins,
+    raw_quality_code: county_building_meta?.raw_quality_code ?? comp.raw_quality_code ?? null,
+    raw_quality_desc: county_building_meta?.raw_quality_desc ?? comp.raw_quality_desc ?? null,
+    raw_condition_code: county_building_meta?.raw_condition_code ?? comp.raw_condition_code ?? null,
+    raw_condition_desc: county_building_meta?.raw_condition_desc ?? comp.raw_condition_desc ?? null,
+    condition_is_default: Boolean(county_building_meta?.condition_is_default ?? comp.condition_is_default),
     county_clues,
     details_progress: progress
   };
@@ -943,9 +1376,10 @@ export function mergeCompWithSavedDetails(comp = {}, savedRow = null, countyParc
 
 /**
  * Resolves Subject property details for a given mode ('as_is' | 'arv').
- * Falls back cleanly to top-level property fields when subject_details hasn't been customized yet.
- * - Default subject quality is Q4 when unknown (never Q5).
- * - Subject construction comes from confirmed value or county CONST_CLASS (never defaults to CBS).
+ * Integrates county building_characteristics auto-fill with manual edits ALWAYS winning:
+ * - Default subject quality is Q4 when unknown (never Q5), unless county CAMA provides a mapped grade.
+ * - Subject construction comes from confirmed value or county CAMA / CONST_CLASS (never defaults to CBS).
+ * - Palm Beach AV condition (condition_is_default = true) stays 'unknown' unless manually confirmed.
  */
 export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
   const subjectDetailsObj = unwrapJsonObj(subject?.subject_details);
@@ -956,47 +1390,31 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
   const afterRehabRaw = Object.keys(parsedAfterRehab).length > 0 ? parsedAfterRehab : null;
 
   const liveOverrides = unwrapJsonObj(subject?.appraisal_overrides);
+  const bcRow = subject?.building_characteristics || null;
+  const { meta: bcMeta } = buildingRecordToCountyDefaults(bcRow);
 
-  // County construction fallback (never default to CBS)
-  const countyConstType = mapConstClassToConstructionType(subject?.const_class);
-  const rawConstDetail =
-    asIsRaw?.construction_detail ||
-    subject?.construction_detail ||
-    subjectDetailsObj?.construction_detail ||
-    '';
-
-  // Explicit quality -> county IMP_QUAL -> default Q4 (never default to Q5)
-  const explicitAsIsQuality = normalizeQualityKey(
-    (mode !== 'arv' ? liveOverrides.quality : null) ??
-    asIsRaw?.quality ??
-    subject?.quality
+  // Determine whether the user has explicitly set/confirmed subject condition
+  const explicitSubjectCond = normalizeConditionKey(
+    (mode !== 'arv' ? liveOverrides.condition : null) ??
+    asIsRaw?.condition ??
+    subject?.condition
   );
-  const countyMappedQuality = mapImpQualToUadQuality(subject?.imp_qual);
-  const resolvedAsIsQuality =
-    explicitAsIsQuality !== 'unknown'
-      ? explicitAsIsQuality
-      : (countyMappedQuality !== 'unknown' && countyMappedQuality !== 'q5' && countyMappedQuality !== 'q6'
-          ? countyMappedQuality
-          : 'q4');
-
-  const explicitAsIsConst = normalizeConstructionType(
-    (mode !== 'arv' ? liveOverrides.construction_type : null) ??
-    asIsRaw?.construction_type ??
-    subject?.construction_type ??
-    rawConstDetail
+  const hasManualCondFlag = Boolean(asIsRaw?.manual_fields?.condition || (mode !== 'arv' && liveOverrides.condition));
+  const shouldKeepAvConditionUnconfirmed = Boolean(
+    bcMeta?.condition_is_default &&
+    !hasManualCondFlag &&
+    (explicitSubjectCond === 'unknown' || (!asIsRaw?.condition && !subject?.condition))
   );
-  const resolvedAsIsConst =
-    explicitAsIsConst !== 'unknown'
-      ? explicitAsIsConst
-      : countyConstType;
 
-  // Base fallback from top-level subject columns
-  const baseAsIs = normalizeCompDetails({
+  // Base manual/stored subject input (prior to county CAMA merge)
+  const rawBaseInput = {
     beds: subject?.beds,
     baths: subject?.baths,
     full_baths: subject?.full_baths,
     half_baths: subject?.half_baths,
-    condition: subject?.condition || 'c4',
+    condition: shouldKeepAvConditionUnconfirmed
+      ? 'unknown'
+      : (bcRow ? (subject?.condition || 'unknown') : (subject?.condition || 'c4')),
     eff_year_built: subject?.eff_year_built,
     roof_year: subject?.roof_year,
     roof_type: subject?.roof_type,
@@ -1012,16 +1430,56 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     boat_dock: subject?.boat_dock,
     boat_dock_sqft: subject?.boat_dock_sqft,
     boat_lift: subject?.boat_lift,
+    construction_type: subject?.construction_type,
+    construction_detail: subject?.construction_detail || subjectDetailsObj?.construction_detail || '',
+    quality: subject?.quality,
     sketch_areas: subjectDetailsObj?.sketch_areas || subject?.sketch_areas || '',
     recent_improvements: subjectDetailsObj?.recent_improvements || subject?.recent_improvements || '',
     hoa_name: subject?.hoa_name,
     notes: subject?.notes,
     ...(asIsRaw || {}),
-    ...(mode !== 'arv' ? liveOverrides : {}),
-    quality: resolvedAsIsQuality,
-    construction_type: resolvedAsIsConst,
-    construction_detail: (mode !== 'arv' && liveOverrides.construction_detail) || asIsRaw?.construction_detail || rawConstDetail
-  });
+    ...(mode !== 'arv' ? liveOverrides : {})
+  };
+
+  // Merge manual input with county CAMA building_characteristics (manual ALWAYS wins!)
+  const mergedAsIs = mergeDetailsWithCountyBuilding(rawBaseInput, bcRow);
+  const fieldOrigins = { ...mergedAsIs.field_origins };
+
+  // Fallback quality: explicit / CAMA county grade -> DOR IMP_QUAL (Q1–Q4) -> default Q4 (never Q5)
+  let resolvedAsIsQuality = mergedAsIs.details.quality;
+  if (resolvedAsIsQuality === 'unknown') {
+    const countyMappedQuality = mapImpQualToUadQuality(subject?.imp_qual);
+    resolvedAsIsQuality =
+      countyMappedQuality !== 'unknown' && countyMappedQuality !== 'q5' && countyMappedQuality !== 'q6'
+        ? countyMappedQuality
+        : 'q4';
+  }
+
+  // Fallback construction: explicit / CAMA exterior wall -> DOR CONST_CLASS (never default to CBS)
+  let resolvedAsIsConst = mergedAsIs.details.construction_type;
+  if (resolvedAsIsConst === 'unknown') {
+    const countyConstType = mapConstClassToConstructionType(subject?.const_class);
+    if (countyConstType !== 'unknown') {
+      resolvedAsIsConst = countyConstType;
+    }
+  }
+
+  // Fallback condition when no CAMA record at all and nothing set -> keep legacy 'c4' default for non-CAMA subjects
+  let resolvedAsIsCondition = mergedAsIs.details.condition;
+  if (!bcRow && resolvedAsIsCondition === 'unknown') {
+    resolvedAsIsCondition = 'c4';
+  }
+
+  const baseAsIs = {
+    ...normalizeCompDetails({
+      ...mergedAsIs.details,
+      quality: resolvedAsIsQuality,
+      construction_type: resolvedAsIsConst,
+      condition: resolvedAsIsCondition
+    }),
+    field_origins: fieldOrigins,
+    county_building_meta: mergedAsIs.county_building_meta
+  };
 
   if (mode !== 'arv') {
     return baseAsIs;
@@ -1034,27 +1492,39 @@ export function resolveSubjectDetailsForMode(subject = {}, mode = 'as_is') {
     const resolvedArvQuality = explicitArvQuality !== 'unknown' ? explicitArvQuality : baseAsIs.quality;
     const explicitArvConst = normalizeConstructionType(liveOverrides.construction_type ?? afterRehabRaw.construction_type);
     const resolvedArvConst = explicitArvConst !== 'unknown' ? explicitArvConst : baseAsIs.construction_type;
+    const arvOrigins = { ...fieldOrigins };
+    if (explicitArvQuality !== 'unknown') arvOrigins.quality = 'my_edit';
+    if (explicitArvConst !== 'unknown') arvOrigins.construction_type = 'my_edit';
+    arvOrigins.condition = 'my_edit';
 
-    return normalizeCompDetails({
-      ...baseAsIs,
-      ...afterRehabRaw,
-      ...liveOverrides,
-      quality: resolvedArvQuality,
-      construction_type: resolvedArvConst,
-      construction_detail: liveOverrides.construction_detail || afterRehabRaw.construction_detail || baseAsIs.construction_detail,
-      condition: (liveOverrides.condition || afterRehabRaw.condition) && (liveOverrides.condition || afterRehabRaw.condition) !== 'unknown'
-        ? (liveOverrides.condition || afterRehabRaw.condition)
-        : 'c2'
-    });
+    return {
+      ...normalizeCompDetails({
+        ...baseAsIs,
+        ...afterRehabRaw,
+        ...liveOverrides,
+        quality: resolvedArvQuality,
+        construction_type: resolvedArvConst,
+        construction_detail: liveOverrides.construction_detail || afterRehabRaw.construction_detail || baseAsIs.construction_detail,
+        condition: (liveOverrides.condition || afterRehabRaw.condition) && (liveOverrides.condition || afterRehabRaw.condition) !== 'unknown'
+          ? (liveOverrides.condition || afterRehabRaw.condition)
+          : 'c2'
+      }),
+      field_origins: arvOrigins,
+      county_building_meta: mergedAsIs.county_building_meta
+    };
   }
 
-  return normalizeCompDetails({
-    ...baseAsIs,
-    condition: 'c2',
-    kitchen_baths_updated: baseAsIs.kitchen_baths_updated ?? true,
-    ...liveOverrides,
-    quality: normalizeQualityKey(liveOverrides.quality) !== 'unknown'
-      ? normalizeQualityKey(liveOverrides.quality)
-      : baseAsIs.quality
-  });
+  return {
+    ...normalizeCompDetails({
+      ...baseAsIs,
+      condition: 'c2',
+      kitchen_baths_updated: baseAsIs.kitchen_baths_updated ?? true,
+      ...liveOverrides,
+      quality: normalizeQualityKey(liveOverrides.quality) !== 'unknown'
+        ? normalizeQualityKey(liveOverrides.quality)
+        : baseAsIs.quality
+    }),
+    field_origins: { ...fieldOrigins, condition: 'my_edit' },
+    county_building_meta: mergedAsIs.county_building_meta
+  };
 }

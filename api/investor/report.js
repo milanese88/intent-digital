@@ -1,5 +1,10 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, parseJsonbObject, sendSafeApiError } from '../_lib/db.js';
+import {
+  fetchBuildingCharacteristicsMap,
+  fetchBuildingCharacteristicOne,
+  lookupBuildingRecord
+} from '../_lib/buildingChars.js';
 import { resolvePropertyCounty, normalizeCountyName } from '../../src/config/counties.js';
 import { normalizePriceSource } from '../../src/components/investor/priceSource.js';
 import { buildSaleMonthKey, mergeCompWithSavedDetails } from '../../src/components/investor/compDetailsModel.js';
@@ -196,15 +201,19 @@ export default async function handler(req, res) {
           }
         }
 
+        const subjectBuildingChars = await fetchBuildingCharacteristicOne(sql, county, property.parcel_id);
+
         countyData = {
           ...parcel,
           just_value: parcel.just_value != null ? Number(parcel.just_value) : null,
           land_value: parcel.land_value != null ? Number(parcel.land_value) : null,
+          building_characteristics: subjectBuildingChars,
           nearest_same_street_sale,
           sales
         };
 
-        // Mirror key county parcel fields onto property so computeAppraisalGrid sees full context
+        // Mirror key county parcel & CAMA building fields onto property so computeAppraisalGrid sees full context
+        property.building_characteristics = subjectBuildingChars;
         if (property.just_value == null && countyData.just_value != null) property.just_value = countyData.just_value;
         if (property.land_value == null && countyData.land_value != null) property.land_value = countyData.land_value;
         if (!property.subdivision_name && countyData.subdivision_name) property.subdivision_name = countyData.subdivision_name;
@@ -213,7 +222,10 @@ export default async function handler(req, res) {
         if (!property.s_legal && countyData.s_legal) property.s_legal = countyData.s_legal;
         if (!property.imp_qual && countyData.imp_qual) property.imp_qual = countyData.imp_qual;
         if (!property.const_class && countyData.const_class) property.const_class = countyData.const_class;
-        if (!property.eff_year_built && countyData.eff_year_built) property.eff_year_built = countyData.eff_year_built;
+        if (!property.eff_year_built && (subjectBuildingChars?.effective_year_built || countyData.eff_year_built)) {
+          property.eff_year_built = subjectBuildingChars?.effective_year_built || countyData.eff_year_built;
+        }
+        if (!property.sqft && subjectBuildingChars?.living_area_sqft) property.sqft = subjectBuildingChars.living_area_sqft;
       }
     }
 
@@ -265,6 +277,10 @@ export default async function handler(req, res) {
         }
       }
 
+      const buildingMap = parcelIds.length > 0
+        ? await fetchBuildingCharacteristicsMap(sql, parcelIds)
+        : new Map();
+
       comps = rawComps.map((c) => {
         const parsedAdj = parseJsonbObject(c.adjustments);
         const parsedDet = parseJsonbObject(c.comp_details_json);
@@ -273,12 +289,13 @@ export default async function handler(req, res) {
         const parcelRow = pKey ? parcelMap.get(pKey) || null : null;
         const dKey = c.parcel_id && c.sold_date ? `${cCounty}::${c.parcel_id}::${buildSaleMonthKey(c.sold_date)}` : null;
         const savedRow = dKey ? savedDetailsMap.get(dKey) || null : null;
+        const bcRow = c.parcel_id ? lookupBuildingRecord(buildingMap, cCounty, c.parcel_id) : null;
         const hydrated = {
           ...c,
           adjustments: parsedAdj,
           comp_details_json: Object.keys(parsedDet).length > 0 ? parsedDet : parseJsonbObject(parsedAdj.comp_details_json)
         };
-        return mergeCompWithSavedDetails(hydrated, savedRow, parcelRow);
+        return mergeCompWithSavedDetails(hydrated, savedRow, parcelRow, bcRow);
       });
     } catch (compsErr) {
       console.warn('Could not load comps:', compsErr.message);
