@@ -810,7 +810,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
   };
 
-  const handleSaveSubjectDetails = async (subjectDetailsMap) => {
+  const handleSaveSubjectDetails = async (subjectDetailsMap, parsedExtras = null) => {
     if (!activeProperty) return;
     setIsCompSaving(true);
     try {
@@ -830,6 +830,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         construction_detail: asIsLegacy.construction_detail,
         quality: asIsLegacy.quality,
         hoa_name: asIsLegacy.hoa_name,
+        ...(parsedExtras?.sqft != null ? { sqft: parsedExtras.sqft } : {}),
+        ...(parsedExtras?.lot_sqft != null ? { lot_sqft: parsedExtras.lot_sqft } : {}),
+        ...(parsedExtras?.year_built != null ? { year_built: parsedExtras.year_built } : {}),
+        ...(parsedExtras?.hoa_monthly != null ? { hoa_monthly: parsedExtras.hoa_monthly } : {}),
+        ...(parsedExtras?.has_hoa != null ? { has_hoa: parsedExtras.has_hoa } : {}),
         subject_details: {
           ...(activeProperty.subject_details || {}),
           ...subjectDetailsMap
@@ -1086,15 +1091,18 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
   }, [buyingProfile?.valuation_defaults]);
 
-  // Subject object merged with County Roll & Subject Appraisal Overrides
+  // Subject object merged with County Roll, County CAMA Building Record & Subject Appraisal Overrides
   const subjectForAppraisal = useMemo(() => {
     if (!activeProperty) return {};
+    const subjectBc =
+      activeProperty.building_characteristics || countyData?.building_characteristics || null;
     return {
       ...activeProperty,
-      sqft: activeProperty.sqft || countyData?.living_sqft || null,
+      building_characteristics: subjectBc,
+      sqft: activeProperty.sqft || subjectBc?.living_area_sqft || countyData?.living_sqft || null,
       lot_sqft: activeProperty.lot_sqft || countyData?.land_sqft || null,
-      year_built: activeProperty.year_built || countyData?.year_built || null,
-      eff_year_built: activeProperty.eff_year_built || countyData?.eff_year_built || null,
+      year_built: activeProperty.year_built || subjectBc?.year_built || countyData?.year_built || null,
+      eff_year_built: activeProperty.eff_year_built || subjectBc?.effective_year_built || countyData?.eff_year_built || null,
       just_value: countyData?.just_value ?? activeProperty.just_value ?? null,
       land_value: activeProperty.land_value ?? countyData?.land_value ?? null,
       imp_qual: activeProperty.imp_qual || countyData?.imp_qual || null,

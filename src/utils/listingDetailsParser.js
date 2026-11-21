@@ -186,7 +186,7 @@ export function parseListingDetailsText(rawText = '') {
 
   const roofYearMatch =
     normalized.match(/(?:roof\s*(?:year|yr|replaced|installed|updated|new)?\s*(?:in|:|-)?\s*)((?:19|20)\d{2})\b/i) ||
-    normalized.match(/\b((?:19|20)\d{2})\s*(?:new\s*)?(?:metal|tile|barrel\s*tile|shingle|flat|standing\s*seam)?\s*roof\b/i);
+    normalized.match(/\b((?:19|20)\d{2})\s*(?:new\s*)?(?:(?:concrete|clay|barrel|s-|spanish|flat)\s*tile|(?:standing\s*seam\s*)?metal|(?:architectural|asphalt|comp(?:osition)?|dimensional)\s*shingle|tile|shingle|flat)?\s*roof\b/i);
   if (roofYearMatch) {
     const ry = cleanInt(roofYearMatch[1]);
     if (ry && ry >= 1950 && ry <= CURRENT_YEAR + 1) {

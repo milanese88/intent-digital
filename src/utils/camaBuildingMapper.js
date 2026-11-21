@@ -443,7 +443,7 @@ export function aggregatePbcParcelBundle(bundle, { rollYear = 2026, source = 'pa
       const bathRaw = parseFloatOrNull(c[13], { min: 0, max: 99 }) ?? 0;
       const fullPart = Math.floor(bathRaw + 1e-6);
       const explicitHalf = c.length > 16 ? parseIntOrNull(c[16], { min: 0, max: 20 }) : null;
-      const halfPart = explicitHalf != null
+      const halfPart = explicitHalf != null && explicitHalf > 0
         ? explicitHalf
         : (bathRaw - fullPart >= 0.25 ? 1 : 0);
       sumFull += fullPart;
