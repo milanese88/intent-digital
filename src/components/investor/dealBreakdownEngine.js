@@ -27,7 +27,8 @@ import {
   estimateDemoLumpSum,
   getDeveloperMillageForCounty,
   sumSoftCostsPct,
-  computeWeightedDrawUtilization
+  computeWeightedDrawUtilization,
+  inferFlipRehabLevel
 } from '../../config/developerCosts.js';
 
 function num(val, fallback = 0) {
@@ -151,6 +152,13 @@ export function computeTimelinePhases(milestones = {}) {
 
 /**
  * Infers whether a property's county history looks like a Demo -> New Build vs a Flip.
+ *
+ * Strictly requires genuine new-construction evidence:
+ * 1. year_built >= purchase year, OR
+ * 2. vacant land purchased (V) and improved residence sold (I), OR
+ * 3. living area grew > 30% (before vs after), OR
+ * 4. improvement value jumped (>50% and >$100k) while land value stayed stable (requires prior + current roll values).
+ * Otherwise classifies as 'flip'.
  */
 export function inferDealBreakdownType({
   purchaseYear = null,
@@ -161,30 +169,58 @@ export function inferDealBreakdownType({
   afterSqft = null,
   buyViCd = null,
   sellViCd = null,
-  justValue = null,
-  landValue = null,
-  buyPrice = null,
+  prevImpValue = null,
+  currImpValue = null,
+  prevLandValue = null,
+  currLandValue = null,
   explicitType = null
 } = {}) {
   if (explicitType === 'flip' || explicitType === 'demo_new_build') return explicitType;
-  if (buyViCd === 'V' && (sellViCd === 'I' || !sellViCd)) return 'demo_new_build';
+
   const pYear = Number(purchaseYear || buyYear) || null;
   const yBuilt = Number(afterYearBuilt || yearBuilt) || null;
   if (pYear && yBuilt && yBuilt >= pYear) {
     return 'demo_new_build';
   }
+
+  const buyVi = String(buyViCd || '').trim().toUpperCase();
+  const sellVi = String(sellViCd || '').trim().toUpperCase();
   const bSqft = Number(beforeSqft) || 0;
   const aSqft = Number(afterSqft) || 0;
+
+  // Vacant lot -> improved building (never V -> V land flips)
+  if (buyVi === 'V' && (sellVi === 'I' || (!sellVi && aSqft > 0))) {
+    return 'demo_new_build';
+  }
+
+  // Living area grew > 30%
   if (bSqft > 0 && aSqft > 0 && aSqft > bSqft * 1.3) {
     return 'demo_new_build';
   }
-  const jVal = Number(justValue) || 0;
-  const lVal = Number(landValue) || 0;
-  const bPrice = Number(buyPrice) || 0;
-  const impVal = jVal > lVal ? jVal - lVal : 0;
-  if (impVal > 0 && bPrice > 0 && impVal > bPrice * 1.5) {
-    return 'demo_new_build';
+
+  // Improvement value jumped while land stayed stable (only when both prior & current roll values exist)
+  if (
+    prevImpValue != null &&
+    currImpValue != null &&
+    prevLandValue != null &&
+    currLandValue != null
+  ) {
+    const pImp = Number(prevImpValue);
+    const cImp = Number(currImpValue);
+    const pLand = Number(prevLandValue);
+    const cLand = Number(currLandValue);
+    if (
+      Number.isFinite(pImp) &&
+      Number.isFinite(cImp) &&
+      Number.isFinite(pLand) &&
+      Number.isFinite(cLand) &&
+      cImp > Math.max(pImp * 1.5, pImp + 100000) &&
+      (pLand <= 0 || cLand <= pLand * 1.35)
+    ) {
+      return 'demo_new_build';
+    }
   }
+
   return 'flip';
 }
 
@@ -331,6 +367,10 @@ export function buildDefaultDealBreakdownInputs({
     afterSqft: afterLivingSqft,
     buyViCd,
     sellViCd,
+    prevImpValue: finderRow?.prev_imp_value ?? null,
+    currImpValue: finderRow?.curr_imp_value ?? null,
+    prevLandValue: finderRow?.prev_land_value ?? null,
+    currLandValue: finderRow?.curr_land_value ?? null,
     explicitType: requestedType || finderRow?.deal_type || null
   });
 
@@ -342,7 +382,12 @@ export function buildDefaultDealBreakdownInputs({
     ? Number(finderRow.hold_months)
     : computeHoldMonthsBetweenDates(purchaseDate, exitDate, defaultHold);
 
-  const flipLevel = 'medium';
+  const jumpPct = finderRow?.jump_pct != null && Number.isFinite(Number(finderRow.jump_pct))
+    ? Number(finderRow.jump_pct)
+    : (purchasePrice > 0 && exitPrice > purchasePrice
+        ? ((exitPrice - purchasePrice) / purchasePrice) * 100
+        : null);
+  const flipLevel = inferFlipRehabLevel({ holdMonths, jumpPct });
   const buildQuality = afterLivingSqft >= 3800 || exitPrice >= 2000000 ? 'luxury' : exitPrice >= 1000000 ? 'high_end' : 'standard';
   const financingMode = isNewBuild ? 'construction_loan' : 'hard_money';
   const finPreset = FINANCING_MODES[financingMode];
@@ -739,18 +784,178 @@ export function calculateDealBreakdown(rawInputs = {}, buyingProfile = null) {
 }
 
 /**
- * Standardized quick profit estimate for Flip & Build Finder table rows.
- * Uses medium flip rehab or quality-matched new build defaults — labeled "estimate".
+ * Computes the maximum hard renovation / build budget ("Break-even reno") that still
+ * leaves a target ROI profit (10% and 15% default targets) after purchase, buy closing,
+ * soft costs, holding (tax + insurance + utilities), financing (fixed + marginal draw/points/FL loan taxes),
+ * and selling costs (commission + closing + FL 0.70% deed doc stamps).
  */
-export function estimateQuickFinderProfit(row = {}) {
-  const inputs = buildDefaultDealBreakdownInputs({ finderRow: row });
-  const result = calculateDealBreakdown(inputs, null);
+export function calculateBreakEvenReno(rawInputs = {}) {
+  const inputs = {
+    ...buildDefaultDealBreakdownInputs({}),
+    ...(rawInputs || {})
+  };
+
+  const isNewBuild = inputs.dealType === 'demo_new_build';
+  const purchasePrice = Math.max(0, num(inputs.purchasePrice, 0));
+  const exitPrice = Math.max(0, num(inputs.exitPrice, 0));
+  const afterLivingSqft = Math.max(0, num(inputs.afterLivingSqft, 0));
+
+  if (exitPrice <= 0 || purchasePrice <= 0) {
+    return {
+      breakEvenReno10: 0,
+      breakEvenReno15: 0,
+      breakEvenReno10PerSqft: null,
+      breakEvenReno15PerSqft: null,
+      rawBreakEvenReno10: 0,
+      rawBreakEvenReno15: 0
+    };
+  }
+
+  const hasPhases = inputs.timelinePhases && Number(inputs.timelinePhases.totalHoldMonths) > 0;
+  const holdMonths = hasPhases
+    ? Math.max(1, Math.round(Number(inputs.timelinePhases.totalHoldMonths)))
+    : clamp(Math.round(num(inputs.holdMonths, isNewBuild ? 16 : 6)), 1, 120);
+
+  const buyClosingPct = clamp(num(inputs.buyClosingPct, 2.0), 0, 15);
+  const buyClosing = roundDollar(purchasePrice * (buyClosingPct / 100));
+
+  const softBreakdown = inputs.softCostsBreakdown || (isNewBuild ? SOFT_COSTS_DEFAULTS.demo_new_build : SOFT_COSTS_DEFAULTS.flip);
+  const softCostsPct = inputs.softCostsPct != null
+    ? clamp(num(inputs.softCostsPct, sumSoftCostsPct(softBreakdown)), 0, 45)
+    : sumSoftCostsPct(softBreakdown);
+  const softRate = softCostsPct / 100;
+
+  const millageRate = clamp(num(inputs.millageRate, getDeveloperMillageForCounty(inputs.county)), 0, 50);
+  const annualPropertyTax = roundDollar(purchasePrice * (millageRate / 1000));
+  const monthlyTax = roundDollar(annualPropertyTax / 12);
+  const monthlyInsurance = Math.max(0, roundDollar(num(inputs.monthlyInsurance, isNewBuild ? 650 : 450)));
+  const monthlyUtilities = Math.max(0, roundDollar(num(inputs.monthlyUtilities, isNewBuild ? 450 : 350)));
+  const holdingCosts = roundDollar((monthlyTax + monthlyInsurance + monthlyUtilities) * holdMonths);
+
+  const sellCommissionPct = clamp(num(inputs.sellCommissionPct, 5.0), 0, 15);
+  const sellClosingPct = clamp(num(inputs.sellClosingPct, 1.0), 0, 10);
+  const flDocStampsPct = clamp(num(inputs.flDocStampsPct, FL_DEED_DOC_STAMPS_PCT), 0, 3);
+  const sellingCosts =
+    roundDollar(exitPrice * (sellCommissionPct / 100)) +
+    roundDollar(exitPrice * (sellClosingPct / 100)) +
+    roundDollar(exitPrice * (flDocStampsPct / 100));
+
+  const financingMode = ['cash', 'hard_money', 'construction_loan'].includes(inputs.financingMode)
+    ? inputs.financingMode
+    : 'hard_money';
+
+  let fixedFinancing = 0;
+  let marginalFinancingRate = 0;
+
+  if (financingMode !== 'cash') {
+    const ltc = clamp(num(inputs.ltcPct, financingMode === 'construction_loan' ? 75 : 80), 0, 95) / 100;
+    const rate = clamp(num(inputs.interestRatePct, financingMode === 'construction_loan' ? 9.25 : 11.0), 0, 30) / 100;
+    const pts = clamp(num(inputs.pointsPct, financingMode === 'construction_loan' ? 1.5 : 2.0), 0, 10) / 100;
+    const lenderFees = Math.max(0, roundDollar(num(inputs.lenderFees, financingMode === 'construction_loan' ? 4500 : 2500)));
+    const drawUtil = financingMode === 'construction_loan'
+      ? (inputs.drawUtilPct != null
+          ? clamp(num(inputs.drawUtilPct, 55), 10, 100) / 100
+          : computeWeightedDrawUtilization(inputs.drawSchedule))
+      : clamp(num(inputs.drawUtilPct, 60), 10, 100) / 100;
+    const flLoanTaxRate = (FL_MORTGAGE_DOC_STAMPS_PCT + FL_INTANGIBLE_TAX_PCT) / 100;
+    const financeableMult = financingMode === 'construction_loan' ? (1 + softRate) : 1;
+
+    fixedFinancing = lenderFees + ltc * purchasePrice * (rate * (holdMonths / 12) + pts + flLoanTaxRate);
+    marginalFinancingRate = ltc * financeableMult * (drawUtil * rate * (holdMonths / 12) + pts + flLoanTaxRate);
+  }
+
+  const fixedProjectCost = purchasePrice + buyClosing + holdingCosts + fixedFinancing;
+  const marginalRenoMultiplier = 1 + softRate + marginalFinancingRate;
+  const netSaleProceeds = exitPrice - sellingCosts;
+
+  const solveForTarget = (targetRoi) => {
+    const maxTotalProjectCost = netSaleProceeds / (1 + targetRoi);
+    return (maxTotalProjectCost - fixedProjectCost) / marginalRenoMultiplier;
+  };
+
+  const raw10 = solveForTarget(0.10);
+  const raw15 = solveForTarget(0.15);
+  const breakEvenReno10 = Math.max(0, roundDollar(raw10));
+  const breakEvenReno15 = Math.max(0, roundDollar(raw15));
+
   return {
-    estProfit: result.metrics.estProfit,
-    roiPct: result.metrics.roiPct,
-    annualizedRoiPct: result.metrics.annualizedRoiPct,
-    totalInvested: result.costs.totalInvested,
-    hardCost: result.costs.hardCost,
+    breakEvenReno10,
+    breakEvenReno15,
+    breakEvenReno10PerSqft: afterLivingSqft > 0 ? Math.round(breakEvenReno10 / afterLivingSqft) : null,
+    breakEvenReno15PerSqft: afterLivingSqft > 0 ? Math.round(breakEvenReno15 / afterLivingSqft) : null,
+    rawBreakEvenReno10: roundDollar(raw10),
+    rawBreakEvenReno15: roundDollar(raw15)
+  };
+}
+
+/**
+ * Standardized quick profit range & break-even reno estimate for Flip & Build Finder table rows.
+ * - Infers flip rehab tier from hold months + price jump % (editable via developerCosts.js or `rehabOverrides`).
+ * - Computes low–high profit range across that tier's min–max $/sf instead of one flat negative number.
+ * - Computes break-even renovation budget for 10% profit (and 15% target).
+ */
+export function estimateQuickFinderProfit(row = {}, rehabOverrides = null) {
+  const inputs = buildDefaultDealBreakdownInputs({ finderRow: row });
+  const isNewBuild = inputs.dealType === 'demo_new_build';
+
+  let tierKey;
+  let tier;
+  let minRate;
+  let maxRate;
+  let midRate;
+
+  if (isNewBuild) {
+    tierKey = inputs.newBuildQuality || 'standard';
+    tier = NEW_BUILD_QUALITY_TIERS[tierKey] || NEW_BUILD_QUALITY_TIERS.standard;
+    minRate = Number(rehabOverrides?.[tierKey]?.min ?? tier.minCostPerSqft ?? tier.costPerSqft);
+    maxRate = Number(rehabOverrides?.[tierKey]?.max ?? tier.maxCostPerSqft ?? tier.costPerSqft);
+  } else {
+    const jumpPct = row.jump_pct != null && Number.isFinite(Number(row.jump_pct))
+      ? Number(row.jump_pct)
+      : (inputs.purchasePrice > 0 && inputs.exitPrice > inputs.purchasePrice
+          ? ((inputs.exitPrice - inputs.purchasePrice) / inputs.purchasePrice) * 100
+          : null);
+    tierKey = inferFlipRehabLevel({ holdMonths: inputs.holdMonths, jumpPct });
+    tier = FLIP_REHAB_LEVELS[tierKey] || FLIP_REHAB_LEVELS.medium;
+    const ov = rehabOverrides?.[tierKey];
+    minRate = ov?.min != null && Number.isFinite(Number(ov.min)) && Number(ov.min) >= 0
+      ? Number(ov.min)
+      : tier.minCostPerSqft;
+    maxRate = ov?.max != null && Number.isFinite(Number(ov.max)) && Number(ov.max) >= minRate
+      ? Number(ov.max)
+      : Math.max(minRate, tier.maxCostPerSqft);
+  }
+
+  midRate = Math.round((minRate + maxRate) / 2);
+
+  const rateField = isNewBuild ? 'newBuildCostPerSqft' : 'flipRehabCostPerSqft';
+  const highEval = evaluateSingleScenario({ ...inputs, [rateField]: minRate }, SCENARIO_OFFSETS.likely);
+  const midEval = evaluateSingleScenario({ ...inputs, [rateField]: midRate }, SCENARIO_OFFSETS.likely);
+  const lowEval = evaluateSingleScenario({ ...inputs, [rateField]: maxRate }, SCENARIO_OFFSETS.likely);
+
+  const breakEven = calculateBreakEvenReno(inputs);
+
+  return {
+    estProfitLow: lowEval.metrics.estProfit,
+    estProfit: midEval.metrics.estProfit,
+    estProfitHigh: highEval.metrics.estProfit,
+    roiPctLow: lowEval.metrics.roiPct,
+    roiPct: midEval.metrics.roiPct,
+    roiPctHigh: highEval.metrics.roiPct,
+    annualizedRoiPct: midEval.metrics.annualizedRoiPct,
+    rehabLevel: tierKey,
+    rehabLevelShortLabel: tier.shortLabel,
+    rehabLevelLabel: `${tier.shortLabel} $${minRate}–$${maxRate}/sf`,
+    rehabMinPerSqft: minRate,
+    rehabMaxPerSqft: maxRate,
+    rehabMidPerSqft: midRate,
+    breakEvenReno10: breakEven.breakEvenReno10,
+    breakEvenReno15: breakEven.breakEvenReno15,
+    breakEvenReno10PerSqft: breakEven.breakEvenReno10PerSqft,
+    breakEvenReno15PerSqft: breakEven.breakEvenReno15PerSqft,
+    rawBreakEvenReno10: breakEven.rawBreakEvenReno10,
+    totalInvested: midEval.costs.totalInvested,
+    hardCost: midEval.costs.hardCost,
     dealType: inputs.dealType
   };
 }
