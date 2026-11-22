@@ -685,15 +685,6 @@ export default function DealBreakdownSection({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsPaModalOpen(true)}
-              title="Upload Property Appraiser record PDF (strictly non-PII)"
-              style={{ borderColor: '#34292A', color: '#34292A' }}
-            >
-              📄 Upload PA Record (PDF)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={handleSaveToProperties}
               disabled={isSavingToProperties}
               title="Save this property with type Flip / New build so it shows in My Saved Properties"
@@ -896,7 +887,6 @@ export default function DealBreakdownSection({
           valueHistory={Array.isArray(valueHistory) ? valueHistory : []}
           paRecord={paRecord}
           onAddPermit={() => setIsAddPermitOpen(true)}
-          onUploadPaRecord={() => setIsPaModalOpen(true)}
           onApplyPhasesToBreakdown={(phases) => {
             if (!phases || !(Number(phases.totalHoldMonths) > 0)) return;
             updateInput({

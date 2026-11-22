@@ -50,7 +50,7 @@ function normLabel(s) {
   return String(s || '')
     .toLowerCase()
     .replace(/^\s*\d+[\s.)-]+/, '')
-    .replace(/[#:.()[\\],]/g, ' ')
+    .replace(/[#:.()[\]]/g, ' ')
     .replace(/\s*\/\s*/g, '/')
     .replace(/\s+/g, ' ')
     .trim();

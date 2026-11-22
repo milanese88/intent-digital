@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button, Eyebrow, SectionHeading } from '../ui';
-import { SUPPORTED_COUNTIES } from '../../config/counties.js';
+import { SUPPORTED_COUNTIES, resolvePropertyCounty } from '../../config/counties.js';
 import {
   DEVELOPER_COSTS_AS_OF_DISPLAY,
   FLIP_REHAB_LEVELS,
@@ -292,26 +292,30 @@ export default function FlipBuildFinder({
     setResolvingAddress(true);
     setResolveError('');
     try {
-      const pCounty = details.parcel_county || details.county || 'Broward';
+      let pCounty = resolvePropertyCounty(details);
       let parcelId = details.parcel_id || null;
       let parcelData = null;
 
       if (!parcelId) {
-        // Try searching county parcels by address text
-        const searchRes = await fetch(`/api/county/search?q=${encodeURIComponent(details.address)}&county=${encodeURIComponent(pCounty === 'all' ? '' : pCounty)}`);
+        // Try searching county parcels by address text across counties
+        const searchRes = await fetch(`/api/county/search?q=${encodeURIComponent(details.address)}&county=${encodeURIComponent(pCounty || '')}`);
         if (searchRes.ok) {
           const searchJson = await searchRes.json();
           const firstHit = searchJson?.results?.[0];
           if (firstHit?.parcel_id) {
             parcelId = firstHit.parcel_id;
+            if (firstHit.county) pCounty = firstHit.county;
           }
         }
       }
 
       if (parcelId) {
-        const parcelRes = await fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty)}&parcel_id=${encodeURIComponent(parcelId)}`);
+        const parcelRes = await fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty || 'Broward')}&parcel_id=${encodeURIComponent(parcelId)}`);
         if (parcelRes.ok) {
           parcelData = await parcelRes.json();
+          if (parcelData?.parcel?.county) {
+            pCounty = parcelData.parcel.county;
+          }
         }
       }
 
