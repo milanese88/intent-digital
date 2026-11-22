@@ -93,12 +93,12 @@ function fmtDollar(n) {
   return formatShortMoney(n);
 }
 
-const SOUTH_FLORIDA_BOUNDS = [[-81.35, 25.90], [-80.00, 27.42]];
+const SOUTH_FLORIDA_BOUNDS = [[-80.45, 25.95], [-80.00, 27.20]];
 const COUNTY_BOUNDS = {
   all: SOUTH_FLORIDA_BOUNDS,
-  broward: [[-80.55, 25.95], [-80.05, 26.38]],
-  'palm beach': [[-80.95, 26.30], [-80.00, 27.05]],
-  martin: [[-80.70, 26.95], [-80.05, 27.42]]
+  broward: [[-80.38, 25.96], [-80.06, 26.35]],
+  'palm beach': [[-80.32, 26.32], [-80.01, 26.98]],
+  martin: [[-80.50, 26.96], [-80.06, 27.25]]
 };
 
 export default function OpportunityMap({
@@ -182,15 +182,14 @@ export default function OpportunityMap({
         price_band: priceBand,
         lookback_months: String(lookbackMonths),
         sqft_band: sqftBand,
-        beds: String(minBeds)
+        beds: String(minBeds),
+        include_dots: 'true'
       });
 
       if (viewportBbox) {
         qs.set('bbox', `${viewportBbox.minLng},${viewportBbox.minLat},${viewportBbox.maxLng},${viewportBbox.maxLat}`);
-        qs.set('include_dots', 'true');
       } else if (selectedZip) {
         qs.set('zip', selectedZip);
-        qs.set('include_dots', 'true');
       }
 
       const res = await fetch(`/api/county/opportunity-map?${qs.toString()}`);
@@ -238,7 +237,7 @@ export default function OpportunityMap({
       container: mapContainerRef.current,
       style: 'mapbox://styles/mapbox/light-v11',
       center: [-80.12, 26.45], // South Florida regional center
-      zoom: 9.2,
+      zoom: 9.5,
       attributionControl: false
     });
 
@@ -251,164 +250,162 @@ export default function OpportunityMap({
     });
 
     const setupLayers = () => {
-      // Mute map background according to Intent Digital brand tokens
       try {
-        const layers = map.getStyle().layers || [];
+        const style = map.getStyle();
+        const layers = style?.layers || [];
+
+        // Adjust basemap theme to Intent Digital standards (matching InvestorMap.jsx)
         for (const layer of layers) {
           const id = layer.id;
+
+          // Hide cluttered POI icons, transit, and business labels
           if (id.includes('poi') || id.includes('transit') || id.includes('business')) {
             try { map.setLayoutProperty(id, 'visibility', 'none'); } catch (_) {}
           }
+
+          // Water: soft muted blue-gray (#CBD5E1) — crystal clear coastlines, Atlantic ocean & waterways
           if (layer.type === 'fill' && id.includes('water')) {
-            try { map.setPaintProperty(id, 'fill-color', '#E4DDD3'); } catch (_) {}
+            try { map.setPaintProperty(id, 'fill-color', '#CBD5E1'); } catch (_) {}
           }
+
+          // Parks & green spaces: soft sage
           if (layer.type === 'fill' && (id.includes('park') || id.includes('national-park') || id.includes('green') || id.includes('landcover'))) {
             try { map.setPaintProperty(id, 'fill-color', '#DCE5D8'); } catch (_) {}
           }
+
+          // Land & background: warm cream (#F2ECE4)
           if (layer.type === 'background') {
-            try { map.setPaintProperty(id, 'background-color', '#FAF8F4'); } catch (_) {}
+            try { map.setPaintProperty(id, 'background-color', '#F2ECE4'); } catch (_) {}
           }
+
+          // Roads: clean white
           if (layer.type === 'line' && (id.includes('road') || id.includes('street') || id.includes('motorway') || id.includes('highway'))) {
             if (!id.includes('case')) {
               try { map.setPaintProperty(id, 'line-color', '#FFFFFF'); } catch (_) {}
             }
           }
+
+          // Text labels: muted brown-gray with cream halo
+          if (layer.type === 'symbol') {
+            try {
+              map.setPaintProperty(id, 'text-color', '#5E4E42');
+              map.setPaintProperty(id, 'text-halo-color', '#FAF8F5');
+              map.setPaintProperty(id, 'text-halo-width', 1.5);
+            } catch (_) {}
+          }
         }
+
+        // Find the first symbol layer so ZCTA polygons are inserted UNDER labels
+        const firstSymbolLayer = layers.find((l) => l.type === 'symbol');
+        const beforeId = firstSymbolLayer ? firstSymbolLayer.id : undefined;
+
+        // Add ZCTA GeoJSON source
+        if (!map.getSource('zcta-boundaries')) {
+          map.addSource('zcta-boundaries', {
+            type: 'geojson',
+            data: zctaGeoJson
+          });
+        }
+
+        // Add ZCTA Fill layer (choropleth) UNDERNEATH city labels
+        if (!map.getLayer('zcta-fills')) {
+          map.addLayer({
+            id: 'zcta-fills',
+            type: 'fill',
+            source: 'zcta-boundaries',
+            paint: {
+              'fill-color': COLORS.lowData,
+              'fill-opacity': 0.72
+            }
+          }, beforeId);
+        }
+
+        // Add ZCTA Line layer (borders) UNDERNEATH city labels
+        if (!map.getLayer('zcta-lines')) {
+          map.addLayer({
+            id: 'zcta-lines',
+            type: 'line',
+            source: 'zcta-boundaries',
+            paint: {
+              'line-color': COLORS.espresso,
+              'line-width': 0.8,
+              'line-opacity': 0.45
+            }
+          }, beforeId);
+        }
+
+        // Add Deal Dots Source
+        if (!map.getSource('deal-dots')) {
+          map.addSource('deal-dots', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+
+        // Add Deal Dots Layer (Flip = burgundy, New Build = espresso)
+        if (!map.getLayer('deal-dots-layer')) {
+          map.addLayer({
+            id: 'deal-dots-layer',
+            type: 'circle',
+            source: 'deal-dots',
+            paint: {
+              'circle-color': [
+                'case',
+                ['==', ['get', 'deal_type'], 'demo_new_build'],
+                COLORS.espresso,
+                COLORS.burgundy
+              ],
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['get', 'jump_dollars'],
+                50000, 4,
+                200000, 6,
+                500000, 9,
+                1000000, 13
+              ],
+              'circle-stroke-width': 1.5,
+              'circle-stroke-color': '#FFFFFF',
+              'circle-opacity': 0.88
+            }
+          });
+        }
+
+        // Fit bounds to South Florida / selected county initially
+        const initialBounds = COUNTY_BOUNDS[selectedCounty?.toLowerCase()] || SOUTH_FLORIDA_BOUNDS;
+        try {
+          map.fitBounds(initialBounds, { padding: 24, duration: 0 });
+        } catch (_) {}
+        map.resize();
+        setMapLoaded(true);
       } catch (err) {
-        console.warn('Mapbox style layer customization warning:', err);
+        console.error('OpportunityMap setupLayers error:', err);
+        setMapLoaded(true);
       }
-
-      // Add ZCTA GeoJSON source
-      if (!map.getSource('zcta-boundaries')) {
-        map.addSource('zcta-boundaries', {
-          type: 'geojson',
-          data: zctaGeoJson,
-          generateId: true
-        });
-      }
-
-      // Add ZCTA Fill layer (choropleth)
-      if (!map.getLayer('zcta-fills')) {
-        map.addLayer({
-          id: 'zcta-fills',
-          type: 'fill',
-          source: 'zcta-boundaries',
-          paint: {
-            'fill-color': COLORS.lowData,
-            'fill-opacity': 0.65
-          }
-        });
-      }
-
-      // Add ZCTA Line layer (borders)
-      if (!map.getLayer('zcta-lines')) {
-        map.addLayer({
-          id: 'zcta-lines',
-          type: 'line',
-          source: 'zcta-boundaries',
-          paint: {
-            'line-color': COLORS.espresso,
-            'line-width': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              2.5,
-              ['boolean', ['feature-state', 'hover'], false],
-              2,
-              0.6
-            ],
-            'line-opacity': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              1.0,
-              ['boolean', ['feature-state', 'hover'], false],
-              0.9,
-              0.35
-            ]
-          }
-        });
-      }
-
-      // Add Deal Dots Source
-      if (!map.getSource('deal-dots')) {
-        map.addSource('deal-dots', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-      }
-
-      // Add Deal Dots Layer (Flip = burgundy, New Build = espresso)
-      if (!map.getLayer('deal-dots-layer')) {
-        map.addLayer({
-          id: 'deal-dots-layer',
-          type: 'circle',
-          source: 'deal-dots',
-          paint: {
-            'circle-color': [
-              'case',
-              ['==', ['get', 'deal_type'], 'demo_new_build'],
-              COLORS.espresso,
-              COLORS.burgundy
-            ],
-            'circle-radius': [
-              'interpolate',
-              ['linear'],
-              ['get', 'jump_dollars'],
-              50000, 4,
-              200000, 6,
-              500000, 9,
-              1000000, 13
-            ],
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-opacity': 0.88
-          }
-        });
-      }
-
-      // Fit bounds to South Florida / selected county initially
-      const initialBounds = COUNTY_BOUNDS[selectedCounty?.toLowerCase()] || SOUTH_FLORIDA_BOUNDS;
-      try {
-        map.fitBounds(initialBounds, { padding: 24, duration: 0 });
-      } catch (_) {}
-      map.resize();
-      setMapLoaded(true);
     };
 
-    if (map.isStyleLoaded()) {
-      setupLayers();
-    } else {
-      map.once('load', setupLayers);
-    }
+    map.on('load', setupLayers);
 
     // Hover on ZCTA
-    let lastHoveredId = null;
     map.on('mousemove', 'zcta-fills', (e) => {
-      if (e.features.length > 0) {
+      if (e.features && e.features.length > 0) {
         const feat = e.features[0];
         const zip = feat.properties?.zip || feat.properties?.ZCTA5;
-        setHoveredZip(zip);
-        map.getCanvas().style.cursor = 'pointer';
-
-        if (lastHoveredId !== null) {
-          map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: false });
+        if (zip) {
+          setHoveredZip(zip);
+          map.getCanvas().style.cursor = 'pointer';
         }
-        lastHoveredId = feat.id;
-        map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: true });
       }
     });
 
     map.on('mouseleave', 'zcta-fills', () => {
       map.getCanvas().style.cursor = '';
       setHoveredZip(null);
-      if (lastHoveredId !== null) {
-        map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: false });
-        lastHoveredId = null;
-      }
     });
 
     // Click on ZCTA
     map.on('click', 'zcta-fills', (e) => {
-      if (e.features.length > 0) {
+      if (e.features && e.features.length > 0) {
         const feat = e.features[0];
         const zip = feat.properties?.zip || feat.properties?.ZCTA5;
         if (zip) {
@@ -418,8 +415,14 @@ export default function OpportunityMap({
     });
 
     // Click on Deal Dot
+    map.on('mouseenter', 'deal-dots-layer', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'deal-dots-layer', () => {
+      map.getCanvas().style.cursor = '';
+    });
     map.on('click', 'deal-dots-layer', (e) => {
-      if (e.features.length > 0) {
+      if (e.features && e.features.length > 0) {
         const dot = e.features[0].properties;
         if (onOpenDealBreakdownRef.current) {
           onOpenDealBreakdownRef.current(dot);
@@ -544,6 +547,35 @@ export default function OpportunityMap({
       console.warn('Could not update map paint expression:', e);
     }
   }, [mapLoaded, aggregates, activeLayer, layerQuantiles]);
+
+  // Update Polygon Borders on hover and selection
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !map.getLayer('zcta-lines')) return;
+
+    try {
+      const activeZip = selectedZip || '';
+      const hoverZip = hoveredZip || '';
+
+      map.setPaintProperty('zcta-lines', 'line-width', [
+        'case',
+        ['==', ['get', 'zip'], activeZip],
+        3.0,
+        ['==', ['get', 'zip'], hoverZip],
+        2.0,
+        0.8
+      ]);
+
+      map.setPaintProperty('zcta-lines', 'line-opacity', [
+        'case',
+        ['==', ['get', 'zip'], activeZip],
+        1.0,
+        ['==', ['get', 'zip'], hoverZip],
+        0.9,
+        0.45
+      ]);
+    } catch (_) {}
+  }, [mapLoaded, selectedZip, hoveredZip]);
 
   // Update Deal Dots Layer GeoJSON
   useEffect(() => {

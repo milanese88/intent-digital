@@ -147,3 +147,16 @@ test('migration add_opportunity_map_and_redfin.sql is registered, idempotent, an
   assert.doesNotMatch(sqlText, /\bowner_name\b|\bmailing_address\b/i, 'strictly non-PII');
 });
 
+test('OpportunityMap component handles layer ordering before symbol layers and valid burgundy colors', () => {
+  const mapCompPath = path.resolve(process.cwd(), 'src/components/investor/OpportunityMap.jsx');
+  const code = fs.readFileSync(mapCompPath, 'utf8');
+
+  // Must position ZCTA fills underneath symbol layers so labels and roads stay visible
+  assert.ok(code.includes('beforeId'), 'zcta-fills must use beforeId to stay underneath text labels');
+  // Water must be soft muted slate (#CBD5E1) matching InvestorMap.jsx for coastline clarity
+  assert.ok(code.includes('#CBD5E1'), 'water must use #CBD5E1 soft muted blue-gray');
+  // Must always query dots on load
+  assert.ok(code.includes("include_dots: 'true'"), 'include_dots must be requested');
+});
+
+

@@ -183,7 +183,7 @@ export default async function handler(req, res) {
       const aggRows = await sql`
         ${dealsCte}
         SELECT
-          cd.zip,
+          TRIM(cd.zip) AS zip,
           MODE() WITHIN GROUP (ORDER BY cd.county) AS county,
           MODE() WITHIN GROUP (ORDER BY cd.city) AS city,
           COUNT(*)::int AS deal_count,
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
           ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cd.hold_months)::numeric, 1) AS median_hold_months
         FROM canonical_deals cd
         WHERE cd.zip IS NOT NULL AND length(trim(cd.zip)) = 5
-        GROUP BY cd.zip
+        GROUP BY TRIM(cd.zip)
         ORDER BY deal_count DESC;
       `;
 
@@ -337,7 +337,7 @@ export default async function handler(req, res) {
           cd.county,
           cd.address,
           cd.city,
-          cd.zip,
+          TRIM(cd.zip) AS zip,
           cd.lat,
           cd.lng,
           cd.deal_type,
