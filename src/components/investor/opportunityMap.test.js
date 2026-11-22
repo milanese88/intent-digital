@@ -115,3 +115,4 @@ test('migration add_opportunity_map_and_redfin.sql is registered, idempotent, an
   assert.doesNotMatch(sqlText, /\bINSERT\s+INTO\b/i, 'migration must contain zero test rows');
   assert.doesNotMatch(sqlText, /\bowner_name\b|\bmailing_address\b/i, 'strictly non-PII');
 });
+

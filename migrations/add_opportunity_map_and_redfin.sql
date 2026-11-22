@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_redfin_zip_market_lookup
 CREATE INDEX IF NOT EXISTS idx_redfin_zip_market_dom
   ON redfin_zip_market (zip, property_type, period_end DESC)
   WHERE median_dom IS NOT NULL;
+
