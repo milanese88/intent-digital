@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { parseOpportunityMapParams } from '../../../api/county/opportunity-map.js';
+import { parseOpportunityMapParams, formatShortMoney } from '../../../api/county/opportunity-map.js';
 import { processRedfinStream } from '../../../scripts/county/import-redfin-dom.mjs';
 import { CANONICAL_MIGRATION_ORDER, MIGRATION_SCHEMA_SIGNATURES } from '../../../scripts/db/_lib.mjs';
 
@@ -81,7 +81,7 @@ test('processRedfinStream parses South Florida records and skips out-of-state re
   assert.equal(broward.medianDom, 29.5);
 });
 
-test('South Florida ZCTA GeoJSON dataset is valid and complete', () => {
+test('South Florida ZCTA GeoJSON dataset has valid WGS84 lon/lat ranges and no Web Mercator coords', () => {
   const geoPath = path.resolve(process.cwd(), 'src/content/geo/south-florida-zcta.json');
   assert.ok(fs.existsSync(geoPath), 'south-florida-zcta.json must exist');
 
@@ -90,10 +90,41 @@ test('South Florida ZCTA GeoJSON dataset is valid and complete', () => {
   assert.ok(Array.isArray(geoJson.features));
   assert.ok(geoJson.features.length >= 100, 'must have at least 100 South Florida ZIP polygons');
 
+  let checkedCount = 0;
+  function validateCoords(coord) {
+    if (typeof coord[0] === 'number') {
+      const [lng, lat] = coord;
+      checkedCount++;
+      // Must be EPSG:4326 degrees, not Web Mercator meters
+      assert.ok(Math.abs(lng) <= 180, `Longitude ${lng} is not in degrees`);
+      assert.ok(Math.abs(lat) <= 90, `Latitude ${lat} is not in degrees`);
+      // Must fall in South Florida regional bounds (-82.0 to -79.5 lon, 25.5 to 28.0 lat)
+      assert.ok(lng >= -82.0 && lng <= -79.5, `Longitude ${lng} out of South Florida bounds`);
+      assert.ok(lat >= 25.5 && lat <= 28.0, `Latitude ${lat} out of South Florida bounds`);
+    } else {
+      coord.forEach(validateCoords);
+    }
+  }
+
+  for (const f of geoJson.features) {
+    assert.ok(['Polygon', 'MultiPolygon'].includes(f.geometry?.type));
+    validateCoords(f.geometry.coordinates);
+  }
+  assert.ok(checkedCount > 1000, 'must validate multiple coordinate vertices');
+
   const sample = geoJson.features.find((f) => f.properties?.zip === '33404');
   assert.ok(sample, 'must include ZIP 33404 (Riviera Beach / Palm Beach Shores)');
-  assert.ok(['Polygon', 'MultiPolygon'].includes(sample.geometry?.type));
-  assert.ok(sample.geometry.coordinates.length > 0);
+});
+
+test('formatShortMoney formats amounts into concise $2.26M / $861K representations', () => {
+  assert.equal(formatShortMoney(2260000), '$2.26M');
+  assert.equal(formatShortMoney(861000), '$861K');
+  assert.equal(formatShortMoney(2000000), '$2M');
+  assert.equal(formatShortMoney(2500000), '$2.5M');
+  assert.equal(formatShortMoney(499000), '$499K');
+  assert.equal(formatShortMoney(850), '$850');
+  assert.equal(formatShortMoney(0), '$0');
+  assert.equal(formatShortMoney(null), '—');
 });
 
 test('migration add_opportunity_map_and_redfin.sql is registered, idempotent, and has zero test rows', () => {
