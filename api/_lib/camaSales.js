@@ -145,3 +145,4 @@ export function fetchPalmBeachCamaSales(folio) {
 
   return sales.sort((a, b) => (b.sale_date || '').localeCompare(a.sale_date || ''));
 }
+
