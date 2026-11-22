@@ -42,3 +42,4 @@ export function renderBoundaryFallback() {
     console.error = original;
   }
 }
+
