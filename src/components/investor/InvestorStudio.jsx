@@ -548,10 +548,12 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     // Build field_sources marking applied fields as manual edits so user edits always win
     const fieldSources = { ...(activeProperty.field_sources || {}) };
     const nowIso = new Date().toISOString();
+    const dateStr = nowIso.split('T')[0];
     Object.keys(patch).forEach((key) => {
       fieldSources[key] = {
-        source: 'manual',
+        source: 'listing',
         updated_at: nowIso,
+        date: dateStr,
         label: 'Pasted listing details'
       };
     });

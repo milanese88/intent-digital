@@ -115,7 +115,7 @@ export function fetchPalmBeachCamaSales(folio) {
     const dateInfo = parseCamaDate(rawDate);
     if (dateInfo && (salePrice > 0 || deedType)) {
       const isMarket = qualFlag.toUpperCase() === 'Q' && ['WD', 'SWD', 'TD'].includes(deedType.toUpperCase());
-      const qualCode = qualFlag.toUpperCase() === 'Q' ? '01' : '02';
+      const qualCode = qualFlag.toUpperCase() === 'Q' ? '01' : '11';
       const label = qualFlag.toUpperCase() === 'Q' ? 'Qualified market sale' : 'Disqualified / nominal transfer';
 
       sales.push({

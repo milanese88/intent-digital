@@ -11,6 +11,40 @@ test('estimatePropertyTaxes: estimates Palm Beach taxes using ~18.2 millage', ()
   const taxes = estimatePropertyTaxes(2000000, 'Palm Beach');
   assert.equal(taxes.annual, 36400);
   assert.equal(taxes.monthly, 3033);
+  assert.match(taxes.basisExplanation, /2,000,000/);
+  assert.match(taxes.basisExplanation, /non-homestead/);
+});
+
+test('estimatePropertyTaxes: uses purchase price (not just value) and shows basis', () => {
+  const propWithPurchase = {
+    purchase_price: 850000,
+    just_value: 2140569
+  };
+  const taxes = estimatePropertyTaxes(propWithPurchase, 'Palm Beach');
+  assert.equal(taxes.annual, 15470);
+  assert.equal(taxes.basisPrice, 850000);
+  assert.equal(taxes.basisLabel, 'purchase price');
+  assert.equal(taxes.basisExplanation, '$850,000 purchase price × 18.2 mills (non-homestead)');
+});
+
+test('estimatePropertyTaxes: falls back to my offer, then list price when no purchase price', () => {
+  const propWithOffer = {
+    offer_price: 750000,
+    just_value: 2000000
+  };
+  const offerTaxes = estimatePropertyTaxes(propWithOffer, 'Palm Beach');
+  assert.equal(offerTaxes.annual, 13650);
+  assert.equal(offerTaxes.basisLabel, 'my offer');
+  assert.match(offerTaxes.basisExplanation, /my offer/);
+
+  const propWithList = {
+    list_price: 600000,
+    just_value: 1500000
+  };
+  const listTaxes = estimatePropertyTaxes(propWithList, 'Palm Beach');
+  assert.equal(listTaxes.annual, 10920);
+  assert.equal(listTaxes.basisLabel, 'list price');
+  assert.match(listTaxes.basisExplanation, /list price/);
 });
 
 test('estimatePropertyTaxes: estimates Broward taxes using ~19.8 millage', () => {
@@ -78,7 +112,7 @@ test('mergeCountyDataIntoProperty: auto-fills specs and tags fields as county re
   assert.equal(merged.field_sources.just_value.source, 'county record');
 });
 
-test('mergeCountyDataIntoProperty: enforces manual edit precedence', () => {
+test('mergeCountyDataIntoProperty: enforces manual and listing edit precedence', () => {
   const userEditedProperty = {
     id: 'prop-2',
     address: '100 Ocean Dr',
@@ -87,7 +121,7 @@ test('mergeCountyDataIntoProperty: enforces manual edit precedence', () => {
     sqft: 3200,
     field_sources: {
       beds: { source: 'manual', updated_at: '2026-11-20T12:00:00Z', label: 'Manual entry' },
-      sqft: { source: 'manual', updated_at: '2026-11-20T12:00:00Z', label: 'Manual entry' }
+      sqft: { source: 'listing', date: '2026-11-21', label: 'Pasted listing details' }
     }
   };
 
@@ -98,16 +132,17 @@ test('mergeCountyDataIntoProperty: enforces manual edit precedence', () => {
       beds: '3', // county says 3, but user said 5
       full_baths: 2,
       half_baths: 0,
-      living_area_sqft: 2500 // county says 2500, user said 3200
+      living_area_sqft: 2500 // county says 2500, user listing said 3200
     }
   };
 
   const merged = mergeCountyDataIntoProperty(userEditedProperty, countyData);
 
-  assert.equal(merged.beds, 5); // user value preserved
-  assert.equal(merged.sqft, 3200); // user value preserved
+  assert.equal(merged.beds, 5); // manual value preserved
+  assert.equal(merged.sqft, 3200); // listing value preserved
   assert.equal(merged.field_sources.beds.source, 'manual');
-  assert.equal(merged.baths, 2); // baths was not manual, so county filled it
+  assert.equal(merged.field_sources.sqft.source, 'listing');
+  assert.equal(merged.baths, 2); // baths was neither, so county filled it
   assert.equal(merged.field_sources.baths.source, 'county record');
 });
 

@@ -21,6 +21,7 @@ import {
 } from '../../config/financing.js';
 import LiveInPlanView from './LiveInPlanView.jsx';
 import { resolvePropertyPricing } from './priceSource.js';
+import { estimatePropertyTaxes } from '../../utils/propertyCompleteness.js';
 
 // Keyboard-accessible Tooltip for Underwriting Metric Labels
 function MetricTooltip({ text, alignRight = false }) {
@@ -363,7 +364,16 @@ export default function UnderwritePanel({
   const buildDefaultInputs = (strat, prop, userProfile) => {
     const pricing = resolvePropertyPricing(prop, countyData);
     const defaultPrice = pricing.dealPurchasePrice != null ? Number(pricing.dealPurchasePrice) : '';
-    const estTaxes = defaultPrice ? Math.round(Number(defaultPrice) * 0.02) : '';
+    const resolvedCounty = prop?.county || prop?.parcel_county || countyData?.county || 'Palm Beach';
+    const basisLabel = pricing.dealPurchasePriceSource === 'my_offer'
+      ? 'my offer'
+      : pricing.dealPurchasePriceSource === 'my_list_price' || pricing.dealPurchasePriceSource === 'list_price'
+        ? 'list price'
+        : 'purchase price';
+    const taxEst = defaultPrice
+      ? estimatePropertyTaxes(defaultPrice, resolvedCounty, { basisLabel })
+      : (prop?.just_value ? estimatePropertyTaxes(prop.just_value, resolvedCounty, { basisLabel: 'just value' }) : { annual: '', basisExplanation: '' });
+    const estTaxes = taxEst.annual !== 0 ? taxEst.annual : '';
     const initialLoanType = strat === 'flip' ? 'hard_money' : 'conventional_investment';
     const loanCfg = LOAN_TYPES[initialLoanType] || LOAN_TYPES.conventional_investment;
     const defaultRate = getProfileRate(initialLoanType, userProfile);
@@ -383,6 +393,7 @@ export default function UnderwritePanel({
 
       // Monthly expenses
       propertyTaxesYr: estTaxes,
+      propertyTaxBasis: taxEst.basisExplanation || '',
       insuranceYr: '',
       floodInsuranceYr: isSFHA ? ESTIMATED_CLOSING_DEFAULTS.defaultFloodInsuranceYr : '',
       isFloodEnabled: isSFHA,
@@ -1491,7 +1502,7 @@ export default function UnderwritePanel({
           <InputRow
             id="underwrite-property-taxes"
             label="Property Taxes / yr"
-            sublabel="estimate — FL taxes reset after sale"
+            sublabel={currentInputs.propertyTaxBasis ? `Basis: ${currentInputs.propertyTaxBasis}` : "estimate — non-homestead: purchase price × county millage"}
             prefix="$"
             value={currentInputs.propertyTaxesYr}
             onChange={(val) => handleInputChange('propertyTaxesYr', val)}

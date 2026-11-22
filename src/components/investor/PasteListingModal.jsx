@@ -48,12 +48,12 @@ export default function PasteListingModal({
       }
     });
 
-    // Tag applied fields as manual / listing_paste edits so they always win
+    // Tag applied fields as listing edits so they are properly attributed with date
     const fieldSources = {};
     const now = new Date().toISOString().split('T')[0];
     Object.keys(patch).forEach((k) => {
       fieldSources[k] = {
-        source: 'manual',
+        source: 'listing',
         label: 'Pasted listing details',
         date: now
       };
