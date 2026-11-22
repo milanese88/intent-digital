@@ -14,10 +14,45 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { getScriptDb } from '../../api/_lib/db.js';
 
-const SUPPORTED_ZIP_PREFIXES = ['330', '333', '334', '349'];
-const DEFAULT_DOWNLOAD_URL = 'https://redfin-public-data.s3.us-west-2.amazonaws.com/redfin_market_tracker/zip_code_market_tracker.tsv000.gz';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
+
+const envLocalPath = path.resolve(PROJECT_ROOT, '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath });
+}
+
+const SUPPORTED_ZIP_PREFIXES = ['330', '331', '332', '333', '334', '349'];
+const DEFAULT_DOWNLOAD_URL = 'https://redfin-public-data.s3.us-west-2.amazonaws.com/redfin_data_center/housing_market/monthly/zips_in_top_50_metros.csv';
+
+function parseCsvLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === ',' && !inQuotes) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += c;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -42,6 +77,7 @@ export async function processRedfinStream(stream, { onRecord = () => {} } = {}) 
   });
 
   let headerMap = null;
+  let isTsv = false;
   let lineCount = 0;
   let matchCount = 0;
 
@@ -50,57 +86,72 @@ export async function processRedfinStream(stream, { onRecord = () => {} } = {}) 
     if (!line.trim()) continue;
 
     if (!headerMap) {
-      const headers = line.split('\t').map((h) => h.trim().toLowerCase());
+      isTsv = line.includes('\t');
+      const rawHeaders = isTsv ? line.split('\t') : parseCsvLine(line);
+      const headers = rawHeaders.map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
       headerMap = new Map();
       headers.forEach((h, idx) => headerMap.set(h, idx));
       continue;
     }
 
-    const cols = line.split('\t');
-    const stateCode = cols[headerMap.get('state_code') || 0] || '';
-    if (stateCode !== 'FL') continue;
+    const cols = isTsv ? line.split('\t') : parseCsvLine(line);
 
-    const rawRegion = cols[headerMap.get('region') || 0] || '';
-    // Format is typically "Zip Code: 33404"
+    // ZIP Extraction (supports TSV "Zip Code: 33404" or CSV "33404")
+    const rawRegion = cols[headerMap.get('region') ?? headerMap.get('region name') ?? headerMap.get('zip') ?? -1] || '';
     const zipMatch = rawRegion.match(/\b(\d{5})\b/);
     if (!zipMatch) continue;
 
     const zip = zipMatch[1];
     if (!SUPPORTED_ZIP_PREFIXES.some((p) => zip.startsWith(p))) continue;
 
-    const propertyType = cols[headerMap.get('property_type') || 0] || 'All Residential';
-    const periodEnd = cols[headerMap.get('period_end') || 0];
-    const medianDomRaw = cols[headerMap.get('median_dom') || 0];
-    const medianDom = medianDomRaw && !isNaN(Number(medianDomRaw)) ? Math.round(Number(medianDomRaw) * 10) / 10 : null;
+    // Check state if present in columns
+    const stateColIdx = headerMap.get('state_code') ?? headerMap.get('state') ?? -1;
+    if (stateColIdx >= 0) {
+      const stateVal = cols[stateColIdx] || '';
+      if (stateVal && stateVal !== 'FL' && stateVal !== 'Florida') continue;
+    }
 
-    const medianSalePriceRaw = cols[headerMap.get('median_sale_price') || 0];
-    const medianSalePrice = medianSalePriceRaw && !isNaN(Number(medianSalePriceRaw)) ? Number(medianSalePriceRaw) : null;
+    const propertyType = cols[headerMap.get('property_type') ?? headerMap.get('property type') ?? -1] || 'All Residential';
+    const periodEnd = cols[headerMap.get('period_end') ?? headerMap.get('period end') ?? -1] || '';
 
-    const medianListPriceRaw = cols[headerMap.get('median_list_price') || 0];
-    const medianListPrice = medianListPriceRaw && !isNaN(Number(medianListPriceRaw)) ? Number(medianListPriceRaw) : null;
+    const medianDomRaw = cols[headerMap.get('median_dom') ?? headerMap.get('median days on market (days)') ?? headerMap.get('median days on market') ?? -1];
+    const medianDom = medianDomRaw && medianDomRaw !== 'NA' && !isNaN(Number(medianDomRaw)) ? Math.round(Number(medianDomRaw) * 10) / 10 : null;
 
-    const homesSoldRaw = cols[headerMap.get('homes_sold') || 0];
-    const homesSold = homesSoldRaw && !isNaN(Number(homesSoldRaw)) ? parseInt(homesSoldRaw, 10) : null;
+    const medianSalePriceRaw = cols[headerMap.get('median_sale_price') ?? headerMap.get('median sale price nsa ($)') ?? headerMap.get('median sale price ($)') ?? -1];
+    const medianSalePrice = medianSalePriceRaw && medianSalePriceRaw !== 'NA' && !isNaN(Number(medianSalePriceRaw)) ? Number(medianSalePriceRaw) : null;
 
-    const inventoryRaw = cols[headerMap.get('inventory') || 0];
-    const inventory = inventoryRaw && !isNaN(Number(inventoryRaw)) ? parseInt(inventoryRaw, 10) : null;
+    const medianListPriceRaw = cols[headerMap.get('median_list_price') ?? headerMap.get('median new listing price ($)') ?? -1];
+    const medianListPrice = medianListPriceRaw && medianListPriceRaw !== 'NA' && !isNaN(Number(medianListPriceRaw)) ? Number(medianListPriceRaw) : null;
 
-    const monthsSupplyRaw = cols[headerMap.get('months_of_supply') || 0];
-    const monthsOfSupply = monthsSupplyRaw && !isNaN(Number(monthsSupplyRaw)) ? Math.round(Number(monthsSupplyRaw) * 10) / 10 : null;
+    const homesSoldRaw = cols[headerMap.get('homes_sold') ?? headerMap.get('homes sold') ?? -1];
+    const homesSold = homesSoldRaw && homesSoldRaw !== 'NA' && !isNaN(Number(homesSoldRaw)) ? parseInt(homesSoldRaw, 10) : null;
+
+    const inventoryRaw = cols[headerMap.get('inventory') ?? -1];
+    const inventory = inventoryRaw && inventoryRaw !== 'NA' && !isNaN(Number(inventoryRaw)) ? parseInt(inventoryRaw, 10) : null;
+
+    const monthsSupplyRaw = cols[headerMap.get('months_of_supply') ?? headerMap.get('months of supply') ?? -1];
+    const monthsOfSupply = monthsSupplyRaw && monthsSupplyRaw !== 'NA' && !isNaN(Number(monthsSupplyRaw)) ? Math.round(Number(monthsSupplyRaw) * 10) / 10 : null;
 
     if (!periodEnd) continue;
 
     matchCount++;
     await onRecord({
       zip,
-      periodEnd,
+      periodEnd: periodEnd.slice(0, 10),
+      period_end: periodEnd.slice(0, 10),
       propertyType,
+      property_type: propertyType,
       medianDom,
+      median_dom: medianDom,
       medianSalePrice,
+      median_sale_price: medianSalePrice,
       medianListPrice,
+      median_list_price: medianListPrice,
       homesSold,
+      homes_sold: homesSold,
       inventory,
-      monthsOfSupply
+      monthsOfSupply,
+      months_of_supply: monthsOfSupply
     });
   }
 
@@ -111,27 +162,38 @@ async function main() {
   const { apply, file, url } = parseArgs();
   console.log(`[Redfin DOM Importer] Mode: ${apply ? 'APPLY' : 'DRY RUN'}`);
 
-  let readStream;
+  const cachedFile = path.resolve(PROJECT_ROOT, 'data/county/redfin/south_florida_zips_market.json');
+  let collected = [];
+
   if (file && fs.existsSync(file)) {
     console.log(`Reading local file: ${file}`);
     const raw = fs.createReadStream(file);
-    readStream = file.endsWith('.gz') ? raw.pipe(zlib.createGunzip()) : raw;
+    const readStream = file.endsWith('.gz') ? raw.pipe(zlib.createGunzip()) : raw;
+    const stats = await processRedfinStream(readStream, {
+      onRecord: (record) => collected.push(record)
+    });
+    console.log(`Processed ${stats.lineCount} total lines; found ${stats.matchCount} South Florida ZIP records.`);
+  } else if (fs.existsSync(cachedFile)) {
+    console.log(`Reading cached South Florida extract: ${cachedFile}`);
+    collected = JSON.parse(fs.readFileSync(cachedFile, 'utf8'));
+    console.log(`Loaded ${collected.length} cached South Florida ZIP records.`);
   } else {
     console.log(`Streaming from Redfin Data Center URL: ${url}`);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP fetch failed: ${res.status} ${res.statusText}`);
-    const nodeStream = res.body;
-    readStream = nodeStream.pipeThrough ? nodeStream : (await import('node:stream')).Readable.fromWeb(res.body).pipe(zlib.createGunzip());
+    const webStream = (await import('node:stream')).Readable.fromWeb(res.body);
+    const readStream = url.endsWith('.gz') ? webStream.pipe(zlib.createGunzip()) : webStream;
+    const stats = await processRedfinStream(readStream, {
+      onRecord: (record) => collected.push(record)
+    });
+    console.log(`Processed ${stats.lineCount} total lines; found ${stats.matchCount} South Florida ZIP records.`);
+
+    try {
+      fs.mkdirSync(path.dirname(cachedFile), { recursive: true });
+      fs.writeFileSync(cachedFile, JSON.stringify(collected));
+      console.log(`Cached extract saved to ${cachedFile}`);
+    } catch (_) {}
   }
-
-  const collected = [];
-  const stats = await processRedfinStream(readStream, {
-    onRecord: (record) => {
-      collected.push(record);
-    }
-  });
-
-  console.log(`Processed ${stats.lineCount} total lines; found ${stats.matchCount} South Florida ZIP records.`);
 
   if (!apply) {
     console.log(`[DRY RUN COMPLETE] Found ${collected.length} records to stage/upsert. Pass --apply to persist.`);
@@ -142,7 +204,7 @@ async function main() {
   console.log(`Upserting ${collected.length} rows into redfin_zip_market...`);
 
   // Batch insert into redfin_zip_market
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 1000;
   for (let i = 0; i < collected.length; i += BATCH_SIZE) {
     const batch = collected.slice(i, i + BATCH_SIZE);
     await sql`
@@ -161,16 +223,16 @@ async function main() {
         x.inventory::int,
         x.months_of_supply::numeric,
         NOW()
-      FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x(
+      FROM jsonb_to_recordset(${sql.json(batch)}) AS x(
         zip text,
         period_end text,
         property_type text,
-        median_dom text,
-        median_sale_price text,
-        median_list_price text,
-        homes_sold text,
-        inventory text,
-        months_of_supply text
+        median_dom numeric,
+        median_sale_price numeric,
+        median_list_price numeric,
+        homes_sold int,
+        inventory int,
+        months_of_supply numeric
       )
       ON CONFLICT (zip, period_end, property_type)
       DO UPDATE SET
@@ -182,6 +244,9 @@ async function main() {
         months_of_supply = EXCLUDED.months_of_supply,
         updated_at = NOW();
     `;
+    if ((i + BATCH_SIZE) % 5000 < BATCH_SIZE || i + BATCH_SIZE >= collected.length) {
+      console.log(`Upserted ${Math.min(i + BATCH_SIZE, collected.length)} / ${collected.length} records...`);
+    }
   }
 
   console.log(`[APPLY COMPLETE] Successfully imported ${collected.length} Redfin market records.`);
