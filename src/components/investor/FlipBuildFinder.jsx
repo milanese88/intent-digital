@@ -103,11 +103,12 @@ const LABEL_STYLE = {
 
 export default function FlipBuildFinder({
   initialZip = '',
+  initialDealType = 'all',
   onSelectRow = null,
   onOpenLearningLabLesson = null
 }) {
   const [county, setCounty] = useState('all');
-  const [dealType, setDealType] = useState('all');
+  const [dealType, setDealType] = useState(initialDealType || 'all');
   const [zip, setZip] = useState(initialZip || '');
   const [radius, setRadius] = useState('');
   const [priceBand, setPriceBand] = useState('all');
@@ -192,12 +193,15 @@ export default function FlipBuildFinder({
     return recomputed;
   }, [items, hasCustomRehabOverrides, rehabOverrides, sortBy, sortDir]);
 
-  // Sync if initialZip changes from Learning Lab shortcut
+  // Sync if initialZip or initialDealType changes from external tabs
   useEffect(() => {
     if (initialZip && /^\d{5}$/.test(initialZip)) {
       setZip(initialZip);
     }
-  }, [initialZip]);
+    if (initialDealType && ['all', 'flip', 'demo_new_build'].includes(initialDealType)) {
+      setDealType(initialDealType);
+    }
+  }, [initialZip, initialDealType]);
 
   const fetchFinder = useCallback(async (overrides = {}) => {
     const reqId = ++requestSeqRef.current;

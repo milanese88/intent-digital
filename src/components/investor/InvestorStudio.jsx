@@ -21,6 +21,7 @@ import PasteListingModal from './PasteListingModal.jsx';
 import { mergeCountyDataIntoProperty } from '../../utils/propertyCompleteness.js';
 import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import FlipBuildFinder from './FlipBuildFinder.jsx';
+import OpportunityMap from './OpportunityMap.jsx';
 import {
   computeAppraisalGrid,
   normalizeReconciliationWeights,
@@ -99,8 +100,11 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [studioMode, setStudioMode] = useState(() => {
     if (typeof window !== 'undefined') {
       if (window.__investorStudioInitialMode === 'finder') return 'finder';
+      if (window.__investorStudioInitialMode === 'opportunity_map' || window.__investorStudioInitialMode === 'map') return 'opportunity_map';
       const params = new URLSearchParams(window.location.search);
-      if ((params.get('investor_view') || '').toLowerCase() === 'finder') return 'finder';
+      const v = (params.get('investor_view') || '').toLowerCase();
+      if (v === 'finder') return 'finder';
+      if (v === 'map' || v === 'opportunity_map') return 'opportunity_map';
     }
     return 'properties';
   });
@@ -112,6 +116,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
     }
     return '';
   });
+  const [finderInitialDealType, setFinderInitialDealType] = useState('all');
   const [activeFinderRow, setActiveFinderRow] = useState(null);
 
   useEffect(() => {
@@ -119,6 +124,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       if (window.__investorStudioInitialMode) {
         if (window.__investorStudioInitialMode === 'finder') {
           setStudioMode('finder');
+          setActivePropertyId(null);
+          setActiveFinderRow(null);
+        } else if (window.__investorStudioInitialMode === 'opportunity_map' || window.__investorStudioInitialMode === 'map') {
+          setStudioMode('opportunity_map');
           setActivePropertyId(null);
           setActiveFinderRow(null);
         }
@@ -138,6 +147,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       const url = new URL(window.location.href);
       if (nextMode === 'finder') {
         url.searchParams.set('investor_view', 'finder');
+      } else if (nextMode === 'opportunity_map') {
+        url.searchParams.set('investor_view', 'map');
       } else {
         url.searchParams.delete('investor_view');
         url.searchParams.delete('finder_zip');
@@ -4970,6 +4981,41 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     DEAL BREAKDOWN
                   </span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchStudioMode('opportunity_map')}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    border: studioMode === 'opportunity_map'
+                      ? '1px solid #34292A'
+                      : '1px solid rgba(52, 41, 42, 0.2)',
+                    backgroundColor: studioMode === 'opportunity_map' ? '#34292A' : '#FFFFFF',
+                    color: studioMode === 'opportunity_map' ? '#FAF8F5' : '#34292A',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <span>Opportunity Map</span>
+                  <span style={{
+                    padding: '1px 7px',
+                    borderRadius: '999px',
+                    backgroundColor: studioMode === 'opportunity_map' ? '#BDD3E2' : 'rgba(189, 211, 226, 0.5)',
+                    color: '#34292A',
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em'
+                  }}>
+                    HEATMAP
+                  </span>
+                </button>
               </div>
               {studioMode === 'finder' && activeFinderRow && (
                 <Button
@@ -4981,7 +5027,29 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
               )}
             </div>
 
-            {studioMode === 'finder' ? (
+            {studioMode === 'opportunity_map' ? (
+              <div style={{ marginTop: '24px' }}>
+                <SectionErrorBoundary section="opportunity-map" label="the Opportunity Map">
+                  <OpportunityMap
+                    onOpenFinder={({ zip, dealType }) => {
+                      if (zip) setFinderInitialZip(zip);
+                      if (dealType) setFinderInitialDealType(dealType);
+                      handleSwitchStudioMode('finder');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 180, behavior: 'smooth' });
+                      }
+                    }}
+                    onOpenDealBreakdown={(dot) => {
+                      setActiveFinderRow(dot);
+                      handleSwitchStudioMode('finder');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 180, behavior: 'smooth' });
+                      }
+                    }}
+                  />
+                </SectionErrorBoundary>
+              </div>
+            ) : studioMode === 'finder' ? (
               activeFinderRow ? (
                 <div style={{ marginTop: '24px' }}>
                   <SectionErrorBoundary
@@ -5004,6 +5072,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                 <SectionErrorBoundary section="flip-build-finder" label="the Flip & Build Finder">
                   <FlipBuildFinder
                     initialZip={finderInitialZip}
+                    initialDealType={finderInitialDealType}
                     onSelectRow={(row) => {
                       setActiveFinderRow(row);
                       if (typeof window !== 'undefined') {
