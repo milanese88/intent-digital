@@ -40,6 +40,8 @@ export default function PropertyTimeline({
   permits: permitsProp = [],
   valueHistory: valueHistoryProp = [],
   paRecord = null,
+  isPalmBeach = false,
+  onUploadPaRecord = null,
   onAddPermit = null,
   onApplyPhasesToBreakdown = null
 }) {
@@ -215,6 +217,11 @@ export default function PropertyTimeline({
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {!isPalmBeach && onUploadPaRecord && (
+            <Button variant="outline" size="sm" onClick={onUploadPaRecord} style={{ fontSize: '11px' }}>
+              📄 Upload PA Record (PDF)
+            </Button>
+          )}
           {onAddPermit && (
             <Button variant="secondary" size="sm" onClick={() => onAddPermit()} style={{ fontSize: '11px' }}>
               + Add permit

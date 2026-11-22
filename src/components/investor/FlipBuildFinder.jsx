@@ -313,7 +313,9 @@ export default function FlipBuildFinder({
         const parcelRes = await fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty || 'Broward')}&parcel_id=${encodeURIComponent(parcelId)}`);
         if (parcelRes.ok) {
           parcelData = await parcelRes.json();
-          if (parcelData?.parcel?.county) {
+          if (parcelData?.county) {
+            pCounty = parcelData.county;
+          } else if (parcelData?.parcel?.county) {
             pCounty = parcelData.parcel.county;
           }
         }
