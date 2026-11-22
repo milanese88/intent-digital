@@ -42,7 +42,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_building_characteristics.sql',
   'add_deal_breakdowns.sql',
   'add_property_permits.sql',
-  'add_flip_finder_perf_indexes.sql'
+  'add_flip_finder_perf_indexes.sql',
+  'drop_redundant_sales_indexes.sql'
 ];
 
 /**
@@ -295,6 +296,11 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
       'idx_county_sales_county_ym_sell',
       'idx_county_parcels_county_zip_parcel'
     ]
+  },
+  'drop_redundant_sales_indexes.sql': {
+    tables: [],
+    columns: [],
+    indexes: []
   },
   'add_location_intelligence_tables.sql': {
     tables: [
@@ -671,6 +677,14 @@ export function evaluateMigrationsStatus(snapshot, migrationsDir = MIGRATIONS_DI
     }
 
     for (const idx of sig.indexes || []) {
+      // If an index was intentionally dropped by a later recorded migration, do not treat as missing
+      if (
+        filename === 'add_flip_finder_perf_indexes.sql' &&
+        (idx === 'idx_county_sales_parcel_ym' || idx === 'idx_county_sales_county_ym_sell') &&
+        snapshot.recordedMigrations.has('drop_redundant_sales_indexes.sql')
+      ) {
+        continue;
+      }
       if (!snapshot.indexes.has(idx.toLowerCase())) {
         missing.push(`index ${idx}`);
       }

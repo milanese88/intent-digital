@@ -97,8 +97,12 @@ export function parseFlipFinderParams(query = {}) {
   const sortBy = allowedSorts.includes(String(query.sort_by || '')) ? String(query.sort_by) : 'sell_date';
   const sortDir = String(query.sort_dir || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-  const limitRaw = query.limit != null && query.limit !== '' ? Number(query.limit) : 100;
-  const limit = Number.isFinite(limitRaw) ? Math.min(200, Math.max(10, Math.round(limitRaw))) : 100;
+  const limitRaw = query.limit != null && query.limit !== '' ? Number(query.limit) : 50;
+  const limit = Number.isFinite(limitRaw) ? Math.min(200, Math.max(10, Math.round(limitRaw))) : 50;
+
+  const pageRaw = query.page != null && query.page !== '' ? Number(query.page) : 1;
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.round(pageRaw) : 1;
+  const offset = (page - 1) * limit;
 
   const lookbackMonthsRaw = query.lookback_months != null && query.lookback_months !== '' ? Number(query.lookback_months) : null;
   const lookbackMonths = lookbackMonthsRaw != null && Number.isFinite(lookbackMonthsRaw)
@@ -124,6 +128,8 @@ export function parseFlipFinderParams(query = {}) {
       sortBy,
       sortDir,
       limit,
+      page,
+      offset,
       lookbackMonths
     }
   };
@@ -271,10 +277,10 @@ export async function computeZipFlipSummary(sql, { zip = '', county = 'all', loo
           FROM scoped_parcels p
           JOIN county_sales s
             ON s.county = p.county AND s.parcel_id = p.parcel_id
-          WHERE s.sale_price >= 25000
+          WHERE s.sale_price >= 1000
             AND s.sale_year IS NOT NULL
             AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-          WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year, s.sale_month)
+          WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC)
         )
         SELECT DISTINCT ON (os.county, os.parcel_id)
           os.county,
@@ -323,10 +329,10 @@ export async function computeZipFlipSummary(sql, { zip = '', county = 'all', loo
             LAG(s.vi_cd) OVER w AS buy_vi_cd
           FROM county_sales s
           WHERE ${salesCountyClause}
-            AND s.sale_price >= 25000
+            AND s.sale_price >= 1000
             AND s.sale_year IS NOT NULL
             AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-          WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year, s.sale_month)
+          WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC)
         ),
         matched_pairs AS (
           SELECT DISTINCT ON (county, parcel_id)
@@ -432,6 +438,8 @@ export default async function handler(req, res) {
       sortBy,
       sortDir,
       limit,
+      page,
+      offset,
       lookbackMonths
     } = parsed.params;
 
@@ -500,212 +508,34 @@ export default async function handler(req, res) {
 
     const priceBandMin = minPrice != null ? sql`AND os.sale_price >= ${minPrice}` : sql``;
     const priceBandMax = maxPrice != null ? sql`AND os.sale_price <= ${maxPrice}` : sql``;
-    const effectiveMaxMonths = dealType === 'demo_new_build' ? maxMonths : Math.max(maxMonths, 48);
+    const newBuildMaxMonths = dealType === 'demo_new_build' ? maxMonths : Math.max(maxMonths, 48);
+    const flipMaxMonths = maxMonths;
+    const effectiveMaxMonths = Math.max(newBuildMaxMonths, flipMaxMonths);
 
-    // Streaming window LAG() query on idx_county_sales_flip_finder (<200ms all counties, <90ms single county/ZIP):
-    // - Without ZIP/radius: scans county_sales index-only FIRST (0 heap fetches, 0 temp spill), then PK-joins county_parcels.
-    // - With ZIP/radius: scopes county_parcels via idx_county_parcels_zip / idx_county_parcels_coords, then merge-joins county_sales.
-    const rawPairs = hasSpatialScope
-      ? await sql`
-          WITH scoped_parcels AS (
-            SELECT
-              p.county,
-              p.parcel_id,
-              p.address,
-              p.city,
-              p.zip,
-              p.use_code,
-              p.living_sqft,
-              p.land_sqft,
-              p.year_built,
-              p.eff_year_built,
-              p.just_value,
-              p.land_value,
-              p.lat,
-              p.lng,
-              p.beds AS parcel_beds,
-              p.full_baths AS parcel_full_baths,
-              p.half_baths AS parcel_half_baths
-            FROM county_parcels p
-            WHERE ${parcelWhere}
-          ),
-          ordered_sales AS (
-            SELECT
-              s.county,
-              s.parcel_id,
-              s.sale_price,
-              s.sale_year,
-              COALESCE(s.sale_month, 1) AS sale_month,
-              (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS ym,
-              s.qual_code,
-              s.vi_cd,
-              LAG(s.sale_price) OVER w AS buy_price,
-              LAG(s.sale_year) OVER w AS buy_year,
-              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
-              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
-              LAG(s.qual_code) OVER w AS buy_qual,
-              LAG(s.vi_cd) OVER w AS buy_vi_cd
-            FROM scoped_parcels p
-            JOIN county_sales s
-              ON s.county = p.county AND s.parcel_id = p.parcel_id
-            WHERE s.sale_price >= 25000
-              AND s.sale_year IS NOT NULL
-              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-            WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year, s.sale_month)
-          ),
-          matched_pairs AS (
-            SELECT DISTINCT ON (os.county, os.parcel_id)
-              os.county,
-              os.parcel_id,
-              os.buy_price,
-              os.buy_year,
-              os.buy_month,
-              os.buy_qual,
-              os.buy_vi_cd,
-              os.sale_price AS sell_price,
-              os.sale_year AS sell_year,
-              os.sale_month AS sell_month,
-              os.qual_code AS sell_qual,
-              os.vi_cd AS sell_vi_cd,
-              (os.ym - os.buy_ym) AS hold_months,
-              os.ym AS sell_ym
-            FROM ordered_sales os
-            WHERE os.buy_price IS NOT NULL
-              AND os.sale_price >= 50000
-              AND os.qual_code IN ('01', '02', '03')
-              AND os.sale_price > os.buy_price
-              AND os.ym > os.buy_ym
-              AND (os.ym - os.buy_ym) <= ${effectiveMaxMonths}
-              ${minSellYmClause}
-              ${priceBandMin}
-              ${priceBandMax}
-            ORDER BY os.county, os.parcel_id, os.ym DESC, os.buy_ym DESC
-          )
-          SELECT
-            mp.county,
-            mp.parcel_id,
-            p.address,
-            p.city,
-            p.zip,
-            p.use_code,
-            p.living_sqft,
-            p.land_sqft,
-            p.year_built,
-            p.eff_year_built,
-            p.just_value,
-            p.land_value,
-            p.lat,
-            p.lng,
-            p.parcel_beds,
-            p.parcel_full_baths,
-            p.parcel_half_baths,
-            mp.buy_price,
-            mp.buy_year,
-            mp.buy_month,
-            mp.buy_qual,
-            mp.buy_vi_cd,
-            mp.sell_price,
-            mp.sell_year,
-            mp.sell_month,
-            mp.sell_qual,
-            mp.sell_vi_cd,
-            mp.hold_months
-          FROM matched_pairs mp
-          JOIN scoped_parcels p
-            ON p.county = mp.county AND p.parcel_id = mp.parcel_id
-          ORDER BY mp.sell_ym DESC, mp.sell_price DESC
-          LIMIT 600;
-        `
-      : await sql`
-          WITH ordered_sales AS (
-            SELECT
-              s.county,
-              s.parcel_id,
-              s.sale_price,
-              s.sale_year,
-              COALESCE(s.sale_month, 1) AS sale_month,
-              (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS ym,
-              s.qual_code,
-              s.vi_cd,
-              LAG(s.sale_price) OVER w AS buy_price,
-              LAG(s.sale_year) OVER w AS buy_year,
-              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
-              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
-              LAG(s.qual_code) OVER w AS buy_qual,
-              LAG(s.vi_cd) OVER w AS buy_vi_cd
-            FROM county_sales s
-            WHERE ${salesCountyClause}
-              AND s.sale_price >= 25000
-              AND s.sale_year IS NOT NULL
-              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-            WINDOW w AS (PARTITION BY s.county, s.parcel_id ORDER BY s.sale_year, s.sale_month)
-          ),
-          matched_pairs AS (
-            SELECT DISTINCT ON (os.county, os.parcel_id)
-              os.county,
-              os.parcel_id,
-              os.buy_price,
-              os.buy_year,
-              os.buy_month,
-              os.buy_qual,
-              os.buy_vi_cd,
-              os.sale_price AS sell_price,
-              os.sale_year AS sell_year,
-              os.sale_month AS sell_month,
-              os.qual_code AS sell_qual,
-              os.vi_cd AS sell_vi_cd,
-              (os.ym - os.buy_ym) AS hold_months,
-              os.ym AS sell_ym
-            FROM ordered_sales os
-            WHERE os.buy_price IS NOT NULL
-              AND os.sale_price >= 50000
-              AND os.qual_code IN ('01', '02', '03')
-              AND os.sale_price > os.buy_price
-              AND os.ym > os.buy_ym
-              AND (os.ym - os.buy_ym) <= ${effectiveMaxMonths}
-              ${minSellYmClause}
-              ${priceBandMin}
-              ${priceBandMax}
-            ORDER BY os.county, os.parcel_id, os.ym DESC, os.buy_ym DESC
-          )
-          SELECT
-            mp.county,
-            mp.parcel_id,
-            p.address,
-            p.city,
-            p.zip,
-            p.use_code,
-            p.living_sqft,
-            p.land_sqft,
-            p.year_built,
-            p.eff_year_built,
-            p.just_value,
-            p.land_value,
-            p.lat,
-            p.lng,
-            p.beds AS parcel_beds,
-            p.full_baths AS parcel_full_baths,
-            p.half_baths AS parcel_half_baths,
-            mp.buy_price,
-            mp.buy_year,
-            mp.buy_month,
-            mp.buy_qual,
-            mp.buy_vi_cd,
-            mp.sell_price,
-            mp.sell_year,
-            mp.sell_month,
-            mp.sell_qual,
-            mp.sell_vi_cd,
-            mp.hold_months
-          FROM matched_pairs mp
-          JOIN county_parcels p
-            ON p.county = mp.county AND p.parcel_id = mp.parcel_id
-          ORDER BY mp.sell_ym DESC, mp.sell_price DESC
-          LIMIT 600;
-        `;
+    const dealTypeSqlClause = dealType === 'all'
+      ? sql``
+      : sql`AND cd.deal_type = ${dealType}`;
 
-    // Batch-enrich with building_characteristics (42P01-safe) AND fetch sales date range in parallel
-    const folios = rawPairs.map((r) => r.parcel_id).filter(Boolean);
+    const distressedSqlClause = includeDistressed
+      ? sql``
+      : sql`AND cd.is_distressed_acquisition = false`;
+
+    const orderSqlClause = sortBy === 'sell_date'
+      ? (sortDir === 'asc' ? sql`ORDER BY fd.sell_ym ASC, fd.sell_or_book ASC` : sql`ORDER BY fd.sell_ym DESC, fd.sell_or_book DESC`)
+      : sortBy === 'buy_price'
+        ? (sortDir === 'asc' ? sql`ORDER BY fd.buy_price ASC` : sql`ORDER BY fd.buy_price DESC`)
+        : sortBy === 'sell_price'
+          ? (sortDir === 'asc' ? sql`ORDER BY fd.sell_price ASC` : sql`ORDER BY fd.sell_price DESC`)
+          : sortBy === 'jump_dollars'
+            ? (sortDir === 'asc' ? sql`ORDER BY fd.jump_dollars ASC` : sql`ORDER BY fd.jump_dollars DESC`)
+            : sortBy === 'jump_pct'
+              ? (sortDir === 'asc' ? sql`ORDER BY fd.jump_pct ASC` : sql`ORDER BY fd.jump_pct DESC`)
+              : sortBy === 'hold_months'
+                ? (sortDir === 'asc' ? sql`ORDER BY fd.hold_months ASC` : sql`ORDER BY fd.hold_months DESC`)
+                : sortBy === 'address'
+                  ? (sortDir === 'asc' ? sql`ORDER BY fd.address ASC` : sql`ORDER BY fd.address DESC`)
+                  : (sortDir === 'asc' ? sql`ORDER BY fd.sell_ym ASC` : sql`ORDER BY fd.sell_ym DESC`);
+
     const salesRangePromise = (county !== 'all'
       ? sql`
           SELECT
@@ -725,10 +555,231 @@ export default async function handler(req, res) {
         `
     ).catch(() => []);
 
-    const [bcMap, salesRangeRows] = await Promise.all([
-      fetchBuildingCharacteristicsMap(sql, folios),
+    const queryPromise = hasSpatialScope
+      ? sql`
+          WITH scoped_parcels AS (
+            SELECT
+              p.county, p.parcel_id, p.address, p.city, p.zip, p.use_code,
+              p.living_sqft, p.land_sqft, p.year_built, p.eff_year_built,
+              p.just_value, p.land_value, p.lat, p.lng,
+              p.beds, p.full_baths, p.half_baths
+            FROM county_parcels p
+            WHERE ${parcelWhere}
+          ),
+          ordered_sales AS (
+            SELECT
+              s.county, s.parcel_id, s.sale_price AS sell_price, s.sale_year AS sell_year,
+              COALESCE(s.sale_month, 1) AS sell_month, (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS sell_ym,
+              s.qual_code AS sell_qual, s.vi_cd AS sell_vi_cd, s.or_book AS sell_or_book, s.or_page AS sell_or_page,
+              LAG(s.sale_price) OVER w AS buy_price,
+              LAG(s.sale_year) OVER w AS buy_year,
+              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
+              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
+              LAG(s.qual_code) OVER w AS buy_qual,
+              LAG(s.vi_cd) OVER w AS buy_vi_cd,
+              LAG(s.or_book) OVER w AS buy_or_book,
+              LAG(s.or_page) OVER w AS buy_or_page
+            FROM scoped_parcels p
+            JOIN county_sales s ON s.county = p.county AND s.parcel_id = p.parcel_id
+            WHERE s.sale_price >= 1000
+              AND s.sale_year IS NOT NULL
+              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
+            WINDOW w AS (
+              PARTITION BY s.county, s.parcel_id
+              ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC
+            )
+          ),
+          matched_pairs AS (
+            SELECT DISTINCT ON (os.county, os.parcel_id)
+              os.*,
+              (os.sell_ym - os.buy_ym) AS hold_months,
+              (os.sell_price - os.buy_price) AS jump_dollars,
+              ROUND(((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 1000) / 10.0 AS jump_pct
+            FROM ordered_sales os
+            WHERE os.buy_price IS NOT NULL
+              AND os.buy_price >= 1000
+              AND os.sell_price >= 50000
+              AND os.sell_qual IN ('01', '02', '03')
+              AND os.sell_price > os.buy_price
+              AND (
+                os.sell_ym > os.buy_ym
+                OR (os.sell_ym = os.buy_ym AND (COALESCE(os.sell_or_book, '') != COALESCE(os.buy_or_book, '') OR COALESCE(os.sell_or_page, '') != COALESCE(os.buy_or_page, '')))
+              )
+              AND ((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 100 >= ${minGainPct}
+              AND (os.sell_ym - os.buy_ym) <= ${effectiveMaxMonths}::int
+              ${priceBandMin}
+              ${priceBandMax}
+              ${minSellYmClause}
+            ORDER BY os.county, os.parcel_id, os.sell_ym DESC, os.buy_ym DESC
+          ),
+          classified_deals AS (
+            SELECT
+              mp.*,
+              p.address, p.city, p.zip, p.use_code, p.living_sqft, p.land_sqft,
+              p.year_built, p.eff_year_built, p.just_value, p.land_value, p.lat, p.lng,
+              p.beds, p.full_baths, p.half_baths,
+              bc.year_built AS bc_year_built, bc.living_area_sqft AS bc_living_sqft,
+              bc.beds AS bc_beds, bc.full_baths AS bc_full_baths, bc.half_baths AS bc_half_baths,
+              bc.pool_type AS bc_pool_type, bc.pool_year AS bc_pool_year, bc.boat_dock AS bc_boat_dock,
+              bc.quality_uad AS bc_quality_uad, bc.raw_quality_code AS bc_raw_quality_code,
+              CASE
+                WHEN (
+                  (COALESCE(bc.year_built, p.year_built) IS NOT NULL AND mp.buy_year IS NOT NULL AND COALESCE(bc.year_built, p.year_built) >= mp.buy_year)
+                  OR (mp.buy_vi_cd = 'V' AND mp.sell_vi_cd = 'I')
+                  OR (p.living_sqft > 0 AND bc.living_area_sqft > 0 AND bc.living_area_sqft > p.living_sqft * 1.3)
+                ) AND mp.sell_qual IN ('01', '02', '03') THEN 'demo_new_build'
+                WHEN mp.sell_qual IN ('01', '02', '03') AND mp.buy_qual IN ('01', '02', '03', '12', '18', '19', '38') THEN 'flip'
+                ELSE NULL
+              END AS deal_type,
+              CASE
+                WHEN mp.buy_qual IN ('12', '18', '19') THEN true
+                ELSE false
+              END AS is_distressed_acquisition
+            FROM matched_pairs mp
+            JOIN scoped_parcels p ON p.county = mp.county AND p.parcel_id = mp.parcel_id
+            LEFT JOIN building_characteristics bc ON bc.county = mp.county AND bc.folio = mp.parcel_id
+          ),
+          filtered_deals AS (
+            SELECT *
+            FROM classified_deals cd
+            WHERE cd.deal_type IS NOT NULL
+              AND cd.hold_months <= CASE WHEN cd.deal_type = 'demo_new_build' THEN ${newBuildMaxMonths}::int ELSE ${flipMaxMonths}::int END
+              ${dealTypeSqlClause}
+              ${distressedSqlClause}
+          ),
+          summary_stats AS (
+            SELECT
+              COUNT(*)::int AS total_matching,
+              COUNT(*) FILTER (WHERE deal_type = 'flip')::int AS flip_count,
+              COUNT(*) FILTER (WHERE deal_type = 'demo_new_build')::int AS new_build_count,
+              COUNT(*) FILTER (WHERE is_distressed_acquisition)::int AS distressed_count,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_dollars)::numeric AS median_jump_dollars,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_pct)::numeric AS median_jump_pct,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hold_months)::numeric AS median_hold_months
+            FROM filtered_deals
+          ),
+          paged_deals AS (
+            SELECT *
+            FROM filtered_deals fd
+            ${orderSqlClause}
+            LIMIT ${limit} OFFSET ${offset}
+          )
+          SELECT
+            (SELECT row_to_json(s) FROM summary_stats s) AS summary,
+            COALESCE((SELECT json_agg(p) FROM paged_deals p), '[]'::json) AS items;
+        `
+      : sql`
+          WITH ordered_sales AS (
+            SELECT
+              s.county, s.parcel_id, s.sale_price AS sell_price, s.sale_year AS sell_year,
+              COALESCE(s.sale_month, 1) AS sell_month, (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS sell_ym,
+              s.qual_code AS sell_qual, s.vi_cd AS sell_vi_cd, s.or_book AS sell_or_book, s.or_page AS sell_or_page,
+              LAG(s.sale_price) OVER w AS buy_price,
+              LAG(s.sale_year) OVER w AS buy_year,
+              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
+              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
+              LAG(s.qual_code) OVER w AS buy_qual,
+              LAG(s.vi_cd) OVER w AS buy_vi_cd,
+              LAG(s.or_book) OVER w AS buy_or_book,
+              LAG(s.or_page) OVER w AS buy_or_page
+            FROM county_sales s
+            WHERE ${salesCountyClause}
+              AND s.sale_price >= 1000
+              AND s.sale_year IS NOT NULL
+              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
+            WINDOW w AS (
+              PARTITION BY s.county, s.parcel_id
+              ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC
+            )
+          ),
+          matched_pairs AS (
+            SELECT DISTINCT ON (os.county, os.parcel_id)
+              os.*,
+              (os.sell_ym - os.buy_ym) AS hold_months,
+              (os.sell_price - os.buy_price) AS jump_dollars,
+              ROUND(((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 1000) / 10.0 AS jump_pct
+            FROM ordered_sales os
+            WHERE os.buy_price IS NOT NULL
+              AND os.buy_price >= 1000
+              AND os.sell_price >= 50000
+              AND os.sell_qual IN ('01', '02', '03')
+              AND os.sell_price > os.buy_price
+              AND (
+                os.sell_ym > os.buy_ym
+                OR (os.sell_ym = os.buy_ym AND (COALESCE(os.sell_or_book, '') != COALESCE(os.buy_or_book, '') OR COALESCE(os.sell_or_page, '') != COALESCE(os.buy_or_page, '')))
+              )
+              AND ((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 100 >= ${minGainPct}
+              AND (os.sell_ym - os.buy_ym) <= ${effectiveMaxMonths}::int
+              ${priceBandMin}
+              ${priceBandMax}
+              ${minSellYmClause}
+            ORDER BY os.county, os.parcel_id, os.sell_ym DESC, os.buy_ym DESC
+          ),
+          classified_deals AS (
+            SELECT
+              mp.*,
+              p.address, p.city, p.zip, p.use_code, p.living_sqft, p.land_sqft,
+              p.year_built, p.eff_year_built, p.just_value, p.land_value, p.lat, p.lng,
+              p.beds, p.full_baths, p.half_baths,
+              bc.year_built AS bc_year_built, bc.living_area_sqft AS bc_living_sqft,
+              bc.beds AS bc_beds, bc.full_baths AS bc_full_baths, bc.half_baths AS bc_half_baths,
+              bc.pool_type AS bc_pool_type, bc.pool_year AS bc_pool_year, bc.boat_dock AS bc_boat_dock,
+              bc.quality_uad AS bc_quality_uad, bc.raw_quality_code AS bc_raw_quality_code,
+              CASE
+                WHEN (
+                  (COALESCE(bc.year_built, p.year_built) IS NOT NULL AND mp.buy_year IS NOT NULL AND COALESCE(bc.year_built, p.year_built) >= mp.buy_year)
+                  OR (mp.buy_vi_cd = 'V' AND mp.sell_vi_cd = 'I')
+                  OR (p.living_sqft > 0 AND bc.living_area_sqft > 0 AND bc.living_area_sqft > p.living_sqft * 1.3)
+                ) AND mp.sell_qual IN ('01', '02', '03') THEN 'demo_new_build'
+                WHEN mp.sell_qual IN ('01', '02', '03') AND mp.buy_qual IN ('01', '02', '03', '12', '18', '19', '38') THEN 'flip'
+                ELSE NULL
+              END AS deal_type,
+              CASE
+                WHEN mp.buy_qual IN ('12', '18', '19') THEN true
+                ELSE false
+              END AS is_distressed_acquisition
+            FROM matched_pairs mp
+            JOIN county_parcels p ON p.county = mp.county AND p.parcel_id = mp.parcel_id
+            LEFT JOIN building_characteristics bc ON bc.county = mp.county AND bc.folio = mp.parcel_id
+          ),
+          filtered_deals AS (
+            SELECT *
+            FROM classified_deals cd
+            WHERE cd.deal_type IS NOT NULL
+              AND cd.hold_months <= CASE WHEN cd.deal_type = 'demo_new_build' THEN ${newBuildMaxMonths}::int ELSE ${flipMaxMonths}::int END
+              ${dealTypeSqlClause}
+              ${distressedSqlClause}
+          ),
+          summary_stats AS (
+            SELECT
+              COUNT(*)::int AS total_matching,
+              COUNT(*) FILTER (WHERE deal_type = 'flip')::int AS flip_count,
+              COUNT(*) FILTER (WHERE deal_type = 'demo_new_build')::int AS new_build_count,
+              COUNT(*) FILTER (WHERE is_distressed_acquisition)::int AS distressed_count,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_dollars)::numeric AS median_jump_dollars,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_pct)::numeric AS median_jump_pct,
+              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hold_months)::numeric AS median_hold_months
+            FROM filtered_deals
+          ),
+          paged_deals AS (
+            SELECT *
+            FROM filtered_deals fd
+            ${orderSqlClause}
+            LIMIT ${limit} OFFSET ${offset}
+          )
+          SELECT
+            (SELECT row_to_json(s) FROM summary_stats s) AS summary,
+            COALESCE((SELECT json_agg(p) FROM paged_deals p), '[]'::json) AS items;
+        `;
+
+    const [dbResult, salesRangeRows] = await Promise.all([
+      queryPromise,
       salesRangePromise
     ]);
+
+    const rawQueryResult = dbResult[0] || {};
+    const rawSummary = rawQueryResult.summary || {};
+    const rawItems = Array.isArray(rawQueryResult.items) ? rawQueryResult.items : [];
 
     const computeBathsTotal = (fullB, halfB) => {
       if (fullB == null && halfB == null) return null;
@@ -761,81 +812,39 @@ export default async function handler(req, res) {
       return targetRow;
     };
 
-    const results = [];
-    let distressedExcludedCount = 0;
-    let filteredByHoldMonths = 0;
-    let filteredByMinGain = 0;
-    let filteredByDealType = 0;
-
-    for (const row of rawPairs) {
+    const items = [];
+    for (const row of rawItems) {
       if (useRadiusBox) {
         const dist = haversineMi(centerLat, centerLng, Number(row.lat), Number(row.lng));
         if (dist == null || dist > radius) continue;
         row._distance_mi = Math.round(dist * 10) / 10;
       }
 
-      const bc = lookupBuildingRecord(bcMap, row.county, row.parcel_id);
-      const cls = classifySalePair(
-        {
-          ...row,
-          bc_living_sqft: bc?.living_area_sqft ?? null,
-          bc_year_built: bc?.year_built ?? null
-        },
-        { minGainPct }
-      );
-      if (!cls) {
-        // Did it fail minGainPct?
-        const buyP = Number(row.buy_price) || 0;
-        const sellP = Number(row.sell_price) || 0;
-        if (buyP > 0 && sellP > buyP) {
-          const gainPct = ((sellP - buyP) / buyP) * 100;
-          if (gainPct < minGainPct) {
-            filteredByMinGain++;
-          }
-        }
-        continue;
-      }
-
-      // Check max hold based on deal type:
-      // Flips strictly respect maxMonths (default 24).
-      // Demo -> new builds allow up to 48 months (or maxMonths if explicitly set higher).
-      const isNewBuild = cls.deal_type === 'demo_new_build';
-      const allowedHoldMonths = isNewBuild
-        ? (dealType === 'demo_new_build' ? maxMonths : Math.max(maxMonths, 48))
-        : maxMonths;
-
-      if (Number(row.hold_months) > allowedHoldMonths) {
-        filteredByHoldMonths++;
-        continue;
-      }
-
-      if (cls.is_distressed_acquisition && !includeDistressed) {
-        distressedExcludedCount++;
-        continue;
-      }
-
-      if (dealType !== 'all' && cls.deal_type !== dealType) {
-        filteredByDealType++;
-        continue;
-      }
-
-      const livingSqft = Number(bc?.living_area_sqft) || Number(row.living_sqft) || null;
+      const livingSqft = Number(row.bc_living_sqft) || Number(row.living_sqft) || null;
       const buyDate = buildIsoDateFromYearMonth(row.buy_year, row.buy_month);
       const sellDate = buildIsoDateFromYearMonth(row.sell_year, row.sell_month);
 
-      const beds = bc?.beds != null
-        ? Number(bc.beds)
-        : (row.parcel_beds != null ? Number(row.parcel_beds) : null);
-      const fullBaths = bc?.full_baths != null
-        ? Number(bc.full_baths)
-        : (row.parcel_full_baths != null ? Number(row.parcel_full_baths) : null);
-      const halfBaths = bc?.half_baths != null
-        ? Number(bc.half_baths)
-        : (row.parcel_half_baths != null ? Number(row.parcel_half_baths) : null);
+      const beds = row.bc_beds != null ? Number(row.bc_beds) : (row.parcel_beds != null ? Number(row.parcel_beds) : null);
+      const fullBaths = row.bc_full_baths != null ? Number(row.bc_full_baths) : (row.parcel_full_baths != null ? Number(row.parcel_full_baths) : null);
+      const halfBaths = row.bc_half_baths != null ? Number(row.bc_half_baths) : (row.parcel_half_baths != null ? Number(row.parcel_half_baths) : null);
       const baths = computeBathsTotal(fullBaths, halfBaths);
-      const poolType = bc?.pool_type && bc.pool_type !== 'none' ? bc.pool_type : null;
-      const poolYear = bc?.pool_year != null ? Number(bc.pool_year) : null;
+      const poolType = row.bc_pool_type && row.bc_pool_type !== 'none' ? row.bc_pool_type : null;
+      const poolYear = row.bc_pool_year != null ? Number(row.bc_pool_year) : null;
       const hasPool = Boolean(poolType || poolYear);
+
+      let newBuildReason = null;
+      if (row.deal_type === 'demo_new_build') {
+        const yb = Number(row.bc_year_built || row.year_built);
+        if (yb && Number(row.buy_year) && yb >= Number(row.buy_year)) {
+          newBuildReason = `Built ${yb} (at or after ${row.buy_year} purchase)`;
+        } else if (row.buy_vi_cd === 'V' && row.sell_vi_cd === 'I') {
+          newBuildReason = 'Vacant lot → improved build';
+        } else if (Number(row.living_sqft) > 0 && Number(row.bc_living_sqft) > Number(row.living_sqft) * 1.3) {
+          newBuildReason = `Living area grew >30% (${Number(row.living_sqft).toLocaleString()} → ${Number(row.bc_living_sqft).toLocaleString()} sf)`;
+        } else {
+          newBuildReason = 'Demo → new build';
+        }
+      }
 
       const candidate = {
         id: `${row.county}|${row.parcel_id}|${buyDate}|${sellDate}`,
@@ -848,8 +857,8 @@ export default async function handler(req, res) {
         living_sqft: livingSqft,
         before_living_sqft: Number(row.living_sqft) || livingSqft,
         land_sqft: row.land_sqft != null ? Number(row.land_sqft) : null,
-        year_built: bc?.year_built ?? (row.year_built != null ? Number(row.year_built) : null),
-        eff_year_built: bc?.effective_year_built ?? (row.eff_year_built != null ? Number(row.eff_year_built) : null),
+        year_built: row.bc_year_built ?? (row.year_built != null ? Number(row.year_built) : null),
+        eff_year_built: row.eff_year_built != null ? Number(row.eff_year_built) : null,
         just_value: row.just_value != null ? Number(row.just_value) : null,
         lat: row.lat != null ? Number(row.lat) : null,
         lng: row.lng != null ? Number(row.lng) : null,
@@ -868,189 +877,35 @@ export default async function handler(req, res) {
         sell_vi_cd: row.sell_vi_cd || null,
         exit_source: 'county_resale',
         hold_months: Number(row.hold_months),
-        deal_type: cls.deal_type,
-        is_distressed_acquisition: cls.is_distressed_acquisition,
-        new_build_reason: cls.new_build_reason,
-        jump_dollars: cls.jump_dollars,
-        jump_pct: cls.jump_pct,
+        deal_type: row.deal_type,
+        is_distressed_acquisition: Boolean(row.is_distressed_acquisition),
+        new_build_reason: newBuildReason,
+        jump_dollars: Math.round(Number(row.jump_dollars)),
+        jump_pct: Number(row.jump_pct),
         has_pool: hasPool,
         pool_type: poolType,
         pool_year: poolYear,
-        has_dock: Boolean(bc?.boat_dock === true),
+        has_dock: Boolean(row.bc_boat_dock === true),
         beds: beds != null && beds > 0 ? beds : null,
         full_baths: fullBaths,
         half_baths: halfBaths,
         baths,
-        quality_uad: bc?.quality_uad || null,
-        raw_quality_code: bc?.raw_quality_code || null,
-        bc_source: bc ? 'county_cama' : null,
-        building_characteristics: bc || null
+        quality_uad: row.bc_quality_uad || null,
+        raw_quality_code: row.bc_raw_quality_code || null,
+        bc_source: row.bc_year_built ? 'county_cama' : null
       };
 
       attachQuickEstimates(candidate);
-      results.push(candidate);
+      items.push(candidate);
     }
 
-    // Optional: include user's own manually entered listings from investor_properties (ZERO scraping!)
-    if (includeMyListings) {
-      try {
-        const myProps = await sql`
-          SELECT
-            p.id,
-            p.address,
-            p.city,
-            p.zip,
-            COALESCE(p.parcel_county, p.county, 'Broward') AS county,
-            p.parcel_id,
-            p.list_price,
-            p.sqft,
-            p.lot_sqft,
-            p.beds,
-            p.baths,
-            p.year_built,
-            p.lat,
-            p.lng,
-            p.pool,
-            p.boat_dock,
-            p.updated_at
-          FROM investor_properties p
-          WHERE lower(p.owner_email) = ${cleanEmail}
-            AND p.parcel_id IS NOT NULL
-            AND p.list_price IS NOT NULL
-            AND p.list_price >= 50000;
-        `;
-
-        if (myProps.length > 0) {
-          const propFolios = myProps.map((p) => p.parcel_id).filter(Boolean);
-          const [priorSales, propBcMap] = await Promise.all([
-            sql`
-              SELECT DISTINCT ON (county, parcel_id)
-                county, parcel_id, sale_price, sale_year, sale_month, qual_code, vi_cd
-              FROM county_sales
-              WHERE parcel_id = ANY(${propFolios})
-                AND sale_price >= 25000
-                AND sale_year IS NOT NULL
-              ORDER BY county, parcel_id, sale_year DESC, sale_month DESC NULLS LAST;
-            `,
-            fetchBuildingCharacteristicsMap(sql, propFolios)
-          ]);
-          const priorMap = new Map(priorSales.map((s) => [`${s.county}|${s.parcel_id}`, s]));
-          const todayIso = new Date().toISOString().slice(0, 10);
-
-          for (const prop of myProps) {
-            const pCounty = normalizeCountyName(prop.county) || prop.county;
-            if (county !== 'all' && pCounty !== county) continue;
-            if (zip && !useRadiusBox && String(prop.zip || '').trim() !== zip) continue;
-            if (useRadiusBox) {
-              const dist = haversineMi(centerLat, centerLng, Number(prop.lat), Number(prop.lng));
-              if (dist == null || dist > radius) continue;
-            }
-
-            const prior = priorMap.get(`${pCounty}|${prop.parcel_id}`);
-            if (!prior) continue;
-
-            const buyPrice = Math.round(Number(prior.sale_price));
-            const listPrice = Math.round(Number(prop.list_price));
-            if (minPrice != null && listPrice < minPrice) continue;
-            if (maxPrice != null && listPrice > maxPrice) continue;
-
-            const buyDate = buildIsoDateFromYearMonth(prior.sale_year, prior.sale_month);
-            const holdMonths = computeHoldMonthsBetweenDates(buyDate, todayIso, 6);
-            if (holdMonths > maxMonths) continue;
-
-            const jumpDollars = listPrice - buyPrice;
-            const jumpPct = buyPrice > 0 ? Math.round((jumpDollars / buyPrice) * 1000) / 10 : 0;
-            const bc = lookupBuildingRecord(propBcMap, pCounty, prop.parcel_id);
-            const propYearBuilt = Number(prop.year_built || bc?.year_built || 0) || null;
-            const propLivingSqft = Number(prop.sqft || bc?.living_area_sqft) || null;
-            const isNewBuild = Boolean(
-              (propYearBuilt && Number(prior.sale_year) && propYearBuilt >= Number(prior.sale_year)) ||
-              (String(prior.vi_cd || '').trim().toUpperCase() === 'V' && propLivingSqft > 0)
-            );
-            const rowType = isNewBuild ? 'demo_new_build' : 'flip';
-            if (!isNewBuild && jumpPct < minGainPct) continue;
-            if (dealType !== 'all' && rowType !== dealType) continue;
-
-            const beds = prop.beds != null
-              ? Number(prop.beds)
-              : (bc?.beds != null && Number(bc.beds) > 0 ? Number(bc.beds) : null);
-            const fullBaths = bc?.full_baths != null ? Number(bc.full_baths) : null;
-            const halfBaths = bc?.half_baths != null ? Number(bc.half_baths) : null;
-            const baths = prop.baths != null ? Number(prop.baths) : computeBathsTotal(fullBaths, halfBaths);
-            const poolType = bc?.pool_type && bc.pool_type !== 'none' ? bc.pool_type : null;
-            const poolYear = bc?.pool_year != null ? Number(bc.pool_year) : null;
-
-            const listingRow = {
-              id: `my-listing|${prop.id}`,
-              property_id: prop.id,
-              county: pCounty,
-              parcel_id: prop.parcel_id,
-              address: prop.address,
-              city: prop.city,
-              zip: prop.zip,
-              living_sqft: propLivingSqft,
-              land_sqft: Number(prop.lot_sqft) || null,
-              year_built: propYearBuilt,
-              lat: prop.lat != null ? Number(prop.lat) : null,
-              lng: prop.lng != null ? Number(prop.lng) : null,
-              buy_price: buyPrice,
-              buy_year: Number(prior.sale_year),
-              buy_month: Number(prior.sale_month) || 1,
-              buy_date: buyDate,
-              buy_qual: prior.qual_code,
-              buy_vi_cd: prior.vi_cd || null,
-              sell_price: listPrice,
-              sell_date: todayIso,
-              exit_source: 'my_list_price',
-              hold_months: holdMonths,
-              deal_type: rowType,
-              is_distressed_acquisition: DISTRESSED_QUAL_CODES.includes(String(prior.qual_code || '').trim()),
-              new_build_reason: isNewBuild ? 'Entered listing after lot/prior purchase' : null,
-              jump_dollars: jumpDollars,
-              jump_pct: jumpPct,
-              has_pool: Boolean(prop.pool === true || poolType || poolYear),
-              pool_type: poolType,
-              pool_year: poolYear,
-              has_dock: Boolean(prop.boat_dock === true || bc?.boat_dock === true),
-              beds,
-              full_baths: fullBaths,
-              half_baths: halfBaths,
-              baths,
-              bc_source: bc ? 'county_cama' : null,
-              building_characteristics: bc || null
-            };
-            attachQuickEstimates(listingRow);
-            results.push(listingRow);
-          }
-        }
-      } catch (propErr) {
-        console.warn('Could not merge user entered listings into Flip Finder:', propErr.message);
-      }
-    }
-
-    // Sort cleanly
-    const dir = sortDir === 'asc' ? 1 : -1;
-    results.sort((a, b) => {
-      if (sortBy === 'sell_date') {
-        return String(a.sell_date || '').localeCompare(String(b.sell_date || '')) * dir;
-      }
-      if (sortBy === 'address') {
-        return String(a.address || '').localeCompare(String(b.address || '')) * dir;
-      }
-      if (sortBy === 'break_even_reno_10') {
-        const diff = (Number(a.break_even_reno_10) || 0) - (Number(b.break_even_reno_10) || 0);
-        if (diff !== 0) return diff * dir;
-        return ((Number(a.raw_break_even_reno_10) || 0) - (Number(b.raw_break_even_reno_10) || 0)) * dir;
-      }
-      return ((Number(a[sortBy]) || 0) - (Number(b[sortBy]) || 0)) * dir;
-    });
-
-    const totalMatching = results.length;
-    const flipCount = results.filter((r) => r.deal_type === 'flip').length;
-    const newBuildCount = results.filter((r) => r.deal_type === 'demo_new_build').length;
-    const medianJumpDollars = medianOf(results.map((r) => r.jump_dollars));
-    const medianJumpPct = results.length > 0 ? Math.round((medianOf(results.map((r) => r.jump_pct)) || 0) * 10) / 10 : null;
-    const medianHoldMonths = medianOf(results.map((r) => r.hold_months));
+    const totalMatching = rawSummary.total_matching || 0;
+    const flipCount = rawSummary.flip_count || 0;
+    const newBuildCount = rawSummary.new_build_count || 0;
+    const distressedExcludedCount = rawSummary.distressed_count || 0;
+    const medianJumpDollars = Number(rawSummary.median_jump_dollars || 0);
+    const medianJumpPct = Number(rawSummary.median_jump_pct || 0);
+    const medianHoldMonths = Number(rawSummary.median_hold_months || 0);
 
     const minYm = salesRangeRows[0]?.min_ym;
     const maxYm = salesRangeRows[0]?.max_ym;
@@ -1072,11 +927,7 @@ export default async function handler(req, res) {
     };
 
     const diagnostics = {
-      rawPairsFound: rawPairs.length,
-      filteredByHoldMonths,
-      filteredByMinGain,
-      filteredByDistressed: distressedExcludedCount,
-      filteredByDealType,
+      rawPairsFound: totalMatching,
       activeFilters: {
         county,
         zip: zip || null,
@@ -1087,7 +938,9 @@ export default async function handler(req, res) {
         minPrice,
         maxPrice,
         includeDistressed,
-        includeMyListings
+        includeMyListings,
+        page,
+        limit
       },
       availableSalesRange
     };
@@ -1095,7 +948,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       summary: {
         totalMatching,
-        returnedCount: Math.min(limit, results.length),
+        returnedCount: items.length,
         flipCount,
         newBuildCount,
         distressedExcludedCount,
@@ -1106,7 +959,13 @@ export default async function handler(req, res) {
         diagnostics,
         queryMs: Date.now() - t0
       },
-      items: results.slice(0, limit)
+      items,
+      pagination: {
+        page,
+        limit,
+        total: totalMatching,
+        totalPages: Math.max(1, Math.ceil(totalMatching / limit))
+      }
     });
   } catch (err) {
     return sendSafeApiError(
