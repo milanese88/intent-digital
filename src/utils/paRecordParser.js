@@ -49,7 +49,8 @@ function splitCells(line) {
 function normLabel(s) {
   return String(s || '')
     .toLowerCase()
-    .replace(/[#:.()\[\],]/g, ' ')
+    .replace(/^\s*\d+[\s.)-]+/, '')
+    .replace(/[#:.()[\\],]/g, ' ')
     .replace(/\s*\/\s*/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
@@ -65,28 +66,50 @@ const SECTION_PATTERNS = [
   { key: 'owner', re: /^ownership(\s+history)?$/i },
   { key: 'sales', re: /^(sales?|transfer|deed)\s+(history|information|data)(\s+for\s+this\s+parcel)?$/i },
   { key: 'sales', re: /^sales?$/i },
-  { key: 'values', re: /^(property\s+)?(assessment|value|valuation|market\s+value|tax\s+roll)\s+(history|values|information|summary)$/i },
-  { key: 'values', re: /^(property|certified|historical|assessed)\s+values?$/i },
-  { key: 'values', re: /^values?(\s+history)?$/i },
-  { key: 'building', re: /^(residential\s+|commercial\s+)?(building|bldg)s?(\s+(information|characteristics|details|data|summary|description|\d+(\s+of\s+\d+)?))?$/i },
-  { key: 'building', re: /^(structural|structure)\s+(elements|details|information)$/i },
-  { key: 'features', re: /^(extra|special|miscellaneous|misc\.?|other)\s+(features?|improvements?|items)(\s+.*)?$/i },
+  { key: 'values', re: /^(property\s+)?(assessment|assessments|value|values?|valuation|market\s+value|tax\s+roll)(\s+(history|values|information|summary|details))?$/i },
+  { key: 'values', re: /^(\d{4}\s+)?(property|certified|historical|assessed)?\s*values?(\s+(history|summary|details))?$/i },
+  { key: 'values', re: /^(\d{4}\s+)?values?(\s*\|\s*\d{4}\s+taxes)?$/i },
+  { key: 'building', re: /^(residential\s+|commercial\s+)?(building|bldg)s?(\s+(information|characteristics|details|data|summary|description|\d+(\s+of\s+\d+)?))?(\s*\([^)]*\))?$/i },
+  { key: 'building', re: /^(building\s+footprint)(\s*\([^)]*\))?$/i },
+  { key: 'building', re: /^(structural|structure)\s+(elements|details|information)(\s*\([^)]*\))?$/i },
+  { key: 'building', re: /^improvements?$/i },
+  { key: 'features', re: /^(extra|special|miscellaneous|misc\.?|other)?\s*(features?|yard\s+items?|improvements?|items)(\s*[/-]\s*(features?|yard\s+items?|improvements?|items))?$/i },
   { key: 'features', re: /^(yard\s+items|xfob|outbuildings)$/i },
-  { key: 'subareas', re: /^(building\s+)?(sub\s*-?\s*areas?|area\s+types?|sketch\s+areas?|area\s+summary|sketch)(\s+.*)?$/i },
+  { key: 'subareas', re: /^(building\s+)?(sub\s*-?\s*areas?|subarea\s+and\s+square\s+footage|area\s+types?|sketch\s+areas?|area\s+summary|sketch|sketched\s+area\s+legend)(\s+.*)?$/i },
   { key: 'land', re: /^land(\s+(information|calculations|lines|data|details|summary))?$/i },
   { key: 'legal', re: /^(abbreviated\s+|full\s+|short\s+)?legal(\s+description)?$/i },
-  { key: 'other', re: /^(exemptions?|tax(es)?(\s+.*)?|permits?(\s+.*)?|special\s+assessments?|millage.*|map|photos?|notes?|disclaimer.*|property\s+summary|parcel\s+summary)$/i }
+  { key: 'other', re: /^recent\s+sales(\s+in\s+this\s+subdivision)?$/i },
+  { key: 'other', re: /^(\d{4}\s+)?(exemptions?|tax(es)?(\s+.*)?|permits?(\s+.*)?|special\s+assessments?|millage.*|map|photos?|notes?|disclaimer.*|property\s+summary|parcel\s+summary)$/i }
 ];
 
 /** Returns the section key if `line` is a section heading, else null. */
 export function detectSectionHeading(line) {
   const cells = splitCells(line);
   if (cells.length === 0 || cells.length > 2) return null;
-  const text = cells.join(' ').replace(/:\s*$/, '').trim();
-  if (text.length > 60) return null;
-  for (const { key, re } of SECTION_PATTERNS) {
-    if (re.test(text)) return key;
+  const fullText = cells.join(' ').replace(/:\s*$/, '').trim();
+  // Data rows with money amounts or grouped numbers are never section headings
+  if (/\$\s*\d|\b\d{2,3},\d{3}\b/.test(fullText)) return null;
+
+  if (cells.length === 1) {
+    if (fullText.length > 70) return null;
+    for (const { key, re } of SECTION_PATTERNS) {
+      if (re.test(fullText)) return key;
+    }
+    return null;
   }
+
+  for (const { key, re } of SECTION_PATTERNS) {
+    if (re.test(fullText)) return key;
+  }
+
+  // Two-column layout where each column has its own heading (e.g. "SALES HISTORY FOR THIS PARCEL | LAND")
+  const h0 = SECTION_PATTERNS.find(({ re }) => re.test(cells[0].replace(/:\s*$/, '').trim()));
+  const h1 = SECTION_PATTERNS.find(({ re }) => re.test(cells[1].replace(/:\s*$/, '').trim()));
+  if (h0 && h1) {
+    if (h0.key === 'subareas' || h1.key === 'subareas') return 'subareas';
+    return h0.key;
+  }
+
   return null;
 }
 
@@ -102,9 +125,10 @@ const LABELS = {
     'heated area', 'total heated area', 'heated sq ft', 'heated/cooled area',
     'living area', 'total living area', 'living sq ft', 'living sf',
     'under air', 'under air sq ft', 'under air s f', 'under air square footage', 'under air sf',
-    'conditioned area', 'total under air'
+    'total area under air', 'area under air', 'total under air',
+    'conditioned area'
   ],
-  adjBldgSqft: ['adj bldg s f', 'adj bldg s f card/sketch', 'adj bldg sf', 'adjusted building sf', 'adj bldg s f card sketch'],
+  adjBldgSqft: ['adj bldg s f', 'adj bldg s f card/sketch', 'adj bldg sf', 'adjusted building sf', 'adj bldg s f card sketch', 'total square footage', 'total sq ft', 'total sf'],
   yearBuilt: ['year built', 'actual year built', 'act year built', 'yr built', 'yr blt', 'year blt', 'built'],
   effYearBuilt: ['effective year built', 'eff year built', 'effective year', 'eff year', 'eff yr', 'eff yr built', 'effective age year'],
   effActYear: ['eff/act year built', 'eff/act yr built', 'eff/act year'],
@@ -113,14 +137,14 @@ const LABELS = {
   baths: ['baths', 'bathrooms', 'total baths', 'total bathrooms', 'number of baths'],
   fullBaths: ['full baths', 'full bath', 'full bathrooms', 'baths full'],
   halfBaths: ['half baths', 'half bath', 'half bathrooms', 'baths half'],
-  stories: ['stories', 'story', 'no of stories', 'number of stories', 'floors', 'story height'],
-  construction: ['exterior wall', 'exterior walls', 'ext wall', 'ext walls', 'exterior wall type', 'construction', 'construction type', 'frame', 'frame type', 'structural frame', 'structure type', 'wall type', 'exterior'],
+  stories: ['stories', 'story', 'no of stories', 'number of stories', 'floors', 'story height', 'max stories'],
+  construction: ['exterior wall', 'exterior walls', 'ext wall', 'ext walls', 'exterior wall 1', 'exterior wall type', 'exterior cover', 'ext cover', 'construction', 'construction type', 'frame', 'frame type', 'structural frame', 'structure type', 'wall', 'wall type', 'exterior'],
   roofCover: ['roof cover', 'roof covering', 'roof cover type', 'roof material', 'roofing', 'roof'],
   roofStructure: ['roof structure', 'roof type', 'roof shape', 'roof frame', 'roof style'],
   quality: ['quality', 'quality grade', 'grade', 'construction quality', 'quality code'],
   condition: ['condition', 'physical condition', 'condition code'],
   neighborhood: ['neighborhood', 'neighborhood code', 'nbhd', 'nbhd code', 'nbrhd', 'nbrhd code', 'neighborhood cd'],
-  legal: ['legal description', 'abbreviated legal description', 'legal desc', 'short legal', 'legal'],
+  legal: ['legal description', 'abbreviated legal description', 'legal desc', 'short legal', 'abbr. legal des.', 'abbr legal des', 'abbr legal desc', 'legal'],
   misc: [
     'millage', 'millage code', 'use', 'use code', 'property use', 'land use', 'dor use code', 'property class', 'zoning',
     'subdivision', 'acres', 'acreage', 'lot size', 'tax district', 'account', 'account number', 'account #', 'municipality',
@@ -142,11 +166,15 @@ function labelMatches(cellText, labelList) {
     const nl = normLabel(l);
     if (n === nl) return { label: l, remainder: '' };
     if (n.startsWith(nl + ' ')) {
-      // Label followed by its value in the same cell ("Year Built: 1988" / "Year Built 1988")
+      // Label followed by its value in the same cell ("Year Built: 1988" / "Total Area Under Air : 3500")
       const words = nl.split(/[ /]+/).filter(Boolean).map(escapeRe);
-      const re = new RegExp(`^\\s*${words.join('[\\s./:()#,\\-]*')}[\\s.:#)\\-]*`, 'i');
+      const re = new RegExp(`^\\s*(?:\\d+[\\s.)\\-]+)?${words.join('[\\s./:()#,\\-]*')}[\\s.:#)\\-]*`, 'i');
       const remainder = raw.replace(re, '').trim();
       if (remainder && remainder !== raw.trim()) return { label: l, remainder };
+    }
+    // Match trailing building index (e.g. "Exterior Wall 1" matching "exterior wall")
+    if (n.replace(/\s+[1-9]$/, '') === nl) {
+      return { label: l, remainder: '' };
     }
   }
   return null;
@@ -370,7 +398,7 @@ export function parseSalesRow(line) {
   let orBook = null;
   let orPage = null;
   const bp = work.match(/\bbook\s*:?\s*(\d{2,6})\s*,?\s*page\s*:?\s*(\d{1,5})\b/i) ||
-    work.match(/\b(?:OR\s*)?(\d{3,6})\s*[\/-]\s*(\d{1,5})\b/);
+    work.match(/\b(?:OR\s*)?(\d{3,6})\s*[/-]\s*(\d{1,5})\b/);
   if (bp) {
     orBook = bp[1];
     orPage = bp[2];
@@ -496,6 +524,7 @@ export function classifyRoofCover(value) {
 export function classifyRoofStructure(value) {
   const u = String(value || '').toUpperCase();
   if (!u.trim()) return null;
+  if (/WOOD\s*TRUSS|TRUSS/.test(u)) return 'Wood truss';
   if (/GABLE.*HIP|HIP.*GABLE/.test(u)) return 'Gable / Hip';
   if (/\bHIP\b/.test(u)) return 'Hip';
   if (/\bGABLE\b/.test(u)) return 'Gable';
@@ -601,7 +630,7 @@ export function parseBuildingInfo(text, linesArg = null, sources = {}) {
     rawConditionCode: null
   };
 
-  const nonSales = ['header', 'building', 'other'];
+  const nonSales = ['header', 'building', 'other', 'features', 'subareas'];
   // Feature rows (pool/dock/etc.) carry their own "Year Built" / area — never let them fill house fields.
   const FEATURE_ROW_RE = /\b(pool|spa|dock|pier|boat|lift|davit|seawall|fence|patio|deck|shed|screen|enclosure|driveway|tiki|canopy|carport|slab|paving|sprinkler|gazebo)\b/i;
   const record = (field, hit) => {
@@ -805,7 +834,7 @@ export function parseFeatures(text, linesArg = null, sources = {}) {
     }
 
     const isPool = /\b(swimming\s+)?pool\b/.test(n) && !/\b(enclos|screen|cage|deck|heater|fence|patio|bath|house|equip)/.test(n);
-    const isDock = /\b(boat\s+)?dock\b|\bpier\b|\bboat\s+slip\b/.test(n);
+    const isDock = /\b(boat\s+)?dock\b|\bpier\b|\bboat\s+slip\b|\bboatd\b/.test(n);
     const isLift = /\bboat\s*lift\b|\bdavit\b/.test(n) || (/\blift\b/.test(n) && L.section === 'features');
     const isScreen = /\bscreen(ed)?\s+(enclosure|encl|porch|room|cage)\b|\bpool\s+enclos/.test(n);
     const isFireplace = /\bfireplace|\bfire\s+place|\bfp\b/.test(n);
@@ -868,6 +897,7 @@ export function parseSalesHistory(text, linesArg = null) {
   const sales = [];
   const seen = new Set();
   for (const L of lines) {
+    if (/\brecent\s+sales\s+in\s+this\s+subdivision\b/i.test(L.text)) break;
     if (L.isHeading || L.section !== 'sales') continue;
     const row = parseSalesRow(L.text);
     if (!row) continue;
@@ -925,7 +955,7 @@ export function parseValueHistory(text, linesArg = null) {
     // Labelled cells ("Land: $400,000 | Imp: $800,000 | Just: $1,200,000")
     const labelled = {};
     for (const c of L.cells.slice(1)) {
-      const m = c.match(/^([A-Za-z\/ ]+):\s*(.+)$/);
+      const m = c.match(/^([A-Za-z/ ]+):\s*(.+)$/);
       if (!m) continue;
       const key = Object.entries(VALUE_HEADER_DEFS).find(([, re]) => re.test(normLabel(m[1])))?.[0];
       const val = parseMoney(m[2]);
@@ -954,6 +984,12 @@ export function parseValueHistory(text, linesArg = null) {
       if (vals.length >= 3 && approxEqual(vals[0] + vals[1], vals[2])) {
         [land, imp, just] = vals;
         confident = true;
+      } else if (vals.length >= 4 && approxEqual(vals[0] + vals[1], vals[3])) {
+        // Broward BCPA: Land | Improvement | Ag Saving | Just/Market Value
+        land = vals[0];
+        imp = vals[1];
+        just = vals[3];
+        confident = true;
       } else if (header && vals.length >= 3) {
         // header present but cell counts differ (wrapped cells) — map money values by header order
         const order = Object.entries(header.map)
@@ -976,8 +1012,46 @@ export function parseValueHistory(text, linesArg = null) {
 
     if (!confident) continue;
     if (imp == null && land != null && just != null && just >= land) imp = just - land;
+    if (just == null && land != null && imp != null) just = land + imp;
     if (!byYear.has(year)) {
       byYear.set(year, { rollYear: year, year, landValue: land, improvementValue: imp, justValue: just });
+    }
+  }
+
+  // Single-year vertical card layout (e.g. Palm Beach PAPA: "Improvement Value | $1,220,536 \n Land Value | $800,000 \n Total Market Value | $2,020,536")
+  if (byYear.size === 0) {
+    let cardLand = null;
+    let cardImp = null;
+    let cardJust = null;
+    let cardYear = null;
+
+    for (const L of lines) {
+      if (L.section !== 'values') continue;
+      const ym = L.text.match(/\b(20\d{2})\b/);
+      if (ym && !cardYear) cardYear = Number(ym[1]);
+
+      for (let ci = 0; ci < L.cells.length; ci++) {
+        const c = L.cells[ci].trim();
+        const nextCell = L.cells[ci + 1];
+        const nextMatch = nextCell ? nextCell.match(/\$\s*(\d{1,3}(?:,\d{3})+|\d+)/) : null;
+        const nextVal = nextMatch ? Number(nextMatch[1].replace(/,/g, '')) : null;
+        if (/^(total\s+)?land(\s+value)?$/i.test(c) && nextVal != null) cardLand = nextVal;
+        if (/^(building|improvement|impr|improvements)(\s+value)?$/i.test(c) && nextVal != null) cardImp = nextVal;
+        if (/^(total\s+market|market|just|total\s+market\s+value|just\s+value)(\s+value)?$/i.test(c) && nextVal != null) cardJust = nextVal;
+      }
+    }
+
+    if (cardJust != null || (cardLand != null && cardImp != null)) {
+      const year = cardYear || CURRENT_YEAR;
+      if (cardJust == null && cardLand != null && cardImp != null) cardJust = cardLand + cardImp;
+      if (cardImp == null && cardLand != null && cardJust != null) cardImp = Math.max(0, cardJust - cardLand);
+      byYear.set(year, {
+        rollYear: year,
+        year,
+        landValue: cardLand,
+        improvementValue: cardImp,
+        justValue: cardJust
+      });
     }
   }
 
@@ -999,8 +1073,12 @@ const SUBAREA_DESCRIPTIONS = {
   BAS: 'Base / finished living area', FUS: 'Finished upper story', FOP: 'Finished open porch',
   FSP: 'Finished screen porch', FEP: 'Finished enclosed porch', FGR: 'Finished garage', GRG: 'Garage',
   UOP: 'Unfinished open porch', USP: 'Unfinished screen porch', CPT: 'Carport', PAT: 'Patio',
-  WDK: 'Wood deck', CAN: 'Canopy', UST: 'Unfinished storage', FST: 'Finished storage', BAL: 'Balcony'
+  WDK: 'Wood deck', CAN: 'Canopy', UST: 'Unfinished storage', FST: 'Finished storage', BAL: 'Balcony',
+  DWELL: 'Dwelling', DWELL_U: 'Dwelling upper', ADDN: 'Dwelling addition', ATTGAR: 'Attached garage',
+  OMP: 'Open masonry porch'
 };
+
+const FINISHED_SUBAREA_CODES = new Set(['BAS', 'FUS', 'DWELL', 'DWELL_U', 'ADDN', 'DWELLING']);
 
 export function parseSubAreas(text, linesArg = null) {
   const lines = linesArg || buildLineModel(text);
@@ -1013,27 +1091,50 @@ export function parseSubAreas(text, linesArg = null) {
       header = { map: mapped, cellCount: L.cells.length };
       continue;
     }
-    const codeIdx = L.cells.findIndex((c) => /^[A-Z]{3}\d?$/.test(c));
-    if (codeIdx < 0) continue;
-    const code = L.cells[codeIdx];
+
+    let code = null;
+    let desc = null;
     let gross = null;
     let finished = null;
-    if (header && header.cellCount === L.cells.length) {
-      if (header.map.gross != null) gross = parseMoney(L.cells[header.map.gross]);
-      if (header.map.finished != null) finished = parseMoney(L.cells[header.map.finished]);
+
+    const codeIdx = L.cells.findIndex((c) => /^[A-Z]{2,8}(?:_[A-Z0-9]+)?$/i.test(c.trim()));
+    if (codeIdx >= 0) {
+      code = L.cells[codeIdx].trim().toUpperCase();
+      if (header && header.cellCount === L.cells.length) {
+        if (header.map.gross != null) gross = parseMoney(L.cells[header.map.gross]);
+        if (header.map.finished != null) finished = parseMoney(L.cells[header.map.finished]);
+        if (header.map.desc != null && header.map.desc !== codeIdx) desc = L.cells[header.map.desc];
+      } else {
+        const nums = L.cells.slice(codeIdx + 1).map((c) => parseMoney(c.replace(/\s*(sf|sq\.?\s*ft)\.?$/i, ''))).filter((v) => v != null);
+        if (nums.length === 1) gross = nums[0];
+        else if (nums.length >= 2) {
+          gross = nums[0];
+          finished = nums[1];
+        }
+      }
+      if (!desc) {
+        desc = L.cells.find((c, i) => i !== codeIdx && /[a-z]/i.test(c) && parseMoney(c) == null);
+      }
     } else {
-      const nums = L.cells.slice(codeIdx + 1).map((c) => parseMoney(c.replace(/\s*(sf|sq\.?\s*ft)\.?$/i, ''))).filter((v) => v != null);
-      if (nums.length === 1) gross = nums[0];
-      else continue; // ambiguous multi-number row without header
+      // Check combined "FUS Finished Upper Story" style (Palm Beach PAPA)
+      const combined = L.cells[0]?.match(/^([A-Z]{2,8}(?:_[A-Z0-9]+)?)\s+(.+)$/i);
+      if (combined) {
+        code = combined[1].trim().toUpperCase();
+        desc = combined[2].trim();
+        const nums = L.cells.slice(1).map((c) => parseMoney(c.replace(/\s*(sf|sq\.?\s*ft)\.?$/i, ''))).filter((v) => v != null);
+        if (nums.length >= 1) gross = nums[0];
+      }
     }
-    if ((gross == null || gross <= 0) && (finished == null || finished <= 0)) continue;
-    const descCell = L.cells.find((c, i) => i !== codeIdx && /[a-z]/i.test(c) && parseMoney(c) == null);
+
+    if (!code || ((gross == null || gross <= 0) && (finished == null || finished <= 0))) continue;
+    if (finished == null && FINISHED_SUBAREA_CODES.has(code)) finished = gross;
+
     out.push({
       code,
-      description: descCell || SUBAREA_DESCRIPTIONS[code] || code,
+      description: desc || SUBAREA_DESCRIPTIONS[code] || code,
       sqft: gross ?? finished,
       grossSqft: gross,
-      finishedSqft: finished
+      finishedSqft: finished ?? 0
     });
   }
   return out;
@@ -1047,7 +1148,7 @@ export function parseNeighborhoodCode(text, linesArg = null) {
   const lines = linesArg || buildLineModel(text);
   const hit = findLabeledValue(lines, LABELS.neighborhood, (v) => {
     const s = String(v).trim();
-    return /^[A-Z0-9][A-Z0-9.\-]{1,11}$/i.test(s) && /\d/.test(s) ? s : null;
+    return /^[A-Z0-9][A-Z0-9.-]{1,11}$/i.test(s) && /\d/.test(s) ? s : null;
   });
   return hit ? hit.value : null;
 }

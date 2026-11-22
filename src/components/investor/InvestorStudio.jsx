@@ -16,6 +16,7 @@ import AppraisalGridSection from './AppraisalGridSection.jsx';
 import AdjustmentLibraryModal from './AdjustmentLibraryModal.jsx';
 import CompDetailsDrawer from './CompDetailsDrawer.jsx';
 import DealBreakdownSection from './DealBreakdownSection.jsx';
+import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import FlipBuildFinder from './FlipBuildFinder.jsx';
 import {
   computeAppraisalGrid,
@@ -4443,13 +4444,19 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     aria-labelledby="tab-breakdown"
                     style={{ display: activeTab === 'breakdown' ? 'block' : 'none' }}
                   >
-                    <DealBreakdownSection
-                      property={subjectForAppraisal}
-                      countyData={countyData}
-                      buyingProfile={buyingProfile}
-                      showToast={showToast}
-                      onOpenLearningLabLesson={handleOpenLearningLabLesson}
-                    />
+                    <SectionErrorBoundary
+                      section="deal-breakdown(property)"
+                      label="the Deal Breakdown"
+                      resetKey={activeProperty?.id}
+                    >
+                      <DealBreakdownSection
+                        property={subjectForAppraisal}
+                        countyData={countyData}
+                        buyingProfile={buyingProfile}
+                        showToast={showToast}
+                        onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                      />
+                    </SectionErrorBoundary>
                   </div>
 
                   {/* TAB 6: PHOTOS & NOTES */}
@@ -4824,25 +4831,35 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
             {studioMode === 'finder' ? (
               activeFinderRow ? (
                 <div style={{ marginTop: '24px' }}>
-                  <DealBreakdownSection
-                    finderRow={activeFinderRow}
-                    buyingProfile={buyingProfile}
-                    showToast={showToast}
-                    onBackToFinder={() => setActiveFinderRow(null)}
-                    onOpenLearningLabLesson={handleOpenLearningLabLesson}
-                  />
+                  <SectionErrorBoundary
+                    section="deal-breakdown(finder)"
+                    label="this Deal Breakdown"
+                    resetKey={activeFinderRow?.id}
+                    onBack={() => setActiveFinderRow(null)}
+                    backLabel="Back to Flip & Build Finder"
+                  >
+                    <DealBreakdownSection
+                      finderRow={activeFinderRow}
+                      buyingProfile={buyingProfile}
+                      showToast={showToast}
+                      onBackToFinder={() => setActiveFinderRow(null)}
+                      onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                    />
+                  </SectionErrorBoundary>
                 </div>
               ) : (
-                <FlipBuildFinder
-                  initialZip={finderInitialZip}
-                  onSelectRow={(row) => {
-                    setActiveFinderRow(row);
-                    if (typeof window !== 'undefined') {
-                      window.scrollTo({ top: 180, behavior: 'smooth' });
-                    }
-                  }}
-                  onOpenLearningLabLesson={handleOpenLearningLabLesson}
-                />
+                <SectionErrorBoundary section="flip-build-finder" label="the Flip & Build Finder">
+                  <FlipBuildFinder
+                    initialZip={finderInitialZip}
+                    onSelectRow={(row) => {
+                      setActiveFinderRow(row);
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 180, behavior: 'smooth' });
+                      }
+                    }}
+                    onOpenLearningLabLesson={handleOpenLearningLabLesson}
+                  />
+                </SectionErrorBoundary>
               )
             ) : (
               <>

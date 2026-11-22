@@ -1936,6 +1936,41 @@ export function underwriteLiveInPlan(inputs = {}, rawConfig = FINANCING_CONFIG) 
  *  5. Condition C5–C6 -> "may need 203(k) to pass FHA appraisal"
  *  6. 2–4 units -> house-hack bonus
  */
+/**
+ * True when a parcel is vacant land per the CURRENT building data.
+ *
+ * - Current building evidence always wins over a stale use code: any living area
+ *   (county_parcels.living_sqft / building_characteristics.living_area_sqft) or a
+ *   year built means there is a structure now (e.g. a lot that was built on in 2025).
+ * - 3-digit DOR codes are matched exactly ('000' vacant residential, '010' vacant
+ *   commercial). Note '001' single-family / '004' condo / '008' 2–9 units share the
+ *   '00' prefix and are NOT land.
+ * - 4-digit county codes (e.g. '0000', '1000') use the 2-digit DOR prefix.
+ */
+export function isVacantLandParcel(property = {}) {
+  if (!property || typeof property !== 'object') return false;
+  const bc = property.building_characteristics || {};
+  const livingSqft = Math.max(
+    Number(property.bc_living_sqft) || 0,
+    Number(bc.living_area_sqft) || 0,
+    Number(property.living_sqft) || 0,
+    Number(property.sqft) || 0
+  );
+  const yearBuilt = Number(property.bc_year_built) || Number(bc.year_built) || Number(property.year_built) || 0;
+  if (livingSqft > 0 || yearBuilt > 1800) return false;
+
+  const propType = String(property.property_type || '').toLowerCase();
+  if (propType === 'land') return true;
+  if (['single_family', 'condo', 'townhome', 'multifamily_2_9'].includes(propType)) return false;
+
+  const code = String(property.use_code || '').trim();
+  if (!/^\d+$/.test(code)) return false;
+  if (code.length === 3) return code === '000' || code === '010';
+  if (code.length === 4) return code.startsWith('00') || code.startsWith('10');
+  const n = parseInt(code, 10);
+  return n === 0 || n === 10;
+}
+
 export function evaluateLiveInFit(property = {}, rawConfig = FINANCING_CONFIG) {
   if (!property || typeof property !== 'object') {
     return {
@@ -1957,13 +1992,11 @@ export function evaluateLiveInFit(property = {}, rawConfig = FINANCING_CONFIG) {
   // Determine unit count
   let rawUnits = Number(property.units);
   if (!Number.isFinite(rawUnits) || rawUnits <= 0) {
-    rawUnits = propType === 'multifamily_2_9' || useNum === 8 || usePrefix === '08' ? 2 : 1;
+    rawUnits = propType === 'multifamily_2_9' || useNum === 8 || (useCodeStr.length === 4 && usePrefix === '08') ? 2 : 1;
   }
 
-  const isVacantLand =
-    propType === 'land' ||
-    (useCodeStr !== '' && (useNum === 0 || useNum === 10 || usePrefix === '00' || usePrefix === '10'));
-  const isFivePlusUnits = rawUnits > 4 || useNum === 3 || usePrefix === '03';
+  const isVacantLand = isVacantLandParcel(property);
+  const isFivePlusUnits = rawUnits > 4 || useNum === 3 || (useCodeStr.length === 4 && usePrefix === '03');
 
   const clampedUnits = Math.min(4, Math.max(1, Math.round(rawUnits)));
   const fhaLimitInfo = getFhaLimitForProperty(county, clampedUnits, cfg);

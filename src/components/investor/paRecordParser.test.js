@@ -12,7 +12,8 @@ import {
   classifyConstruction
 } from '../../utils/paRecordParser.js';
 import { itemsToLines, extractPdfText } from '../../../api/_lib/pdfText.js';
-import { MARTIN_FIXTURE, BROWARD_FIXTURE, AMBIGUOUS_FIXTURE, OWNER_TOKENS } from './__fixtures__/paRecordFixtures.js';
+import { fetchPalmBeachCamaSales, parseCamaDate } from '../../../api/_lib/camaSales.js';
+import { MARTIN_FIXTURE, BROWARD_FIXTURE, PALM_BEACH_FIXTURE, AMBIGUOUS_FIXTURE, OWNER_TOKENS } from './__fixtures__/paRecordFixtures.js';
 
 function assertNoPii(text) {
   for (const tok of OWNER_TOKENS) {
@@ -110,6 +111,61 @@ test('PA parser: Broward (BCPA layout) — Eff./Act. year, Units/Beds/Baths, Und
   assert.equal(p.salesHistory[0].instrument, '117045678');
   assert.equal(p.salesHistory[1].orBook, '28412');
   assert.equal(p.salesHistory[1].orPage, '1123');
+});
+
+test('PA parser: Palm Beach (PAPA layout) — 309 Cascade Ln: 3,500 under air, 2025 built, 4 bd / 3.5 ba, CBS, barrel tile, pool 2025, values card', () => {
+  assertNoPii(sanitizeAndStripPii(PALM_BEACH_FIXTURE));
+  const p = parsePaRecordText(PALM_BEACH_FIXTURE, { sourceDate: '2026-11-21' });
+  assertNoPii(JSON.stringify(p));
+
+  assert.equal(p.county, 'Palm Beach');
+  assert.equal(p.folio, '54-43-42-27-04-000-2680');
+  assert.equal(p.address, '309 CASCADE LN');
+  assert.equal(p.buildingInfo.livingSqft, 3500);
+  assert.equal(p.buildingInfo.livingSqftLabel, 'total area under air');
+  assert.equal(p.buildingInfo.adjustedBuildingSqft, 4228);
+  assert.equal(p.buildingInfo.yearBuilt, 2025);
+  assert.equal(p.buildingInfo.beds, 4);
+  assert.equal(p.buildingInfo.fullBaths, 3);
+  assert.equal(p.buildingInfo.halfBaths, 1);
+  assert.equal(p.buildingInfo.baths, 3.5);
+  assert.equal(p.buildingInfo.stories, 2);
+  assert.equal(p.buildingInfo.construction, 'CBS');
+  assert.equal(p.buildingInfo.roofCover, 'Cement tile');
+  assert.equal(p.buildingInfo.roofStructure, 'Wood truss');
+  assert.equal(p.features.hasPool, true);
+  assert.equal(p.features.poolYear, 2025);
+  assert.equal(p.legalDescription, 'PALM BEACH SHORES LT 268');
+
+  assert.equal(p.valueHistory.length, 1);
+  assert.equal(p.valueHistory[0].rollYear, 2026);
+  assert.equal(p.valueHistory[0].landValue, 800000);
+  assert.equal(p.valueHistory[0].improvementValue, 1220536);
+  assert.equal(p.valueHistory[0].justValue, 2020536);
+
+  assert.equal(p.subAreas.length, 5);
+  assert.equal(p.subAreas[0].code, 'FUS');
+  assert.equal(p.subAreas[0].sqft, 1616);
+  assert.equal(p.subAreas[1].code, 'BAS');
+  assert.equal(p.subAreas[1].sqft, 1884);
+});
+
+test('Palm Beach CAMA sales helper: parses multi-deed transfers with "source: county record"', () => {
+  assert.deepEqual(parseCamaDate('03-AUG-26'), { iso: '2026-08-03', year: 2026, month: 8, day: 3 });
+  assert.deepEqual(parseCamaDate('18-JUL-24'), { iso: '2024-07-18', year: 2024, month: 7, day: 18 });
+  assert.deepEqual(parseCamaDate('01-JAN-86'), { iso: '1986-01-01', year: 1986, month: 1, day: 1 });
+
+  const sales = fetchPalmBeachCamaSales('54434227040002680');
+  assert.equal(sales.length, 4);
+  assert.equal(sales[0].sale_date, '2026-08-03');
+  assert.equal(sales[0].sale_price, 2850000);
+  assert.equal(sales[0].vi_cd, 'I');
+  assert.equal(sales[0].source, 'county record');
+
+  assert.equal(sales[1].sale_date, '2024-07-18');
+  assert.equal(sales[1].sale_price, 850000);
+  assert.equal(sales[1].vi_cd, 'V');
+  assert.equal(sales[1].source, 'county record');
 });
 
 test('PA parser: never guesses — unlabeled text yields "not found" instead of Flat roof / pool / year', () => {

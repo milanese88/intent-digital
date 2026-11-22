@@ -1,6 +1,7 @@
 import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { fetchBuildingCharacteristicOne } from '../_lib/buildingChars.js';
+import { fetchPalmBeachCamaSales } from '../_lib/camaSales.js';
 import { normalizeCountyName } from '../../src/config/counties.js';
 import { formatCountyClues } from '../../src/components/investor/compDetailsModel.js';
 
@@ -152,7 +153,7 @@ export default async function handler(req, res) {
     });
 
     // 2. Fetch sales history with qualification code metadata
-    const sales = await sql`
+    let sales = await sql`
       SELECT 
         s.id,
         s.county,
@@ -170,13 +171,36 @@ export default async function handler(req, res) {
         s.or_book,
         s.or_page,
         s.clerk_no,
-        s.source,
+        'county record' AS source,
         s.imported_at
       FROM county_sales s
       LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
       WHERE s.county = ${county} AND s.parcel_id = ${parcelId}
       ORDER BY s.sale_year DESC, s.sale_month DESC NULLS LAST, s.id DESC;
     `;
+
+    // Augment with Palm Beach CAMA SALE history (up to 5 prior deeds)
+    if (county === 'Palm Beach') {
+      try {
+        const camaSales = fetchPalmBeachCamaSales(parcelId);
+        if (camaSales.length > 0) {
+          const existingKeys = new Set(
+            sales.map((s) => `${s.or_book || ''}|${s.or_page || ''}|${s.sale_year || ''}|${s.sale_month || ''}`)
+          );
+          const additional = camaSales.filter((cs) => {
+            const key = `${cs.or_book || ''}|${cs.or_page || ''}|${cs.sale_year || ''}|${cs.sale_month || ''}`;
+            return !existingKeys.has(key) && !sales.some((s) => Number(s.sale_year) === Number(cs.sale_year) && Number(s.sale_month) === Number(cs.sale_month) && Math.abs(Number(s.sale_price) - Number(cs.sale_price)) < 100);
+          });
+          sales = [...sales, ...additional].sort((a, b) => {
+            const ymA = (Number(a.sale_year) || 0) * 12 + (Number(a.sale_month) || 1);
+            const ymB = (Number(b.sale_year) || 0) * 12 + (Number(b.sale_month) || 1);
+            return ymB - ymA;
+          });
+        }
+      } catch (camaErr) {
+        console.warn('[CAMA Sales] Non-fatal error reading Palm Beach CAMA sales:', camaErr?.message);
+      }
+    }
 
     // 3. Nearest qualified same-street sale (sanity anchor for Appraisal Income/Land check card)
     let nearest_same_street_sale = null;

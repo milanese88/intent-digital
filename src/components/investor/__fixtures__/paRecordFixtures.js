@@ -73,3 +73,52 @@ POOL DECK FLAT ROOF OVER PATIO 1992 2,400
 4 3 2 1988
 `;
 
+// Palm Beach County (PAPA-style) — 309 Cascade Ln (New build 2025)
+export const PALM_BEACH_FIXTURE = `
+Property Print | 11/21/26, 7:53 PM
+Property Detail
+Parcel Control Number: | 54-43-42-27-04-000-2680 | Location Address: 309 CASCADE LN
+Municipality: | PALM BEACH SHORES
+Property Use Code: | 0100 - SINGLE FAMILY | Zoning: | A - SINGLE FAMILY RESIDENTIAL
+Legal Description: | PALM BEACH SHORES LT 268 | Total SF: | 4228 | Acres .20
+Property Owner: | PLACEHOLDER-OWNER-A
+Mailing Address: | PLACEHOLDER-MAIL-1 | PLACEHOLDER-MAIL-2
+2026 Values | 2026 Taxes
+Improvement Value | $1,220,536
+Land Value | $800,000 Ad Valorem | $39,631
+Non Ad Valorem | $215
+Total Market Value | $2,020,536
+Total Tax | $39,846
+Assessed Value | $1,979,536
+Building Footprint (Building 1 ) | Subarea and Square Footage (Building 1 )
+1
+Description | Area Sq. Footage o f
+FUS Finished Upper Story | 1616 | 1
+BAS Base Area | 1884
+FOP Finished Open Porch | 54
+FOP Finished Open Porch | 168
+FGR Finished Garage | 506
+Total Square Footage : 4228
+Total Area Under Air : 3500
+Extra Features
+Description | Year Built Unit
+Pool - In-Ground | 2025 | 1
+Structural Details (Building 1)
+Description
+1 Bldg Type | EXC-RESIDENT
+2 Exterior Wall 1 | MSY: CB STUCCO
+3 Year Built | 2025
+4 Air Condition Desc. | HTG & AC
+5 Heat Type | FORCED AIR DUCT
+6 Heat Fuel | ELECTRIC
+7 Bed Rooms | 4
+8 Full Baths | 3
+9 Half Baths | 1
+10 Roof Structure | WOOD TRUSS
+11 Roof Cover | CONCRETE TILE
+12 Interior Wall 1 | DRYWALL
+13 Floor Type 1 | CERAMIC/QUARRY TILE
+14 Stories | 2
+PALM BEACH COUNTY PROPERTY APPRAISER www.pbcgov.org/PAPA
+`;
+
