@@ -43,7 +43,8 @@ export const CANONICAL_MIGRATION_ORDER = [
   'add_deal_breakdowns.sql',
   'add_property_permits.sql',
   'add_flip_finder_perf_indexes.sql',
-  'drop_redundant_sales_indexes.sql'
+  'drop_redundant_sales_indexes.sql',
+  'add_opportunity_map_and_redfin.sql'
 ];
 
 /**
@@ -301,6 +302,20 @@ export const MIGRATION_SCHEMA_SIGNATURES = {
     tables: [],
     columns: [],
     indexes: []
+  },
+  'add_opportunity_map_and_redfin.sql': {
+    tables: [
+      'redfin_zip_market'
+    ],
+    columns: [
+      { table: 'redfin_zip_market', column: 'zip' },
+      { table: 'redfin_zip_market', column: 'period_end' },
+      { table: 'redfin_zip_market', column: 'median_dom' }
+    ],
+    indexes: [
+      'idx_redfin_zip_market_lookup',
+      'idx_redfin_zip_market_dom'
+    ]
   },
   'add_location_intelligence_tables.sql': {
     tables: [
