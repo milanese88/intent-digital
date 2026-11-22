@@ -403,10 +403,13 @@ export default function DealBreakdownSection({
       if (b.construction) updates.construction = b.construction;
       if (b.roofCover) updates.roofCover = b.roofCover;
       if (b.qualityGrade) updates.qualityTier = b.qualityGrade;
+      // Only confident (non-null) parsed values may overwrite existing characteristics
+      const confidentOnly = Object.fromEntries(
+        Object.entries({ ...b, ...f }).filter(([, v]) => v != null && v !== '')
+      );
       updates.buildingCharacteristics = {
         ...(inputs.buildingCharacteristics || {}),
-        ...b,
-        ...f,
+        ...confidentOnly,
         source: parsedData.source || 'PA record PDF'
       };
     }
@@ -414,11 +417,14 @@ export default function DealBreakdownSection({
     if (applySales && Array.isArray(parsedData.salesHistory) && parsedData.salesHistory.length > 0) {
       const sorted = [...parsedData.salesHistory].sort((a, b) => (a.saleDate || '').localeCompare(b.saleDate || ''));
       if (sorted.length >= 2) {
-        updates.purchasePrice = sorted[0].salePrice;
-        updates.purchaseDate = sorted[0].saleDate;
+        // Most recent pair of deeds = bought → sold (older history stays in the sales list)
+        const bought = sorted[sorted.length - 2];
+        const sold = sorted[sorted.length - 1];
+        updates.purchasePrice = bought.salePrice;
+        updates.purchaseDate = bought.saleDate;
         updates.purchaseSource = 'county_deed';
-        updates.exitPrice = sorted[sorted.length - 1].salePrice;
-        updates.exitDate = sorted[sorted.length - 1].saleDate;
+        updates.exitPrice = sold.salePrice;
+        updates.exitDate = sold.saleDate;
         updates.exitSource = 'county_resale';
       } else if (sorted.length === 1) {
         updates.purchasePrice = sorted[0].salePrice;
@@ -435,7 +441,7 @@ export default function DealBreakdownSection({
         qual_label: s.deedType,
         or_book: s.orBook,
         or_page: s.orPage,
-        is_market: s.deedType === 'WD' || s.deedType === 'SW'
+        is_market: ['WD', 'SWD'].includes(s.deedType) && s.qualified !== false
       }));
       setCountySales((prev) => [...formattedSales, ...prev]);
     }

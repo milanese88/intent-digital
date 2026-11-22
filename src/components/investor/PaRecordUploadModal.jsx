@@ -10,6 +10,8 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '../ui';
 
+const NOT_FOUND = 'not found';
+
 function fmtDollar(n) {
   if (n == null || isNaN(Number(n))) return '—';
   return `$${Math.round(Number(n)).toLocaleString('en-US')}`;
@@ -371,9 +373,28 @@ export default function PaRecordUploadModal({
                   {parsedData.source}
                 </span>
                 <span style={{ fontSize: '11px', color: 'rgba(52, 41, 42, 0.65)' }}>
-                  Folio: <strong>{parsedData.folio || 'Detected'}</strong> · County: <strong>{parsedData.county}</strong>
+                  Folio: <strong>{parsedData.folio || NOT_FOUND}</strong> · County: <strong>{parsedData.county || NOT_FOUND}</strong>
                 </span>
               </div>
+
+              {Array.isArray(parsedData.notFound) && parsedData.notFound.length > 0 && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px dashed rgba(52, 41, 42, 0.25)',
+                    fontSize: '11px',
+                    color: 'rgba(52, 41, 42, 0.75)',
+                    lineHeight: 1.5
+                  }}
+                >
+                  <strong style={{ color: '#34292A' }}>Not found in this record (left unchanged):</strong>{' '}
+                  {parsedData.notFound
+                    .map((f) => f.replace(/^buildingInfo\.|^features\./, '').replace(/([A-Z])/g, ' $1').toLowerCase())
+                    .join(', ')}
+                </div>
+              )}
 
               {/* Specs Diff Table */}
               <div
@@ -421,13 +442,13 @@ export default function PaRecordUploadModal({
                     <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
                       <td style={{ padding: '7px 14px', fontWeight: 600 }}>Living Area</td>
                       <td style={{ padding: '7px 14px' }}>{property?.sqft ? `${property.sqft.toLocaleString()} sf` : '—'}</td>
-                      <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>{bInfo.livingSqft ? `${bInfo.livingSqft.toLocaleString()} sf` : '—'}</td>
+                      <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>{bInfo.livingSqft ? `${bInfo.livingSqft.toLocaleString()} sf` : NOT_FOUND}</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
                       <td style={{ padding: '7px 14px', fontWeight: 600 }}>Year Built</td>
                       <td style={{ padding: '7px 14px' }}>{property?.year_built || '—'}</td>
                       <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>
-                        {bInfo.yearBuilt ? `${bInfo.yearBuilt}${bInfo.effectiveYearBuilt ? ` (Eff ${bInfo.effectiveYearBuilt})` : ''}` : '—'}
+                        {bInfo.yearBuilt ? `${bInfo.yearBuilt}${bInfo.effectiveYearBuilt ? ` (Eff ${bInfo.effectiveYearBuilt})` : ''}` : NOT_FOUND}
                       </td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
@@ -436,19 +457,19 @@ export default function PaRecordUploadModal({
                         {property?.beds != null ? `${property.beds} bd` : '—'} / {property?.full_baths != null ? `${property.full_baths} ba` : '—'}
                       </td>
                       <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>
-                        {bInfo.beds != null ? `${bInfo.beds} bd` : '—'} / {bInfo.fullBaths != null ? `${bInfo.fullBaths}${bInfo.halfBaths ? `.${bInfo.halfBaths}` : ''} ba` : '—'}
+                        {bInfo.beds != null ? `${bInfo.beds} bd` : NOT_FOUND} / {bInfo.baths != null ? `${bInfo.baths} ba` : NOT_FOUND}
                       </td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
                       <td style={{ padding: '7px 14px', fontWeight: 600 }}>Construction</td>
                       <td style={{ padding: '7px 14px' }}>{property?.construction || '—'}</td>
-                      <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>{bInfo.construction || '—'}</td>
+                      <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>{bInfo.construction ? `${bInfo.construction}${bInfo.constructionRaw ? ` (${bInfo.constructionRaw})` : ''}` : NOT_FOUND}</td>
                     </tr>
                     <tr style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
                       <td style={{ padding: '7px 14px', fontWeight: 600 }}>Roof</td>
                       <td style={{ padding: '7px 14px' }}>{property?.roof_type || '—'}</td>
                       <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>
-                        {[bInfo.roofCover, bInfo.roofStructure].filter(Boolean).join(' / ') || '—'}
+                        {[bInfo.roofCover, bInfo.roofStructure].filter(Boolean).join(' / ') || NOT_FOUND}
                       </td>
                     </tr>
                     <tr>
@@ -458,12 +479,16 @@ export default function PaRecordUploadModal({
                       </td>
                       <td style={{ padding: '7px 14px', fontWeight: 700, color: '#1F5C3D' }}>
                         {[
-                          feats.hasPool ? `Pool (${feats.poolYear || 'Yes'})` : null,
-                          feats.hasDock ? `Dock (${feats.dockSqft ? `${feats.dockSqft} sf` : 'Yes'})` : null,
-                          feats.hasBoatLift ? 'Boat lift' : null
+                          feats.hasPool === true
+                            ? `Pool${feats.poolYear ? ` ${feats.poolYear}` : ''}${feats.poolSqft ? ` (${feats.poolSqft} sf)` : ''}`
+                            : feats.hasPool === false ? 'No pool' : 'Pool: not found',
+                          feats.hasDock === true
+                            ? `Dock${feats.dockSqft ? ` ${feats.dockSqft} sf` : ''}${feats.dockYear ? ` (${feats.dockYear})` : ''}`
+                            : 'Dock: not found',
+                          feats.hasBoatLift === true ? 'Boat lift' : null
                         ]
                           .filter(Boolean)
-                          .join(' · ') || 'None'}
+                          .join(' · ')}
                       </td>
                     </tr>
                   </tbody>
@@ -569,9 +594,9 @@ export default function PaRecordUploadModal({
                         <tr key={idx} style={{ borderBottom: '1px solid rgba(52, 41, 42, 0.06)' }}>
                           <td style={{ padding: '6px 14px', fontWeight: 600 }}>{s.saleDate}</td>
                           <td style={{ padding: '6px 14px', textAlign: 'right', fontWeight: 700 }}>{fmtDollar(s.salePrice)}</td>
-                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>{s.deedType}</td>
+                          <td style={{ padding: '6px 14px', textAlign: 'center' }}>{s.deedType || '—'}</td>
                           <td style={{ padding: '6px 14px', textAlign: 'center', color: 'rgba(52, 41, 42, 0.6)' }}>
-                            {s.orBook ? `${s.orBook}/${s.orPage || '—'}` : '—'}
+                            {s.orBook ? `${s.orBook}/${s.orPage || '—'}` : s.instrument ? `Instr ${s.instrument}` : '—'}
                           </td>
                         </tr>
                       ))}
