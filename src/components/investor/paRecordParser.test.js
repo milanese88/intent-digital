@@ -224,3 +224,4 @@ test('PA sample PDFs are never committed (data/ is gitignored)', () => {
   const gitignore = fs.readFileSync('.gitignore', 'utf8');
   assert.match(gitignore, /^\/data\/$/m);
 });
+

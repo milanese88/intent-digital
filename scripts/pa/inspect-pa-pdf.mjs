@@ -96,3 +96,4 @@ for (const file of files) {
   console.log(`Not found: ${parsed.notFound.join(', ') || '—'}`);
   console.log(`Field sources: ${JSON.stringify(parsed.fieldSources)}\n`);
 }
+
