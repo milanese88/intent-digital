@@ -16,6 +16,9 @@ import AppraisalGridSection from './AppraisalGridSection.jsx';
 import AdjustmentLibraryModal from './AdjustmentLibraryModal.jsx';
 import CompDetailsDrawer from './CompDetailsDrawer.jsx';
 import DealBreakdownSection from './DealBreakdownSection.jsx';
+import DataCompletenessCard from './DataCompletenessCard.jsx';
+import PasteListingModal from './PasteListingModal.jsx';
+import { mergeCountyDataIntoProperty } from '../../utils/propertyCompleteness.js';
 import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import FlipBuildFinder from './FlipBuildFinder.jsx';
 import {
@@ -147,6 +150,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
   const [underwriteSummary, setUnderwriteSummary] = useState(null);
   const [siteData, setSiteData] = useState(null);
   const [countyData, setCountyData] = useState(null);
+  const [isCountyLoading, setIsCountyLoading] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const _underwriteRef = useRef(null);
 
   // Buying profile state
@@ -483,6 +488,90 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
 
   // Find active property object
   const activeProperty = properties.find(p => p.id === activePropertyId) || null;
+
+  // One-lookup property fill: auto-populates every tab from county records
+  const handleOneLookupFill = useCallback(async (prop, forceRefresh = false) => {
+    if (!prop || !prop.address) return;
+    const propId = prop.id;
+    let folio = prop.parcel_id || null;
+    let county = prop.parcel_county || prop.county || null;
+
+    setIsCountyLoading(true);
+    try {
+      if (!folio) {
+        // Resolve folio by address search across counties
+        const searchRes = await fetch(`/api/county/search?q=${encodeURIComponent(prop.address)}&county=${encodeURIComponent(county || '')}`);
+        if (searchRes.ok) {
+          const searchJson = await searchRes.json();
+          const firstHit = (Array.isArray(searchJson) ? searchJson : searchJson?.results)?.[0];
+          if (firstHit?.parcel_id) {
+            folio = firstHit.parcel_id;
+            if (firstHit.county) county = firstHit.county;
+          }
+        }
+      }
+
+      if (folio) {
+        const pCounty = county || 'Palm Beach';
+        const parcelRes = await fetch(`/api/county/parcel?county=${encodeURIComponent(pCounty)}&parcel_id=${encodeURIComponent(folio)}`);
+        if (parcelRes.ok) {
+          const pData = await parcelRes.json();
+          setCountyData(pData);
+          setProperties((prev) =>
+            prev.map((p) => {
+              if (p.id !== propId) return p;
+              return mergeCountyDataIntoProperty(p, pData);
+            })
+          );
+          if (showToast && forceRefresh) {
+            showToast('County record & building characteristics updated');
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[One-Lookup Fill] Non-fatal error filling county data:', err?.message);
+    } finally {
+      setIsCountyLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    if (activeProperty?.id && (!countyData || countyData.parcel_id !== activeProperty.parcel_id)) {
+      handleOneLookupFill(activeProperty);
+    }
+  }, [activeProperty?.id, activeProperty?.parcel_id, countyData, handleOneLookupFill]);
+
+  const handleApplyListingDetails = useCallback((patch) => {
+    if (!activeProperty?.id || !patch) return;
+    const propId = activeProperty.id;
+
+    // Build field_sources marking applied fields as manual edits so user edits always win
+    const fieldSources = { ...(activeProperty.field_sources || {}) };
+    const nowIso = new Date().toISOString();
+    Object.keys(patch).forEach((key) => {
+      fieldSources[key] = {
+        source: 'manual',
+        updated_at: nowIso,
+        label: 'Pasted listing details'
+      };
+    });
+
+    const updated = {
+      ...activeProperty,
+      ...patch,
+      field_sources: fieldSources
+    };
+
+    setProperties((prev) => prev.map((p) => (p.id === propId ? updated : p)));
+    setIsPasteModalOpen(false);
+    if (showToast) showToast('Listing details applied to property specs');
+
+    fetch('/api/investor/properties', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: propId, ...patch, field_sources: fieldSources })
+    }).catch(() => {});
+  }, [activeProperty, showToast]);
 
   // Search & Filter in list view
   const handleSearchSubmit = (e) => {
@@ -2863,6 +2952,57 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                           >
                             <span>{activeProperty.is_studying ? '★ Studying' : '☆ Pin to Study'}</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsPasteModalOpen(true)}
+                            title="Paste listing details from Zillow, Redfin, or MLS text"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: '#34292A',
+                              backgroundColor: 'rgba(189, 211, 226, 0.45)',
+                              border: '1px solid #859DCE',
+                              padding: '2px 10px',
+                              borderRadius: '50px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>📋 Paste listing details</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOneLookupFill(activeProperty, true)}
+                            disabled={isCountyLoading}
+                            title="Re-query county records and building characteristics"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: '#34292A',
+                              backgroundColor: 'transparent',
+                              border: '1px solid rgba(52, 41, 42, 0.25)',
+                              padding: '2px 10px',
+                              borderRadius: '50px',
+                              cursor: isCountyLoading ? 'wait' : 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{isCountyLoading ? '↻ Syncing…' : '↻ County Record'}</span>
+                          </button>
                         </div>
 
                         {/* Large Serif H1 Address */}
@@ -3323,6 +3463,17 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Data Completeness Card */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <DataCompletenessCard
+                      property={subjectForAppraisal}
+                      countyData={countyData}
+                      onOpenPasteListing={() => setIsPasteModalOpen(true)}
+                      onRefreshCounty={() => handleOneLookupFill(activeProperty, true)}
+                      isRefreshing={isCountyLoading}
+                    />
                   </div>
 
                   {/* ========================================================================= */}
@@ -6279,6 +6430,14 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
           setBuyingProfile(updatedProfile);
           showToast('Adjustment library saved');
         }}
+      />
+
+      {/* Paste Listing Details Modal */}
+      <PasteListingModal
+        isOpen={isPasteModalOpen}
+        onClose={() => setIsPasteModalOpen(false)}
+        propertyAddress={activeProperty?.address}
+        onApply={(patch) => handleApplyListingDetails(patch)}
       />
     </div>
   );

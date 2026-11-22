@@ -124,8 +124,13 @@ export default function DealBreakdownSection({
     return [];
   });
 
-  const targetCounty = String(inputs.county || finderRow?.county || property?.parcel_county || property?.county || countyData?.county || '').trim().toLowerCase();
-  const isPalmBeach = targetCounty === 'palm beach' || targetCounty === '60';
+  const folioCounty = (inputs.parcelId || finderRow?.parcel_id || '').startsWith('50')
+    ? 'Broward'
+    : (inputs.parcelId || finderRow?.parcel_id || '').startsWith('54') || (inputs.parcelId || finderRow?.parcel_id || '').startsWith('00')
+      ? 'Palm Beach'
+      : '';
+  const targetCounty = String(inputs.county || finderRow?.county || property?.parcel_county || property?.county || countyData?.county || folioCounty || '').trim().toLowerCase();
+  const isPalmBeach = targetCounty.includes('palm beach') || targetCounty === '60';
 
   // Fetch permits for property or folio
   useEffect(() => {
@@ -156,11 +161,28 @@ export default function DealBreakdownSection({
         .then((data) => {
           if (Array.isArray(data?.sales) && data.sales.length > 0) {
             setCountySales(data.sales);
+            if (!hasEditedLocally && !activeSavedId) {
+              const freshDefaults = buildDefaultDealBreakdownInputs({
+                property,
+                countyData: {
+                  ...(countyData || {}),
+                  county: data.county || pCounty,
+                  parcel_id: data.parcel_id || parcelId,
+                  sales: data.sales,
+                  ...(data.building_characteristics ? { building_characteristics: data.building_characteristics } : {})
+                },
+                finderRow: finderRow ? { ...finderRow, sales: data.sales, county: data.county || pCounty } : null
+              });
+              setInputs((prev) => ({
+                ...prev,
+                ...freshDefaults
+              }));
+            }
           }
         })
         .catch(() => {});
     }
-  }, [inputs.parcelId, inputs.county, countySales.length, finderRow, property, countyData]);
+  }, [inputs.parcelId, inputs.county, countySales.length, finderRow, property, countyData, hasEditedLocally, activeSavedId]);
 
   // Sync defaults when switching target property / finder row
   const targetKey = `${property?.id || ''}|${finderRow?.id || ''}|${countyData?.parcel_id || ''}`;

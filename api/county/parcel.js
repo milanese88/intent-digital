@@ -20,6 +20,8 @@ export default async function handler(req, res) {
     const rawCounty = req.query?.county ? String(req.query.county).trim() : 'Broward';
     const county = normalizeCountyName(rawCounty) || rawCounty;
     const parcelId = req.query?.parcel_id ? String(req.query.parcel_id).trim() : '';
+    const cleanParcelId = parcelId.replace(/[^0-9A-Za-z]/g, '');
+    const candidateFolios = Array.from(new Set([parcelId, cleanParcelId].filter(Boolean)));
 
     if (!parcelId) {
       return res.status(400).json({ error: 'parcel_id is required' });
@@ -63,7 +65,7 @@ export default async function handler(req, res) {
           roll_year,
           imported_at
         FROM county_parcels
-        WHERE county = ${county} AND parcel_id = ${parcelId}
+        WHERE county = ${county} AND parcel_id = ANY(${candidateFolios})
         LIMIT 1;
       `;
     } catch (colErr) {
@@ -101,7 +103,7 @@ export default async function handler(req, res) {
               roll_year,
               imported_at
             FROM county_parcels
-            WHERE county = ${county} AND parcel_id = ${parcelId}
+            WHERE county = ${county} AND parcel_id = ANY(${candidateFolios})
             LIMIT 1;
           `;
         } catch (colErr2) {
@@ -127,7 +129,7 @@ export default async function handler(req, res) {
                 roll_year,
                 imported_at
               FROM county_parcels
-              WHERE county = ${county} AND parcel_id = ${parcelId}
+              WHERE county = ${county} AND parcel_id = ANY(${candidateFolios})
               LIMIT 1;
             `;
           } else {
@@ -175,7 +177,7 @@ export default async function handler(req, res) {
         s.imported_at
       FROM county_sales s
       LEFT JOIN county_sale_codes c ON s.qual_code = c.qual_code
-      WHERE s.county = ${county} AND s.parcel_id = ${parcelId}
+      WHERE s.county = ${county} AND s.parcel_id = ANY(${candidateFolios})
       ORDER BY s.sale_year DESC, s.sale_month DESC NULLS LAST, s.id DESC;
     `;
 
@@ -228,7 +230,7 @@ export default async function handler(req, res) {
            AND s.parcel_id = p.parcel_id
           WHERE p.county = ${county}
             AND p.situs_street_norm = ${parcel.situs_street_norm}
-            AND p.parcel_id <> ${parcelId}
+            AND p.parcel_id <> ALL(${candidateFolios})
             AND s.qual_code IN ('01', '02')
             AND s.sale_price > 10000
           ORDER BY p.parcel_id, s.sale_year DESC, s.sale_month DESC NULLS LAST

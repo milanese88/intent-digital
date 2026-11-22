@@ -85,7 +85,8 @@ export function parseListingDetailsText(rawText = '') {
     if (fullBaths != null && fullBaths >= 0 && fullBaths <= 25) {
       const display = halfBaths > 0 ? `${fullBaths} full, ${halfBaths} half ba` : `${fullBaths} full ba`;
       const snip = halfExplicit ? `${fullExplicit[0]} / ${halfExplicit[0]}` : fullExplicit[0];
-      addItem('baths', 'Baths', display, snip, { full_baths: fullBaths, half_baths: halfBaths, baths: null });
+      const totalBaths = fullBaths + (halfBaths ? 0.5 : 0);
+      addItem('baths', 'Baths', display, snip, { full_baths: fullBaths, half_baths: halfBaths, baths: totalBaths });
     }
   } else {
     const bathDecimalMatch =
@@ -97,7 +98,8 @@ export function parseListingDetailsText(rawText = '') {
         const fullBaths = Math.floor(total + 1e-6);
         const halfBaths = total - fullBaths >= 0.25 ? 1 : 0;
         const display = halfBaths > 0 ? `${fullBaths} full, ${halfBaths} half ba` : `${fullBaths} full ba`;
-        addItem('baths', 'Baths', display, bathDecimalMatch[0], { full_baths: fullBaths, half_baths: halfBaths, baths: null });
+        const totalBaths = fullBaths + (halfBaths ? 0.5 : 0);
+        addItem('baths', 'Baths', display, bathDecimalMatch[0], { full_baths: fullBaths, half_baths: halfBaths, baths: totalBaths });
       }
     }
   }
@@ -211,11 +213,11 @@ export function parseListingDetailsText(rawText = '') {
   const resortPoolMatch = normalized.match(/\b(resort[- ]?style\s*pool|lagoon\s*pool|infinity\s*pool|(?:heated\s*)?saltwater\s*pool\s*(?:&|and|with)\s*spa|pool\s*(?:&|and|with)\s*(?:spa|waterfall|summer\s*kitchen))\b/i);
   const stdPoolMatch = normalized.match(/\b((?:private|in[- ]?ground|heated|saltwater|swimming)\s*pool|pool\s*[:#-]\s*yes|private\s*pool\s*home)\b/i);
   if (noPoolMatch) {
-    addItem('pool_type', 'Pool', 'None', noPoolMatch[0], { pool_type: 'none', screen_enclosure: false });
+    addItem('pool_type', 'Pool', 'None', noPoolMatch[0], { pool_type: 'none', has_pool: false, screen_enclosure: false });
   } else if (resortPoolMatch) {
-    addItem('pool_type', 'Pool', 'Resort pool', resortPoolMatch[0], { pool_type: 'resort' });
+    addItem('pool_type', 'Pool', 'Resort pool', resortPoolMatch[0], { pool_type: 'resort', has_pool: true });
   } else if (stdPoolMatch) {
-    addItem('pool_type', 'Pool', 'Standard pool', stdPoolMatch[0], { pool_type: 'standard' });
+    addItem('pool_type', 'Pool', 'Standard pool', stdPoolMatch[0], { pool_type: 'standard', has_pool: true });
   }
 
   const screenMatch = normalized.match(/\b(screen(?:ed)?\s*(?:enclosure|patio|lanai|pool(?:\s*enclosure)?|porch)|pool\s*cage)\b/i);
@@ -343,6 +345,19 @@ export function parseListingDetailsText(rawText = '') {
     }
   }
 
-  return { fields, items };
+  // 16. List Price / Asking Price / Sale Price
+  const priceExplicitMatch =
+    normalized.match(/(?:list(?:ing)?\s*price|asking\s*price|for\s*sale(?:\s*at)?|price)\s*[:#-]?\s*\$\s*([\d,]{4,10})\b/i) ||
+    normalized.match(/\$\s*([\d,]{4,10})\b(?:\s*list(?:ing)?\s*price|\s*asking|\s*for\s*sale)/i);
+  const priceGeneralMatch = normalized.match(/(?:^|\n|\b)\$\s*([\d,]{5,10})\b/);
+  const matchedPrice = priceExplicitMatch || priceGeneralMatch;
+  if (matchedPrice) {
+    const pVal = cleanInt(matchedPrice[1]);
+    if (pVal && pVal >= 25000 && pVal <= 100000000) {
+      addItem('list_price', 'List price', `$${pVal.toLocaleString('en-US')}`, matchedPrice[0], { list_price: pVal, purchase_price: pVal }, { list_price: pVal, sale_price: pVal });
+    }
+  }
+
+  return { fields, items, patch: fields };
 }
 
