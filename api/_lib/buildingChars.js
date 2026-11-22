@@ -11,6 +11,7 @@ export async function fetchBuildingCharacteristicsMap(sql, folios = []) {
     new Set(
       (folios || [])
         .map((f) => (f != null ? String(f).trim() : ''))
+        .flatMap((f) => [f, f.replace(/[^0-9A-Za-z]/g, '')])
         .filter(Boolean)
     )
   );
@@ -76,10 +77,11 @@ export async function fetchBuildingCharacteristicsMap(sql, folios = []) {
 
     for (const row of rows) {
       const c = normalizeCountyName(row.county) || row.county;
+      const stripped = String(row.folio).replace(/[^0-9A-Za-z]/g, '');
       map.set(`${c}|${row.folio}`, row);
-      if (!map.has(row.folio)) {
-        map.set(row.folio, row);
-      }
+      map.set(`${c}|${stripped}`, row);
+      if (!map.has(row.folio)) map.set(row.folio, row);
+      if (!map.has(stripped)) map.set(stripped, row);
     }
   } catch (err) {
     if (err?.code !== '42P01' && err?.code !== '42703') {
