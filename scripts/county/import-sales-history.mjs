@@ -18,7 +18,7 @@
  *   - No row-by-row inserts (streams via Postgres COPY FROM STDIN)
  *   - Strictly privacy-safe (zero owner names or mailing addresses)
  *   - Matches (folio, sale_date, price, book, page) to treat SDF + CAMA duplicates as one
- *   - Maps qualification flags to standardized codes ('01' market, '02' distressed/nominal)
+ *   - Maps qualification flags to standardized codes ('01' qualified arm's length market, '11' non-market/disqualified)
  *   - Skips transfers under $1,000
  *   - Dry-run by default: reports rows found, already present, to insert, date range, DB growth.
  *   - Run with --apply to commit into county_sales.
@@ -129,7 +129,7 @@ export async function run() {
   console.log(`Mode:        ${isApply ? 'APPLY (writing to database)' : 'DRY RUN (no DB writes)'}`);
   console.log(`================================================================\n`);
 
-  const sql = getScriptDb();
+  const sql = getScriptDb(undefined, { max: 1 });
 
   // 1. Get initial database size and county_sales counts
   const [dbSizeRow] = await sql`SELECT pg_database_size(current_database()) AS bytes`;
@@ -143,10 +143,10 @@ export async function run() {
   console.log(`Current Database Size: ${formatBytes(initialDbSize)}`);
   console.log(`Existing Sales (${county}): ${initialCountySales.toLocaleString()}\n`);
 
-  // 2. Create temporary staging table with UNLOGGED / TEMP performance
-  console.log(`[1/4] Initializing temporary staging table...`);
+  // 2. Create staging table with UNLOGGED performance
+  console.log(`[1/4] Initializing staging table...`);
   await sql`
-    CREATE TEMP TABLE IF NOT EXISTS staging_historical_sales (
+    CREATE UNLOGGED TABLE IF NOT EXISTS staging_historical_sales (
       county text,
       parcel_id text,
       sale_price numeric,
@@ -159,7 +159,7 @@ export async function run() {
       or_page text,
       clerk_no text,
       source text
-    ) ON COMMIT PRESERVE ROWS;
+    );
   `;
   await sql`TRUNCATE TABLE staging_historical_sales;`;
 
@@ -206,7 +206,9 @@ export async function run() {
         const dateObj = parseCamaDate(rawDate);
         if (!dateObj || !dateObj.year || dateObj.year < 1970) continue;
 
-        const qualCode = qual === 'Q' ? '01' : '02';
+        // Only qualified arm's-length sales (Q) count as market sales ('01').
+        // Non-Q transfers (U, D, etc.) are stored but flagged non-market ('11', is_market = false).
+        const qualCode = String(qual || '').toUpperCase() === 'Q' ? '01' : '11';
         const viCd = vi === 'V' ? 'V' : 'I';
 
         const rowTsv = [
@@ -307,6 +309,8 @@ export async function run() {
 
   const streamDuration = ((Date.now() - startStream) / 1000).toFixed(1);
   console.log(`    Streamed ${parsedSalesCount.toLocaleString()} sales (from ${lineCount.toLocaleString()} lines) in ${streamDuration}s.`);
+
+  await sql`ANALYZE staging_historical_sales;`;
 
   // 4. Run staging analysis (rows already present vs new to insert)
   console.log(`\n[3/4] Analyzing staging table against live county_sales...`);
