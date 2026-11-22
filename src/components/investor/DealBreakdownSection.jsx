@@ -17,9 +17,11 @@ import {
 import {
   buildDefaultDealBreakdownInputs,
   calculateDealBreakdown,
-  computeHoldMonthsBetweenDates
+  computeHoldMonthsBetweenDates,
+  buildIsoDateFromYearMonth
 } from './dealBreakdownEngine.js';
 import PropertyTimeline from './PropertyTimeline.jsx';
+import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import PaRecordUploadModal from './PaRecordUploadModal.jsx';
 import AddPermitModal from './AddPermitModal.jsx';
 
@@ -573,6 +575,12 @@ export default function DealBreakdownSection({
 
   const { costs, metrics, scenarios, myVersion } = result;
   const isNewBuild = inputs.dealType === 'demo_new_build';
+  const missingInputLabels = [
+    !(Number(inputs.purchasePrice) > 0) ? 'purchase price' : null,
+    !(Number(inputs.exitPrice) > 0) ? (inputs.exitSource === 'my_list_price' ? 'list / exit price' : 'resale price') : null,
+    !(Number(inputs.afterLivingSqft) > 0) || inputs.afterLivingSqftIsPlaceholder ? 'living sf (using 2,000 sf placeholder)' : null,
+    !inputs.afterYearBuilt ? 'year built' : null
+  ].filter(Boolean);
   const hasCamaRecord = Boolean(
     finderRow?.building_characteristics ||
     property?.building_characteristics ||
@@ -879,25 +887,28 @@ export default function DealBreakdownSection({
       {/* ================================================================= */}
       {/* 2.5 PROPERTY LIFECYCLE TIMELINE & PERMIT TRACK                    */}
       {/* ================================================================= */}
-      <PropertyTimeline
-        property={property}
-        finderRow={finderRow}
-        breakdownInputs={inputs}
-        permits={permits}
-        valueHistory={valueHistory}
-        paRecord={paRecord}
-        onAddPermit={() => setIsAddPermitOpen(true)}
-        onUploadPaRecord={() => setIsPaModalOpen(true)}
-        onApplyPhasesToBreakdown={(phases) => {
-          updateInput({
-            holdMonths: phases.totalHoldMonths,
-            timelinePhases: phases
-          });
-          if (showToast) {
-            showToast(`Applied timeline phases: ${phases.totalHoldMonths} mo hold (${phases.constructionMonths} mo build)`);
-          }
-        }}
-      />
+      <SectionErrorBoundary section="property-timeline" label="the Property Timeline" resetKey={targetKey}>
+        <PropertyTimeline
+          property={property}
+          finderRow={finderRow}
+          breakdownInputs={inputs}
+          permits={Array.isArray(permits) ? permits : []}
+          valueHistory={Array.isArray(valueHistory) ? valueHistory : []}
+          paRecord={paRecord}
+          onAddPermit={() => setIsAddPermitOpen(true)}
+          onUploadPaRecord={() => setIsPaModalOpen(true)}
+          onApplyPhasesToBreakdown={(phases) => {
+            if (!phases || !(Number(phases.totalHoldMonths) > 0)) return;
+            updateInput({
+              holdMonths: phases.totalHoldMonths,
+              timelinePhases: phases
+            });
+            if (showToast) {
+              showToast(`Applied timeline phases: ${phases.totalHoldMonths} mo hold (${phases.constructionMonths} mo build)`);
+            }
+          }}
+        />
+      </SectionErrorBoundary>
 
       {/* ================================================================= */}
       {/* 3. TWO-COLUMN WORKSPACE: DEAL TIMELINE + EDITABLE COST STACK      */}
@@ -921,6 +932,24 @@ export default function DealBreakdownSection({
                 ]}
               />
             </div>
+
+            {missingInputLabels.length > 0 && (
+              <div
+                role="note"
+                style={{
+                  marginBottom: '14px',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(189, 211, 226, 0.25)',
+                  border: '1px solid rgba(133, 157, 206, 0.5)',
+                  fontSize: '11.5px',
+                  color: '#34292A'
+                }}
+              >
+                <strong>Not in county data — enter manually:</strong> {missingInputLabels.join(', ')}.
+                Results below use placeholders until you do.
+              </div>
+            )}
 
             {countySales.length > 0 && (
               <div
@@ -1033,6 +1062,7 @@ export default function DealBreakdownSection({
                 </div>
                 <FormattedNumberInput
                   value={inputs.purchasePrice || ''}
+                  placeholder="Enter manually"
                   onChange={(val) => updateInput({ purchasePrice: Number(val) || 0, purchaseSource: 'entered_by_me' })}
                   prefix="$"
                   formatOnBlur={true}
@@ -1074,6 +1104,7 @@ export default function DealBreakdownSection({
                 </div>
                 <FormattedNumberInput
                   value={inputs.exitPrice || ''}
+                  placeholder="Enter list / resale price"
                   onChange={(val) => updateInput({ exitPrice: Number(val) || 0 })}
                   prefix="$"
                   formatOnBlur={true}
@@ -1098,6 +1129,7 @@ export default function DealBreakdownSection({
                 <label style={LABEL_STYLE}>Hold Months</label>
                 <FormattedNumberInput
                   value={inputs.holdMonths || ''}
+                  placeholder="—"
                   onChange={(val) => updateInput({ holdMonths: Math.max(1, Number(val) || 1) })}
                   allowDecimal={false}
                   formatOnBlur={false}
@@ -1108,6 +1140,7 @@ export default function DealBreakdownSection({
                 <label style={LABEL_STYLE}>{isNewBuild ? 'Before Living SF' : 'Existing Living SF'}</label>
                 <FormattedNumberInput
                   value={inputs.beforeLivingSqft || ''}
+                  placeholder="— enter manually"
                   onChange={(val) => {
                     const nextBefore = Math.max(0, Number(val) || 0);
                     updateInput({
@@ -1124,7 +1157,8 @@ export default function DealBreakdownSection({
                 <label style={LABEL_STYLE}>{isNewBuild ? 'New Living SF' : 'After Living SF'}</label>
                 <FormattedNumberInput
                   value={inputs.afterLivingSqft || ''}
-                  onChange={(val) => updateInput({ afterLivingSqft: Math.max(0, Number(val) || 0) })}
+                  placeholder="— enter manually"
+                  onChange={(val) => updateInput({ afterLivingSqft: Math.max(0, Number(val) || 0), afterLivingSqftIsPlaceholder: !(Number(val) > 0) })}
                   allowDecimal={false}
                   formatOnBlur={true}
                   className="investor-form-input"
@@ -1148,6 +1182,7 @@ export default function DealBreakdownSection({
                 <label style={LABEL_STYLE}>After Yr Built</label>
                 <FormattedNumberInput
                   value={inputs.afterYearBuilt || ''}
+                  placeholder="—"
                   onChange={(val) => updateInput({ afterYearBuilt: val === '' ? null : Number(val) })}
                   allowDecimal={false}
                   formatOnBlur={false}
@@ -1158,6 +1193,7 @@ export default function DealBreakdownSection({
                 <label style={LABEL_STYLE}>Lot SF</label>
                 <FormattedNumberInput
                   value={inputs.lotSqft || ''}
+                  placeholder="—"
                   onChange={(val) => updateInput({ lotSqft: Math.max(0, Number(val) || 0) })}
                   allowDecimal={false}
                   formatOnBlur={true}

@@ -2,6 +2,7 @@ import { getUserFromSession } from '../_lib/session.js';
 import { getDb, sendSafeApiError } from '../_lib/db.js';
 import { normalizeAddress, USPS_SUFFIX_MAP } from '../../src/utils/addressNorm.js';
 import { SUPPORTED_COUNTIES, normalizeCountyName } from '../../src/config/counties.js';
+import { fetchBuildingCharacteristicsMap, lookupBuildingRecord } from '../_lib/buildingChars.js';
 
 export { normalizeAddress, normalizeAddress as normalizeAddressQuery };
 
@@ -94,13 +95,29 @@ export default async function handler(req, res) {
     // ("Other" / unknown / "all" searches all supported counties).
     const counties = resolveSearchCounties(queryCounty === 'all' ? null : queryCounty);
 
-    // Helper to send formatted response
-    const sendResponse = (status, results, matchType, requiresConfirmation, message) => {
-      const decorated = results.map(r => ({
-        ...r,
-        matchType,
-        requiresConfirmation
-      }));
+    // Helper to send formatted response (enriched with current CAMA building data so the
+    // dropdown / live-in fit never relies on a stale vacant-land use code)
+    const sendResponse = async (status, results, matchType, requiresConfirmation, message) => {
+      let bcMap = new Map();
+      if (results.length > 0) {
+        try {
+          bcMap = await fetchBuildingCharacteristicsMap(sql, results.map((r) => r.parcel_id));
+        } catch {
+          bcMap = new Map();
+        }
+      }
+      const decorated = results.map(r => {
+        const bc = lookupBuildingRecord(bcMap, r.county, r.parcel_id);
+        return {
+          ...r,
+          bc_living_sqft: bc?.living_area_sqft != null ? Number(bc.living_area_sqft) : null,
+          bc_year_built: bc?.year_built != null ? Number(bc.year_built) : null,
+          bc_beds: bc?.beds != null ? Number(bc.beds) : null,
+          bc_property_class: bc?.property_class || null,
+          matchType,
+          requiresConfirmation
+        };
+      });
       if (req.query?.format === 'array') {
         return res.status(status).json(decorated);
       }
@@ -151,7 +168,7 @@ export default async function handler(req, res) {
         LIMIT 3;
       `;
       if (rows.length > 0) {
-        return sendResponse(200, sortByPreference(rows, counties, lat, lng).slice(0, 1), 'exact', false, 'Found exact folio match');
+        return await sendResponse(200, sortByPreference(rows, counties, lat, lng).slice(0, 1), 'exact', false, 'Found exact folio match');
       }
     }
 
@@ -171,7 +188,7 @@ export default async function handler(req, res) {
         const payload = sortByPreference(exactResults, counties, lat, lng).slice(0, 5);
         // Same address in more than one county (or multiple units) needs confirmation
         const ambiguous = payload.length > 1;
-        return sendResponse(
+        return await sendResponse(
           200,
           payload,
           'exact',
@@ -195,7 +212,7 @@ export default async function handler(req, res) {
       }
       if (rows.length > 0) {
         const payload = sortByPreference(rows, counties, lat, lng).slice(0, 5);
-        return sendResponse(
+        return await sendResponse(
           200,
           payload,
           'fallback_suffix',
@@ -227,7 +244,7 @@ export default async function handler(req, res) {
 
       if (prefixResults.length > 0) {
         const payload = sortByPreference(prefixResults, counties, lat, lng).slice(0, 5);
-        return sendResponse(
+        return await sendResponse(
           200,
           payload,
           'fallback_prefix',
@@ -261,7 +278,7 @@ export default async function handler(req, res) {
 
       const nearby = rows.filter(r => Number(r.distance_m) <= 60);
       if (nearby.length > 0) {
-        return sendResponse(
+        return await sendResponse(
           200,
           nearby.slice(0, 3),
           'fallback_coords',
@@ -275,7 +292,7 @@ export default async function handler(req, res) {
     // STEP 5: NO MATCH FOUND
     // =========================================================================
     const failureMsg = `No match found for ${targetNormalized || rawQ} in ${counties.join(', ')} county records — try editing the address or pick from the map.`;
-    return sendResponse(200, [], 'none', false, failureMsg);
+    return await sendResponse(200, [], 'none', false, failureMsg);
 
   } catch (err) {
     if (err.code === '57014' || (err.message && err.message.includes('statement_timeout'))) {

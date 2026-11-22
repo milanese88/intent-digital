@@ -37,13 +37,16 @@ export default function PropertyTimeline({
   property = null,
   finderRow = null,
   breakdownInputs = null,
-  permits = [],
-  valueHistory = [],
+  permits: permitsProp = [],
+  valueHistory: valueHistoryProp = [],
   paRecord = null,
   onAddPermit = null,
   onUploadPaRecord = null,
   onApplyPhasesToBreakdown = null
 }) {
+  // null-tolerant: callers may pass null for not-yet-loaded lists
+  const permits = Array.isArray(permitsProp) ? permitsProp.filter(Boolean) : [];
+  const valueHistory = Array.isArray(valueHistoryProp) ? valueHistoryProp.filter(Boolean) : [];
   // Extract milestones from property, finderRow, inputs, permits, and PA record
   const buyPrice = breakdownInputs?.purchasePrice ?? finderRow?.buy_price ?? property?.purchase_price ?? null;
   const buyDate = breakdownInputs?.purchaseDate ?? finderRow?.buy_date ?? property?.purchase_date ?? null;

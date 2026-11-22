@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { evaluateLiveInFit } from './underwriting.js';
+import { resolveCurrentUseCode, getUseCodeLabel, mapUseCodeToPropertyType } from './useCodes.js';
 import LiveInFitBadge from './LiveInFitBadge.jsx';
 import { normalizeCountyName, estimateCountyFromCoords } from '../../config/counties.js';
 
@@ -68,48 +69,7 @@ export function formatNiceAddress(raw) {
   }).join(' ');
 }
 
-/**
- * Maps Florida DOR Use Code to a human-readable land use label
- */
-export function getUseCodeLabel(useCode) {
-  const code = String(useCode || '').trim();
-  switch (code) {
-    case '001':
-      return 'Single-family';
-    case '004':
-      return 'Condo';
-    case '008':
-      return 'Multifamily (2–9 units)';
-    case '002':
-      return 'Mobile home';
-    case '000':
-      return 'Vacant residential';
-    case '003':
-      return 'Multifamily (10+ units)';
-    default:
-      return code ? `Use code ${code}` : 'Residential';
-  }
-}
-
-/**
- * Maps Florida DOR Use Code to Investor Studio property types:
- * 001 Single-family, 004 Condo, 008 Multifamily 2–9 units, 002 and 000 Other
- */
-export function useCodeToPropertyType(useCode) {
-  const code = String(useCode || '').trim();
-  switch (code) {
-    case '001':
-      return 'single_family';
-    case '004':
-      return 'condo';
-    case '008':
-      return 'multifamily_2_9';
-    case '002':
-    case '000':
-    default:
-      return 'other';
-  }
-}
+export { resolveCurrentUseCode, getUseCodeLabel, useCodeToPropertyType } from './useCodes.js';
 
 /**
  * Forward geocodes an address string using Mapbox to obtain lat/lng
@@ -315,14 +275,15 @@ export default function AddressAutocomplete({
         county,
         lat,
         lng,
-        sqft: parcel.living_sqft != null ? Number(parcel.living_sqft) : null,
+        sqft: (parcel.bc_living_sqft ?? parcel.living_sqft) != null ? Number(parcel.bc_living_sqft ?? parcel.living_sqft) : null,
         lot_sqft: parcel.land_sqft != null ? Number(parcel.land_sqft) : null,
-        year_built: parcel.year_built != null ? Number(parcel.year_built) : null,
+        year_built: (parcel.bc_year_built ?? parcel.year_built) != null ? Number(parcel.bc_year_built ?? parcel.year_built) : null,
         units: parcel.units != null ? Number(parcel.units) : 1,
-        property_type: useCodeToPropertyType(parcel.use_code),
+        property_type: mapUseCodeToPropertyType(resolveCurrentUseCode(parcel)),
         parcel_id: parcel.parcel_id,
         parcel_county: county,
-        use_code: parcel.use_code,
+        use_code: resolveCurrentUseCode(parcel),
+        raw_use_code: parcel.use_code,
         just_value: parcel.just_value != null ? Number(parcel.just_value) : null,
         source: 'county'
       });
@@ -538,9 +499,11 @@ export default function AddressAutocomplete({
                 const isSelected = selectedIndex === globalIndex;
                 const formattedAddr = formatNiceAddress(item.address);
                 const cityPart = `${toTitleCase(item.city)}, FL ${item.zip || ''}`.trim();
-                const typePart = getUseCodeLabel(item.use_code);
-                const sqftPart = item.living_sqft ? `${Number(item.living_sqft).toLocaleString()} sf` : null;
-                const builtPart = item.year_built ? `Built ${item.year_built}` : null;
+                const typePart = getUseCodeLabel(resolveCurrentUseCode(item));
+                const liveSqft = item.bc_living_sqft || item.living_sqft;
+                const sqftPart = liveSqft ? `${Number(liveSqft).toLocaleString()} sf` : null;
+                const builtYear = item.bc_year_built || item.year_built;
+                const builtPart = builtYear ? `Built ${builtYear}` : null;
                 const countyName = item.county || 'Broward';
                 const subtitle = [cityPart, typePart, sqftPart, builtPart].filter(Boolean).join(' · ');
 

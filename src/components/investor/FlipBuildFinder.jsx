@@ -8,9 +8,7 @@ import {
 } from '../../config/developerCosts.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import {
-  inferDealBreakdownType,
-  computeHoldMonthsBetweenDates,
-  buildIsoDateFromYearMonth,
+  buildAnalyzeCandidateRow,
   estimateQuickFinderProfit
 } from './dealBreakdownEngine.js';
 
@@ -317,102 +315,8 @@ export default function FlipBuildFinder({
         }
       }
 
-      const parcel = parcelData?.parcel || {};
-      const bChars = parcelData?.building_characteristics || null;
-      const sales = Array.isArray(parcelData?.sales) ? parcelData.sales : [];
-
-      // Sort sales ascending by year and month
-      const sortedSales = [...sales].sort((a, b) => {
-        const ymA = (Number(a.sale_year) || 0) * 100 + (Number(a.sale_month) || 1);
-        const ymB = (Number(b.sale_year) || 0) * 100 + (Number(b.sale_month) || 1);
-        return ymA - ymB;
-      });
-
-      let boughtSale = null;
-      let soldSale = null;
-      let exitSource = 'county_resale';
-
-      if (sortedSales.length >= 2) {
-        // Pick earlier sale as bought and latest sale as sold
-        boughtSale = sortedSales[0];
-        soldSale = sortedSales[sortedSales.length - 1];
-        exitSource = 'county_resale';
-      } else if (sortedSales.length === 1) {
-        // Only 1 sale: bought is that sale, sold is user-entered list price ("Listed" mode)
-        boughtSale = sortedSales[0];
-        soldSale = null;
-        exitSource = 'my_list_price';
-      } else {
-        // 0 sales in our data: user types purchase price + date manually ("entered by me")
-        boughtSale = null;
-        soldSale = null;
-        exitSource = 'my_list_price';
-      }
-
-      const buyPrice = boughtSale ? Math.round(Number(boughtSale.sale_price) || 0) : 0;
-      const buyDate = boughtSale ? buildIsoDateFromYearMonth(boughtSale.sale_year, boughtSale.sale_month) : '';
-      const purchaseSource = boughtSale ? 'county_deed' : 'entered_by_me';
-
-      const sellPrice = soldSale ? Math.round(Number(soldSale.sale_price) || 0) : 0;
-      const sellDate = soldSale ? buildIsoDateFromYearMonth(soldSale.sale_year, soldSale.sale_month) : '';
-
-      const buyYear = boughtSale?.sale_year || (buyDate ? Number(buyDate.slice(0, 4)) : null);
-      const yearBuilt = bChars?.year_built || parcel.year_built || details.year_built || null;
-      const bcLivingSqft = bChars?.living_area_sqft ?? bChars?.living_sqft ?? null;
-      const livingSqft = bcLivingSqft || parcel.living_sqft || details.sqft || null;
-      const lotSqft = parcel.land_sqft || details.lot_sqft || null;
-      const hasPool = Boolean(
-        (bChars?.pool_type && bChars.pool_type !== 'none') ||
-        bChars?.pool_year ||
-        bChars?.has_pool
-      );
-      const hasDock = Boolean(bChars?.boat_dock === true || bChars?.has_dock === true);
-
-      const inferredType = inferDealBreakdownType({
-        buyYear,
-        yearBuilt,
-        afterYearBuilt: yearBuilt,
-        beforeSqft: parcel.living_sqft,
-        afterSqft: bcLivingSqft || parcel.living_sqft,
-        buyViCd: boughtSale?.vi_cd,
-        sellViCd: soldSale?.vi_cd
-      });
-
-      const candidateRow = {
-        id: `analyze-${pCounty}-${parcelId || Date.now()}`,
-        county: pCounty,
-        parcel_id: parcelId || null,
-        address: details.address || parcel.address || '',
-        city: details.city || parcel.city || '',
-        zip: details.zip || parcel.zip || '',
-        deal_type: inferredType,
-        buy_price: buyPrice,
-        buy_date: buyDate,
-        purchase_source: purchaseSource,
-        buy_qual: boughtSale?.qual_code || null,
-        buy_vi_cd: boughtSale?.vi_cd || null,
-        sell_price: sellPrice,
-        sell_date: sellDate,
-        exit_source: exitSource,
-        sell_qual: soldSale?.qual_code || null,
-        sell_vi_cd: soldSale?.vi_cd || null,
-        hold_months: computeHoldMonthsBetweenDates(buyDate, sellDate, 12),
-        living_sqft: livingSqft,
-        bc_living_sqft: bcLivingSqft,
-        year_built: yearBuilt,
-        eff_year_built: bChars?.effective_year_built || parcel.eff_year_built || null,
-        lot_sqft: lotSqft,
-        has_pool: hasPool,
-        pool_type: bChars?.pool_type && bChars.pool_type !== 'none' ? bChars.pool_type : null,
-        pool_year: bChars?.pool_year ?? null,
-        has_dock: hasDock,
-        beds: bChars?.beds != null && Number(bChars.beds) > 0 ? Number(bChars.beds) : (parcel.beds ?? null),
-        full_baths: bChars?.full_baths ?? parcel.full_baths ?? null,
-        half_baths: bChars?.half_baths ?? parcel.half_baths ?? null,
-        sales: sales,
-        building_characteristics: bChars,
-        is_distressed_acquisition: Boolean(boughtSale?.is_distressed)
-      };
+      // Pure + null-tolerant (new builds, vacant lots, no-sale parcels, missing CAMA)
+      const candidateRow = buildAnalyzeCandidateRow({ details, parcelData, county: pCounty, parcelId });
 
       if (onSelectRow) {
         onSelectRow(candidateRow);

@@ -320,13 +320,16 @@ export function buildDefaultDealBreakdownInputs({
     }
   }
 
-  const afterLivingSqft = Math.round(
+  const knownAfterLivingSqft = Math.round(
     num(finderRow?.living_sqft, 0) ||
     num(bc?.living_area_sqft, 0) ||
     num(property?.sqft, 0) ||
     num(countyData?.living_sqft, 0) ||
-    2000
+    0
   );
+  // Placeholder only for the math (clearly flagged so the UI asks the user to enter it)
+  const afterLivingSqftIsPlaceholder = knownAfterLivingSqft <= 0;
+  const afterLivingSqft = afterLivingSqftIsPlaceholder ? 2000 : knownAfterLivingSqft;
   const beforeLivingSqft = Math.round(
     num(finderRow?.before_living_sqft, 0) ||
     (buyViCd === 'V' ? 0 : (num(countyData?.living_sqft, 0) || afterLivingSqft))
@@ -422,6 +425,7 @@ export function buildDefaultDealBreakdownInputs({
     afterYearBuilt,
     beforeLivingSqft,
     afterLivingSqft,
+    afterLivingSqftIsPlaceholder,
     lotSqft,
     hasPool,
     hasDock,
@@ -667,6 +671,106 @@ function evaluateSingleScenario(inputs, { hardCostMult = 1.0, extraHoldMonths = 
       constructionCostPerSqft,
       costPerSqftAllIn
     }
+  };
+}
+
+/**
+ * Builds the Finder "Analyze an address" row from an address pick + /api/county/parcel payload.
+ * Pure and null-tolerant: handles completed new builds, vacant lots, parcels with 0/1/many
+ * sales, a missing CAMA record, and both the flat parcel payload and a legacy `{ parcel }` wrapper.
+ */
+export function buildAnalyzeCandidateRow({ details = {}, parcelData = null, county = null, parcelId = null } = {}) {
+  const d = details && typeof details === 'object' ? details : {};
+  const pd = parcelData && typeof parcelData === 'object' ? parcelData : {};
+  const parcel = pd.parcel && typeof pd.parcel === 'object' ? pd.parcel : pd;
+  const bc = pd.building_characteristics && typeof pd.building_characteristics === 'object'
+    ? pd.building_characteristics
+    : null;
+  const pCounty = county || d.parcel_county || d.county || parcel.county || 'Broward';
+  const folio = parcelId || d.parcel_id || parcel.parcel_id || null;
+
+  const sales = (Array.isArray(pd.sales) ? pd.sales : [])
+    .filter((s) => s && Number(s.sale_year) > 1900 && Number.isFinite(Number(s.sale_price)))
+    .sort((a, b) => ((Number(a.sale_year) * 100) + (Number(a.sale_month) || 1)) - ((Number(b.sale_year) * 100) + (Number(b.sale_month) || 1)));
+
+  let bought = null;
+  let sold = null;
+  let exitSource = 'my_list_price';
+  if (sales.length >= 2) {
+    bought = sales[0];
+    sold = sales[sales.length - 1];
+    exitSource = 'county_resale';
+  } else if (sales.length === 1) {
+    bought = sales[0];
+  }
+
+  const buyDate = bought ? buildIsoDateFromYearMonth(bought.sale_year, bought.sale_month) : '';
+  const sellDate = sold ? buildIsoDateFromYearMonth(sold.sale_year, sold.sale_month) : '';
+  const posNum = (...vals) => {
+    for (const v of vals) {
+      const n = Number(v);
+      if (v != null && v !== '' && Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  };
+
+  const yearBuilt = posNum(bc?.year_built, parcel.year_built, d.year_built);
+  const bcLiving = posNum(bc?.living_area_sqft, bc?.living_sqft);
+  const parcelLiving = posNum(parcel.living_sqft);
+  const livingSqft = posNum(bcLiving, parcelLiving, d.sqft);
+  const poolType = bc?.pool_type && bc.pool_type !== 'none' ? bc.pool_type : null;
+
+  const inferredType = inferDealBreakdownType({
+    buyYear: bought ? Number(bought.sale_year) : null,
+    afterYearBuilt: yearBuilt,
+    beforeSqft: parcelLiving,
+    afterSqft: bcLiving || parcelLiving,
+    buyViCd: bought?.vi_cd || null,
+    sellViCd: sold?.vi_cd || null
+  });
+  // Analyzing a vacant lot that hasn't resold yet = planning a build (not a land flip)
+  const dealType = !sold && String(bought?.vi_cd || '').toUpperCase() === 'V' && !livingSqft
+    ? 'demo_new_build'
+    : inferredType;
+
+  return {
+    id: `analyze-${pCounty}-${folio || 'manual'}`,
+    county: pCounty,
+    parcel_id: folio,
+    address: d.address || parcel.address || '',
+    city: d.city || parcel.city || '',
+    zip: d.zip || parcel.zip || '',
+    deal_type: dealType,
+    buy_price: bought ? Math.round(Number(bought.sale_price) || 0) : 0,
+    buy_date: buyDate,
+    buy_year: bought ? Number(bought.sale_year) : null,
+    buy_month: bought ? (Number(bought.sale_month) || 1) : null,
+    purchase_source: bought ? 'county_deed' : 'entered_by_me',
+    buy_qual: bought?.qual_code || null,
+    buy_vi_cd: bought?.vi_cd || null,
+    sell_price: sold ? Math.round(Number(sold.sale_price) || 0) : 0,
+    sell_date: sellDate,
+    exit_source: exitSource,
+    sell_qual: sold?.qual_code || null,
+    sell_vi_cd: sold?.vi_cd || null,
+    hold_months: computeHoldMonthsBetweenDates(buyDate, sellDate, 12),
+    living_sqft: livingSqft,
+    before_living_sqft: bought?.vi_cd === 'V' ? 0 : (parcelLiving || livingSqft),
+    bc_living_sqft: bcLiving,
+    year_built: yearBuilt,
+    eff_year_built: posNum(bc?.effective_year_built, parcel.eff_year_built),
+    land_sqft: posNum(parcel.land_sqft, d.lot_sqft),
+    lot_sqft: posNum(parcel.land_sqft, d.lot_sqft),
+    has_pool: Boolean(poolType || bc?.pool_year),
+    pool_type: poolType,
+    pool_year: bc?.pool_year ?? null,
+    has_dock: bc?.boat_dock === true,
+    beds: posNum(bc?.beds, parcel.beds),
+    full_baths: bc?.full_baths ?? parcel.full_baths ?? null,
+    half_baths: bc?.half_baths ?? parcel.half_baths ?? null,
+    sales: Array.isArray(pd.sales) ? pd.sales : [],
+    building_characteristics: bc,
+    is_distressed_acquisition: Boolean(bought?.is_distressed)
   };
 }
 
