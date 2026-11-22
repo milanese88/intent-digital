@@ -24,7 +24,7 @@ export function normalizeCountyName(raw) {
   const s = String(raw).trim().toLowerCase();
   if (!s) return null;
   if (s === '16' || /\bbroward\b/.test(s)) return 'Broward';
-  if (s === '60' || /\bpalm\s*beach\b/.test(s)) return 'Palm Beach';
+  if (s === '60' || /\bpalm[\s-]*beach\b/.test(s)) return 'Palm Beach';
   if (s === '53' || /\bmartin\b/.test(s)) return 'Martin';
   return null;
 }

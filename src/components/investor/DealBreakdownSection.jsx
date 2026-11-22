@@ -124,6 +124,9 @@ export default function DealBreakdownSection({
     return [];
   });
 
+  const targetCounty = String(inputs.county || finderRow?.county || property?.parcel_county || property?.county || countyData?.county || '').trim().toLowerCase();
+  const isPalmBeach = targetCounty === 'palm beach' || targetCounty === '60';
+
   // Fetch permits for property or folio
   useEffect(() => {
     const propId = property?.id || savedPropertyId;
@@ -682,15 +685,17 @@ export default function DealBreakdownSection({
             <Button variant="primary" size="sm" onClick={() => handleSaveBreakdown(false)} disabled={isSaving}>
               {isSaving ? 'Saving…' : activeSavedId ? 'Update saved' : 'Save breakdown'}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsPaModalOpen(true)}
-              title="Upload Property Appraiser record PDF (strictly non-PII)"
-              style={{ borderColor: '#34292A', color: '#34292A' }}
-            >
-              📄 Upload PA Record (PDF)
-            </Button>
+            {!isPalmBeach && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPaModalOpen(true)}
+                title="Upload Property Appraiser record PDF (strictly non-PII)"
+                style={{ borderColor: '#34292A', color: '#34292A' }}
+              >
+                📄 Upload PA Record (PDF)
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -895,8 +900,9 @@ export default function DealBreakdownSection({
           permits={Array.isArray(permits) ? permits : []}
           valueHistory={Array.isArray(valueHistory) ? valueHistory : []}
           paRecord={paRecord}
+          isPalmBeach={isPalmBeach}
           onAddPermit={() => setIsAddPermitOpen(true)}
-          onUploadPaRecord={() => setIsPaModalOpen(true)}
+          onUploadPaRecord={isPalmBeach ? null : () => setIsPaModalOpen(true)}
           onApplyPhasesToBreakdown={(phases) => {
             if (!phases || !(Number(phases.totalHoldMonths) > 0)) return;
             updateInput({
