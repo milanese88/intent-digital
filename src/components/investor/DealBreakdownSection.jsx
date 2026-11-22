@@ -653,7 +653,7 @@ export default function DealBreakdownSection({
               )}
               {hasCamaRecord && (
                 <Pill variant="neutral" size="sm" style={{ backgroundColor: 'rgba(189, 211, 226, 0.25)', border: '1px solid rgba(133, 157, 206, 0.5)', color: '#34292A', textTransform: 'none' }}>
-                  Auto-filled from county building record
+                  source: county record
                 </Pill>
               )}
               {inputs.hasPool && <Pill variant="neutral" size="sm" style={{ textTransform: 'none' }}>Pool</Pill>}
@@ -1201,6 +1201,44 @@ export default function DealBreakdownSection({
                 />
               </div>
             </div>
+
+            {(hasCamaRecord || paRecord) && (() => {
+              const bcRecord = inputs.buildingCharacteristics || countyData?.building_characteristics || finderRow?.building_characteristics || property?.building_characteristics || paRecord?.buildingInfo;
+              const specs = [
+                bcRecord?.beds ? `${bcRecord.beds} bd` : null,
+                bcRecord?.full_baths != null ? `${bcRecord.full_baths}${bcRecord.half_baths ? `.${bcRecord.half_baths}` : ''} ba` : null,
+                bcRecord?.exterior_wall_desc || bcRecord?.construction || bcRecord?.construction_type ? String(bcRecord.exterior_wall_desc || bcRecord.construction || bcRecord.construction_type).toUpperCase() : null,
+                bcRecord?.roof_cover_desc || bcRecord?.roofCover || bcRecord?.roof_type ? String(bcRecord.roof_cover_desc || bcRecord.roofCover || bcRecord.roof_type).toUpperCase() : null,
+                bcRecord?.pool_year || inputs.hasPool ? `Pool ${bcRecord?.pool_year || ''}`.trim() : null,
+                bcRecord?.boat_dock_year || inputs.hasDock ? `Boat dock ${bcRecord?.boat_dock_year || ''}`.trim() : null
+              ].filter(Boolean);
+
+              return (
+                <div
+                  style={{
+                    marginTop: '12px',
+                    padding: '9px 12px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(189, 211, 226, 0.18)',
+                    border: '1px solid rgba(133, 157, 206, 0.4)',
+                    fontSize: '11px',
+                    color: '#34292A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '6px'
+                  }}
+                >
+                  <span>
+                    <strong>County specs:</strong> {specs.join(' · ') || 'Verified characteristics'}
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#34292A', opacity: 0.85 }}>
+                    source: county record
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* B. Hard Rehab / Construction, Demo & Soft Costs */}

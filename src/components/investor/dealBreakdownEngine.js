@@ -259,6 +259,13 @@ export function buildDefaultDealBreakdownInputs({
   let buyViCd = finderRow?.buy_vi_cd || null;
   let sellViCd = finderRow?.sell_vi_cd || null;
 
+  const afterYearBuilt =
+    num(finderRow?.year_built, 0) ||
+    num(bc?.year_built, 0) ||
+    num(property?.year_built, 0) ||
+    num(countyData?.year_built, 0) ||
+    null;
+
   if (finderRow) {
     purchasePrice = num(finderRow.buy_price, 0);
     purchaseYear = finderRow.buy_year ? Number(finderRow.buy_year) : null;
@@ -283,15 +290,16 @@ export function buildDefaultDealBreakdownInputs({
       const priorYm = Number(prior.sale_year) * 12 + (Number(prior.sale_month) || 1);
       const gapMonths = latestYm - priorYm;
 
-      // If user has an entered list price that's newer/higher than latest sale and gap > 24 mo,
-      // treat latest sale as purchase and list_price as active resale listing.
-      if (gapMonths <= 36 && Number(latest.sale_price) > Number(prior.sale_price)) {
+      // If gap is within 48 months (or prior sale preceded new build completion) and resale is higher,
+      // treat prior sale as purchase and latest sale as completed exit.
+      const isNewBuildTimeline = afterYearBuilt && Number(prior.sale_year) <= afterYearBuilt && gapMonths <= 60;
+      if ((gapMonths <= 48 || isNewBuildTimeline) && Number(latest.sale_price) > Number(prior.sale_price)) {
         purchasePrice = Number(prior.sale_price);
         purchaseYear = Number(prior.sale_year);
-        purchaseDate = buildIsoDateFromYearMonth(prior.sale_year, prior.sale_month);
+        purchaseDate = latest.sale_date && prior.sale_date ? prior.sale_date : buildIsoDateFromYearMonth(prior.sale_year, prior.sale_month);
         buyViCd = prior.vi_cd || null;
         exitPrice = Number(latest.sale_price);
-        exitDate = buildIsoDateFromYearMonth(latest.sale_year, latest.sale_month);
+        exitDate = latest.sale_date || buildIsoDateFromYearMonth(latest.sale_year, latest.sale_month);
         sellViCd = latest.vi_cd || null;
         exitSource = 'county_resale';
       } else {
@@ -334,12 +342,6 @@ export function buildDefaultDealBreakdownInputs({
     num(finderRow?.before_living_sqft, 0) ||
     (buyViCd === 'V' ? 0 : (num(countyData?.living_sqft, 0) || afterLivingSqft))
   );
-  const afterYearBuilt =
-    num(finderRow?.year_built, 0) ||
-    num(bc?.year_built, 0) ||
-    num(property?.year_built, 0) ||
-    num(countyData?.year_built, 0) ||
-    null;
   const beforeYearBuilt =
     num(finderRow?.before_year_built, 0) ||
     (buyViCd === 'V' ? null : afterYearBuilt);
@@ -696,12 +698,15 @@ export function buildAnalyzeCandidateRow({ details = {}, parcelData = null, coun
   let bought = null;
   let sold = null;
   let exitSource = 'my_list_price';
-  if (sales.length >= 2) {
-    bought = sales[0];
-    sold = sales[sales.length - 1];
+  const marketSales = sales.filter((s) => Number(s.sale_price) >= 25000);
+  const pool = marketSales.length > 0 ? marketSales : sales;
+  if (pool.length >= 2) {
+    // Recent developer flip / build is the most recent pair of market transactions
+    bought = pool[pool.length - 2];
+    sold = pool[pool.length - 1];
     exitSource = 'county_resale';
-  } else if (sales.length === 1) {
-    bought = sales[0];
+  } else if (pool.length === 1) {
+    bought = pool[0];
   }
 
   const buyDate = bought ? buildIsoDateFromYearMonth(bought.sale_year, bought.sale_month) : '';
