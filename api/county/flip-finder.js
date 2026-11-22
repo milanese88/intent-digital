@@ -7,10 +7,15 @@ import {
   computeHoldMonthsBetweenDates,
   estimateQuickFinderProfit
 } from '../../src/components/investor/dealBreakdownEngine.js';
+import {
+  buildCanonicalDealsSql,
+  QUALIFYING_BUY_QUAL_CODES,
+  QUALIFYING_RESALE_QUAL_CODES,
+  DISTRESSED_QUAL_CODES
+} from './_flip_query.js';
 
-const MARKET_QUAL_CODES = ['01', '02'];
-const DISTRESSED_QUAL_CODES = ['12', '18', '19', '38'];
-const NEW_BUILD_BUY_CODES = ['01', '02', '03', '12', '18', '19', '38'];
+const MARKET_QUAL_CODES = QUALIFYING_RESALE_QUAL_CODES;
+const NEW_BUILD_BUY_CODES = QUALIFYING_BUY_QUAL_CODES;
 
 function haversineMi(lat1, lon1, lat2, lon2) {
   if (![lat1, lon1, lat2, lon2].every((v) => Number.isFinite(v))) return null;
@@ -555,222 +560,42 @@ export default async function handler(req, res) {
         `
     ).catch(() => []);
 
-    const queryPromise = hasSpatialScope
-      ? sql`
-          WITH scoped_parcels AS (
-            SELECT
-              p.county, p.parcel_id, p.address, p.city, p.zip, p.use_code,
-              p.living_sqft, p.land_sqft, p.year_built, p.eff_year_built,
-              p.just_value, p.land_value, p.lat, p.lng,
-              p.beds, p.full_baths, p.half_baths
-            FROM county_parcels p
-            WHERE ${parcelWhere}
-          ),
-          ordered_sales AS (
-            SELECT
-              s.county, s.parcel_id, s.sale_price AS sell_price, s.sale_year AS sell_year,
-              COALESCE(s.sale_month, 1) AS sell_month, (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS sell_ym,
-              s.qual_code AS sell_qual, s.vi_cd AS sell_vi_cd, s.or_book AS sell_or_book, s.or_page AS sell_or_page,
-              LAG(s.sale_price) OVER w AS buy_price,
-              LAG(s.sale_year) OVER w AS buy_year,
-              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
-              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
-              LAG(s.qual_code) OVER w AS buy_qual,
-              LAG(s.vi_cd) OVER w AS buy_vi_cd,
-              LAG(s.or_book) OVER w AS buy_or_book,
-              LAG(s.or_page) OVER w AS buy_or_page
-            FROM scoped_parcels p
-            JOIN county_sales s ON s.county = p.county AND s.parcel_id = p.parcel_id
-            WHERE s.sale_price >= 1000
-              AND s.sale_year IS NOT NULL
-              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-            WINDOW w AS (
-              PARTITION BY s.county, s.parcel_id
-              ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC
-            )
-          ),
-          matched_pairs AS (
-            SELECT DISTINCT ON (os.county, os.parcel_id)
-              os.*,
-              (os.sell_ym - os.buy_ym) AS hold_months,
-              (os.sell_price - os.buy_price) AS jump_dollars,
-              ROUND(((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 1000) / 10.0 AS jump_pct
-            FROM ordered_sales os
-            WHERE os.buy_price IS NOT NULL
-              AND os.buy_price >= 1000
-              AND os.sell_price >= 50000
-              AND os.sell_qual IN ('01', '02', '03')
-              AND os.sell_price > os.buy_price
-              AND (
-                os.sell_ym > os.buy_ym
-                OR (os.sell_ym = os.buy_ym AND (COALESCE(os.sell_or_book, '') != COALESCE(os.buy_or_book, '') OR COALESCE(os.sell_or_page, '') != COALESCE(os.buy_or_page, '')))
-              )
-              AND ((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 100 >= ${minGainPct}
-              AND (os.sell_ym - os.buy_ym) <= ${effectiveMaxMonths}::int
-              ${priceBandMin}
-              ${priceBandMax}
-              ${minSellYmClause}
-            ORDER BY os.county, os.parcel_id, os.sell_ym DESC, os.buy_ym DESC
-          ),
-          classified_deals AS (
-            SELECT
-              mp.*,
-              p.address, p.city, p.zip, p.use_code, p.living_sqft, p.land_sqft,
-              p.year_built, p.eff_year_built, p.just_value, p.land_value, p.lat, p.lng,
-              p.beds, p.full_baths, p.half_baths,
-              bc.year_built AS bc_year_built, bc.living_area_sqft AS bc_living_sqft,
-              bc.beds AS bc_beds, bc.full_baths AS bc_full_baths, bc.half_baths AS bc_half_baths,
-              bc.pool_type AS bc_pool_type, bc.pool_year AS bc_pool_year, bc.boat_dock AS bc_boat_dock,
-              bc.quality_uad AS bc_quality_uad, bc.raw_quality_code AS bc_raw_quality_code,
-              CASE
-                WHEN (
-                  (COALESCE(bc.year_built, p.year_built) IS NOT NULL AND mp.buy_year IS NOT NULL AND COALESCE(bc.year_built, p.year_built) >= mp.buy_year)
-                  OR (mp.buy_vi_cd = 'V' AND mp.sell_vi_cd = 'I')
-                  OR (p.living_sqft > 0 AND bc.living_area_sqft > 0 AND bc.living_area_sqft > p.living_sqft * 1.3)
-                ) AND mp.sell_qual IN ('01', '02', '03') THEN 'demo_new_build'
-                WHEN mp.sell_qual IN ('01', '02', '03') AND mp.buy_qual IN ('01', '02', '03', '12', '18', '19', '38') THEN 'flip'
-                ELSE NULL
-              END AS deal_type,
-              CASE
-                WHEN mp.buy_qual IN ('12', '18', '19') THEN true
-                ELSE false
-              END AS is_distressed_acquisition
-            FROM matched_pairs mp
-            JOIN scoped_parcels p ON p.county = mp.county AND p.parcel_id = mp.parcel_id
-            LEFT JOIN building_characteristics bc ON bc.county = mp.county AND bc.folio = mp.parcel_id
-          ),
-          filtered_deals AS (
-            SELECT *
-            FROM classified_deals cd
-            WHERE cd.deal_type IS NOT NULL
-              AND cd.hold_months <= CASE WHEN cd.deal_type = 'demo_new_build' THEN ${newBuildMaxMonths}::int ELSE ${flipMaxMonths}::int END
-              ${dealTypeSqlClause}
-              ${distressedSqlClause}
-          ),
-          summary_stats AS (
-            SELECT
-              COUNT(*)::int AS total_matching,
-              COUNT(*) FILTER (WHERE deal_type = 'flip')::int AS flip_count,
-              COUNT(*) FILTER (WHERE deal_type = 'demo_new_build')::int AS new_build_count,
-              COUNT(*) FILTER (WHERE is_distressed_acquisition)::int AS distressed_count,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_dollars)::numeric AS median_jump_dollars,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_pct)::numeric AS median_jump_pct,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hold_months)::numeric AS median_hold_months
-            FROM filtered_deals
-          ),
-          paged_deals AS (
-            SELECT *
-            FROM filtered_deals fd
-            ${orderSqlClause}
-            LIMIT ${limit} OFFSET ${offset}
-          )
-          SELECT
-            (SELECT row_to_json(s) FROM summary_stats s) AS summary,
-            COALESCE((SELECT json_agg(p) FROM paged_deals p), '[]'::json) AS items;
-        `
-      : sql`
-          WITH ordered_sales AS (
-            SELECT
-              s.county, s.parcel_id, s.sale_price AS sell_price, s.sale_year AS sell_year,
-              COALESCE(s.sale_month, 1) AS sell_month, (s.sale_year * 12 + COALESCE(s.sale_month, 1)) AS sell_ym,
-              s.qual_code AS sell_qual, s.vi_cd AS sell_vi_cd, s.or_book AS sell_or_book, s.or_page AS sell_or_page,
-              LAG(s.sale_price) OVER w AS buy_price,
-              LAG(s.sale_year) OVER w AS buy_year,
-              LAG(COALESCE(s.sale_month, 1)) OVER w AS buy_month,
-              LAG(s.sale_year * 12 + COALESCE(s.sale_month, 1)) OVER w AS buy_ym,
-              LAG(s.qual_code) OVER w AS buy_qual,
-              LAG(s.vi_cd) OVER w AS buy_vi_cd,
-              LAG(s.or_book) OVER w AS buy_or_book,
-              LAG(s.or_page) OVER w AS buy_or_page
-            FROM county_sales s
-            WHERE ${salesCountyClause}
-              AND s.sale_price >= 1000
-              AND s.sale_year IS NOT NULL
-              AND s.qual_code = ANY(${NEW_BUILD_BUY_CODES})
-            WINDOW w AS (
-              PARTITION BY s.county, s.parcel_id
-              ORDER BY s.sale_year ASC, s.sale_month ASC, s.or_book ASC, s.or_page ASC
-            )
-          ),
-          matched_pairs AS (
-            SELECT DISTINCT ON (os.county, os.parcel_id)
-              os.*,
-              (os.sell_ym - os.buy_ym) AS hold_months,
-              (os.sell_price - os.buy_price) AS jump_dollars,
-              ROUND(((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 1000) / 10.0 AS jump_pct
-            FROM ordered_sales os
-            WHERE os.buy_price IS NOT NULL
-              AND os.buy_price >= 1000
-              AND os.sell_price >= 50000
-              AND os.sell_qual IN ('01', '02', '03')
-              AND os.sell_price > os.buy_price
-              AND (
-                os.sell_ym > os.buy_ym
-                OR (os.sell_ym = os.buy_ym AND (COALESCE(os.sell_or_book, '') != COALESCE(os.buy_or_book, '') OR COALESCE(os.sell_or_page, '') != COALESCE(os.buy_or_page, '')))
-              )
-              AND ((os.sell_price - os.buy_price)::numeric / os.buy_price::numeric) * 100 >= ${minGainPct}
-              AND (os.sell_ym - os.buy_ym) <= ${effectiveMaxMonths}::int
-              ${priceBandMin}
-              ${priceBandMax}
-              ${minSellYmClause}
-            ORDER BY os.county, os.parcel_id, os.sell_ym DESC, os.buy_ym DESC
-          ),
-          classified_deals AS (
-            SELECT
-              mp.*,
-              p.address, p.city, p.zip, p.use_code, p.living_sqft, p.land_sqft,
-              p.year_built, p.eff_year_built, p.just_value, p.land_value, p.lat, p.lng,
-              p.beds, p.full_baths, p.half_baths,
-              bc.year_built AS bc_year_built, bc.living_area_sqft AS bc_living_sqft,
-              bc.beds AS bc_beds, bc.full_baths AS bc_full_baths, bc.half_baths AS bc_half_baths,
-              bc.pool_type AS bc_pool_type, bc.pool_year AS bc_pool_year, bc.boat_dock AS bc_boat_dock,
-              bc.quality_uad AS bc_quality_uad, bc.raw_quality_code AS bc_raw_quality_code,
-              CASE
-                WHEN (
-                  (COALESCE(bc.year_built, p.year_built) IS NOT NULL AND mp.buy_year IS NOT NULL AND COALESCE(bc.year_built, p.year_built) >= mp.buy_year)
-                  OR (mp.buy_vi_cd = 'V' AND mp.sell_vi_cd = 'I')
-                  OR (p.living_sqft > 0 AND bc.living_area_sqft > 0 AND bc.living_area_sqft > p.living_sqft * 1.3)
-                ) AND mp.sell_qual IN ('01', '02', '03') THEN 'demo_new_build'
-                WHEN mp.sell_qual IN ('01', '02', '03') AND mp.buy_qual IN ('01', '02', '03', '12', '18', '19', '38') THEN 'flip'
-                ELSE NULL
-              END AS deal_type,
-              CASE
-                WHEN mp.buy_qual IN ('12', '18', '19') THEN true
-                ELSE false
-              END AS is_distressed_acquisition
-            FROM matched_pairs mp
-            JOIN county_parcels p ON p.county = mp.county AND p.parcel_id = mp.parcel_id
-            LEFT JOIN building_characteristics bc ON bc.county = mp.county AND bc.folio = mp.parcel_id
-          ),
-          filtered_deals AS (
-            SELECT *
-            FROM classified_deals cd
-            WHERE cd.deal_type IS NOT NULL
-              AND cd.hold_months <= CASE WHEN cd.deal_type = 'demo_new_build' THEN ${newBuildMaxMonths}::int ELSE ${flipMaxMonths}::int END
-              ${dealTypeSqlClause}
-              ${distressedSqlClause}
-          ),
-          summary_stats AS (
-            SELECT
-              COUNT(*)::int AS total_matching,
-              COUNT(*) FILTER (WHERE deal_type = 'flip')::int AS flip_count,
-              COUNT(*) FILTER (WHERE deal_type = 'demo_new_build')::int AS new_build_count,
-              COUNT(*) FILTER (WHERE is_distressed_acquisition)::int AS distressed_count,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_dollars)::numeric AS median_jump_dollars,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_pct)::numeric AS median_jump_pct,
-              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hold_months)::numeric AS median_hold_months
-            FROM filtered_deals
-          ),
-          paged_deals AS (
-            SELECT *
-            FROM filtered_deals fd
-            ${orderSqlClause}
-            LIMIT ${limit} OFFSET ${offset}
-          )
-          SELECT
-            (SELECT row_to_json(s) FROM summary_stats s) AS summary,
-            COALESCE((SELECT json_agg(p) FROM paged_deals p), '[]'::json) AS items;
-        `;
+    const dealsCte = buildCanonicalDealsSql(sql, {
+      county,
+      zip: zip || null,
+      lookbackMonths,
+      minGainPct,
+      flipMaxMonths,
+      newBuildMaxMonths,
+      minPrice,
+      maxPrice,
+      dealType,
+      includeDistressed
+    });
+
+    const queryPromise = sql`
+      ${dealsCte},
+      summary_stats AS (
+        SELECT
+          COUNT(*)::int AS total_matching,
+          COUNT(*) FILTER (WHERE deal_type = 'flip')::int AS flip_count,
+          COUNT(*) FILTER (WHERE deal_type = 'demo_new_build')::int AS new_build_count,
+          COUNT(*) FILTER (WHERE is_distressed_acquisition)::int AS distressed_count,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_dollars)::numeric) AS median_jump_dollars,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY jump_pct)::numeric, 1) AS median_jump_pct,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hold_months)::numeric, 1) AS median_hold_months
+        FROM canonical_deals
+      ),
+      paged_deals AS (
+        SELECT *
+        FROM canonical_deals fd
+        ${orderSqlClause}
+        LIMIT ${limit} OFFSET ${offset}
+      )
+      SELECT
+        (SELECT row_to_json(s) FROM summary_stats s) AS summary,
+        COALESCE((SELECT json_agg(p) FROM paged_deals p), '[]'::json) AS items;
+    `;
 
     const [dbResult, salesRangeRows] = await Promise.all([
       queryPromise,

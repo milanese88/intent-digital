@@ -4988,10 +4988,10 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     padding: '9px 18px',
                     borderRadius: '999px',
                     border: studioMode === 'opportunity_map'
-                      ? '1px solid #34292A'
-                      : '1px solid rgba(52, 41, 42, 0.2)',
-                    backgroundColor: studioMode === 'opportunity_map' ? '#34292A' : '#FFFFFF',
-                    color: studioMode === 'opportunity_map' ? '#FAF8F5' : '#34292A',
+                      ? '1px solid #3A1418'
+                      : '1px solid #E4DDD3',
+                    backgroundColor: studioMode === 'opportunity_map' ? '#3A1418' : '#FFFFFF',
+                    color: studioMode === 'opportunity_map' ? '#FAF8F4' : '#1B130D',
                     fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                     fontSize: '11.5px',
                     fontWeight: 700,
@@ -5007,8 +5007,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                   <span style={{
                     padding: '1px 7px',
                     borderRadius: '999px',
-                    backgroundColor: studioMode === 'opportunity_map' ? '#BDD3E2' : 'rgba(189, 211, 226, 0.5)',
-                    color: '#34292A',
+                    backgroundColor: studioMode === 'opportunity_map' ? 'rgba(250, 248, 244, 0.2)' : '#F2EEE8',
+                    color: studioMode === 'opportunity_map' ? '#FAF8F4' : '#3A1418',
                     fontSize: '9.5px',
                     fontWeight: 700,
                     letterSpacing: '0.06em'

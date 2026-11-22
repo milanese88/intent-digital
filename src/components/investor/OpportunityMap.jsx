@@ -4,33 +4,30 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '../ui';
 import zctaGeoJson from '../../content/geo/south-florida-zcta.json';
 
-// Brand Color Palette (Strictly no orange)
+// Brand Color Palette (tokens.css: cream, espresso, burgundy, beige, borders)
 const COLORS = {
-  cream: '#FAF8F5',
-  ganache: '#34292A',
-  quietude: '#BDD3E2',
-  periwinkle: '#859DCE',
+  cream: '#FAF8F4',
+  espresso: '#1B130D',
+  burgundy: '#3A1418',
+  beige: '#F2EEE8',
+  border: '#E4DDD3',
   white: '#FFFFFF',
-  espresso: '#2A1E1F',
-  burgundy: '#6E2031',
-  burgundyDark: '#3A1418',
-  lowData: 'rgba(237, 230, 231, 0.35)',
-  borderMuted: 'rgba(52, 41, 42, 0.15)'
+  lowData: 'rgba(228, 221, 211, 0.45)'
 };
 
 // 5-Step Burgundy Scale: Level 1 (lowest/slowest) to Level 5 (highest/fastest)
 const BURGUNDY_SCALE = [
-  '#F3EAEC', // Step 1: Lightest
-  '#DBB5BC', // Step 2
-  '#A85A6B', // Step 3
-  '#6E2031', // Step 4
+  '#F5EFF0', // Step 1: Lightest
+  '#DBB8BE', // Step 2
+  '#A35C69', // Step 3
+  '#6E2231', // Step 4
   '#3A1418'  // Step 5: Darkest Burgundy
 ];
 
 const LAYERS = [
   { id: 'profit', label: 'Est. Profit', unit: '$', desc: 'Likely net profit per completed deal' },
   { id: 'months', label: 'Months Buy → Sell', unit: 'mo', desc: 'Hold period between recorded deeds' },
-  { id: 'dom', label: 'Days on Market', unit: 'd', desc: 'Redfin / market listing velocity' },
+  { id: 'dom', label: 'Days on Market', unit: 'd', desc: 'Days on market data: Redfin' },
   { id: 'deal_count', label: 'Deal Count', unit: '', desc: 'Total paired flips & new builds' }
 ];
 
@@ -234,7 +231,7 @@ export default function OpportunityMap({
             map.setLayoutProperty(layer.id, 'visibility', 'none');
           }
           if (layer.type === 'fill' && layer.id.includes('water')) {
-            map.setPaintProperty(layer.id, 'fill-color', '#BDD3E2');
+            map.setPaintProperty(layer.id, 'fill-color', '#E4DDD3');
             map.setPaintProperty(layer.id, 'fill-opacity', 0.55);
           }
         }
@@ -264,7 +261,7 @@ export default function OpportunityMap({
         type: 'line',
         source: 'zcta-boundaries',
         paint: {
-          'line-color': COLORS.ganache,
+          'line-color': COLORS.espresso,
           'line-width': [
             'case',
             ['boolean', ['feature-state', 'selected'], false],
@@ -484,12 +481,12 @@ export default function OpportunityMap({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: '740px', backgroundColor: COLORS.cream, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${COLORS.borderMuted}` }}>
+    <div style={{ position: 'relative', width: '100%', minHeight: '740px', backgroundColor: COLORS.cream, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${COLORS.border}` }}>
       {/* TOP CONTROLS BAR */}
       <div style={{
         padding: '16px 20px',
         backgroundColor: COLORS.white,
-        borderBottom: `1px solid ${COLORS.borderMuted}`,
+        borderBottom: `1px solid ${COLORS.border}`,
         display: 'flex',
         flexDirection: 'column',
         gap: '14px'
@@ -498,7 +495,7 @@ export default function OpportunityMap({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           {/* Layer Pills */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.6)', marginRight: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)', marginRight: '6px' }}>
               HEATMAP LAYER:
             </span>
             {LAYERS.map((layer) => {
@@ -511,9 +508,9 @@ export default function OpportunityMap({
                   style={{
                     padding: '6px 14px',
                     borderRadius: '999px',
-                    border: active ? `1.5px solid ${COLORS.burgundy}` : `1px solid ${COLORS.borderMuted}`,
+                    border: active ? `1.5px solid ${COLORS.burgundy}` : `1px solid ${COLORS.border}`,
                     backgroundColor: active ? COLORS.burgundy : COLORS.white,
-                    color: active ? COLORS.cream : COLORS.ganache,
+                    color: active ? COLORS.cream : COLORS.espresso,
                     fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                     fontSize: '11px',
                     fontWeight: active ? 700 : 500,
@@ -530,7 +527,7 @@ export default function OpportunityMap({
           </div>
 
           {/* Deal Type Switcher */}
-          <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '999px', backgroundColor: 'rgba(52, 41, 42, 0.06)' }}>
+          <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '999px', backgroundColor: COLORS.beige, border: `1px solid ${COLORS.border}` }}>
             {DEAL_TYPES.map((dt) => {
               const active = activeDealType === dt.id;
               return (
@@ -542,8 +539,8 @@ export default function OpportunityMap({
                     padding: '5px 12px',
                     borderRadius: '999px',
                     border: 'none',
-                    backgroundColor: active ? COLORS.ganache : 'transparent',
-                    color: active ? COLORS.cream : COLORS.ganache,
+                    backgroundColor: active ? COLORS.espresso : 'transparent',
+                    color: active ? COLORS.cream : COLORS.espresso,
                     fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
                     fontSize: '11px',
                     fontWeight: active ? 700 : 500,
@@ -567,9 +564,9 @@ export default function OpportunityMap({
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
-              border: `1px solid ${COLORS.borderMuted}`,
+              border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              color: COLORS.ganache,
+              color: COLORS.espresso,
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer'
@@ -585,9 +582,9 @@ export default function OpportunityMap({
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
-              border: `1px solid ${COLORS.borderMuted}`,
+              border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              color: COLORS.ganache,
+              color: COLORS.espresso,
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer'
@@ -603,9 +600,9 @@ export default function OpportunityMap({
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
-              border: `1px solid ${COLORS.borderMuted}`,
+              border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              color: COLORS.ganache,
+              color: COLORS.espresso,
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer'
@@ -621,9 +618,9 @@ export default function OpportunityMap({
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
-              border: `1px solid ${COLORS.borderMuted}`,
+              border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              color: COLORS.ganache,
+              color: COLORS.espresso,
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer'
@@ -639,9 +636,9 @@ export default function OpportunityMap({
             style={{
               padding: '6px 10px',
               borderRadius: '6px',
-              border: `1px solid ${COLORS.borderMuted}`,
+              border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              color: COLORS.ganache,
+              color: COLORS.espresso,
               fontSize: '11px',
               fontWeight: 600,
               cursor: 'pointer'
@@ -651,7 +648,7 @@ export default function OpportunityMap({
           </select>
 
           {/* Deal Dot Legend */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'rgba(52, 41, 42, 0.7)' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'rgba(27, 19, 13, 0.7)' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: COLORS.burgundy, border: '1px solid #FFF' }}></span>
               Flip Dot
@@ -667,7 +664,7 @@ export default function OpportunityMap({
       {/* MAP VIEWPORT & FLOATING OVERLAYS */}
       <div style={{ position: 'relative', width: '100%', height: '620px' }}>
         {tokenMissing ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: COLORS.ganache, padding: '40px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: COLORS.espresso, padding: '40px', textAlign: 'center' }}>
             <p>Mapbox access token is required to display the Opportunity Map. Set VITE_MAPBOX_TOKEN in your environment.</p>
           </div>
         ) : (
@@ -683,7 +680,7 @@ export default function OpportunityMap({
             transform: 'translateX(-50%)',
             padding: '6px 14px',
             borderRadius: '999px',
-            backgroundColor: 'rgba(52, 41, 42, 0.88)',
+            backgroundColor: 'rgba(27, 19, 13, 0.92)',
             color: COLORS.cream,
             fontSize: '11px',
             fontWeight: 600,
@@ -700,16 +697,17 @@ export default function OpportunityMap({
           position: 'absolute',
           bottom: '24px',
           left: '20px',
-          backgroundColor: 'rgba(255, 255, 255, 0.94)',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
           borderRadius: '8px',
           padding: '10px 14px',
-          border: `1px solid ${COLORS.borderMuted}`,
-          boxShadow: '0 4px 14px rgba(52, 41, 42, 0.08)',
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: '0 4px 14px rgba(27, 19, 13, 0.08)',
           zIndex: 5,
           pointerEvents: 'auto'
         }}>
-          <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: COLORS.ganache, marginBottom: '6px' }}>
+          <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: COLORS.espresso, marginBottom: '6px' }}>
             {LAYERS.find((l) => l.id === activeLayer)?.label} ({activeLayer === 'months' || activeLayer === 'dom' ? 'Dark = Faster' : 'Dark = Higher'})
+            {activeLayer === 'dom' && <span style={{ marginLeft: '6px', color: COLORS.burgundy, fontWeight: 600 }}>· Days on market data: Redfin</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
             {BURGUNDY_SCALE.map((color, idx) => (
@@ -720,12 +718,12 @@ export default function OpportunityMap({
                   height: '10px',
                   borderRadius: '2px',
                   backgroundColor: color,
-                  border: '0.5px solid rgba(52, 41, 42, 0.2)'
+                  border: '0.5px solid rgba(27, 19, 13, 0.2)'
                 }}
               />
             ))}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', fontSize: '10px', color: 'rgba(52, 41, 42, 0.6)' }}>
-              <div style={{ width: '12px', height: '10px', borderRadius: '2px', backgroundColor: COLORS.lowData, border: '0.5px dashed rgba(52, 41, 42, 0.4)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)' }}>
+              <div style={{ width: '12px', height: '10px', borderRadius: '2px', backgroundColor: COLORS.lowData, border: '0.5px dashed rgba(27, 19, 13, 0.4)' }} />
               <span>&lt;3 deals</span>
             </div>
           </div>
@@ -738,18 +736,18 @@ export default function OpportunityMap({
             top: '16px',
             left: '20px',
             width: '230px',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            backgroundColor: 'rgba(255, 255, 255, 0.96)',
             borderRadius: '10px',
             padding: '12px 14px',
-            border: `1px solid ${COLORS.borderMuted}`,
-            boxShadow: '0 4px 18px rgba(52, 41, 42, 0.1)',
+            border: `1px solid ${COLORS.border}`,
+            boxShadow: '0 4px 18px rgba(27, 19, 13, 0.1)',
             zIndex: 5
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: COLORS.burgundy }}>
                 TOP 5 OPPORTUNITY AREAS
               </span>
-              <span style={{ fontSize: '9px', color: 'rgba(52, 41, 42, 0.5)' }}>by {activeLayer}</span>
+              <span style={{ fontSize: '9px', color: 'rgba(27, 19, 13, 0.5)' }}>by {activeLayer}</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {rankings.map((r) => {
@@ -764,15 +762,15 @@ export default function OpportunityMap({
                       justifyContent: 'space-between',
                       padding: '5px 8px',
                       borderRadius: '6px',
-                      backgroundColor: isSelected ? 'rgba(189, 211, 226, 0.4)' : 'transparent',
+                      backgroundColor: isSelected ? COLORS.beige : 'transparent',
                       cursor: 'pointer',
                       transition: 'background 0.12s ease'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontSize: '10px', fontWeight: 800, color: COLORS.burgundy, width: '12px' }}>{r.rank}.</span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: COLORS.ganache }}>{r.zip}</span>
-                      <span style={{ fontSize: '10px', color: 'rgba(52, 41, 42, 0.6)', maxWidth: '75px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: COLORS.espresso }}>{r.zip}</span>
+                      <span style={{ fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)', maxWidth: '75px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.city}
                       </span>
                     </div>
@@ -798,8 +796,8 @@ export default function OpportunityMap({
             backgroundColor: COLORS.white,
             borderRadius: '10px',
             padding: '18px 20px',
-            border: `1px solid ${COLORS.borderMuted}`,
-            boxShadow: '0 8px 28px rgba(52, 41, 42, 0.14)',
+            border: `1px solid ${COLORS.border}`,
+            boxShadow: '0 8px 28px rgba(27, 19, 13, 0.14)',
             zIndex: 6,
             display: 'flex',
             flexDirection: 'column',
@@ -809,21 +807,21 @@ export default function OpportunityMap({
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={{ margin: 0, fontFamily: 'var(--font-serif, "Playfair Display", serif)', fontSize: '20px', fontWeight: 700, color: COLORS.ganache }}>
+                  <h3 style={{ margin: 0, fontFamily: 'var(--font-serif, "Playfair Display", serif)', fontSize: '20px', fontWeight: 700, color: COLORS.espresso }}>
                     ZIP {selectedArea.zip}
                   </h3>
-                  <span style={{ padding: '2px 7px', borderRadius: '4px', backgroundColor: 'rgba(189, 211, 226, 0.45)', color: COLORS.ganache, fontSize: '9.5px', fontWeight: 700 }}>
+                  <span style={{ padding: '2px 7px', borderRadius: '4px', backgroundColor: COLORS.beige, border: `1px solid ${COLORS.border}`, color: COLORS.espresso, fontSize: '9.5px', fontWeight: 700 }}>
                     {selectedArea.county}
                   </span>
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'rgba(52, 41, 42, 0.65)', marginTop: '2px' }}>
+                <div style={{ fontSize: '11.5px', color: 'rgba(27, 19, 13, 0.65)', marginTop: '2px' }}>
                   {selectedArea.city || 'South Florida Market'}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedZip(null)}
-                style={{ border: 'none', background: 'transparent', fontSize: '16px', color: 'rgba(52, 41, 42, 0.5)', cursor: 'pointer', padding: '2px' }}
+                style={{ border: 'none', background: 'transparent', fontSize: '16px', color: 'rgba(27, 19, 13, 0.5)', cursor: 'pointer', padding: '2px' }}
               >
                 ✕
               </button>
@@ -831,51 +829,51 @@ export default function OpportunityMap({
 
             {/* Key Metrics Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.borderMuted}` }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.6)' }}>
+              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)' }}>
                   Est. Net Profit
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.burgundy, marginTop: '2px' }}>
                   {fmtDollar(selectedArea.est_profit_low)} – {fmtDollar(selectedArea.est_profit_likely)}
                 </div>
-                <div style={{ fontSize: '9.5px', color: 'rgba(52, 41, 42, 0.5)', marginTop: '1px' }}>
+                <div style={{ fontSize: '9.5px', color: 'rgba(27, 19, 13, 0.5)', marginTop: '1px' }}>
                   Median spread: {fmtDollar(selectedArea.median_jump_dollars)}
                 </div>
               </div>
 
-              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.borderMuted}` }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.6)' }}>
+              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)' }}>
                   Total Deals
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.ganache, marginTop: '2px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.espresso, marginTop: '2px' }}>
                   {selectedArea.deal_count} Completed
                 </div>
-                <div style={{ fontSize: '9.5px', color: 'rgba(52, 41, 42, 0.5)', marginTop: '1px' }}>
+                <div style={{ fontSize: '9.5px', color: 'rgba(27, 19, 13, 0.5)', marginTop: '1px' }}>
                   {selectedArea.flip_count} flips · {selectedArea.new_build_count} builds
                 </div>
               </div>
 
-              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.borderMuted}` }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.6)' }}>
+              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)' }}>
                   Buy → Sell Speed
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.ganache, marginTop: '2px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.espresso, marginTop: '2px' }}>
                   {selectedArea.median_hold_months || '—'} Months
                 </div>
-                <div style={{ fontSize: '9.5px', color: 'rgba(52, 41, 42, 0.5)', marginTop: '1px' }}>
+                <div style={{ fontSize: '9.5px', color: 'rgba(27, 19, 13, 0.5)', marginTop: '1px' }}>
                   Recorded deed duration
                 </div>
               </div>
 
-              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.borderMuted}` }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(52, 41, 42, 0.6)' }}>
+              <div style={{ padding: '10px', borderRadius: '6px', backgroundColor: COLORS.cream, border: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)' }}>
                   Days on Market
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.ganache, marginTop: '2px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: COLORS.espresso, marginTop: '2px' }}>
                   {selectedArea.median_dom || '—'} Days
                 </div>
-                <div style={{ fontSize: '9px', color: 'rgba(52, 41, 42, 0.5)', marginTop: '1px' }}>
-                  {selectedArea.dom_source === 'redfin_data_center' ? 'Redfin Data Center' : 'County deed velocity'}
+                <div style={{ fontSize: '9px', fontWeight: 600, color: COLORS.burgundy, marginTop: '2px' }}>
+                  Days on market data: Redfin
                 </div>
               </div>
             </div>
@@ -885,23 +883,23 @@ export default function OpportunityMap({
               <div style={{
                 padding: '12px',
                 borderRadius: '8px',
-                backgroundColor: 'rgba(189, 211, 226, 0.25)',
-                border: '1px solid rgba(133, 157, 206, 0.45)'
+                backgroundColor: COLORS.beige,
+                border: `1px solid ${COLORS.border}`
               }}>
                 <div style={{ fontSize: '9.5px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: COLORS.burgundy }}>
                   BEST PRODUCT HERE
                 </div>
-                <div style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.ganache, marginTop: '3px' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.espresso, marginTop: '3px' }}>
                   {selectedArea.best_product.deal_type === 'demo_new_build' ? 'New Build' : 'Flip'} · {selectedArea.best_product.beds} Bed / {selectedArea.best_product.baths} Bath · {selectedArea.best_product.sqft_band}
                 </div>
-                <div style={{ fontSize: '10.5px', color: 'rgba(52, 41, 42, 0.7)', marginTop: '2px' }}>
+                <div style={{ fontSize: '10.5px', color: 'rgba(27, 19, 13, 0.7)', marginTop: '2px' }}>
                   Highest spread: +{fmtDollar(selectedArea.best_product.median_jump)} median jump ({selectedArea.best_product.min_deals}+ deals)
                 </div>
               </div>
             )}
 
             {/* One-Line Market Insight */}
-            <div style={{ fontSize: '11px', fontStyle: 'italic', color: 'rgba(52, 41, 42, 0.75)', lineHeight: 1.45, padding: '2px 4px' }}>
+            <div style={{ fontSize: '11px', fontStyle: 'italic', color: 'rgba(27, 19, 13, 0.75)', lineHeight: 1.45, padding: '2px 4px' }}>
               “{selectedArea.insight}”
             </div>
 
