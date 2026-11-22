@@ -11,6 +11,21 @@ import {
 const MARKET_QUAL_CODES = QUALIFYING_RESALE_QUAL_CODES;
 const ALL_BUY_QUAL_CODES = QUALIFYING_BUY_QUAL_CODES;
 
+export function formatShortMoney(amount) {
+  if (amount == null || !Number.isFinite(Number(amount))) return '—';
+  const num = Number(amount);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1000000) {
+    const m = (abs / 1000000).toFixed(2).replace(/\.?0+$/, '');
+    return `${sign}$${m}M`;
+  }
+  if (abs >= 1000) {
+    return `${sign}$${Math.round(abs / 1000)}K`;
+  }
+  return `${sign}$${Math.round(abs)}`;
+}
+
 // In-memory cache for ZIP aggregates (5-minute TTL per filter key)
 const AGG_CACHE = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -259,7 +274,7 @@ export default async function handler(req, res) {
 
     const rankings = sortedForRanking.slice(0, 5).map((a, idx) => {
       let metricValue = a.est_profit_likely;
-      let metricLabel = `$${Math.round(a.est_profit_likely / 1000)}K profit`;
+      let metricLabel = `${formatShortMoney(a.est_profit_likely)} profit`;
       if (params.layer === 'months') {
         metricValue = a.median_hold_months;
         metricLabel = `${a.median_hold_months} mo hold`;

@@ -74,13 +74,32 @@ const BED_OPTIONS = [
   { id: 5, label: '5+ Beds' }
 ];
 
-function fmtDollar(n) {
-  if (n == null || isNaN(n)) return '—';
-  const abs = Math.abs(Math.round(n));
-  if (abs >= 1000000) return `$${(abs / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (abs >= 1000) return `$${Math.round(abs / 1000)}K`;
-  return `$${abs}`;
+export function formatShortMoney(amount) {
+  if (amount == null || isNaN(amount)) return '—';
+  const num = Number(amount);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1000000) {
+    const m = (abs / 1000000).toFixed(2).replace(/\.?0+$/, '');
+    return `${sign}$${m}M`;
+  }
+  if (abs >= 1000) {
+    return `${sign}$${Math.round(abs / 1000)}K`;
+  }
+  return `${sign}$${Math.round(abs)}`;
 }
+
+function fmtDollar(n) {
+  return formatShortMoney(n);
+}
+
+const SOUTH_FLORIDA_BOUNDS = [[-81.35, 25.90], [-80.00, 27.42]];
+const COUNTY_BOUNDS = {
+  all: SOUTH_FLORIDA_BOUNDS,
+  broward: [[-80.55, 25.95], [-80.05, 26.38]],
+  'palm beach': [[-80.95, 26.30], [-80.00, 27.05]],
+  martin: [[-80.70, 26.95], [-80.05, 27.42]]
+};
 
 export default function OpportunityMap({
   onOpenFinder = null,
@@ -198,6 +217,12 @@ export default function OpportunityMap({
     fetchAggregates();
   }, [fetchAggregates]);
 
+  // Store ref for callback so Mapbox listeners don't re-instantiate map on callback change
+  const onOpenDealBreakdownRef = useRef(onOpenDealBreakdown);
+  useEffect(() => {
+    onOpenDealBreakdownRef.current = onOpenDealBreakdown;
+  }, [onOpenDealBreakdown]);
+
   // Initialize Mapbox
   useEffect(() => {
     if (!MAPBOX_TOKEN) {
@@ -217,173 +242,253 @@ export default function OpportunityMap({
       attributionControl: false
     });
 
+    mapRef.current = map;
+
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
-    map.on('load', () => {
-      mapRef.current = map;
-      setMapLoaded(true);
+    map.on('error', (e) => {
+      console.warn('Mapbox GL runtime error:', e?.error?.message || e);
+    });
 
+    const setupLayers = () => {
       // Mute map background according to Intent Digital brand tokens
       try {
         const layers = map.getStyle().layers || [];
         for (const layer of layers) {
-          if (layer.id.includes('poi') || layer.id.includes('transit')) {
-            map.setLayoutProperty(layer.id, 'visibility', 'none');
+          const id = layer.id;
+          if (id.includes('poi') || id.includes('transit') || id.includes('business')) {
+            try { map.setLayoutProperty(id, 'visibility', 'none'); } catch (_) {}
           }
-          if (layer.type === 'fill' && layer.id.includes('water')) {
-            map.setPaintProperty(layer.id, 'fill-color', '#E4DDD3');
-            map.setPaintProperty(layer.id, 'fill-opacity', 0.55);
+          if (layer.type === 'fill' && id.includes('water')) {
+            try { map.setPaintProperty(id, 'fill-color', '#E4DDD3'); } catch (_) {}
+          }
+          if (layer.type === 'fill' && (id.includes('park') || id.includes('national-park') || id.includes('green') || id.includes('landcover'))) {
+            try { map.setPaintProperty(id, 'fill-color', '#DCE5D8'); } catch (_) {}
+          }
+          if (layer.type === 'background') {
+            try { map.setPaintProperty(id, 'background-color', '#FAF8F4'); } catch (_) {}
+          }
+          if (layer.type === 'line' && (id.includes('road') || id.includes('street') || id.includes('motorway') || id.includes('highway'))) {
+            if (!id.includes('case')) {
+              try { map.setPaintProperty(id, 'line-color', '#FFFFFF'); } catch (_) {}
+            }
           }
         }
-      } catch (_) {}
+      } catch (err) {
+        console.warn('Mapbox style layer customization warning:', err);
+      }
 
       // Add ZCTA GeoJSON source
-      map.addSource('zcta-boundaries', {
-        type: 'geojson',
-        data: zctaGeoJson,
-        generateId: true
-      });
+      if (!map.getSource('zcta-boundaries')) {
+        map.addSource('zcta-boundaries', {
+          type: 'geojson',
+          data: zctaGeoJson,
+          generateId: true
+        });
+      }
 
       // Add ZCTA Fill layer (choropleth)
-      map.addLayer({
-        id: 'zcta-fills',
-        type: 'fill',
-        source: 'zcta-boundaries',
-        paint: {
-          'fill-color': COLORS.lowData,
-          'fill-opacity': 0.65
-        }
-      });
+      if (!map.getLayer('zcta-fills')) {
+        map.addLayer({
+          id: 'zcta-fills',
+          type: 'fill',
+          source: 'zcta-boundaries',
+          paint: {
+            'fill-color': COLORS.lowData,
+            'fill-opacity': 0.65
+          }
+        });
+      }
 
       // Add ZCTA Line layer (borders)
-      map.addLayer({
-        id: 'zcta-lines',
-        type: 'line',
-        source: 'zcta-boundaries',
-        paint: {
-          'line-color': COLORS.espresso,
-          'line-width': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            2.5,
-            ['boolean', ['feature-state', 'hover'], false],
-            2,
-            0.6
-          ],
-          'line-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            1.0,
-            ['boolean', ['feature-state', 'hover'], false],
-            0.9,
-            0.35
-          ]
-        }
-      });
+      if (!map.getLayer('zcta-lines')) {
+        map.addLayer({
+          id: 'zcta-lines',
+          type: 'line',
+          source: 'zcta-boundaries',
+          paint: {
+            'line-color': COLORS.espresso,
+            'line-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              2.5,
+              ['boolean', ['feature-state', 'hover'], false],
+              2,
+              0.6
+            ],
+            'line-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false],
+              1.0,
+              ['boolean', ['feature-state', 'hover'], false],
+              0.9,
+              0.35
+            ]
+          }
+        });
+      }
 
       // Add Deal Dots Source
-      map.addSource('deal-dots', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
+      if (!map.getSource('deal-dots')) {
+        map.addSource('deal-dots', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+      }
 
       // Add Deal Dots Layer (Flip = burgundy, New Build = espresso)
-      map.addLayer({
-        id: 'deal-dots-layer',
-        type: 'circle',
-        source: 'deal-dots',
-        paint: {
-          'circle-color': [
-            'case',
-            ['==', ['get', 'deal_type'], 'demo_new_build'],
-            COLORS.espresso,
-            COLORS.burgundy
-          ],
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['get', 'jump_dollars'],
-            50000, 4,
-            200000, 6,
-            500000, 9,
-            1000000, 13
-          ],
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-opacity': 0.88
-        }
-      });
-
-      // Hover on ZCTA
-      let lastHoveredId = null;
-      map.on('mousemove', 'zcta-fills', (e) => {
-        if (e.features.length > 0) {
-          const feat = e.features[0];
-          const zip = feat.properties?.zip || feat.properties?.ZCTA5;
-          setHoveredZip(zip);
-          map.getCanvas().style.cursor = 'pointer';
-
-          if (lastHoveredId !== null) {
-            map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: false });
+      if (!map.getLayer('deal-dots-layer')) {
+        map.addLayer({
+          id: 'deal-dots-layer',
+          type: 'circle',
+          source: 'deal-dots',
+          paint: {
+            'circle-color': [
+              'case',
+              ['==', ['get', 'deal_type'], 'demo_new_build'],
+              COLORS.espresso,
+              COLORS.burgundy
+            ],
+            'circle-radius': [
+              'interpolate',
+              ['linear'],
+              ['get', 'jump_dollars'],
+              50000, 4,
+              200000, 6,
+              500000, 9,
+              1000000, 13
+            ],
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#FFFFFF',
+            'circle-opacity': 0.88
           }
-          lastHoveredId = feat.id;
-          map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: true });
-        }
-      });
+        });
+      }
 
-      map.on('mouseleave', 'zcta-fills', () => {
-        map.getCanvas().style.cursor = '';
-        setHoveredZip(null);
+      // Fit bounds to South Florida / selected county initially
+      const initialBounds = COUNTY_BOUNDS[selectedCounty?.toLowerCase()] || SOUTH_FLORIDA_BOUNDS;
+      try {
+        map.fitBounds(initialBounds, { padding: 24, duration: 0 });
+      } catch (_) {}
+      map.resize();
+      setMapLoaded(true);
+    };
+
+    if (map.isStyleLoaded()) {
+      setupLayers();
+    } else {
+      map.once('load', setupLayers);
+    }
+
+    // Hover on ZCTA
+    let lastHoveredId = null;
+    map.on('mousemove', 'zcta-fills', (e) => {
+      if (e.features.length > 0) {
+        const feat = e.features[0];
+        const zip = feat.properties?.zip || feat.properties?.ZCTA5;
+        setHoveredZip(zip);
+        map.getCanvas().style.cursor = 'pointer';
+
         if (lastHoveredId !== null) {
           map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: false });
-          lastHoveredId = null;
         }
-      });
-
-      // Click on ZCTA
-      map.on('click', 'zcta-fills', (e) => {
-        if (e.features.length > 0) {
-          const feat = e.features[0];
-          const zip = feat.properties?.zip || feat.properties?.ZCTA5;
-          if (zip) {
-            setSelectedZip(zip);
-          }
-        }
-      });
-
-      // Click on Deal Dot
-      map.on('click', 'deal-dots-layer', (e) => {
-        if (e.features.length > 0) {
-          const dot = e.features[0].properties;
-          if (onOpenDealBreakdown) {
-            onOpenDealBreakdown(dot);
-          }
-        }
-      });
-
-      // Viewport change (debounced)
-      let moveTimeout = null;
-      map.on('moveend', () => {
-        clearTimeout(moveTimeout);
-        moveTimeout = setTimeout(() => {
-          const b = map.getBounds();
-          setViewportBbox({
-            minLng: b.getWest(),
-            minLat: b.getSouth(),
-            maxLng: b.getEast(),
-            maxLat: b.getNorth()
-          });
-        }, 350);
-      });
+        lastHoveredId = feat.id;
+        map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: true });
+      }
     });
 
+    map.on('mouseleave', 'zcta-fills', () => {
+      map.getCanvas().style.cursor = '';
+      setHoveredZip(null);
+      if (lastHoveredId !== null) {
+        map.setFeatureState({ source: 'zcta-boundaries', id: lastHoveredId }, { hover: false });
+        lastHoveredId = null;
+      }
+    });
+
+    // Click on ZCTA
+    map.on('click', 'zcta-fills', (e) => {
+      if (e.features.length > 0) {
+        const feat = e.features[0];
+        const zip = feat.properties?.zip || feat.properties?.ZCTA5;
+        if (zip) {
+          setSelectedZip(zip);
+        }
+      }
+    });
+
+    // Click on Deal Dot
+    map.on('click', 'deal-dots-layer', (e) => {
+      if (e.features.length > 0) {
+        const dot = e.features[0].properties;
+        if (onOpenDealBreakdownRef.current) {
+          onOpenDealBreakdownRef.current(dot);
+        }
+      }
+    });
+
+    // Viewport change (debounced)
+    let moveTimeout = null;
+    map.on('moveend', () => {
+      clearTimeout(moveTimeout);
+      moveTimeout = setTimeout(() => {
+        const b = map.getBounds();
+        setViewportBbox({
+          minLng: b.getWest(),
+          minLat: b.getSouth(),
+          maxLng: b.getEast(),
+          maxLat: b.getNorth()
+        });
+      }, 350);
+    });
+
+    // ResizeObserver to automatically resize map when container mounts / changes size
+    let ro = null;
+    if (typeof window !== 'undefined' && window.ResizeObserver && mapContainerRef.current) {
+      ro = new ResizeObserver(() => {
+        if (mapRef.current) {
+          mapRef.current.resize();
+        }
+      });
+      ro.observe(mapContainerRef.current);
+    }
+
+    const handleWindowResize = () => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    };
+    window.addEventListener('resize', handleWindowResize);
+    document.addEventListener('visibilitychange', handleWindowResize);
+
     return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      document.removeEventListener('visibilitychange', handleWindowResize);
+      if (ro) ro.disconnect();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, [MAPBOX_TOKEN, onOpenDealBreakdown]);
+  }, [MAPBOX_TOKEN]);
+
+  // Fit bounds when selectedCounty changes or map finishes loading
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const bounds = COUNTY_BOUNDS[selectedCounty?.toLowerCase()] || SOUTH_FLORIDA_BOUNDS;
+    try {
+      map.fitBounds(bounds, { padding: 32, duration: 650 });
+      map.resize();
+    } catch (_) {}
+  }, [selectedCounty, mapLoaded]);
+
+  // Ensure map is resized upon becoming loaded
+  useEffect(() => {
+    if (mapLoaded && mapRef.current) {
+      mapRef.current.resize();
+    }
+  }, [mapLoaded]);
 
   // Update Polygon Colors when layer or aggregates change
   useEffect(() => {
@@ -735,7 +840,8 @@ export default function OpportunityMap({
             position: 'absolute',
             top: '16px',
             left: '20px',
-            width: '230px',
+            width: '280px',
+            maxWidth: 'calc(100% - 40px)',
             backgroundColor: 'rgba(255, 255, 255, 0.96)',
             borderRadius: '10px',
             padding: '12px 14px',
@@ -760,21 +866,23 @@ export default function OpportunityMap({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: '10px',
                       padding: '5px 8px',
                       borderRadius: '6px',
                       backgroundColor: isSelected ? COLORS.beige : 'transparent',
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       transition: 'background 0.12s ease'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: COLORS.burgundy, width: '12px' }}>{r.rank}.</span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: COLORS.espresso }}>{r.zip}</span>
-                      <span style={{ fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)', maxWidth: '75px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexShrink: 1 }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: COLORS.burgundy, width: '12px', flexShrink: 0 }}>{r.rank}.</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: COLORS.espresso, flexShrink: 0 }}>{r.zip}</span>
+                      <span style={{ fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)', maxWidth: '95px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.city}
                       </span>
                     </div>
-                    <span style={{ fontSize: '10.5px', fontWeight: 700, color: COLORS.burgundy }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: 700, color: COLORS.burgundy, flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {r.metric_label}
                     </span>
                   </div>
