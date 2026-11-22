@@ -30,6 +30,7 @@ import {
   computeWeightedDrawUtilization,
   inferFlipRehabLevel
 } from '../../config/developerCosts.js';
+import { normalizeCountyName } from '../../config/counties.js';
 
 function num(val, fallback = 0) {
   if (val === '' || val == null) return fallback;
@@ -243,11 +244,12 @@ export function buildDefaultDealBreakdownInputs({
     null;
 
   const county =
-    finderRow?.county ||
-    property?.parcel_county ||
-    property?.county ||
-    countyData?.county ||
-    'Broward';
+    normalizeCountyName(
+      finderRow?.county ||
+      countyData?.county ||
+      property?.parcel_county ||
+      property?.county
+    ) || 'Palm Beach';
 
   // Extract purchase & resale dates/prices from finderRow OR countyData.sales
   let purchasePrice = 0;

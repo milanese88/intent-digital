@@ -20,6 +20,7 @@ import {
   computeHoldMonthsBetweenDates,
   buildIsoDateFromYearMonth
 } from './dealBreakdownEngine.js';
+import { normalizeCountyName } from '../../config/counties.js';
 import PropertyTimeline from './PropertyTimeline.jsx';
 import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import PaRecordUploadModal from './PaRecordUploadModal.jsx';
@@ -124,13 +125,14 @@ export default function DealBreakdownSection({
     return [];
   });
 
-  const folioCounty = (inputs.parcelId || finderRow?.parcel_id || '').startsWith('50')
-    ? 'Broward'
-    : (inputs.parcelId || finderRow?.parcel_id || '').startsWith('54') || (inputs.parcelId || finderRow?.parcel_id || '').startsWith('00')
-      ? 'Palm Beach'
-      : '';
-  const targetCounty = String(inputs.county || finderRow?.county || property?.parcel_county || property?.county || countyData?.county || folioCounty || '').trim().toLowerCase();
-  const isPalmBeach = targetCounty.includes('palm beach') || targetCounty === '60';
+  const targetCounty = normalizeCountyName(
+    inputs.county ||
+    finderRow?.county ||
+    countyData?.county ||
+    property?.parcel_county ||
+    property?.county
+  ) || 'Palm Beach';
+  const isPalmBeach = targetCounty === 'Palm Beach';
 
   // Fetch permits for property or folio
   useEffect(() => {

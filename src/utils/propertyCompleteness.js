@@ -25,16 +25,64 @@ export const COUNTY_MILLAGE_RATES = {
 };
 
 /**
- * Returns estimated annual and monthly property taxes from just value and millage rate.
+ * Returns estimated annual and monthly property taxes using:
+ * millage × purchase price (or my offer / list price when no purchase), non-homestead, NOT county just value.
+ * Shows the exact basis.
  */
-export function estimatePropertyTaxes(justValue, county = 'Palm Beach') {
-  const jv = Number(justValue) || 0;
-  if (jv <= 0) return { annual: 0, monthly: 0, millage: 18.2 };
-  const normCounty = normalizeCountyName(county) || 'Palm Beach';
-  const millage = COUNTY_MILLAGE_RATES[normCounty] || 18.2;
-  const annual = Math.round((jv * millage) / 1000);
+export function estimatePropertyTaxes(basisPriceOrProperty, county = 'Palm Beach', opts = {}) {
+  let basisPrice = 0;
+  let basisLabel = opts.basisLabel || 'purchase price';
+
+  if (basisPriceOrProperty != null && typeof basisPriceOrProperty === 'object') {
+    const p = basisPriceOrProperty;
+    if (p.purchase_price && Number(p.purchase_price) > 0) {
+      basisPrice = Number(p.purchase_price);
+      basisLabel = 'purchase price';
+    } else if (p.purchasePrice && Number(p.purchasePrice) > 0) {
+      basisPrice = Number(p.purchasePrice);
+      basisLabel = 'purchase price';
+    } else if (p.buy_price && Number(p.buy_price) > 0) {
+      basisPrice = Number(p.buy_price);
+      basisLabel = 'purchase price';
+    } else if (p.offer_price && Number(p.offer_price) > 0) {
+      basisPrice = Number(p.offer_price);
+      basisLabel = 'my offer';
+    } else if (p.offerPrice && Number(p.offerPrice) > 0) {
+      basisPrice = Number(p.offerPrice);
+      basisLabel = 'my offer';
+    } else if (p.list_price && Number(p.list_price) > 0) {
+      basisPrice = Number(p.list_price);
+      basisLabel = 'list price';
+    } else if (p.listPrice && Number(p.listPrice) > 0) {
+      basisPrice = Number(p.listPrice);
+      basisLabel = 'list price';
+    } else if (p.just_value && Number(p.just_value) > 0) {
+      basisPrice = Number(p.just_value);
+      basisLabel = 'county just value (fallback)';
+    } else if (p.justValue && Number(p.justValue) > 0) {
+      basisPrice = Number(p.justValue);
+      basisLabel = 'county just value (fallback)';
+    }
+  } else {
+    basisPrice = Number(basisPriceOrProperty) || 0;
+  }
+
+  const normCounty = normalizeCountyName(county || opts.county) || 'Palm Beach';
+  const millage = Number(opts.millage) || COUNTY_MILLAGE_RATES[normCounty] || 18.2;
+  const annual = basisPrice > 0 ? Math.round((basisPrice * millage) / 1000) : 0;
   const monthly = Math.round(annual / 12);
-  return { annual, monthly, millage };
+  const basisExplanation = basisPrice > 0
+    ? `$${basisPrice.toLocaleString('en-US')} ${basisLabel} × ${millage} mills (non-homestead)`
+    : `0 mills (no purchase or list price to estimate taxes)`;
+
+  return {
+    annual,
+    monthly,
+    millage,
+    basisPrice,
+    basisLabel,
+    basisExplanation
+  };
 }
 
 /**
@@ -54,10 +102,11 @@ export function mergeCountyDataIntoProperty(property = {}, countyData = {}) {
   const fieldSources = { ...(prop.field_sources || {}) };
 
   const setCountyField = (fieldKey, countyVal, sourceLabel = 'County record', sourceDate = `${rollYear} roll`) => {
-    // If user already has a confirmed manual edit, user wins!
+    // If user already has a confirmed manual or listing edit, manual/listing wins!
     const existingVal = prop[fieldKey];
-    const isManual = fieldSources[fieldKey]?.source === 'manual';
-    if (isManual && existingVal != null && existingVal !== '') {
+    const source = fieldSources[fieldKey]?.source;
+    const isManualOrListing = source === 'manual' || source === 'listing';
+    if (isManualOrListing && existingVal != null && existingVal !== '') {
       return;
     }
     if (countyVal != null && countyVal !== '') {
@@ -137,16 +186,35 @@ export function mergeCountyDataIntoProperty(property = {}, countyData = {}) {
   const landVal = cd.land_value != null ? Number(cd.land_value) : null;
   if (justVal != null) {
     setCountyField('just_value', justVal);
-    const taxEst = estimatePropertyTaxes(justVal, county);
-    setCountyField('estimated_annual_taxes', taxEst.annual, `Millage (${taxEst.millage} mills)`);
-    setCountyField('annual_taxes', taxEst.annual);
-    setCountyField('estimated_monthly_taxes', taxEst.monthly);
   }
   if (landVal != null) {
     setCountyField('land_value', landVal);
     if (justVal != null) {
       setCountyField('improvement_value', Math.max(0, justVal - landVal));
     }
+  }
+
+  // 4b. Tax estimate: millage × purchase price (or my offer / list price when no purchase), non-homestead, NOT county just value
+  const cdSales = (Array.isArray(cd.sales) ? cd.sales : [])
+    .filter((s) => s && Number(s.sale_year) > 1900 && Number(s.sale_price) >= 25000)
+    .sort((a, b) => ((Number(b.sale_year) * 100) + (Number(b.sale_month) || 1)) - ((Number(a.sale_year) * 100) + (Number(a.sale_month) || 1)));
+  const latestSalePrice = cdSales.length > 0 ? Number(cdSales[0].sale_price) : null;
+
+  const taxTarget = {
+    purchase_price: prop.purchase_price || prop.purchasePrice || latestSalePrice,
+    offer_price: prop.offer_price || prop.offerPrice,
+    list_price: prop.list_price || prop.listPrice,
+    just_value: justVal
+  };
+  const taxEst = estimatePropertyTaxes(taxTarget, county);
+  if (taxEst.annual > 0) {
+    setCountyField('estimated_annual_taxes', taxEst.annual, `Millage (${taxEst.basisExplanation})`);
+    setCountyField('annual_taxes', taxEst.annual);
+    setCountyField('estimated_monthly_taxes', taxEst.monthly);
+    setCountyField('tax_basis_price', taxEst.basisPrice);
+    setCountyField('tax_basis_label', taxEst.basisLabel);
+    setCountyField('tax_basis_explanation', taxEst.basisExplanation);
+    setCountyField('tax_millage', taxEst.millage);
   }
 
   // 5. Zoning / Use Code
@@ -313,17 +381,29 @@ export function evaluateDataCompleteness(property = {}, countyData = null) {
 
   // 8. Tax Roll Values & Taxes
   const jv = p.just_value ?? cd.just_value;
-  const taxes = p.estimated_annual_taxes || (jv ? estimatePropertyTaxes(jv, county).annual : null);
-  const hasValues = Boolean(jv && Number(jv) > 0);
+  const taxTarget = {
+    purchase_price: p.purchase_price || p.purchasePrice,
+    offer_price: p.offer_price || p.offerPrice,
+    list_price: p.list_price || p.listPrice,
+    just_value: jv
+  };
+  const taxEst = p.tax_basis_explanation ? {
+    annual: p.estimated_annual_taxes || p.annual_taxes,
+    basisExplanation: p.tax_basis_explanation
+  } : estimatePropertyTaxes(taxTarget, county);
+  const taxes = p.estimated_annual_taxes || p.annual_taxes || taxEst.annual;
+  const hasValues = Boolean((jv && Number(jv) > 0) || (taxes && Number(taxes) > 0));
   check({
     id: 'values_taxes',
     label: 'Values & Tax Estimate',
     category: 'financial',
     isComplete: hasValues,
-    displayValue: hasValues ? `Just Value $${Number(jv).toLocaleString('en-US')} · Est. Taxes $${Number(taxes).toLocaleString('en-US')}/yr` : '—',
-    sourceLabel: `Certified ${county} tax roll`,
+    displayValue: hasValues
+      ? `${jv ? `Just Value $${Number(jv).toLocaleString('en-US')} · ` : ''}Taxes: $${Number(taxes).toLocaleString('en-US')}/yr ($${Math.round(Number(taxes) / 12).toLocaleString('en-US')}/mo)${taxEst.basisExplanation ? ` · Basis: ${taxEst.basisExplanation}` : ''}`
+      : '—',
+    sourceLabel: taxEst.basisExplanation || `Certified ${county} tax roll`,
     sourceDate: '2026',
-    missingReason: 'Values: no certified tax assessment on file'
+    missingReason: 'Values & Taxes: no purchase price or tax assessment on file'
   });
 
   // 9. Zoning / Property Class
