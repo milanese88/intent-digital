@@ -5,6 +5,9 @@ import LiveInFitBadge from './LiveInFitBadge.jsx';
 import { normalizeCountyName, estimateCountyFromCoords } from '../../config/counties.js';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
+// Per-keystroke Mapbox suggestions are off: suggestions come from our own county parcel data (free).
+// Flip to true only if a paid Mapbox account is active again.
+const USE_MAPBOX_SUGGEST = false;
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -200,7 +203,7 @@ export default function AddressAutocomplete({
       }
 
       // 2. Mapbox suggest (>= 3 chars if token available)
-      if (MAPBOX_TOKEN && trimmed.length >= 3) {
+      if (USE_MAPBOX_SUGGEST && MAPBOX_TOKEN && trimmed.length >= 3) {
         const q = encodeURIComponent(trimmed);
         const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${q}&access_token=${MAPBOX_TOKEN}&session_token=${sessionToken}&types=address&country=US&proximity=-80.14,26.12&limit=6&language=en`;
         promises.push(
