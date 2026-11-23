@@ -109,6 +109,7 @@ export default function OpportunityMap({
   const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [tokenMissing, setTokenMissing] = useState(false);
+  const [mapError, setMapError] = useState(null);
 
   // Filters & Layer Selection
   const [activeLayer, setActiveLayer] = useState('profit');
@@ -245,9 +246,22 @@ export default function OpportunityMap({
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
+    let styleLoaded = false;
     map.on('error', (e) => {
-      console.warn('Mapbox GL runtime error:', e?.error?.message || e);
+      const msg = e?.error?.message || String(e?.error || e);
+      const status = e?.error?.status;
+      console.warn('Mapbox GL runtime error:', status, msg);
+      // Surface basemap failures on screen (bad/restricted token, blocked request)
+      if (!styleLoaded) {
+        setMapError(status === 401 || status === 403
+          ? `Mapbox rejected the access token on ${window.location.hostname} (HTTP ${status}). Check VITE_MAPBOX_TOKEN in Vercel and the token's URL restrictions in Mapbox.`
+          : `Basemap failed to load: ${msg}`);
+      }
     });
+    map.once('style.load', () => { styleLoaded = true; setMapError(null); });
+    const loadTimeout = setTimeout(() => {
+      if (!styleLoaded) setMapError(`Basemap did not load after 15 seconds on ${window.location.hostname}. Mapbox may be blocking this domain or the token.`);
+    }, 15000);
 
     const setupLayers = () => {
       try {
@@ -465,6 +479,7 @@ export default function OpportunityMap({
     document.addEventListener('visibilitychange', handleWindowResize);
 
     return () => {
+      clearTimeout(loadTimeout);
       window.removeEventListener('resize', handleWindowResize);
       document.removeEventListener('visibilitychange', handleWindowResize);
       if (ro) ro.disconnect();
@@ -806,6 +821,13 @@ export default function OpportunityMap({
           </div>
         ) : (
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+        )}
+
+        {mapError && !tokenMissing && (
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 20, maxWidth: '440px', background: '#FFFFFF', border: '1px solid #E4DDD3', borderRadius: '12px', padding: '20px 24px', textAlign: 'center', color: COLORS.espresso, boxShadow: '0 8px 24px rgba(27,19,13,0.08)' }}>
+            <div style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: COLORS.burgundy, marginBottom: '8px' }}>Map could not load</div>
+            <div style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '13px', lineHeight: 1.5 }}>{mapError}</div>
+          </div>
         )}
 
         {/* LOADING INDICATOR PILL */}
