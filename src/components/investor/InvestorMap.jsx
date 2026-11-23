@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Short price formatter: e.g. $499K, $1.2M, $850K
 function formatShortPrice(price) {
@@ -38,29 +38,21 @@ export default function InvestorMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [tokenMissing, setTokenMissing] = useState(false);
 
-  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
+  
   // Initialize Map
   useEffect(() => {
-    if (!MAPBOX_TOKEN) {
-      setTokenMissing(true);
-      return;
-    }
-
     if (!mapContainerRef.current || mapRef.current) return;
 
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/light-v11',
+      style: 'https://tiles.openfreemap.org/styles/positron', // OpenFreeMap: free, no key
       center: [-80.1373, 26.1224], // Fort Lauderdale default
       zoom: 11,
-      attributionControl: false
+      attributionControl: { compact: true } // OpenStreetMap credit (required)
     });
 
     // Add navigation zoom +/- controls to top-right
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     map.on('load', () => {
       setMapLoaded(true);
@@ -93,7 +85,7 @@ export default function InvestorMap({
 
           // Roads: clean white
           if (layer.type === 'line' && (id.includes('road') || id.includes('street') || id.includes('motorway') || id.includes('highway'))) {
-            if (!id.includes('case')) {
+            if (!id.includes('case') && !id.includes('casing')) {
               map.setPaintProperty(id, 'line-color', '#FFFFFF');
             }
           }
@@ -118,7 +110,7 @@ export default function InvestorMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [MAPBOX_TOKEN]);
+  }, []);
 
   // Sync Markers & Bounds when pins or mapLoaded changes
   useEffect(() => {
@@ -177,7 +169,7 @@ export default function InvestorMap({
           });
         }
 
-        const popup = new mapboxgl.Popup({
+        const popup = new maplibregl.Popup({
           offset: [0, -14],
           closeButton: false,
           closeOnClick: false,
@@ -218,7 +210,7 @@ export default function InvestorMap({
           }
         });
 
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([pin.lng, pin.lat])
           .setPopup(popup)
           .addTo(map);
@@ -252,7 +244,7 @@ export default function InvestorMap({
     } else if (validPins.length === 1) {
       map.flyTo({ center: [validPins[0].lng, validPins[0].lat], zoom: 15, duration: 600 });
     } else {
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new maplibregl.LngLatBounds();
       validPins.forEach(p => bounds.extend([p.lng, p.lat]));
       map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
     }
@@ -393,7 +385,7 @@ export default function InvestorMap({
         }
 
         /* Mapbox Popup Styling */
-        .investor-mapbox-popup .mapboxgl-popup-content {
+        .investor-mapbox-popup .maplibregl-popup-content {
           padding: 12px 14px;
           border-radius: 10px;
           border: 1px solid rgba(52, 41, 42, 0.12);
@@ -402,7 +394,7 @@ export default function InvestorMap({
           min-width: 170px;
           max-width: 240px;
         }
-        .investor-mapbox-popup .mapboxgl-popup-tip {
+        .investor-mapbox-popup .maplibregl-popup-tip {
           border-top-color: #FAF8F5;
         }
         .investor-popup-type {

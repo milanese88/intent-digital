@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '../ui';
 import zctaGeoJson from '../../content/geo/south-florida-zcta.json';
 
@@ -130,8 +130,7 @@ export default function OpportunityMap({
   const [viewportBbox, setViewportBbox] = useState(null);
   const [error, setError] = useState(null);
 
-  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
+  
   // Lookup map of aggregates by ZIP
   const aggByZip = useMemo(() => {
     const map = new Map();
@@ -223,28 +222,21 @@ export default function OpportunityMap({
     onOpenDealBreakdownRef.current = onOpenDealBreakdown;
   }, [onOpenDealBreakdown]);
 
-  // Initialize Mapbox
+  // Initialize map (MapLibre + OpenFreeMap)
   useEffect(() => {
-    if (!MAPBOX_TOKEN) {
-      setTokenMissing(true);
-      return;
-    }
-
     if (!mapContainerRef.current || mapRef.current) return;
 
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/light-v11',
+      style: 'https://tiles.openfreemap.org/styles/positron', // OpenFreeMap: free, no key
       center: [-80.12, 26.45], // South Florida regional center
       zoom: 9.5,
-      attributionControl: false
+      attributionControl: { compact: true } // OpenStreetMap credit (required)
     });
 
     mapRef.current = map;
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     let styleLoaded = false;
     map.on('error', (e) => {
@@ -254,13 +246,13 @@ export default function OpportunityMap({
       // Surface basemap failures on screen (bad/restricted token, blocked request)
       if (!styleLoaded) {
         setMapError(status === 401 || status === 403
-          ? `Mapbox rejected the access token on ${window.location.hostname} (HTTP ${status}). Check VITE_MAPBOX_TOKEN in Vercel and the token's URL restrictions in Mapbox.`
+          ? `The map provider refused the request on ${window.location.hostname} (HTTP ${status}).`
           : `Basemap failed to load: ${msg}`);
       }
     });
     map.once('style.load', () => { styleLoaded = true; setMapError(null); });
     const loadTimeout = setTimeout(() => {
-      if (!styleLoaded) setMapError(`Basemap did not load after 15 seconds on ${window.location.hostname}. Mapbox may be blocking this domain or the token.`);
+      if (!styleLoaded) setMapError(`Basemap did not load after 15 seconds on ${window.location.hostname}. The map tile service may be down or blocked.`);
     }, 15000);
 
     const setupLayers = () => {
@@ -294,7 +286,7 @@ export default function OpportunityMap({
 
           // Roads: clean white
           if (layer.type === 'line' && (id.includes('road') || id.includes('street') || id.includes('motorway') || id.includes('highway'))) {
-            if (!id.includes('case')) {
+            if (!id.includes('case') && !id.includes('casing')) {
               try { map.setPaintProperty(id, 'line-color', '#FFFFFF'); } catch (_) {}
             }
           }
@@ -488,7 +480,7 @@ export default function OpportunityMap({
         mapRef.current = null;
       }
     };
-  }, [MAPBOX_TOKEN]);
+  }, []);
 
   // Fit bounds when selectedCounty changes or map finishes loading
   useEffect(() => {
@@ -625,7 +617,7 @@ export default function OpportunityMap({
         coords = coords[0];
       }
       if (coords && coords.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds();
+        const bounds = new maplibregl.LngLatBounds();
         coords.forEach((pt) => bounds.extend(pt));
         map.fitBounds(bounds, { padding: 80, maxZoom: 12.5, duration: 900 });
       }
