@@ -119,10 +119,30 @@ export default function FlipBuildFinder({
   const [studyMenuKey, setStudyMenuKey] = useState(null);
   const [studyMenuItems, setStudyMenuItems] = useState(null);
   const [studyMenuStatus, setStudyMenuStatus] = useState({});
+  const [studyMenuPos, setStudyMenuPos] = useState(null);
+  useEffect(() => {
+    if (!studyMenuKey) return undefined;
+    const close = (e) => {
+      if (e?.target?.closest?.('[data-study-menu]')) return;
+      setStudyMenuKey(null);
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [studyMenuKey]);
   const rowStudyKey = (r) => `${r.county}|${r.parcel_id}|${r.buy_year}-${r.buy_month}|${r.sell_year}-${r.sell_month}`;
-  const openStudyMenu = async (r) => {
+  const openStudyMenu = async (r, anchorEl) => {
     const key = rowStudyKey(r);
     if (studyMenuKey === key) { setStudyMenuKey(null); return; }
+    if (anchorEl && typeof window !== 'undefined') {
+      const rect = anchorEl.getBoundingClientRect();
+      const menuH = 260;
+      const top = rect.bottom + menuH > window.innerHeight ? Math.max(8, rect.top - menuH - 6) : rect.bottom + 6;
+      setStudyMenuPos({ top, left: Math.max(8, Math.min(rect.left, window.innerWidth - 256)) });
+    }
     setStudyMenuKey(key);
     if (studyMenuItems === null) {
       try { setStudyMenuItems(await listStudiesForMenu()); } catch (_) { setStudyMenuItems([]); }
@@ -1413,14 +1433,14 @@ export default function FlipBuildFinder({
                     </td>
 
                     {/* Action */}
-                    <td style={{ padding: '13px 16px', textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
+                    <td style={{ padding: '13px 16px 13px 8px', textAlign: 'right', whiteSpace: 'nowrap', position: 'relative', width: '1%' }}>
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: '6px' }}>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); openStudyMenu(row); }}
+                        onClick={(e) => { e.stopPropagation(); openStudyMenu(row, e.currentTarget); }}
                         title="Add this deal to a developer study"
                         style={{
                           padding: '6px 10px',
-                          marginRight: '8px',
                           borderRadius: '999px',
                           border: '1px solid #E4DDD3',
                           backgroundColor: '#FFFFFF',
@@ -1436,14 +1456,15 @@ export default function FlipBuildFinder({
                         + Study
                       </button>
                       {studyMenuStatus[rowStudyKey(row)] && studyMenuStatus[rowStudyKey(row)] !== 'saving' && studyMenuKey !== rowStudyKey(row) && (
-                        <span style={{ position: 'absolute', right: '16px', bottom: '-2px', fontSize: '10px', color: '#3A1418', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}>
+                        <span style={{ position: 'absolute', right: '16px', bottom: '0px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '10px', color: '#3A1418', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}>
                           ✓ {studyMenuStatus[rowStudyKey(row)]}
                         </span>
                       )}
                       {studyMenuKey === rowStudyKey(row) && (
                         <div
+                          data-study-menu
                           onClick={(e) => e.stopPropagation()}
-                          style={{ position: 'absolute', right: '16px', top: 'calc(100% - 6px)', zIndex: 20, width: '240px', textAlign: 'left', whiteSpace: 'normal', backgroundColor: '#FFFFFF', border: '1px solid #E4DDD3', borderRadius: '14px', boxShadow: '0 10px 30px rgba(27, 19, 13, 0.12)', padding: '8px', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}
+                          style={{ position: 'fixed', top: `${studyMenuPos?.top ?? 120}px`, left: `${studyMenuPos?.left ?? 120}px`, zIndex: 1000, width: '240px', maxHeight: '260px', overflowY: 'auto', boxSizing: 'border-box', textAlign: 'left', whiteSpace: 'normal', backgroundColor: '#FFFFFF', border: '1px solid #E4DDD3', borderRadius: '14px', boxShadow: '0 10px 30px rgba(27, 19, 13, 0.12)', padding: '8px', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}
                         >
                           <div style={{ fontSize: '9.5px', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7A6E64', padding: '6px 8px' }}>Add to developer study</div>
                           {studyMenuItems === null ? (
@@ -1490,6 +1511,7 @@ export default function FlipBuildFinder({
                       >
                         Break down →
                       </button>
+                      </div>
                     </td>
                   </tr>
                 );
