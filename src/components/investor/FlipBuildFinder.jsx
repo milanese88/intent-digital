@@ -7,6 +7,7 @@ import {
   FLIP_REHAB_INFERENCE_RULES
 } from '../../config/developerCosts.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
+import { listStudiesForMenu, addFinderRowToStudy } from './DeveloperStudies.jsx';
 import {
   buildAnalyzeCandidateRow,
   estimateQuickFinderProfit
@@ -114,6 +115,30 @@ export default function FlipBuildFinder({
   const [priceBand, setPriceBand] = useState('all');
   const [maxMonths, setMaxMonths] = useState(24);
   const [minGainPct, setMinGainPct] = useState(25);
+  // Developer studies: "+ Study" menu per row
+  const [studyMenuKey, setStudyMenuKey] = useState(null);
+  const [studyMenuItems, setStudyMenuItems] = useState(null);
+  const [studyMenuStatus, setStudyMenuStatus] = useState({});
+  const rowStudyKey = (r) => `${r.county}|${r.parcel_id}|${r.buy_year}-${r.buy_month}|${r.sell_year}-${r.sell_month}`;
+  const openStudyMenu = async (r) => {
+    const key = rowStudyKey(r);
+    if (studyMenuKey === key) { setStudyMenuKey(null); return; }
+    setStudyMenuKey(key);
+    if (studyMenuItems === null) {
+      try { setStudyMenuItems(await listStudiesForMenu()); } catch (_) { setStudyMenuItems([]); }
+    }
+  };
+  const addRowToStudy = async (r, study) => {
+    const key = rowStudyKey(r);
+    setStudyMenuStatus((m) => ({ ...m, [key]: 'saving' }));
+    try {
+      const data = await addFinderRowToStudy(study.id, r);
+      setStudyMenuStatus((m) => ({ ...m, [key]: data.alreadyAdded ? `Already in ${study.name}` : `Added to ${study.name}` }));
+      setStudyMenuKey(null);
+    } catch (err) {
+      setStudyMenuStatus((m) => ({ ...m, [key]: err.message || 'Could not add' }));
+    }
+  };
   const [includeMyListings, setIncludeMyListings] = useState(false);
   const [includeDistressed, setIncludeDistressed] = useState(false);
   const [sortBy, setSortBy] = useState('sell_date');
@@ -1388,7 +1413,61 @@ export default function FlipBuildFinder({
                     </td>
 
                     {/* Action */}
-                    <td style={{ padding: '13px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '13px 16px', textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openStudyMenu(row); }}
+                        title="Add this deal to a developer study"
+                        style={{
+                          padding: '6px 10px',
+                          marginRight: '8px',
+                          borderRadius: '999px',
+                          border: '1px solid #E4DDD3',
+                          backgroundColor: '#FFFFFF',
+                          color: '#3A1418',
+                          fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Study
+                      </button>
+                      {studyMenuStatus[rowStudyKey(row)] && studyMenuStatus[rowStudyKey(row)] !== 'saving' && studyMenuKey !== rowStudyKey(row) && (
+                        <span style={{ position: 'absolute', right: '16px', bottom: '-2px', fontSize: '10px', color: '#3A1418', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}>
+                          ✓ {studyMenuStatus[rowStudyKey(row)]}
+                        </span>
+                      )}
+                      {studyMenuKey === rowStudyKey(row) && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ position: 'absolute', right: '16px', top: 'calc(100% - 6px)', zIndex: 20, width: '240px', textAlign: 'left', whiteSpace: 'normal', backgroundColor: '#FFFFFF', border: '1px solid #E4DDD3', borderRadius: '14px', boxShadow: '0 10px 30px rgba(27, 19, 13, 0.12)', padding: '8px', fontFamily: 'var(--font-sans, "Montserrat", sans-serif)' }}
+                        >
+                          <div style={{ fontSize: '9.5px', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7A6E64', padding: '6px 8px' }}>Add to developer study</div>
+                          {studyMenuItems === null ? (
+                            <div style={{ fontSize: '12px', color: '#7A6E64', padding: '8px' }}>Loading…</div>
+                          ) : studyMenuItems.length === 0 ? (
+                            <div style={{ fontSize: '12px', color: '#5E544C', padding: '8px', lineHeight: 1.5 }}>No studies yet. Create one in the Developer Studies tab first.</div>
+                          ) : (
+                            studyMenuItems.map((st) => (
+                              <button
+                                key={st.id}
+                                type="button"
+                                disabled={studyMenuStatus[rowStudyKey(row)] === 'saving'}
+                                onClick={() => addRowToStudy(row, st)}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', borderRadius: '8px', padding: '8px', fontFamily: 'inherit', fontSize: '12.5px', color: '#1B130D', cursor: 'pointer' }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F2EEE8'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                              >
+                                {st.name}
+                                <span style={{ display: 'block', fontSize: '10.5px', color: '#7A6E64' }}>{st.deal_count} deals</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {

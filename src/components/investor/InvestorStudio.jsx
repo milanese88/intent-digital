@@ -22,6 +22,7 @@ import { mergeCountyDataIntoProperty } from '../../utils/propertyCompleteness.js
 import SectionErrorBoundary from '../ui/SectionErrorBoundary.jsx';
 import FlipBuildFinder from './FlipBuildFinder.jsx';
 import OpportunityMap from './OpportunityMap.jsx';
+import DeveloperStudies from './DeveloperStudies.jsx';
 import {
   computeAppraisalGrid,
   normalizeReconciliationWeights,
@@ -105,6 +106,7 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
       const v = (params.get('investor_view') || '').toLowerCase();
       if (v === 'finder') return 'finder';
       if (v === 'map' || v === 'opportunity_map') return 'opportunity_map';
+      if (v === 'developers' || v === 'developer_studies') return 'developer_studies';
     }
     return 'properties';
   });
@@ -149,6 +151,8 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
         url.searchParams.set('investor_view', 'finder');
       } else if (nextMode === 'opportunity_map') {
         url.searchParams.set('investor_view', 'map');
+      } else if (nextMode === 'developer_studies') {
+        url.searchParams.set('investor_view', 'developers');
       } else {
         url.searchParams.delete('investor_view');
         url.searchParams.delete('finder_zip');
@@ -5016,6 +5020,25 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     HEATMAP
                   </span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchStudioMode('developer_studies')}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '999px',
+                    border: studioMode === 'developer_studies' ? '1px solid #3A1418' : '1px solid #E4DDD3',
+                    backgroundColor: studioMode === 'developer_studies' ? '#3A1418' : '#FFFFFF',
+                    color: studioMode === 'developer_studies' ? '#FAF8F4' : '#1B130D',
+                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Developer Studies
+                </button>
               </div>
               {studioMode === 'finder' && activeFinderRow && (
                 <Button
@@ -5042,6 +5065,26 @@ export default function InvestorStudio({ setActiveDashboardTab, navigateTo }) {
                     onOpenDealBreakdown={(dot) => {
                       setActiveFinderRow(dot);
                       handleSwitchStudioMode('finder');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 180, behavior: 'smooth' });
+                      }
+                    }}
+                  />
+                </SectionErrorBoundary>
+              </div>
+            ) : studioMode === 'developer_studies' ? (
+              <div style={{ marginTop: '24px' }}>
+                <SectionErrorBoundary section="developer-studies" label="Developer Studies">
+                  <DeveloperStudies
+                    onGoToFinder={() => {
+                      handleSwitchStudioMode('finder');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 180, behavior: 'smooth' });
+                      }
+                    }}
+                    onOpenDealBreakdown={(row) => {
+                      setStudioMode('finder');
+                      setActiveFinderRow(row);
                       if (typeof window !== 'undefined') {
                         window.scrollTo({ top: 180, behavior: 'smooth' });
                       }
