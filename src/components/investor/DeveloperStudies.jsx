@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { estimateQuickFinderProfit } from './dealBreakdownEngine.js';
+import { estimateQuickFinderProfit, calculateDealBreakdown } from './dealBreakdownEngine.js';
 
 // Developer studies — study one builder/developer through the deals you add
 // from the Flip & Build Finder. Step 1: studies, companies, deal table + profits.
@@ -49,6 +49,33 @@ function isBuild(type) {
 // A build-cost override replaces the $/sf estimate with your real number.
 export function computeStudyDeal(deal) {
   const row = deal.row_snapshot || {};
+  // 1. Your saved Deal Breakdown wins: it has your refined costs, financing and timeline
+  const bdInputs = deal.breakdown?.inputs;
+  if (bdInputs && Object.keys(bdInputs).length > 0) {
+    try {
+      const r = calculateDealBreakdown(bdInputs);
+      const sell = Number(r.metrics?.exitPrice) || Number(row.sell_price) || null;
+      const profit = Number.isFinite(Number(r.metrics?.estProfit)) ? Number(r.metrics.estProfit) : null;
+      const c = r.costs || {};
+      return {
+        row,
+        est: null,
+        fromBreakdown: true,
+        breakdownTitle: deal.breakdown.title || 'Deal Breakdown',
+        breakdownUpdated: deal.breakdown.updated_at,
+        buy: Number(c.purchasePrice) || Number(row.buy_price) || null,
+        sell,
+        months: Number(bdInputs.timelinePhases?.totalHoldMonths) || Number(bdInputs.holdMonths) || Number(row.hold_months) || null,
+        buildCost: (Number(c.demoCost) || 0) + (Number(c.hardCost) || 0) + (Number(c.softCosts) || 0),
+        overridden: false,
+        profit,
+        margin: profit != null && sell ? profit / sell : null,
+        roc: r.metrics?.roiPct ?? null
+      };
+    } catch (_) {
+      // fall through to the quick estimate
+    }
+  }
   let est = null;
   try {
     est = estimateQuickFinderProfit(row);
@@ -80,7 +107,8 @@ function Tag({ kind }) {
   const map = {
     recorded: { bg: '#EFEAE3', fg: '#5E544C', t: 'Recorded' },
     estimated: { bg: '#F5EFF0', fg: '#6E2231', t: 'Estimated' },
-    override: { bg: C.burgundy, fg: C.cream, t: 'Your number' }
+    override: { bg: C.burgundy, fg: C.cream, t: 'Your number' },
+    breakdown: { bg: '#1B130D', fg: C.cream, t: 'Your breakdown' }
   };
   const s = map[kind];
   return (
@@ -267,7 +295,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
     if (raw === undefined) return;
     try {
       const data = await api('PATCH', { body: { deal_id: deal.id, build_cost_override: raw === '' ? null : raw } });
-      setDeals((list) => list.map((d) => (d.id === deal.id ? data.deal : d)));
+      setDeals((list) => list.map((d) => (d.id === deal.id ? { ...data.deal, breakdown: d.breakdown } : d)));
       setCostDrafts((m) => { const n = { ...m }; delete n[deal.id]; return n; });
     } catch (err) {
       setError(err.message);
@@ -397,7 +425,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap', padding: '0 10px 12px' }}>
           <h3 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '26px' }}>The deals <em>({deals.length})</em></h3>
           <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', fontSize: '11px', color: C.muted }}>
-            <Tag kind="recorded" /> <Tag kind="estimated" /> <Tag kind="override" />
+            <Tag kind="recorded" /> <Tag kind="estimated" /> <Tag kind="override" /> <Tag kind="breakdown" />
           </span>
         </div>
 
@@ -432,6 +460,13 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
                     </td>
                     <td style={td}>{money(c.buy)} <Tag kind="recorded" /><span style={sub}>{monthLabel(r.buy_year, r.buy_month)}</span></td>
                     <td style={td}>
+                      {c.fromBreakdown ? (
+                        <>
+                          {money(c.buildCost)} <Tag kind="breakdown" />
+                          <span style={sub}>build + soft costs</span>
+                        </>
+                      ) : (
+                      <>
                       <input
                         value={draft !== undefined ? draft : (c.overridden ? String(Math.round(c.buildCost)) : '')}
                         placeholder={c.buildCost != null ? money(c.buildCost) : 'Enter $'}
@@ -442,10 +477,15 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
                         style={{ width: '96px', padding: '6px 8px', borderRadius: '8px', border: `1px solid ${C.border}`, fontFamily: SANS, fontSize: '12px', color: C.espresso }}
                       />{' '}
                       <Tag kind={c.overridden ? 'override' : 'estimated'} />
+                      </>
+                      )}
                     </td>
                     <td style={td}>{money(c.sell)} <Tag kind="recorded" /><span style={sub}>{monthLabel(r.sell_year, r.sell_month)}</span></td>
                     <td style={td}>{c.months != null ? `${Math.round(c.months)} mo` : '—'}</td>
-                    <td style={{ ...td, fontWeight: 600, color: c.profit != null && c.profit < 0 ? C.loss : C.burgundy }}>{money(c.profit)}</td>
+                    <td style={{ ...td, fontWeight: 600, color: c.profit != null && c.profit < 0 ? C.loss : C.burgundy }}>
+                      {money(c.profit)}
+                      <span style={{ ...sub, fontWeight: 400 }}>{c.fromBreakdown ? `from “${c.breakdownTitle}”` : 'quick estimate'}</span>
+                    </td>
                     <td style={td}>{c.margin != null ? `${Math.round(c.margin * 100)}%` : '—'}</td>
                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {onOpenDealBreakdown && (
@@ -464,7 +504,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
       <section style={{ borderTop: `1px solid ${C.border}`, paddingTop: '16px', display: 'flex', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap', fontSize: '11px', color: '#5E544C', lineHeight: 1.6 }}>
         <p style={{ margin: 0, maxWidth: '760px' }}>
           <span style={{ ...LABEL, marginRight: '10px' }}>How we calculated</span>
-          Prices and dates come from county deeds. Build and renovation costs use the Finder's $/sf estimate unless you type the real number. Profit includes carrying and selling costs, the same way as the Deal Breakdown.
+          Prices and dates come from county deeds. When you save a Deal Breakdown for a property, the study uses it automatically (tagged “Your breakdown”). Otherwise build and renovation costs use the Finder's $/sf estimate unless you type the real number. Profit includes carrying, financing and selling costs.
         </p>
         {confirmDelete ? (
           <span style={{ display: 'inline-flex', gap: '10px', alignItems: 'center' }}>
