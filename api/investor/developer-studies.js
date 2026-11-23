@@ -85,7 +85,25 @@ export default async function handler(req, res) {
             WHERE study_id = ${id} AND lower(owner_email) = ${email}
             ORDER BY sell_ym DESC NULLS LAST, created_at DESC;
           `;
-          return res.status(200).json({ study, deals: deals.map(hydrateDeal) });
+          // Attach the latest saved Deal Breakdown for each property, so the study
+          // uses your refined numbers once you save a breakdown.
+          let latestByParcel = new Map();
+          const parcelIds = [...new Set(deals.map((d) => d.parcel_id).filter(Boolean))];
+          if (parcelIds.length) {
+            try {
+              const bds = await sql`
+                SELECT DISTINCT ON (county, parcel_id) id, county, parcel_id, title, inputs, updated_at
+                FROM deal_breakdowns
+                WHERE lower(owner_email) = ${email} AND parcel_id = ANY(${parcelIds})
+                ORDER BY county, parcel_id, updated_at DESC;
+              `;
+              latestByParcel = new Map(bds.map((b) => [`${b.county}|${b.parcel_id}`, { ...b, inputs: parseJsonbObject(b.inputs) }]));
+            } catch (_) {
+              latestByParcel = new Map();
+            }
+          }
+          const hydrated = deals.map((d) => ({ ...hydrateDeal(d), breakdown: latestByParcel.get(`${d.county}|${d.parcel_id}`) || null }));
+          return res.status(200).json({ study, deals: hydrated });
         }
         const items = await sql`
           SELECT s.*, COALESCE(d.deal_count, 0)::int AS deal_count
