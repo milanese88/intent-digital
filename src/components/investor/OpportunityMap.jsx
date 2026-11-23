@@ -15,6 +15,19 @@ const COLORS = {
   lowData: 'rgba(228, 221, 211, 0.45)'
 };
 
+// v3 look: rose flips vs espresso new builds, floating panels over a full-width map
+const DOT_FLIP = '#B5707D';
+const SERIF = "var(--font-instrument, 'Instrument Serif', Georgia, serif)";
+const SANS = "var(--font-body, 'Montserrat', sans-serif)";
+const FLOAT = {
+  backgroundColor: '#FFFFFF',
+  border: '1px solid #E4DDD3',
+  boxShadow: '0 6px 24px rgba(27, 19, 13, 0.08)'
+};
+const LABEL_STYLE = { fontFamily: SANS, fontSize: '9.5px', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7A6E64' };
+const SHORT_LAYER = { profit: 'Profit', months: 'Speed', dom: 'Days on market', deal_count: 'Deals' };
+const SHORT_DEAL = { all: 'All', flip: 'Flips', demo_new_build: 'Builds' };
+
 // 5-Step Burgundy Scale: Level 1 (lowest/slowest) to Level 5 (highest/fastest)
 const BURGUNDY_SCALE = [
   '#F5EFF0', // Step 1: Lightest
@@ -129,6 +142,8 @@ export default function OpportunityMap({
   const [hoveredZip, setHoveredZip] = useState(null);
   const [viewportBbox, setViewportBbox] = useState(null);
   const [error, setError] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [rankOpen, setRankOpen] = useState(true);
 
   
   // Lookup map of aggregates by ZIP
@@ -265,23 +280,26 @@ export default function OpportunityMap({
           const id = layer.id;
 
           // Hide cluttered POI icons, transit, and business labels
-          if (id.includes('poi') || id.includes('transit') || id.includes('business')) {
+          if (id.includes('poi') || id.includes('transit') || id.includes('business') ||
+              id.includes('railway') || id.includes('aeroway') || id.includes('highway-name') ||
+              id.includes('shield') || id.includes('landuse') || id.includes('building') ||
+              id.includes('boundary') || id.includes('housenumber')) {
             try { map.setLayoutProperty(id, 'visibility', 'none'); } catch (_) {}
           }
 
           // Water: soft muted blue-gray (#CBD5E1) — crystal clear coastlines, Atlantic ocean & waterways
           if (layer.type === 'fill' && id.includes('water')) {
-            try { map.setPaintProperty(id, 'fill-color', '#CBD5E1'); } catch (_) {}
+            try { map.setPaintProperty(id, 'fill-color', '#DCE0DF'); } catch (_) {}
           }
 
           // Parks & green spaces: soft sage
           if (layer.type === 'fill' && (id.includes('park') || id.includes('national-park') || id.includes('green') || id.includes('landcover'))) {
-            try { map.setPaintProperty(id, 'fill-color', '#DCE5D8'); } catch (_) {}
+            try { map.setPaintProperty(id, 'fill-color', '#ECE6DC'); } catch (_) {}
           }
 
           // Land & background: warm cream (#F2ECE4)
           if (layer.type === 'background') {
-            try { map.setPaintProperty(id, 'background-color', '#F2ECE4'); } catch (_) {}
+            try { map.setPaintProperty(id, 'background-color', '#F5F1EA'); } catch (_) {}
           }
 
           // Roads: clean white
@@ -296,7 +314,7 @@ export default function OpportunityMap({
             try {
               map.setPaintProperty(id, 'text-color', '#5E4E42');
               map.setPaintProperty(id, 'text-halo-color', '#FAF8F5');
-              map.setPaintProperty(id, 'text-halo-width', 1.5);
+              map.setPaintProperty(id, 'text-halo-width', 1.2);
             } catch (_) {}
           }
         }
@@ -333,9 +351,9 @@ export default function OpportunityMap({
             type: 'line',
             source: 'zcta-boundaries',
             paint: {
-              'line-color': COLORS.espresso,
-              'line-width': 0.8,
-              'line-opacity': 0.45
+              'line-color': '#FFFFFF',
+              'line-width': 1,
+              'line-opacity': 0.9
             }
           }, beforeId);
         }
@@ -359,22 +377,20 @@ export default function OpportunityMap({
                 'case',
                 ['==', ['get', 'deal_type'], 'demo_new_build'],
                 COLORS.espresso,
-                COLORS.burgundy
+                DOT_FLIP
               ],
+              // Small at region view, grows when zooming in; bigger spread = bigger dot
               'circle-radius': [
-                'interpolate',
-                ['linear'],
-                ['get', 'jump_dollars'],
-                50000, 4,
-                200000, 6,
-                500000, 9,
-                1000000, 13
+                'interpolate', ['linear'], ['zoom'],
+                8, ['interpolate', ['linear'], ['get', 'jump_dollars'], 50000, 2, 1000000, 4.5],
+                11, ['interpolate', ['linear'], ['get', 'jump_dollars'], 50000, 3.5, 1000000, 8],
+                14, ['interpolate', ['linear'], ['get', 'jump_dollars'], 50000, 6, 1000000, 13]
               ],
-              'circle-stroke-width': 1.5,
+              'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.75, 12, 1.5],
               'circle-stroke-color': '#FFFFFF',
-              'circle-opacity': 0.88
+              'circle-opacity': 0.92
             }
-          });
+          }, beforeId);
         }
 
         // Fit bounds to South Florida / selected county initially
@@ -624,189 +640,75 @@ export default function OpportunityMap({
     }
   };
 
+  const activeFilterChips = [
+    selectedCounty !== 'all' && { key: 'county', label: COUNTIES.find((c) => c.id === selectedCounty)?.label, clear: () => setSelectedCounty('all') },
+    priceBand !== 'all' && { key: 'price', label: PRICE_BANDS.find((p) => p.id === priceBand)?.label, clear: () => setPriceBand('all') },
+    lookbackMonths !== 24 && { key: 'window', label: LOOKBACK_OPTIONS.find((o) => o.id === lookbackMonths)?.label, clear: () => setLookbackMonths(24) },
+    sqftBand !== 'all' && { key: 'sf', label: SF_BANDS.find((o) => o.id === sqftBand)?.label, clear: () => setSqftBand('all') },
+    minBeds !== 0 && { key: 'beds', label: BED_OPTIONS.find((o) => o.id === minBeds)?.label, clear: () => setMinBeds(0) }
+  ].filter(Boolean);
+
+  const segBtn = (active) => ({
+    padding: '7px 13px',
+    borderRadius: '9px',
+    border: 'none',
+    backgroundColor: active ? COLORS.espresso : 'transparent',
+    color: active ? COLORS.cream : '#5E544C',
+    fontFamily: SANS,
+    fontSize: '12px',
+    fontWeight: active ? 600 : 500,
+    cursor: 'pointer',
+    transition: 'background-color 0.18s ease, color 0.18s ease',
+    whiteSpace: 'nowrap'
+  });
+  const segWrap = { display: 'inline-flex', gap: '2px', padding: '3px', borderRadius: '12px', backgroundColor: COLORS.beige };
+  const selectStyle = {
+    width: '100%',
+    padding: '9px 10px',
+    borderRadius: '10px',
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: COLORS.white,
+    color: COLORS.espresso,
+    fontFamily: SANS,
+    fontSize: '12px',
+    cursor: 'pointer'
+  };
+  const filterField = (label, value, onChange, options, numeric = false) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <span style={LABEL_STYLE}>{label}</span>
+      <select value={value} onChange={(e) => onChange(numeric ? Number(e.target.value) : e.target.value)} style={selectStyle}>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+    </label>
+  );
+  const rankValues = rankings.map((r) => Math.abs(Number(r.metric_value) || 0)).filter((v) => v > 0);
+  const maxRankValue = rankValues.length ? Math.max(...rankValues) : 1;
+  const minRankValue = rankValues.length ? Math.min(...rankValues) : 1;
+  const rankBarPct = (r) => {
+    const v = Math.abs(Number(r.metric_value) || 0);
+    if (!v) return 0;
+    if (activeLayer === 'months' || activeLayer === 'dom') return Math.round((minRankValue / v) * 100);
+    return Math.round((v / maxRankValue) * 100);
+  };
+  const totalDeals = aggregates.reduce((n, a) => n + (Number(a.deal_count) || 0), 0);
+
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: '740px', backgroundColor: COLORS.cream, borderRadius: '12px', overflow: 'hidden', border: `1px solid ${COLORS.border}` }}>
-      {/* TOP CONTROLS BAR */}
-      <div style={{
-        padding: '16px 20px',
-        backgroundColor: COLORS.white,
-        borderBottom: `1px solid ${COLORS.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px'
-      }}>
-        {/* Layer Pills & Deal Type */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          {/* Layer Pills */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(27, 19, 13, 0.6)', marginRight: '6px' }}>
-              HEATMAP LAYER:
-            </span>
-            {LAYERS.map((layer) => {
-              const active = activeLayer === layer.id;
-              return (
-                <button
-                  key={layer.id}
-                  type="button"
-                  onClick={() => setActiveLayer(layer.id)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '999px',
-                    border: active ? `1.5px solid ${COLORS.burgundy}` : `1px solid ${COLORS.border}`,
-                    backgroundColor: active ? COLORS.burgundy : COLORS.white,
-                    color: active ? COLORS.cream : COLORS.espresso,
-                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                    fontSize: '11px',
-                    fontWeight: active ? 700 : 500,
-                    letterSpacing: '0.04em',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title={layer.desc}
-                >
-                  {layer.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Deal Type Switcher */}
-          <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '999px', backgroundColor: COLORS.beige, border: `1px solid ${COLORS.border}` }}>
-            {DEAL_TYPES.map((dt) => {
-              const active = activeDealType === dt.id;
-              return (
-                <button
-                  key={dt.id}
-                  type="button"
-                  onClick={() => setActiveDealType(dt.id)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '999px',
-                    border: 'none',
-                    backgroundColor: active ? COLORS.espresso : 'transparent',
-                    color: active ? COLORS.cream : COLORS.espresso,
-                    fontFamily: 'var(--font-sans, "Montserrat", sans-serif)',
-                    fontSize: '11px',
-                    fontWeight: active ? 700 : 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease'
-                  }}
-                >
-                  {dt.label}
-                </button>
-              );
-            })}
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: SANS, color: COLORS.espresso }}>
+      {/* HEADER */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' }}>
+        <div>
+          <p style={{ ...LABEL_STYLE, margin: '0 0 8px' }}>Opportunity map · county deeds</p>
+          <h2 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 'clamp(28px, 3vw, 40px)', lineHeight: 1.05, color: COLORS.espresso }}>
+            Where the money is made, <em>and how fast.</em>
+          </h2>
         </div>
-
-        {/* Secondary Filter Dropdowns */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* County */}
-          <select
-            value={selectedCounty}
-            onChange={(e) => setSelectedCounty(e.target.value)}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: COLORS.espresso,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {COUNTIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-
-          {/* Price Band */}
-          <select
-            value={priceBand}
-            onChange={(e) => setPriceBand(e.target.value)}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: COLORS.espresso,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {PRICE_BANDS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-
-          {/* Lookback Window */}
-          <select
-            value={lookbackMonths}
-            onChange={(e) => setLookbackMonths(Number(e.target.value))}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: COLORS.espresso,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {LOOKBACK_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </select>
-
-          {/* SF Band */}
-          <select
-            value={sqftBand}
-            onChange={(e) => setSqftBand(e.target.value)}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: COLORS.espresso,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {SF_BANDS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-
-          {/* Beds */}
-          <select
-            value={minBeds}
-            onChange={(e) => setMinBeds(Number(e.target.value))}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: COLORS.espresso,
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {BED_OPTIONS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-          </select>
-
-          {/* Deal Dot Legend */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px', color: 'rgba(27, 19, 13, 0.7)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: COLORS.burgundy, border: '1px solid #FFF' }}></span>
-              Flip Dot
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: COLORS.espresso, border: '1px solid #FFF' }}></span>
-              New Build Dot
-            </span>
-          </div>
-        </div>
+        <p style={{ margin: 0, fontSize: '11px', color: '#7A6E64' }}>
+          {loading ? 'Updating…' : `${totalDeals.toLocaleString()} deals on the map`}
+        </p>
       </div>
 
       {/* MAP VIEWPORT & FLOATING OVERLAYS */}
-      <div style={{ position: 'relative', width: '100%', height: '620px' }}>
+      <div style={{ position: 'relative', width: '100%', height: 'max(640px, 76vh)', borderRadius: '24px', overflow: 'hidden', border: `1px solid ${COLORS.border}`, backgroundColor: '#F5F1EA' }}>
         {tokenMissing ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: COLORS.espresso, padding: '40px', textAlign: 'center' }}>
             <p>Mapbox access token is required to display the Opportunity Map. Set VITE_MAPBOX_TOKEN in your environment.</p>
@@ -826,7 +728,7 @@ export default function OpportunityMap({
         {loading && (
           <div style={{
             position: 'absolute',
-            top: '16px',
+            top: '118px',
             left: '50%',
             transform: 'translateX(-50%)',
             padding: '6px 14px',
@@ -843,109 +745,128 @@ export default function OpportunityMap({
           </div>
         )}
 
-        {/* 5-STEP COLOR SCALE LEGEND (Bottom Left) */}
-        <div style={{
-          position: 'absolute',
-          bottom: '24px',
-          left: '20px',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          borderRadius: '8px',
-          padding: '10px 14px',
-          border: `1px solid ${COLORS.border}`,
-          boxShadow: '0 4px 14px rgba(27, 19, 13, 0.08)',
-          zIndex: 5,
-          pointerEvents: 'auto'
-        }}>
-          <div style={{ fontSize: '9.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: COLORS.espresso, marginBottom: '6px' }}>
-            {LAYERS.find((l) => l.id === activeLayer)?.label} ({activeLayer === 'months' || activeLayer === 'dom' ? 'Dark = Faster' : 'Dark = Higher'})
-            {activeLayer === 'dom' && <span style={{ marginLeft: '6px', color: COLORS.burgundy, fontWeight: 600 }}>· Days on market data: Redfin</span>}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-            {BURGUNDY_SCALE.map((color, idx) => (
-              <div
-                key={idx}
-                style={{
-                  width: '24px',
-                  height: '10px',
-                  borderRadius: '2px',
-                  backgroundColor: color,
-                  border: '0.5px solid rgba(27, 19, 13, 0.2)'
-                }}
-              />
-            ))}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)' }}>
-              <div style={{ width: '12px', height: '10px', borderRadius: '2px', backgroundColor: COLORS.lowData, border: '0.5px dashed rgba(27, 19, 13, 0.4)' }} />
-              <span>&lt;3 deals</span>
+        {/* FLOATING TOOLBAR */}
+        <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px', zIndex: 8, pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'auto', maxWidth: '100%' }}>
+            <div style={{ ...FLOAT, display: 'flex', alignItems: 'center', gap: '8px', padding: '5px', borderRadius: '16px', flexWrap: 'wrap' }}>
+              <div style={segWrap} role="group" aria-label="Color the map by">
+                {LAYERS.map((layer) => (
+                  <button key={layer.id} type="button" title={layer.desc} onClick={() => setActiveLayer(layer.id)} style={segBtn(activeLayer === layer.id)}>
+                    {SHORT_LAYER[layer.id] || layer.label}
+                  </button>
+                ))}
+              </div>
+              <span style={{ width: '1px', height: '22px', backgroundColor: COLORS.border }} />
+              <div style={segWrap} role="group" aria-label="Deal type">
+                {DEAL_TYPES.map((dt) => (
+                  <button key={dt.id} type="button" onClick={() => setActiveDealType(dt.id)} style={segBtn(activeDealType === dt.id)}>
+                    {SHORT_DEAL[dt.id] || dt.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((o) => !o)}
+                aria-expanded={filtersOpen}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '7px 13px', borderRadius: '10px', border: `1px solid ${filtersOpen ? COLORS.espresso : COLORS.border}`, backgroundColor: COLORS.white, color: COLORS.espresso, fontFamily: SANS, fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}
+              >
+                Filters
+                {activeFilterChips.length > 0 && (
+                  <span style={{ backgroundColor: COLORS.burgundy, color: COLORS.cream, borderRadius: '999px', fontSize: '10px', fontWeight: 600, padding: '1px 7px' }}>{activeFilterChips.length}</span>
+                )}
+              </button>
             </div>
+
+            {filtersOpen && (
+              <div style={{ ...FLOAT, borderRadius: '16px', padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '14px', width: 'min(560px, calc(100vw - 80px))', boxSizing: 'border-box' }}>
+                {filterField('County', selectedCounty, setSelectedCounty, COUNTIES)}
+                {filterField('Exit price', priceBand, setPriceBand, PRICE_BANDS)}
+                {filterField('Window', lookbackMonths, setLookbackMonths, LOOKBACK_OPTIONS, true)}
+                {filterField('Living sf', sqftBand, setSqftBand, SF_BANDS)}
+                {filterField('Beds', minBeds, setMinBeds, BED_OPTIONS, true)}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button type="button" onClick={() => { setSelectedCounty('all'); setPriceBand('all'); setLookbackMonths(24); setSqftBand('all'); setMinBeds(0); }} style={{ border: 'none', background: 'transparent', color: '#7A6E64', fontFamily: SANS, fontSize: '11.5px', cursor: 'pointer', padding: '9px 4px' }}>Reset</button>
+                  <button type="button" onClick={() => setFiltersOpen(false)} style={{ border: 'none', borderRadius: '999px', backgroundColor: COLORS.burgundy, color: COLORS.cream, fontFamily: SANS, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.14em', padding: '9px 16px', cursor: 'pointer' }}>DONE →</button>
+                </div>
+              </div>
+            )}
+
+            {!filtersOpen && activeFilterChips.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {activeFilterChips.map((c) => (
+                  <button key={c.key} type="button" onClick={c.clear} title="Remove filter" style={{ padding: '5px 10px', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.94)', border: `1px solid ${COLORS.border}`, fontFamily: SANS, fontSize: '11px', color: COLORS.espresso, cursor: 'pointer' }}>
+                    {c.label} <span style={{ color: '#7A6E64', marginLeft: '2px' }}>×</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* RANKINGS CARD (Top Left Overlay) */}
-        {rankings.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '20px',
-            width: '280px',
-            maxWidth: 'calc(100% - 40px)',
-            backgroundColor: 'rgba(255, 255, 255, 0.96)',
-            borderRadius: '10px',
-            padding: '12px 14px',
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: '0 4px 18px rgba(27, 19, 13, 0.1)',
-            zIndex: 5
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: COLORS.burgundy }}>
-                TOP 5 OPPORTUNITY AREAS
-              </span>
-              <span style={{ fontSize: '9px', color: 'rgba(27, 19, 13, 0.5)' }}>by {activeLayer}</span>
+        {/* LEGEND (bottom right) */}
+        <div style={{ ...FLOAT, position: 'absolute', right: '16px', bottom: '16px', zIndex: 5, borderRadius: '14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', fontSize: '10.5px', color: '#5E544C', maxWidth: 'calc(100% - 340px)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={LABEL_STYLE}>{SHORT_LAYER[activeLayer]}</span>
+            <span>{activeLayer === 'months' || activeLayer === 'dom' ? 'Slower' : 'Lower'}</span>
+            {BURGUNDY_SCALE.map((color) => <span key={color} style={{ width: '18px', height: '8px', borderRadius: '2px', backgroundColor: color }} />)}
+            <span>{activeLayer === 'months' || activeLayer === 'dom' ? 'Faster' : 'Higher'}</span>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: DOT_FLIP }} />Flip</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS.espresso }} />Build</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '11px', height: '8px', borderRadius: '2px', backgroundColor: '#EDE7DE', border: '1px dashed #B9AEA2' }} />Under 3 deals</span>
+          {activeLayer === 'dom' && <span style={{ color: COLORS.burgundy }}>Days on market: Redfin</span>}
+        </div>
+
+        {/* TOP AREAS (collapsible, bottom left) */}
+        {rankings.length > 0 && (rankOpen ? (
+          <div style={{ ...FLOAT, position: 'absolute', left: '16px', bottom: '16px', width: '290px', maxWidth: 'calc(100% - 32px)', zIndex: 5, borderRadius: '16px', padding: '14px 12px 8px', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px 6px' }}>
+              <span style={{ fontFamily: SERIF, fontSize: '19px' }}>Top areas <em>by {(SHORT_LAYER[activeLayer] || '').toLowerCase()}</em></span>
+              <button type="button" onClick={() => setRankOpen(false)} aria-label="Collapse top areas" style={{ border: 'none', background: 'transparent', color: '#7A6E64', fontSize: '18px', cursor: 'pointer', lineHeight: 1 }}>–</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {rankings.map((r) => {
-                const isSelected = selectedZip === r.zip;
-                return (
-                  <div
-                    key={r.zip}
-                    onClick={() => handleSelectRankItem(r)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                      padding: '5px 8px',
-                      borderRadius: '6px',
-                      backgroundColor: isSelected ? COLORS.beige : 'transparent',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'background 0.12s ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexShrink: 1 }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: COLORS.burgundy, width: '12px', flexShrink: 0 }}>{r.rank}.</span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: COLORS.espresso, flexShrink: 0 }}>{r.zip}</span>
-                      <span style={{ fontSize: '10px', color: 'rgba(27, 19, 13, 0.6)', maxWidth: '95px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.city}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '10.5px', fontWeight: 700, color: COLORS.burgundy, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      {r.metric_label}
+            {rankings.map((r) => {
+              const isSelected = selectedZip === r.zip;
+              return (
+                <button
+                  key={r.zip}
+                  type="button"
+                  onClick={() => handleSelectRankItem(r)}
+                  style={{ width: '100%', display: 'grid', gridTemplateColumns: '14px minmax(0, 1fr) auto', gap: '10px', alignItems: 'center', padding: '7px 6px', border: 'none', borderRadius: '8px', backgroundColor: isSelected ? COLORS.beige : 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: SANS, color: COLORS.espresso, transition: 'background-color 0.15s ease' }}
+                >
+                  <span style={{ fontFamily: SERIF, fontSize: '15px', color: '#7A6E64' }}>{r.rank}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: '11.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                      <b style={{ fontWeight: 600 }}>{r.zip}</b> <span style={{ color: '#7A6E64' }}>{r.city}</span>
                     </span>
-                  </div>
-                );
-              })}
-            </div>
+                    <span style={{ display: 'block', height: '3px', backgroundColor: '#EFEAE3', borderRadius: '2px', marginTop: '5px' }}>
+                      <span style={{ display: 'block', height: '3px', width: `${rankBarPct(r)}%`, backgroundColor: '#6E2231', borderRadius: '2px', transition: 'width 0.4s ease' }} />
+                    </span>
+                  </span>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: COLORS.burgundy, whiteSpace: 'nowrap' }}>{r.metric_label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRankOpen(true)}
+            style={{ ...FLOAT, position: 'absolute', left: '16px', bottom: '16px', zIndex: 5, borderRadius: '999px', padding: '9px 16px', fontFamily: SANS, fontSize: '11.5px', color: COLORS.espresso, cursor: 'pointer' }}
+          >
+            <span style={{ fontFamily: SERIF, fontSize: '16px' }}>Top areas</span>
+            <span style={{ color: '#7A6E64' }}> · {rankings[0]?.zip} {rankings[0]?.city} leads · {rankings[0]?.metric_label}</span>
+            <span style={{ color: COLORS.burgundy }}> ▾</span>
+          </button>
+        ))}
 
         {/* SIDE DETAIL PANEL (Area Click) */}
         {selectedArea && (
           <div style={{
             position: 'absolute',
-            top: '16px',
-            right: '20px',
-            width: '320px',
-            maxHeight: '588px',
+            top: '76px',
+            right: '16px',
+            width: '340px',
+            maxHeight: 'calc(100% - 160px)',
             overflowY: 'auto',
             backgroundColor: COLORS.white,
             borderRadius: '10px',
@@ -1079,4 +1000,3 @@ export default function OpportunityMap({
     </div>
   );
 }
-
