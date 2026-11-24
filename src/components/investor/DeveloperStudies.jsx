@@ -61,6 +61,7 @@ export function computeStudyDeal(deal) {
         row,
         est: null,
         fromBreakdown: true,
+        dealType: bdInputs.dealType || deal.deal_type || row.deal_type,
         breakdownTitle: deal.breakdown.title || 'Deal Breakdown',
         breakdownUpdated: deal.breakdown.updated_at,
         buy: Number(c.purchasePrice) || Number(row.buy_price) || null,
@@ -92,6 +93,7 @@ export function computeStudyDeal(deal) {
   return {
     row,
     est,
+    dealType: deal.deal_type || row.deal_type,
     buy: Number(row.buy_price) || null,
     sell,
     months: Number(row.hold_months) || null,
@@ -326,7 +328,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
 
   const kpis = useMemo(() => {
     const cs = computed.map((x) => x.c);
-    const builds = computed.filter((x) => isBuild(x.deal.deal_type || x.c.row.deal_type)).length;
+    const builds = computed.filter((x) => isBuild(x.c.dealType)).length;
     const margins = cs.map((c) => c.margin).filter((v) => v != null);
     return {
       count: cs.length,
@@ -445,7 +447,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
             <tbody>
               {computed.map(({ deal, c }) => {
                 const r = c.row;
-                const build = isBuild(deal.deal_type || r.deal_type);
+                const build = isBuild(c.dealType);
                 const draft = costDrafts[deal.id];
                 return (
                   <tr key={deal.id} style={{ borderTop: `1px solid ${C.line}` }}>
@@ -454,7 +456,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
                       <span style={sub}>{[r.city, deal.zip || r.zip].filter(Boolean).join(' ')}{r.living_sqft ? ` · ${Number(r.living_sqft).toLocaleString()} sf` : ''}</span>
                     </td>
                     <td style={td}>
-                      <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.08em', padding: '3px 8px', borderRadius: '999px', backgroundColor: build ? C.espresso : '#F5EFF0', color: build ? C.cream : '#6E2231' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.08em', padding: '3px 8px', borderRadius: '999px', backgroundColor: build ? C.espresso : '#F5EFF0', color: build ? C.cream : '#6E2231', whiteSpace: 'nowrap', display: 'inline-block' }}>
                         {build ? 'NEW BUILD' : 'FLIP'}
                       </span>
                     </td>
@@ -481,7 +483,7 @@ function StudyDetail({ studyId, onBack, onGoToFinder, onOpenDealBreakdown, onCha
                       )}
                     </td>
                     <td style={td}>{money(c.sell)} <Tag kind="recorded" /><span style={sub}>{monthLabel(r.sell_year, r.sell_month)}</span></td>
-                    <td style={td}>{c.months != null ? `${Math.round(c.months)} mo` : '—'}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{c.months != null ? `${Math.round(c.months)} mo` : '—'}</td>
                     <td style={{ ...td, fontWeight: 600, color: c.profit != null && c.profit < 0 ? C.loss : C.burgundy }}>
                       {money(c.profit)}
                       <span style={{ ...sub, fontWeight: 400 }}>{c.fromBreakdown ? `from “${c.breakdownTitle}”` : 'quick estimate'}</span>

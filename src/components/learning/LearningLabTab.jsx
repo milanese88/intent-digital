@@ -1035,6 +1035,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
           gap: '32px',
+          alignItems: 'start',
           marginBottom: '56px'
         }}>
           {/* -----------------------------------------------------------------
@@ -1111,7 +1112,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
             )}
 
             {currentTerm && (
-              <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 50px)', boxSizing: 'border-box' }}>
+              <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                 {[
                   'how_flippers_builders_make_money',
                   'fha_plain_words',
@@ -1304,7 +1305,7 @@ export default function LearningLabTab({ setActiveDashboardTab }) {
             </div>
 
             {currentPrinciple && (
-              <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 50px)', boxSizing: 'border-box' }}>
+              <Card style={{ padding: '32px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                 {/* Title */}
                 <div style={{ marginBottom: '16px' }}>
                   <h3 style={{
